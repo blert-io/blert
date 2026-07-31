@@ -600,18 +600,8 @@ impl ActiveChallenge {
         let run = self.state.processing.active()?;
         let attempt = run.attempts;
         let request = ProcessingRequest {
-            uuid: self.state.uuid,
             trigger: run.trigger,
-            challenge: ChallengeInfo {
-                challenge_type: self.state.challenge_type,
-                mode: self.state.mode,
-                party: self.state.party.clone(),
-                party_changed: self.state.party_changed,
-                stage: self.state.stage,
-                status: self.state.status(),
-                challenge_ticks: self.state.challenge_ticks,
-                created_unix_ms: self.state.created_unix_ms,
-            },
+            challenge: run.info.clone(),
         };
         let trigger = request.trigger.seq();
         Some(ProcessingTask {

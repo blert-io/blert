@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use core::time::Duration;
 
 use super::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, ClientId, JournalSeq, MsgId,
-    ProcessingError, ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage,
-    StageStatus, Timestamp, UserId, Uuid,
+    ChallengeInfo, ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, ClientId,
+    JournalSeq, MsgId, ProcessingError, ProcessingPayload, RecordingType, ReportedTimes,
+    SessionToken, Stage, StageStatus, Timestamp, UserId, Uuid,
 };
 
 /// Progress of the challenge's current stage attempt.
@@ -122,10 +122,18 @@ pub enum ProcessingState {
     Running { since: Timestamp },
 }
 
+/// A queued trigger and the state at the time it was queued.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueuedTrigger {
+    pub trigger: Trigger,
+    pub info: ChallengeInfo,
+}
+
 /// An active processing run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessingRun {
     pub trigger: Trigger,
+    pub info: ChallengeInfo,
     pub attempts: u32,
     /// False once a run fails with a non-retriable error.
     pub retriable: bool,
@@ -133,9 +141,10 @@ pub struct ProcessingRun {
 }
 
 impl ProcessingRun {
-    fn new(trigger: Trigger, at: Timestamp) -> Self {
+    fn new(queued: QueuedTrigger, at: Timestamp) -> Self {
         ProcessingRun {
-            trigger,
+            trigger: queued.trigger,
+            info: queued.info,
             attempts: 0,
             retriable: true,
             state: ProcessingState::Idle { since: at },
@@ -154,8 +163,10 @@ impl ProcessingRun {
 pub struct Processing {
     config: ProcessingConfig,
     active: Option<ProcessingRun>,
-    pending: VecDeque<Trigger>,
+    pending: VecDeque<QueuedTrigger>,
     failed: Vec<Trigger>,
+    /// Whether the challenge's finish trigger has been queued.
+    finish_queued: bool,
     /// Status derived from the most recently processed outcome.
     status: Option<ChallengeStatus>,
 }
@@ -167,19 +178,24 @@ impl Processing {
             active: None,
             pending: VecDeque::new(),
             failed: Vec::new(),
+            finish_queued: false,
             status: None,
         }
     }
 
     /// Records a new trigger, starting its run if free.
-    pub fn push(&mut self, trigger: Trigger, at: Timestamp) {
+    pub fn push(&mut self, trigger: Trigger, info: ChallengeInfo, at: Timestamp) {
         if self.config.max_attempts == 0 {
             return;
         }
+        if matches!(trigger, Trigger::Finish { .. }) {
+            self.finish_queued = true;
+        }
+        let queued = QueuedTrigger { trigger, info };
         if self.active.is_none() {
-            self.active = Some(ProcessingRun::new(trigger, at));
+            self.active = Some(ProcessingRun::new(queued, at));
         } else {
-            self.pending.push_back(trigger);
+            self.pending.push_back(queued);
         }
     }
 
@@ -231,7 +247,7 @@ impl Processing {
         self.active = self
             .pending
             .pop_front()
-            .map(|trigger| ProcessingRun::new(trigger, at));
+            .map(|queued| ProcessingRun::new(queued, at));
     }
 
     /// The run currently owning the pipeline.
@@ -245,7 +261,7 @@ impl Processing {
         self.active
             .iter()
             .map(|run| run.trigger)
-            .chain(self.pending.iter().copied())
+            .chain(self.pending.iter().map(|queued| queued.trigger))
     }
 
     /// Triggers whose runs were abandoned after exhausting their attempts.
@@ -264,6 +280,12 @@ impl Processing {
     #[must_use]
     pub fn settled(&self) -> bool {
         self.active.is_none() && self.pending.is_empty()
+    }
+
+    /// Whether the challenge's finish trigger has been queued.
+    #[must_use]
+    pub fn finish_queued(&self) -> bool {
+        self.finish_queued
     }
 }
 
@@ -419,6 +441,22 @@ pub struct ChallengeState {
 }
 
 impl ChallengeState {
+    /// Snapshots the challenge's current state.
+    #[must_use]
+    pub fn challenge_info(&self) -> ChallengeInfo {
+        ChallengeInfo {
+            uuid: self.uuid,
+            challenge_type: self.challenge_type,
+            mode: self.mode,
+            party: self.party.clone(),
+            party_changed: self.party_changed,
+            stage: self.stage,
+            stage_attempt: self.stage_attempt,
+            status: self.status(),
+            created_unix_ms: self.created_unix_ms,
+        }
+    }
+
     /// The challenge's published status.
     #[must_use]
     pub fn status(&self) -> ChallengeStatus {
@@ -500,11 +538,16 @@ mod tests {
         let mut processing = Processing::new(config(2));
         assert!(processing.settled());
 
-        processing.push(trigger(3, Stage::TobMaiden), Timestamp::from_millis(100));
+        processing.push(
+            trigger(3, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
         assert_eq!(
             processing.active(),
             Some(&ProcessingRun {
                 trigger: trigger(3, Stage::TobMaiden),
+                info: ChallengeState::default().challenge_info(),
                 attempts: 0,
                 retriable: true,
                 state: ProcessingState::Idle {
@@ -514,14 +557,22 @@ mod tests {
         );
         assert!(!processing.settled());
 
-        processing.push(trigger(7, Stage::TobBloat), Timestamp::from_millis(200));
+        processing.push(
+            trigger(7, Stage::TobBloat),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(200),
+        );
         assert_eq!(processing.active().unwrap().trigger.seq(), JournalSeq(3));
     }
 
     #[test]
     fn processing_start_only_responds_to_the_active_trigger() {
         let mut processing = Processing::new(config(2));
-        processing.push(trigger(3, Stage::TobMaiden), Timestamp::from_millis(100));
+        processing.push(
+            trigger(3, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
 
         processing.start(JournalSeq(9), Timestamp::from_millis(150));
         assert_eq!(processing.active().unwrap().attempts, 0);
@@ -540,8 +591,16 @@ mod tests {
     #[test]
     fn processing_finish_records_status_and_starts_next() {
         let mut processing = Processing::new(config(2));
-        processing.push(trigger(3, Stage::TobMaiden), Timestamp::from_millis(100));
-        processing.push(trigger(7, Stage::TobBloat), Timestamp::from_millis(200));
+        processing.push(
+            trigger(3, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
+        processing.push(
+            trigger(7, Stage::TobBloat),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(200),
+        );
         processing.start(JournalSeq(3), Timestamp::from_millis(150));
 
         processing.finish(
@@ -554,6 +613,7 @@ mod tests {
             processing.active(),
             Some(&ProcessingRun {
                 trigger: trigger(7, Stage::TobBloat),
+                info: ChallengeState::default().challenge_info(),
                 attempts: 0,
                 retriable: true,
                 state: ProcessingState::Idle {
@@ -566,8 +626,16 @@ mod tests {
     #[test]
     fn processing_failed_backs_off_until_exhausted() {
         let mut processing = Processing::new(config(2));
-        processing.push(trigger(3, Stage::TobMaiden), Timestamp::from_millis(100));
-        processing.push(trigger(7, Stage::TobBloat), Timestamp::from_millis(200));
+        processing.push(
+            trigger(3, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
+        processing.push(
+            trigger(7, Stage::TobBloat),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(200),
+        );
 
         processing.start(JournalSeq(3), Timestamp::from_millis(150));
         processing.finish(
@@ -602,7 +670,11 @@ mod tests {
     #[test]
     fn processing_non_retriable_failure_exhausts_immediately() {
         let mut processing = Processing::new(config(5));
-        processing.push(trigger(3, Stage::TobMaiden), Timestamp::from_millis(100));
+        processing.push(
+            trigger(3, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
         processing.start(JournalSeq(3), Timestamp::from_millis(150));
 
         processing.finish(
@@ -645,9 +717,11 @@ mod tests {
             ..ChallengeState::default()
         };
 
-        state
-            .processing
-            .push(trigger(3, Stage::TobMaiden), Timestamp::from_millis(100));
+        state.processing.push(
+            trigger(3, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
         state
             .processing
             .start(JournalSeq(3), Timestamp::from_millis(150));

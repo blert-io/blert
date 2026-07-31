@@ -115,7 +115,13 @@ async fn serve(config: LifecycleConfig) {
             .await
             .expect("failed to connect to Postgres");
         tracing::info!("postgres_connected");
-        coordinator = coordinator.with_processor(Arc::new(processing::Pipeline::new(db, store)));
+        let repository_uri =
+            std::env::var("BLERT_DATA_REPOSITORY").expect("BLERT_DATA_REPOSITORY must be set");
+        let repository = repository::DataRepository::from_uri(&repository_uri)
+            .await
+            .expect("failed to open the data repository");
+        coordinator =
+            coordinator.with_processor(Arc::new(processing::Pipeline::new(db, store, repository)));
     }
     let coordinator = Arc::new(coordinator);
     coordinator.start_scan(CLAIM_SCAN_INTERVAL);
