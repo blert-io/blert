@@ -19,11 +19,7 @@ import { TimelinePalette } from './palette';
 import { Point } from './types';
 
 export type CellCategory =
-  | 'default'
-  | 'offCooldown'
-  | 'action'
-  | 'npcAttack'
-  | 'dead';
+  'default' | 'offCooldown' | 'action' | 'npcAttack' | 'dead';
 
 export type CellStyle = {
   /** Fill color for the cell background. */

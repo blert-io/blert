@@ -133,8 +133,7 @@ export const GRAPHICS_EVENT_TYPES: ReadonlySet<EventType> = new Set(
  * understand desync exists.
  */
 type NpcTickStateEventType =
-  | typeof Event.Type.NPC_UPDATE
-  | typeof Event.Type.NPC_ATTACK;
+  typeof Event.Type.NPC_UPDATE | typeof Event.Type.NPC_ATTACK;
 
 const NPC_TICK_STATE_RECORD: Record<NpcTickStateEventType, true> = {
   [Event.Type.NPC_UPDATE]: true,
@@ -150,9 +149,7 @@ export const NPC_TICK_STATE_TYPES: ReadonlySet<EventType> = new Set(
  * basis.
  */
 export type TickStateEventType =
-  | PlayerTickStateEventType
-  | NpcTickStateEventType
-  | GraphicsEventType;
+  PlayerTickStateEventType | NpcTickStateEventType | GraphicsEventType;
 
 export const TICK_STATE_EVENT_TYPES =
   PLAYER_TICK_STATE_TYPES.union(NPC_TICK_STATE_TYPES).union(

@@ -1,10 +1,5 @@
 export type ThemeId =
-  | 'blert'
-  | 'aero'
-  | 'outrun'
-  | 'morytania'
-  | 'necropolis'
-  | 'ashfall';
+  'blert' | 'aero' | 'outrun' | 'morytania' | 'necropolis' | 'ashfall';
 
 export type ThemeDefinition = {
   id: ThemeId;

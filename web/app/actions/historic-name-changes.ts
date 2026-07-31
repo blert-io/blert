@@ -16,8 +16,7 @@ export {
 } from './name-change-processor';
 
 export type SubmitHistoricResult =
-  | { ok: true; sequenceId: string }
-  | { ok: false; error: ChainError };
+  { ok: true; sequenceId: string } | { ok: false; error: ChainError };
 
 /**
  * Records a historic name change chain as a pending sequence to be processed.

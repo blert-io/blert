@@ -173,9 +173,7 @@ export enum StageStreamType {
 }
 
 export type ClientStageStream =
-  | StageStreamMetadata
-  | StageStreamEvents
-  | StageStreamEnd;
+  StageStreamMetadata | StageStreamEvents | StageStreamEnd;
 
 export type StageStreamMetadata = {
   type: StageStreamType.CLIENT_METADATA;

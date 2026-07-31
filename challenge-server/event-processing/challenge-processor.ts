@@ -57,11 +57,7 @@ export type InitializedFields = {
 };
 
 type ModifiableChallengeFieldKey =
-  | 'challengeTicks'
-  | 'mode'
-  | 'stage'
-  | 'status'
-  | 'totalDeaths';
+  'challengeTicks' | 'mode' | 'stage' | 'status' | 'totalDeaths';
 
 function isModifiableChallengeFieldKey(
   key: string,

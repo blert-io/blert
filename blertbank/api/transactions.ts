@@ -36,9 +36,7 @@ export type AccountParticipant = {
 };
 
 export type TransactionParticipant =
-  | UserParticipant
-  | SystemParticipant
-  | AccountParticipant;
+  UserParticipant | SystemParticipant | AccountParticipant;
 
 type CreateTransactionBody = {
   createdBy: number;
@@ -80,8 +78,7 @@ type TransactionResponseWithParticipants = TransactionResponseBase & {
 };
 
 type TransactionResponse =
-  | TransactionResponseWithEntries
-  | TransactionResponseWithParticipants;
+  TransactionResponseWithEntries | TransactionResponseWithParticipants;
 
 /**
  * Mapping from account ID to the original participant that resolved to it.
