@@ -10,7 +10,7 @@
 mod scenarios;
 
 use core::time::Duration;
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::ops::Index;
 use std::slice;
 use std::sync::{Arc, Mutex};
@@ -36,7 +36,7 @@ use super::core::state::{
     ChallengePhase, ChallengeState, Processing, PublishedClient, Snapshot, Trigger,
 };
 use super::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, MsgId, ProcessingError,
+    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError,
     ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage, StageExt, StageStatus,
     UserId, Uuid,
 };
@@ -1143,8 +1143,12 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
             }
         }
 
+        let max_attempts = config.processing.max_attempts;
         let mut seals = Vec::new();
         let mut trigger_seqs = HashSet::new();
+        let mut outstanding = HashSet::new();
+        let mut attempts: HashMap<JournalSeq, u32> = HashMap::new();
+        let mut finish_seq = None;
         let mut joined = HashSet::new();
         let mut stage = None;
         let mut terminated = false;
@@ -1170,14 +1174,17 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                 } => {
                     stage = Some(*initial_stage);
                     trigger_seqs.insert(entry.seq);
+                    outstanding.insert(entry.seq);
                 }
-                LifecycleEvent::ChallengeTerminated { .. } | LifecycleEvent::ModeChanged { .. } => {
+                LifecycleEvent::ModeChanged { .. } => {
                     trigger_seqs.insert(entry.seq);
+                    outstanding.insert(entry.seq);
                 }
                 // Only a real stage change triggers processing.
                 LifecycleEvent::StageStarted { stage: started } => {
                     if stage != Some(*started) {
                         trigger_seqs.insert(entry.seq);
+                        outstanding.insert(entry.seq);
                     }
                     stage = Some(*started);
                 }
@@ -1185,6 +1192,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                 LifecycleEvent::ClientJoined { client_id, .. } => {
                     if joined.insert(*client_id) {
                         trigger_seqs.insert(entry.seq);
+                        outstanding.insert(entry.seq);
                     }
                 }
                 LifecycleEvent::StageSealed { stage, attempt, .. } => {
@@ -1194,17 +1202,51 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                     );
                     seals.push((*stage, *attempt));
                     trigger_seqs.insert(entry.seq);
+                    outstanding.insert(entry.seq);
                 }
-                LifecycleEvent::ProcessingStarted { trigger }
-                | LifecycleEvent::ProcessingFinished { trigger, .. }
-                | LifecycleEvent::ProcessingFailed { trigger, .. }
-                | LifecycleEvent::ProcessingTimedOut { trigger } => {
+                LifecycleEvent::ProcessingStarted { trigger } => {
                     assert!(
                         trigger_seqs.contains(trigger),
                         "processing entry references no trigger: {uuid}",
                     );
+                    *attempts.entry(*trigger).or_default() += 1;
+                }
+                LifecycleEvent::ProcessingFinished { trigger, .. } => {
+                    assert!(
+                        trigger_seqs.contains(trigger),
+                        "processing entry references no trigger: {uuid}",
+                    );
+                    outstanding.remove(trigger);
+                }
+                LifecycleEvent::ProcessingFailed { trigger, error } => {
+                    assert!(
+                        trigger_seqs.contains(trigger),
+                        "processing entry references no trigger: {uuid}",
+                    );
+                    let exhausted = !error.retriable
+                        || attempts.get(trigger).copied().unwrap_or(0) >= max_attempts;
+                    if exhausted {
+                        outstanding.remove(trigger);
+                    }
+                }
+                LifecycleEvent::ProcessingTimedOut { trigger } => {
+                    assert!(
+                        trigger_seqs.contains(trigger),
+                        "processing entry references no trigger: {uuid}",
+                    );
+                    if attempts.get(trigger).copied().unwrap_or(0) >= max_attempts {
+                        outstanding.remove(trigger);
+                    }
                 }
                 _ => {}
+            }
+
+            // The first entry to leave a terminated, settled pipeline queues
+            // the finish under its seq.
+            if terminated && outstanding.is_empty() && finish_seq.is_none() {
+                finish_seq = Some(entry.seq);
+                trigger_seqs.insert(entry.seq);
+                outstanding.insert(entry.seq);
             }
         }
     }

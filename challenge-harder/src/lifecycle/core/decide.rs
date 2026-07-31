@@ -1700,6 +1700,7 @@ mod tests {
                 stage: Stage::TobMaiden,
                 attempt: None,
             },
+            ChallengeState::default().challenge_info(),
             Timestamp::from_millis(1_000),
         );
         state

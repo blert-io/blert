@@ -3,18 +3,14 @@
 use std::time::{Duration, UNIX_EPOCH};
 
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, PlayerId, PrimaryMeleeGear, RecordingType, Stage, UserId, Uuid,
+    ChallengeMode, ChallengeStatus, PlayerId, PrimaryMeleeGear, RecordingType, Stage, UserId,
 };
 use crate::players::normalize_rsn;
 
 use super::{ChallengeInfo, db};
 
 /// Initializes a new challenge.
-pub async fn create(
-    txn: &mut db::Transaction,
-    uuid: Uuid,
-    info: &ChallengeInfo,
-) -> Result<(), db::Error> {
+pub async fn create(txn: &mut db::Transaction, info: &ChallengeInfo) -> Result<(), db::Error> {
     let start_time = UNIX_EPOCH + Duration::from_millis(info.created_unix_ms);
     let row = txn
         .query_one(
@@ -22,7 +18,7 @@ pub async fn create(
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING id",
             &[
-                &uuid,
+                &info.uuid,
                 &(info.challenge_type as i16),
                 &(info.mode as i16),
                 &info.scale(),

@@ -218,6 +218,7 @@ mod tests {
                 stage: Stage::TobMaiden,
                 attempt: None,
             },
+            ChallengeState::default().challenge_info(),
             since,
         );
         processing

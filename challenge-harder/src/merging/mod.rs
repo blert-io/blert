@@ -158,6 +158,11 @@ impl MergedEvents {
         self.metadata.last_tick < self.metadata.queryable_until
     }
 
+    /// Consumes the timeline, returning its events in tick order.
+    pub fn into_events(self) -> Vec<Event> {
+        self.events
+    }
+
     /// Limits the accuracy and queryability of the event stream to `tick`, exclusive.
     pub fn restrict_accuracy_to(&mut self, tick: u32) {
         self.metadata.accurate_until = self.metadata.accurate_until.min(tick);

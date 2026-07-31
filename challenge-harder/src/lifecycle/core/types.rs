@@ -310,6 +310,26 @@ impl ClientStageStream {
     }
 }
 
+/// Challenge state snapshot at the time of a processing run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChallengeInfo {
+    pub uuid: Uuid,
+    pub challenge_type: ChallengeType,
+    pub mode: ChallengeMode,
+    pub party: Vec<String>,
+    pub party_changed: bool,
+    pub stage: Stage,
+    pub stage_attempt: Option<u32>,
+    pub status: ChallengeStatus,
+    pub created_unix_ms: u64,
+}
+
+impl ChallengeInfo {
+    pub fn scale(&self) -> i16 {
+        i16::try_from(self.party.len()).expect("scale fits in a smallint")
+    }
+}
+
 /// Result that a completed processing run feeds back into the challenge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProcessingPayload {

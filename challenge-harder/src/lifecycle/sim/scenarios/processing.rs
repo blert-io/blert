@@ -355,13 +355,13 @@ async fn finalization_waits_for_processing_to_finish_after_termination() {
                 14,
                 6_000,
                 Cause::Deadline(DeadlineKind::ProcessingDue),
-                started(12)
+                started(13)
             ),
             entry(
                 15,
                 6_000,
-                processing(12),
-                finished(12, ProcessingPayload::None),
+                processing(13),
+                finished(13, ProcessingPayload::None),
             ),
         ],
     );
@@ -525,13 +525,13 @@ async fn late_commands_post_termination_while_processing() {
                 14,
                 6_000,
                 Cause::Deadline(DeadlineKind::ProcessingDue),
-                started(12)
+                started(13)
             ),
             entry(
                 15,
                 6_000,
-                processing(12),
-                finished(12, ProcessingPayload::None),
+                processing(13),
+                finished(13, ProcessingPayload::None),
             ),
         ],
     );
@@ -768,7 +768,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
     assert!(collector.is_deleted(uuid));
     assert_eq!(
         collector.journal(uuid).last().unwrap().event,
-        finished(10, ProcessingPayload::None),
+        finished(11, ProcessingPayload::None),
     );
     assert_eq!(second.requests().len(), 2);
 }

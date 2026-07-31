@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use crate::item::{self, ItemDelta};
-use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear, Stage, Uuid};
+use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear, Uuid};
 use crate::merging::{self, MergedEvents};
 use crate::proto::{Event, event};
 
@@ -161,6 +161,26 @@ pub struct InterpretOutput {
     pub(super) ctx: StageContext,
 }
 
+impl InterpretOutput {
+    /// Consumes the output, returning the kept events in tick order.
+    pub(super) fn into_kept_events(self) -> Vec<Event> {
+        let mut kept = self.kept.into_iter().peekable();
+        self.events
+            .into_events()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, event)| {
+                if kept.peek() == Some(&index) {
+                    kept.next();
+                    Some(event)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
 /// A failure to interpret a stage's recorded data.
 #[derive(Debug)]
 pub enum InterpretError {
@@ -170,19 +190,19 @@ pub enum InterpretError {
 
 /// Processes a stage's raw events into a canonical timeline.
 pub fn interpret(
-    uuid: Uuid,
     challenge: ChallengeInfo,
-    stage: Stage,
     records: Vec<ClientStageStream>,
     processor: &mut dyn ChallengeProcessor,
 ) -> Result<InterpretOutput, InterpretError> {
-    let mut events = merging::merge(uuid, stage, records).ok_or(InterpretError::NoData)?;
-
     let ChallengeInfo {
+        uuid,
+        stage,
         party,
         party_changed,
         ..
     } = challenge;
+
+    let mut events = merging::merge(uuid, stage, records).ok_or(InterpretError::NoData)?;
 
     resolve_party_indices(uuid, &party, &mut events);
 
@@ -316,7 +336,15 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+    use prost::Message;
+
+    use super::super::db;
     use super::*;
+    use crate::lifecycle::core::types::{
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage,
+    };
+    use crate::proto::ChallengeEvents;
     use crate::proto::event::player::EquipmentSlot;
 
     fn context() -> StageContext {
@@ -554,5 +582,95 @@ mod tests {
         );
         let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
         assert_eq!(gear, [None, None]);
+    }
+
+    #[test]
+    fn into_kept_events_returns_the_processors_kept_subsequence() {
+        struct KeepEvenMarkers;
+
+        #[async_trait::async_trait]
+        impl ChallengeProcessor for KeepEvenMarkers {
+            fn process_challenge_event(
+                &mut self,
+                _ctx: &mut StageContext,
+                events: &mut EventCursor<'_>,
+            ) -> bool {
+                events.current().x_coord % 2 == 0
+            }
+
+            async fn on_create(&mut self, _txn: &db::Transaction) -> Result<(), db::Error> {
+                Ok(())
+            }
+
+            async fn on_stage_finished(
+                &mut self,
+                _txn: &db::Transaction,
+                _ctx: &mut StageContext,
+                _stage: Stage,
+                _events: &MergedEvents,
+            ) -> Result<(), db::Error> {
+                Ok(())
+            }
+
+            async fn on_finish(
+                &mut self,
+                _txn: &db::Transaction,
+                _final_ticks: u32,
+            ) -> Result<(), db::Error> {
+                Ok(())
+            }
+
+            fn custom_data(&self) -> Option<serde_json::Value> {
+                None
+            }
+
+            fn has_fully_recorded_up_to(&self, _stage: Stage) -> bool {
+                false
+            }
+        }
+
+        let marker = |tick: u32, x_coord: i32| Event {
+            tick,
+            x_coord,
+            ..Default::default()
+        };
+        let message = ChallengeEvents {
+            events: vec![
+                marker(0, 4),
+                marker(0, 7),
+                marker(1, 2),
+                marker(2, 9),
+                marker(2, 6),
+                marker(3, 1),
+            ],
+            ..Default::default()
+        };
+        let info = ChallengeInfo {
+            uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            challenge_type: ChallengeType::Mokhaiotl,
+            mode: ChallengeMode::NoMode,
+            party: vec!["1Ogp".to_string()],
+            party_changed: false,
+            stage: Stage::MokhaiotlDelve1,
+            stage_attempt: None,
+            status: ChallengeStatus::InProgress,
+            created_unix_ms: 0,
+        };
+
+        let output = interpret(
+            info,
+            vec![ClientStageStream::Events {
+                client_id: ClientId(1),
+                events: Bytes::from(message.encode_to_vec()),
+            }],
+            &mut KeepEvenMarkers,
+        )
+        .unwrap();
+
+        assert_eq!(output.kept, vec![0, 2, 4]);
+        assert_eq!(
+            output.into_kept_events(),
+            vec![marker(0, 4), marker(1, 2), marker(2, 6)],
+        );
     }
 }

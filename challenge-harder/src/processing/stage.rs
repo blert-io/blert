@@ -11,8 +11,9 @@
 use crate::lifecycle::challenge::StoreError;
 use crate::lifecycle::core::types::{
     ChallengeType, ClientStageStream, PlayerId, PrimaryMeleeGear, ProcessingError,
-    ProcessingPayload, Stage, Uuid,
+    ProcessingPayload,
 };
+use crate::repository::DataRepository;
 use crate::store::Store;
 
 use super::challenge_processor::ChallengeProcessor;
@@ -25,11 +26,9 @@ use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
 /// Processes a stage's events from its recorded streams.
 pub async fn process(
     store: &Store,
+    repository: &DataRepository,
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
-    uuid: Uuid,
-    stage: Stage,
-    attempt: Option<u32>,
 ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
     let mut processor = match challenge.challenge_type {
         ChallengeType::Mokhaiotl => MokhaiotlProcessor,
@@ -41,20 +40,20 @@ pub async fn process(
         | ChallengeType::Inferno
         | ChallengeType::UnknownChallenge => {
             tracing::info!(
-                %uuid,
+                uuid = %challenge.uuid,
                 challenge_type = ?challenge.challenge_type,
-                ?stage,
+                stage = ?challenge.stage,
                 "stage_processing_skipped",
             );
             return Ok((ProcessingPayload::None, None));
         }
     };
 
-    let (stream, stored) = gather(store, txn, challenge, uuid, stage, attempt).await?;
+    let (stream, stored) = gather(store, txn, challenge).await?;
     let info = challenge.clone();
 
     let (result, mut processor) = tokio::task::spawn_blocking(move || {
-        let result = interpret(uuid, info, stage, stream, &mut processor);
+        let result = interpret(info, stream, &mut processor);
         (result, processor)
     })
     .await
@@ -63,16 +62,7 @@ pub async fn process(
         message: format!("interpret task failed: {error}"),
     })?;
 
-    let payload = persist(
-        txn,
-        challenge,
-        stage,
-        attempt,
-        &stored,
-        result,
-        &mut processor,
-    )
-    .await?;
+    let payload = persist(txn, repository, challenge, &stored, result, &mut processor).await?;
     Ok((payload, processor.custom_data()))
 }
 
@@ -81,13 +71,10 @@ async fn gather(
     store: &Store,
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
-    uuid: Uuid,
-    stage: Stage,
-    attempt: Option<u32>,
 ) -> Result<(Vec<ClientStageStream>, StoredState), ProcessingError> {
     let stream = async {
         store
-            .read_stage_stream(uuid, stage, attempt)
+            .read_stage_stream(challenge.uuid, challenge.stage, challenge.stage_attempt)
             .await
             .map_err(|error| ProcessingError {
                 retriable: matches!(error, StoreError::Unavailable(_)),
@@ -147,7 +134,8 @@ mod tests {
     use super::super::interpret::{InterpretError, InterpretOutput};
     use super::*;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ClientId, ServerTicks, StageStatus, StageUpdate,
+        ChallengeMode, ChallengeStatus, ClientId, ServerTicks, Stage, StageStatus, StageUpdate,
+        Uuid,
     };
     use crate::proto::{ChallengeEvents, Event};
 
@@ -190,23 +178,18 @@ mod tests {
 
     fn run_interpret(records: Vec<ClientStageStream>) -> Result<InterpretOutput, InterpretError> {
         let info = ChallengeInfo {
+            uuid: test_uuid(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve1,
+            stage_attempt: None,
             status: ChallengeStatus::InProgress,
-            challenge_ticks: 0,
             created_unix_ms: 0,
         };
         let mut processor = MokhaiotlProcessor;
-        interpret(
-            test_uuid(),
-            info,
-            Stage::MokhaiotlDelve1,
-            records,
-            &mut processor,
-        )
+        interpret(info, records, &mut processor)
     }
 
     #[test]

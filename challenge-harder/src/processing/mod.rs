@@ -6,10 +6,12 @@ use async_trait::async_trait;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError,
-    ProcessingPayload, Stage, Uuid,
+    PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
+use crate::repository::DataRepository;
 use crate::store::Store;
+
+pub use crate::lifecycle::core::types::ChallengeInfo;
 
 pub mod db;
 
@@ -21,25 +23,6 @@ mod persist;
 mod split;
 mod stage;
 mod stats;
-
-/// Challenge state at the time a run is triggered.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChallengeInfo {
-    pub challenge_type: ChallengeType,
-    pub mode: ChallengeMode,
-    pub party: Vec<String>,
-    pub party_changed: bool,
-    pub stage: Stage,
-    pub status: ChallengeStatus,
-    pub challenge_ticks: u32,
-    pub created_unix_ms: u64,
-}
-
-impl ChallengeInfo {
-    pub fn scale(&self) -> i16 {
-        i16::try_from(self.party.len()).expect("scale fits in a smallint")
-    }
-}
 
 /// A challenge party member.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,7 +44,6 @@ pub struct StoredState {
 /// A request to process the data demanded by a run trigger.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessingRequest {
-    pub uuid: Uuid,
     pub trigger: Trigger,
     pub challenge: ChallengeInfo,
 }
@@ -79,11 +61,16 @@ pub trait StageProcessor: Send + Sync + 'static {
 pub struct Pipeline {
     db: db::Postgres,
     store: Arc<Store>,
+    repository: DataRepository,
 }
 
 impl Pipeline {
-    pub fn new(db: db::Postgres, store: Arc<Store>) -> Pipeline {
-        Pipeline { db, store }
+    pub fn new(db: db::Postgres, store: Arc<Store>, repository: DataRepository) -> Pipeline {
+        Pipeline {
+            db,
+            store,
+            repository,
+        }
     }
 }
 
@@ -93,20 +80,17 @@ impl StageProcessor for Pipeline {
         &self,
         request: ProcessingRequest,
     ) -> Result<ProcessingPayload, ProcessingError> {
+        let uuid = request.challenge.uuid;
         tracing::info!(
-            uuid = %request.uuid,
+            %uuid,
             trigger = ?request.trigger,
             "processing_started",
         );
 
-        let mut txn = match self
-            .db
-            .start_transaction(request.uuid, request.trigger.seq())
-            .await
-        {
+        let mut txn = match self.db.start_transaction(uuid, request.trigger.seq()).await {
             Ok(txn) => txn,
             Err(db::Error::AlreadyApplied(payload)) => {
-                tracing::debug!(uuid = %request.uuid, seq = ?request.trigger.seq(), "processing_step_already_applied");
+                tracing::debug!(%uuid, seq = ?request.trigger.seq(), "processing_step_already_applied");
                 return Ok(payload);
             }
             Err(error) => return Err(error.into()),
@@ -114,7 +98,7 @@ impl StageProcessor for Pipeline {
 
         let (payload, custom_data) = match request.trigger {
             Trigger::Create { .. } => {
-                challenge::create(&mut txn, request.uuid, &request.challenge).await?;
+                challenge::create(&mut txn, &request.challenge).await?;
                 (ProcessingPayload::None, None)
             }
             Trigger::Recorder {
@@ -137,16 +121,8 @@ impl StageProcessor for Pipeline {
                 challenge::finish(&txn, &request.challenge).await?;
                 (ProcessingPayload::None, None)
             }
-            Trigger::Stage { stage, attempt, .. } => {
-                stage::process(
-                    &self.store,
-                    &txn,
-                    &request.challenge,
-                    request.uuid,
-                    stage,
-                    attempt,
-                )
-                .await?
+            Trigger::Stage { .. } => {
+                stage::process(&self.store, &self.repository, &txn, &request.challenge).await?
             }
         };
         txn.commit(&payload, custom_data.as_ref()).await?;

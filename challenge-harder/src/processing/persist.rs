@@ -6,6 +6,7 @@ use crate::lifecycle::core::types::{
     PrimaryMeleeGear, ProcessingError, ProcessingPayload, Stage, StageStatus,
 };
 use crate::proto::{Event, event};
+use crate::repository::DataRepository;
 use crate::skill::SkillLevel;
 
 use super::challenge_processor::ChallengeProcessor;
@@ -19,9 +20,8 @@ use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
 /// Returns the payload to be sent back to the challenge.
 pub(super) async fn persist(
     txn: &db::Transaction,
+    repository: &DataRepository,
     challenge: &ChallengeInfo,
-    stage: Stage,
-    _attempt: Option<u32>,
     stored: &StoredState,
     result: Result<InterpretOutput, InterpretError>,
     processor: &mut dyn ChallengeProcessor,
@@ -30,7 +30,7 @@ pub(super) async fn persist(
 
     if let Ok(mut output) = result {
         processor
-            .on_stage_finished(txn, &mut output.ctx, stage, &output.events)
+            .on_stage_finished(txn, &mut output.ctx, challenge.stage, &output.events)
             .await?;
 
         let splits = write_splits(
@@ -43,16 +43,33 @@ pub(super) async fn persist(
         .await?;
         update_personal_bests(txn, challenge, &stored.players, &splits).await?;
 
-        tokio::try_join!(
-            update_players(txn, stage, &output.ctx, &stored.players),
+        let ((), (), queryable_events, ()) = tokio::try_join!(
+            update_players(txn, challenge.stage, &output.ctx, &stored.players),
             update_player_stats(txn, &output.ctx, &stored.players),
-            write_queryable_events(txn, challenge, stage, &output, &stored.players),
-            update_challenge_row(
-                txn,
-                challenge.challenge_ticks + output.events.last_tick(),
-                output.ctx.deaths().len(),
-            )
+            write_queryable_events(txn, challenge, &output, &stored.players),
+            update_challenge_row(txn, output.events.last_tick(), output.ctx.deaths().len())
         )?;
+
+        let queryable_until = output.events.queryable_until();
+        let events = output.into_kept_events();
+        let total_events = events.len();
+        repository
+            .save_stage_events(
+                challenge.uuid,
+                challenge.stage,
+                challenge.stage_attempt,
+                &challenge.party,
+                events,
+            )
+            .await?;
+        tracing::info!(
+            uuid = %challenge.uuid,
+            stage = ?challenge.stage,
+            total_events,
+            queryable_events,
+            queryable_until,
+            "challenge_stage_events_saved",
+        );
     }
 
     Ok(payload)
@@ -360,15 +377,15 @@ async fn update_personal_bests(
 
 async fn update_challenge_row(
     txn: &db::Transaction,
-    challenge_ticks: u32,
+    stage_ticks: u32,
     new_deaths: usize,
 ) -> Result<(), db::Error> {
     txn.execute(
         "UPDATE challenges
-         SET challenge_ticks = $1, total_deaths = total_deaths + $2
+         SET challenge_ticks = challenge_ticks + $1, total_deaths = total_deaths + $2
          WHERE id = $3",
         &[
-            &challenge_ticks.cast_signed(),
+            &stage_ticks.cast_signed(),
             &i32::try_from(new_deaths).expect("death count fits in an integer"),
             &txn.challenge_id(),
         ],
@@ -398,7 +415,6 @@ struct QueryableEvent {
 async fn write_queryable_events(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
-    stage: Stage,
     output: &InterpretOutput,
     players: &[StoredPlayerInfo],
 ) -> Result<usize, db::Error> {
@@ -459,7 +475,7 @@ async fn write_queryable_events(
                        custom_int_1, custom_int_2, custom_short_1, custom_short_2)",
         &[
             &txn.challenge_id(),
-            &(stage as i16),
+            &(challenge.stage as i16),
             &(challenge.mode as i16),
             &event_types,
             &ticks,

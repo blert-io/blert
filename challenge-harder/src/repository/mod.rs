@@ -8,7 +8,7 @@
 use futures_util::stream::BoxStream;
 use prost::Message;
 
-use crate::lifecycle::core::types::{Stage, Uuid};
+use crate::lifecycle::core::types::{ProcessingError, Stage, Uuid};
 use crate::proto::{ChallengeData, ChallengeEvents, Event, event};
 
 mod fs;
@@ -27,6 +27,15 @@ pub enum Error {
     Backend(String),
     #[error("stored data failed to decode: {0}")]
     Decode(#[from] prost::DecodeError),
+}
+
+impl From<Error> for ProcessingError {
+    fn from(error: Error) -> Self {
+        ProcessingError {
+            retriable: matches!(error, Error::Backend(_)),
+            message: error.to_string(),
+        }
+    }
 }
 
 /// Raw storage backing the repository. Addressed by paths relative to its root.
