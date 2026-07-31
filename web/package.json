@@ -33,7 +33,7 @@
     "autoprefixer": "^10.5.4",
     "bcrypt": "^6.0.0",
     "better-auth": "^1.6.25",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "graphology": "^0.26.0",
     "graphology-layout-forceatlas2": "^0.10.1",
     "graphology-types": "^0.24.8",
