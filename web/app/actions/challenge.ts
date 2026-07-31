@@ -226,9 +226,7 @@ export async function loadChallenge(
 }
 
 type StatsObject =
-  | TobChallengeStats
-  | MokhaiotlChallengeStats
-  | InfernoChallengeStats;
+  TobChallengeStats | MokhaiotlChallengeStats | InfernoChallengeStats;
 
 function statsObject<T extends StatsObject>(rawRow: Record<string, any>): T {
   delete rawRow.id;
@@ -1170,25 +1168,23 @@ export async function findChallenges(
 
   await Promise.all(loadPromises);
 
-  const challenges = rawChallenges.map(
-    (c): ChallengeOverview => ({
-      uuid: c.uuid,
-      sessionUuid: c.session_uuid,
-      type: c.type,
-      startTime: c.start_time,
-      finishTime: c.finish_time,
-      status: c.status,
-      stage: c.stage,
-      mode: c.mode,
-      scale: c.scale,
-      challengeTicks: c.challenge_ticks,
-      overallTicks: c.overall_ticks,
-      totalDeaths: c.total_deaths,
-      ...(extra[c.id] as Partial<ChallengeOverview> & {
-        party: ChallengeOverview['party'];
-      }),
+  const challenges = rawChallenges.map((c): ChallengeOverview => ({
+    uuid: c.uuid,
+    sessionUuid: c.session_uuid,
+    type: c.type,
+    startTime: c.start_time,
+    finishTime: c.finish_time,
+    status: c.status,
+    stage: c.stage,
+    mode: c.mode,
+    scale: c.scale,
+    challengeTicks: c.challenge_ticks,
+    overallTicks: c.overall_ticks,
+    totalDeaths: c.total_deaths,
+    ...(extra[c.id] as Partial<ChallengeOverview> & {
+      party: ChallengeOverview['party'];
     }),
-  );
+  }));
 
   return [challenges, total];
 }

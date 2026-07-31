@@ -16,12 +16,7 @@ type Direction = 'in' | 'out';
 type OperationResult = 'success' | 'error';
 
 export type RemoteOperation =
-  | 'start'
-  | 'update'
-  | 'complete'
-  | 'process_events'
-  | 'join'
-  | 'status';
+  'start' | 'update' | 'complete' | 'process_events' | 'join' | 'status';
 
 export type AuthFailureReason =
   | 'missing_token'

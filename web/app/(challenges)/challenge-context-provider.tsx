@@ -46,8 +46,7 @@ type ChallengeProviderResult = {
 };
 
 export type SelectedActor =
-  | { type: 'player'; name: string }
-  | { type: 'npc'; roomId: number };
+  { type: 'player'; name: string } | { type: 'npc'; roomId: number };
 
 type RoomActorState = {
   selectedActor: SelectedActor | null;

@@ -118,10 +118,7 @@ export interface BCFCell<ActionType extends { type: string } = BCFAction> {
 export type BCFAction = BCFPlayerAction | BCFNpcAction;
 
 export type BCFPlayerAction =
-  | BCFAttackAction
-  | BCFSpellAction
-  | BCFUtilityAction
-  | BCFDeathAction;
+  BCFAttackAction | BCFSpellAction | BCFUtilityAction | BCFDeathAction;
 export type BCFNpcAction = BCFNpcAttackAction | BCFNpcPhaseAction;
 
 export type BCFLaxAction = BCFAction | BCFUnknownAction;

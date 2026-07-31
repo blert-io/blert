@@ -387,10 +387,7 @@ export type ChainTransition = {
 
 /** Why a submitted name change chain is not well-formed. */
 export type ChainError =
-  | 'empty'
-  | 'invalid_rsn'
-  | 'not_chronological'
-  | 'inconsistent_link';
+  'empty' | 'invalid_rsn' | 'not_chronological' | 'inconsistent_link';
 
 /**
  * Checks that a name change chain is well-formed: nonempty, every name valid,
@@ -1311,8 +1308,7 @@ export async function formatPlan(
 }
 
 export type DryRunResult =
-  | { ok: true; plan: DisplayPlan }
-  | { ok: false; error: ChainError };
+  { ok: true; plan: DisplayPlan } | { ok: false; error: ChainError };
 
 /**
  * Previews a historic name change chain without mutating any data.
@@ -1706,10 +1702,7 @@ class PlayerInActiveChallengeError extends Error {
 }
 
 export type HistoricSequenceResult =
-  | 'processed'
-  | 'unavailable'
-  | 'not_found'
-  | 'failed';
+  'processed' | 'unavailable' | 'not_found' | 'failed';
 
 /**
  * Processes a pending historic name change sequence, consolidating the player's

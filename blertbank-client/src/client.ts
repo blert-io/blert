@@ -336,8 +336,7 @@ export class BlertbankClient {
    */
   private deserializeTransaction(
     transaction:
-      | TransactionResultWithParticipantsRaw
-      | TransactionResultWithEntriesRaw,
+      TransactionResultWithParticipantsRaw | TransactionResultWithEntriesRaw,
   ): TransactionResultWithParticipants | TransactionResultWithEntries {
     return {
       ...transaction,

@@ -52,9 +52,7 @@ export type PostTransactionResult = {
 export class TransactionError extends Error {
   constructor(
     public code:
-      | 'UNBALANCED_TRANSACTION'
-      | 'INVALID_AMOUNT'
-      | 'INSUFFICIENT_FUNDS',
+      'UNBALANCED_TRANSACTION' | 'INVALID_AMOUNT' | 'INSUFFICIENT_FUNDS',
     message: string,
   ) {
     super(message);

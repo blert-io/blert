@@ -1141,12 +1141,7 @@ export async function incrementSetupViews(
 }
 
 export type ItemCategory =
-  | 'melee'
-  | 'ranged'
-  | 'magic'
-  | 'supplies'
-  | 'utility'
-  | 'runes';
+  'melee' | 'ranged' | 'magic' | 'supplies' | 'utility' | 'runes';
 
 export type CustomItems = Record<
   ItemCategory,
