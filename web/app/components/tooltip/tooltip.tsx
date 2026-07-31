@@ -6,6 +6,13 @@ import { Tooltip as ReactTooltip, PlacesType } from 'react-tooltip';
 
 import styles from './style.module.scss';
 
+export type TooltipRenderProps = {
+  /** Value of the anchor's `data-tooltip-content` attribute, if set. */
+  content: React.ReactNode;
+  /** Element which the tooltip is currently anchored to. */
+  activeAnchor: HTMLElement | null;
+};
+
 type TooltipProps = {
   /** Additional CSS class for tooltip */
   className?: string;
@@ -34,13 +41,7 @@ type TooltipProps = {
   /** Tooltip opacity (default: 1) */
   opacity?: number;
   /** Custom render function for tooltip content */
-  render?: ({
-    content,
-    activeAnchor,
-  }: {
-    content: string | null;
-    activeAnchor: HTMLElement | null;
-  }) => React.ReactNode;
+  render?: (props: TooltipRenderProps) => React.ReactNode;
 };
 
 export function Tooltip(props: TooltipProps) {
@@ -57,6 +58,7 @@ export function Tooltip(props: TooltipProps) {
     delayHide,
     border = '1px solid rgba(var(--blert-purple-base), 0.15)',
     opacity = 1,
+    render,
   } = props;
   const [ready, setReady] = useState(false);
   const portalNode = useRef<HTMLElement | null>(null);
@@ -99,7 +101,16 @@ export function Tooltip(props: TooltipProps) {
       delayShow={delayShow}
       delayHide={delayHide}
       opacity={opacity}
-      render={props.render}
+      render={
+        render === undefined
+          ? undefined
+          : ({ content, activeAnchor }) =>
+              render({
+                content,
+                activeAnchor:
+                  activeAnchor instanceof HTMLElement ? activeAnchor : null,
+              })
+      }
       border={border}
       arrowColor="rgba(var(--blert-surface-dark-base), 0.95)"
       style={{
