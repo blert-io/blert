@@ -5,7 +5,8 @@
 //! applied.
 
 use super::command::{
-    ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Processed, Update,
+    ClientMovedOn, ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Processed,
+    Update,
 };
 use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
@@ -36,6 +37,7 @@ pub fn decide(
         Command::Update(u) => update(state, u),
         Command::Finish(f) => finish(state, f),
         Command::ClientStatus(c) => client_status(state, c),
+        Command::ClientMovedOn(m) => client_moved_on(state, m),
         Command::DeadlineFired(d) => deadline_fired(state, config, *d),
         Command::Processed(p) => processed(state, p),
     }
@@ -239,6 +241,16 @@ fn client_status(state: &ChallengeState, change: &ClientStatusChange) -> Vec<Lif
         ClientStatus::Disconnected => vec![LifecycleEvent::ClientRemoved {
             client_id: change.client_id,
         }],
+    }
+}
+
+fn client_moved_on(state: &ChallengeState, moved: &ClientMovedOn) -> Vec<LifecycleEvent> {
+    if state.clients.contains_key(&moved.client_id) {
+        vec![LifecycleEvent::ClientRemoved {
+            client_id: moved.client_id,
+        }]
+    } else {
+        Vec::new()
     }
 }
 
@@ -1167,6 +1179,44 @@ mod tests {
                 &state,
                 &LifecycleConfig::default(),
                 &status_change(CLIENT_B, ClientStatus::Disconnected),
+            ),
+            vec![],
+        );
+    }
+
+    #[test]
+    fn moved_on_client_is_removed() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::ClientMovedOn(ClientMovedOn {
+                    client_id: CLIENT_A,
+                }),
+            ),
+            vec![LifecycleEvent::ClientRemoved {
+                client_id: CLIENT_A
+            }],
+        );
+    }
+
+    #[test]
+    fn moved_on_for_unknown_client_is_ignored() {
+        let state = tob_state(vec![(
+            CLIENT_A,
+            client(Stage::TobMaiden, StageStatus::Started, None),
+        )]);
+        assert_eq!(
+            decide(
+                &state,
+                &LifecycleConfig::default(),
+                &Command::ClientMovedOn(ClientMovedOn {
+                    client_id: CLIENT_B,
+                }),
             ),
             vec![],
         );

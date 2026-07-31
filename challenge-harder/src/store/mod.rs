@@ -15,9 +15,7 @@ use crate::lifecycle::challenge::{
     ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Rejoin, Start,
     StoreError,
 };
-use crate::lifecycle::core::command::{
-    ClientStatus, ClientStatusChange, Command, Create, Envelope, Join,
-};
+use crate::lifecycle::core::command::{ClientMovedOn, Command, Create, Envelope, Join};
 use crate::lifecycle::core::event::JournalEntry;
 use crate::lifecycle::core::state::{ChallengePhase, ChallengeState, PublishedClient, Snapshot};
 use crate::lifecycle::core::types::{
@@ -423,11 +421,8 @@ impl ChallengeStore for Store {
 
         let join_payload =
             serde_json::to_string(&Command::Join(Join::from(&create))).expect("command serializes");
-        let removal_payload = serde_json::to_string(&Command::ClientStatus(ClientStatusChange {
-            user_id: create.user_id,
+        let removal_payload = serde_json::to_string(&Command::ClientMovedOn(ClientMovedOn {
             client_id: create.client_id,
-            session_token: create.session_token.clone(),
-            status: ClientStatus::Disconnected,
         }))
         .expect("command serializes");
         let create_payload =

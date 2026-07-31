@@ -102,6 +102,13 @@ pub struct ClientStatusChange {
     pub status: ClientStatus,
 }
 
+/// A client started another challenge, leaving this one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientMovedOn {
+    pub client_id: ClientId,
+}
+
 /// Terminal report from a processing run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,6 +127,7 @@ pub enum Command {
     Update(Update),
     Finish(Finish),
     ClientStatus(ClientStatusChange),
+    ClientMovedOn(ClientMovedOn),
     Processed(Processed),
     DeadlineFired(Deadline),
 }
