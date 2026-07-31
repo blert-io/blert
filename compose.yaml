@@ -21,7 +21,7 @@ services:
       - rediscache:/data
 
   socket-server:
-    image: node:24
+    image: node:26
     depends_on:
       - redis
       - postgres
@@ -48,7 +48,7 @@ services:
     command: npm run -w socket-server dev
 
   challenge-server:
-    image: node:24
+    image: node:26
     depends_on:
       - redis
       - postgres
@@ -104,7 +104,7 @@ services:
     command: cargo watch -w challenge-harder/src -w proto -x 'run -p challenge-harder'
 
   blertbank:
-    image: node:24
+    image: node:26
     depends_on:
       - postgres
     ports:

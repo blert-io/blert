@@ -68,10 +68,10 @@ npm run -w common migration:run
 
 ### 3. Install Node.js
 
-Install Node **v24.8.0** using [nvm](https://github.com/nvm-sh/nvm):
+Install Node **v26.5.0** using [nvm](https://github.com/nvm-sh/nvm):
 
 ```bash
-nvm install 24.8.0
+nvm install 26.5.0
 nvm use
 ```
 
