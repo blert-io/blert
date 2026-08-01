@@ -1,4 +1,3 @@
-import { ChallengeMode } from '@blert/common';
 import { NextRequest } from 'next/server';
 
 import { aggregateBloatHands, BloatHandsQuery } from '@/actions/theatre';
@@ -17,7 +16,7 @@ export const GET = withApiRoute(
       query.mode = mode
         .split(',')
         .map((m) => parseInt(m))
-        .filter((m) => !isNaN(m)) as ChallengeMode[];
+        .filter((m) => !isNaN(m));
     }
 
     const order = expectSingle(searchParams, 'intraChunkOrder');

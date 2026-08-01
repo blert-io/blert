@@ -641,11 +641,12 @@ export default abstract class ChallengeProcessor {
       status: SessionStatus.COMPLETED,
     };
 
-    if (
-      statusCounts.length === 1 &&
-      (Number.parseInt(statusCounts[0].status) as ChallengeStatus) ===
-        ChallengeStatus.ABANDONED
-    ) {
+    const onlyStatus: ChallengeStatus | null =
+      statusCounts.length === 1
+        ? Number.parseInt(statusCounts[0].status)
+        : null;
+
+    if (onlyStatus === ChallengeStatus.ABANDONED) {
       logger.warn('session_only_abandoned_challenges', {
         sessionId,
         context: options.context,
@@ -1257,28 +1258,28 @@ export default abstract class ChallengeProcessor {
     let gear: PrimaryMeleeGear | null = null;
 
     if (torso !== undefined) {
-      switch (torso.getItemId()) {
-        case ItemId.RADIANT_OATHPLATE_CHEST as number:
+      switch (torso.getItemId() as ItemId) {
+        case ItemId.RADIANT_OATHPLATE_CHEST:
           gear = PrimaryMeleeGear.RADIANT_OATHPLATE;
           break;
-        case ItemId.OATHPLATE_CHESTPLATE as number:
+        case ItemId.OATHPLATE_CHESTPLATE:
           gear = PrimaryMeleeGear.OATHPLATE;
           break;
-        case ItemId.BLORVA_PLATEBODY as number:
+        case ItemId.BLORVA_PLATEBODY:
           gear = PrimaryMeleeGear.BLORVA;
           break;
-        case ItemId.TORVA_PLATEBODY as number:
+        case ItemId.TORVA_PLATEBODY:
           gear = PrimaryMeleeGear.TORVA;
           break;
-        case ItemId.BANDOS_CHESTPLATE as number:
+        case ItemId.BANDOS_CHESTPLATE:
           gear = PrimaryMeleeGear.BANDOS;
           break;
       }
     }
     if (
       helm !== undefined &&
-      (helm.getItemId() === (ItemId.VOID_MELEE_HELM as number) ||
-        helm.getItemId() === (ItemId.VOID_MELEE_HELM_OR as number))
+      ((helm.getItemId() as ItemId) === ItemId.VOID_MELEE_HELM ||
+        (helm.getItemId() as ItemId) === ItemId.VOID_MELEE_HELM_OR)
     ) {
       gear = PrimaryMeleeGear.ELITE_VOID;
     }

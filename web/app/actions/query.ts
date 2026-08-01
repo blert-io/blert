@@ -419,7 +419,7 @@ export function rowToAggregations(
     if (alias === undefined) {
       continue;
     }
-    (result[alias.field] ??= {})[alias.aggKey] = floatOrZero(value as string);
+    (result[alias.field] ??= {})[alias.aggKey] = floatOrZero(value);
   }
   return result;
 }

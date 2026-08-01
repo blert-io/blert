@@ -119,7 +119,7 @@ export default function ChallengeStats({
                   for (const [statusKey, agg] of Object.entries(byStatus)) {
                     const count = agg['*'].count;
                     total += count;
-                    const status = Number(statusKey) as ChallengeStatus;
+                    const status: ChallengeStatus = Number(statusKey);
                     if (status === ChallengeStatus.WIPED) {
                       wipesByStage[stage] = count;
                     }

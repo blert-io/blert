@@ -281,12 +281,11 @@ export class TickAligner {
     let i = maxI;
     let j = maxJ;
 
-    while (
-      i >= 0 &&
-      j >= 0 &&
-      (matrices.direction[i][j] as Direction) !== Direction.NONE
-    ) {
-      const dir = matrices.direction[i][j] as Direction;
+    while (i >= 0 && j >= 0) {
+      const dir: Direction = matrices.direction[i][j];
+      if (dir === Direction.NONE) {
+        break;
+      }
 
       switch (dir) {
         case Direction.MATCH:

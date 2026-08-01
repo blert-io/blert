@@ -70,7 +70,7 @@ export function slotIdFromString(id: string): SlotIdentifier | null {
     return null;
   }
   const playerIndex = parseInt(parts[1]);
-  const container = parseInt(parts[2]) as Container;
+  const container: Container = parseInt(parts[2]);
   const index = parseInt(parts[3]);
   if (isNaN(playerIndex) || isNaN(container) || isNaN(index)) {
     return null;
@@ -287,8 +287,9 @@ export function getSlotMetadata(
         typeFilter: acceptAll,
       };
 
-    case Container.EQUIPMENT:
-      switch (index as EquipmentSlot) {
+    case Container.EQUIPMENT: {
+      const slot: EquipmentSlot = index;
+      switch (slot) {
         case EquipmentSlot.HEAD:
           return { index, typeFilter: equipmentTypeFilter(EquipmentSlot.HEAD) };
         case EquipmentSlot.CAPE:
@@ -338,6 +339,7 @@ export function getSlotMetadata(
         default:
           return null;
       }
+    }
 
     case Container.POUCH:
       // The pouch only accepts runes.

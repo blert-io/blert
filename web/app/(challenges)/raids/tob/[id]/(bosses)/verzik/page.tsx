@@ -6,7 +6,6 @@ import {
   EventType,
   Npc,
   NpcEvent,
-  NpcId,
   SkillLevel,
   SplitType,
   Stage,
@@ -119,7 +118,7 @@ export default function VerzikPage() {
         event.type === EventType.NPC_UPDATE
       ) {
         const npcEvent = event as NpcEvent;
-        if (npcEvent.npc.id === (NpcId.VERZIK_PILLAR as number)) {
+        if (Npc.isVerzikPillar(npcEvent.npc.id)) {
           pillarsThisTick.push({ x: npcEvent.xCoord, y: npcEvent.yCoord });
         }
       }

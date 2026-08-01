@@ -1336,7 +1336,7 @@ function compareExperience(
   const decreasedSkills: Skill[] = [];
 
   Object.keys(before).forEach((key) => {
-    const skill = parseInt(key) as Skill;
+    const skill: Skill = parseInt(key);
     if (before[skill] !== 0 && after[skill] < before[skill]) {
       decreasedSkills.push(skill);
     }

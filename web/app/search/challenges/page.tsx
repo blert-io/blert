@@ -37,7 +37,7 @@ function withImplicitSplitSortFilters(
       continue;
     }
 
-    const split = Number.parseInt(sortField.slice(7)) as SplitType;
+    const split: SplitType = Number.parseInt(sortField.slice(7));
     if (Number.isNaN(split) || splits.has(split)) {
       continue;
     }

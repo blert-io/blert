@@ -200,7 +200,7 @@ export enum Handicap {
 
 /** Strips the level from a handicap, returning its base value. */
 export function handicapBase(handicap: Handicap): Handicap {
-  return (handicap % HANDICAP_LEVEL_VALUE_INCREMENT) as Handicap;
+  return handicap % HANDICAP_LEVEL_VALUE_INCREMENT;
 }
 
 /** Returns the numeric level of a handicap. */

@@ -104,17 +104,18 @@ export function ColosseumWavesOverview({
     <div className={styles.wavesOverview}>
       <h2>Wave Progress</h2>
       <div className={styles.waves}>
-        {challenge.colosseum.waves.map((wave, index) => (
-          <Wave
-            key={index}
-            challengeId={challenge.uuid}
-            ticks={
-              splits[(SplitType.COLOSSEUM_WAVE_1 + index) as SplitType] ?? 0
-            }
-            wave={wave}
-            waveNumber={index + 1}
-          />
-        ))}
+        {challenge.colosseum.waves.map((wave, index) => {
+          const split: SplitType = SplitType.COLOSSEUM_WAVE_1 + index;
+          return (
+            <Wave
+              key={index}
+              challengeId={challenge.uuid}
+              ticks={splits[split] ?? 0}
+              wave={wave}
+              waveNumber={index + 1}
+            />
+          );
+        })}
         {showLiveWave && (
           <Wave
             key="live"

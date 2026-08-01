@@ -285,12 +285,9 @@ function getAvailableStats(
         return stat.getValue(challenge, false) !== null;
       }
       if (stat.type === StatType.SPLIT) {
-        const generalizedSplit = parseInt(stat.key) as SplitType;
+        const generalizedSplit: SplitType = parseInt(stat.key);
         return Object.keys(challenge.splits || {}).some((splitKey) => {
-          return (
-            generalizeSplit(parseInt(splitKey) as SplitType) ===
-            generalizedSplit
-          );
+          return generalizeSplit(parseInt(splitKey)) === generalizedSplit;
         });
       } else {
         const statsField =
@@ -332,16 +329,11 @@ function aggregateStatData(
     if (selectedStat.getValue !== undefined) {
       value = selectedStat.getValue(challenge, requireAccurateSplits);
     } else if (selectedStat.type === StatType.SPLIT) {
-      const generalizedSplit = parseInt(selectedStat.key) as SplitType;
+      const generalizedSplit: SplitType = parseInt(selectedStat.key);
       const splitEntries = Object.entries(challenge.splits || {});
       for (const [splitKey, splitValue] of splitEntries) {
-        if (
-          generalizeSplit(parseInt(splitKey) as SplitType) === generalizedSplit
-        ) {
-          const typedSplitValue = splitValue as {
-            ticks: number;
-            accurate: boolean;
-          };
+        if (generalizeSplit(parseInt(splitKey)) === generalizedSplit) {
+          const typedSplitValue = splitValue;
           if (!requireAccurateSplits || typedSplitValue.accurate) {
             value = typedSplitValue.ticks;
             break;

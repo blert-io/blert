@@ -45,7 +45,7 @@ export default async function PlayerOverview({
 
   const statusData = Object.entries(challengeStatuses ?? {}).flatMap(
     ([s, data]) => {
-      const status = parseInt(s, 10) as ChallengeStatus;
+      const status: ChallengeStatus = parseInt(s, 10);
       if (status === ChallengeStatus.IN_PROGRESS) {
         return [];
       }

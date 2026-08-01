@@ -176,7 +176,7 @@ export default class ColosseumProcessor extends ChallengeProcessor {
       this.handicapLevels[handicap]++;
 
       const index = this.colosseumData.handicaps.indexOf(
-        (this.selectedHandicap as number) - HANDICAP_LEVEL_VALUE_INCREMENT,
+        this.selectedHandicap - HANDICAP_LEVEL_VALUE_INCREMENT,
       );
       if (index !== -1) {
         this.colosseumData.handicaps[index] += HANDICAP_LEVEL_VALUE_INCREMENT;

@@ -253,7 +253,7 @@ function mergeSotePivots(ctx: MergeContext, ticks: TickStateArray): void {
     for (const event of tick.getEventsByType(Event.Type.TOB_SOTE_MAZE_END)) {
       const maze = event.getSoteMaze()?.getMaze();
       if (maze !== undefined) {
-        mazeEndTicks.set(maze as Maze, t);
+        mazeEndTicks.set(maze, t);
       }
     }
   }

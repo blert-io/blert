@@ -96,7 +96,7 @@ export function useLiveStageState<T extends Challenge>(
       playerState: new Map(),
       npcState: new Map(),
       bcf: EMPTY_BCF,
-    } as StageState<T>;
+    };
   }
 
   const totalTicks = live.lastTick === null ? 0 : live.lastTick + 1;

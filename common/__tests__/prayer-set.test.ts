@@ -406,7 +406,7 @@ describe('PrayerSet', () => {
     });
 
     it('should handle prayer set with all prayers active', () => {
-      const allPrayers = Array.from({ length: 29 }, (_, i) => i as Prayer);
+      const allPrayers: Prayer[] = Array.from({ length: 29 }, (_, i) => i);
       const prayerSet = PrayerSet.fromPrayers(PrayerBook.NORMAL, allPrayers);
       expect(prayerSet.prayers().length).toBe(29);
       allPrayers.forEach((prayer) => {

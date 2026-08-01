@@ -111,7 +111,7 @@ describe('toFeedRow', () => {
     it.each([
       [
         NameChangeStatus.OLD_STILL_IN_USE,
-        '"mdps scy" is still on the Hiscores.' as string,
+        '"mdps scy" is still on the Hiscores.',
       ],
       [
         NameChangeStatus.NEW_DOES_NOT_EXIST,

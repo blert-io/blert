@@ -66,7 +66,7 @@ enum FetchAction {
 
 function getSortKeyValue(challenge: ChallengeOverview, key: SortableFields) {
   if (key.startsWith('splits:')) {
-    const split = Number.parseInt(key.slice(7)) as SplitType;
+    const split: SplitType = Number.parseInt(key.slice(7));
     return challenge.splits?.[split]?.ticks ?? null;
   }
 

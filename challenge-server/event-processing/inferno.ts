@@ -6,8 +6,8 @@ import {
   DataRepository,
   InfernoChallengeStats,
   InfernoData,
+  Npc,
   NpcAttack,
-  NpcId,
   PriceTracker,
   SplitType,
   Stage,
@@ -234,7 +234,7 @@ export default class InfernoProcessor extends ChallengeProcessor {
     switch (event.getType()) {
       case Event.Type.NPC_DEATH: {
         const npc = event.getNpc()!;
-        if (npc.getId() === (NpcId.ROCKY_SUPPORT as number)) {
+        if (Npc.isRockySupport(npc.getId())) {
           const pillar = pillarFromCoords(event.getXCoord(), event.getYCoord());
           const wave = stageToWave(this.getStage());
           switch (pillar) {

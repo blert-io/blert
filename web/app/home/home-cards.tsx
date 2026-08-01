@@ -329,7 +329,7 @@ function ChallengeStatsCard({ challengeType }: ChallengeStatsProps) {
       LocalStorageKey.STATS_TIME_PERIOD,
     );
     if (storedTimePeriod !== null) {
-      setTimePeriod(parseInt(storedTimePeriod) as TimePeriod);
+      setTimePeriod(parseInt(storedTimePeriod));
     }
   }, []);
 
@@ -663,7 +663,7 @@ function LeaderboardCard({ challengeType }: LeaderboardCardProps) {
       LocalStorageKey.LEADERBOARD_TIME_PERIOD,
     );
     if (storedTimePeriod !== null) {
-      setTimePeriod(parseInt(storedTimePeriod) as TimePeriod);
+      setTimePeriod(parseInt(storedTimePeriod));
     }
   }, []);
 
@@ -1132,8 +1132,8 @@ export function HomeCards() {
     );
     if (stored !== null) {
       const parsed = parseInt(stored);
-      if (SUPPORTED_CHALLENGES.includes(parsed as SupportedChallenge)) {
-        setSelectedChallenge(parsed as SupportedChallenge);
+      if (SUPPORTED_CHALLENGES.includes(parsed)) {
+        setSelectedChallenge(parsed);
         return;
       }
     }

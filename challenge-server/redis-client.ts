@@ -3,9 +3,7 @@ import {
   ActivityFeedData,
   ActivityFeedItemType,
   CHALLENGE_UPDATES_PUBSUB_KEY,
-  ChallengeMode,
   ChallengeServerUpdate,
-  ChallengeStatus,
   ChallengeType,
   CLIENT_EVENTS_KEY,
   ClientEvent,
@@ -138,9 +136,7 @@ function challengeFromRedisArray<K extends keyof ExtendedChallengeState>(
       partial[fields[i]] = value;
     }
   }
-  return challengeFromRedis(partial) as Partial<
-    Pick<ExtendedChallengeState, K>
-  >;
+  return challengeFromRedis(partial);
 }
 
 /**
@@ -153,26 +149,26 @@ function challengeFromRedisComplete(
     id: Number.parseInt(state.id),
     sessionId: Number.parseInt(state.sessionId),
     uuid: state.uuid,
-    type: Number.parseInt(state.type) as ChallengeType,
-    mode: Number.parseInt(state.mode) as ChallengeMode,
-    stage: Number.parseInt(state.stage) as Stage,
+    type: Number.parseInt(state.type),
+    mode: Number.parseInt(state.mode),
+    stage: Number.parseInt(state.stage),
     stageAttempt: state.stageAttempt
       ? Number.parseInt(state.stageAttempt)
       : null,
-    status: Number.parseInt(state.status) as ChallengeStatus,
-    stageStatus: Number.parseInt(state.stageStatus) as StageStatus,
+    status: Number.parseInt(state.status),
+    stageStatus: Number.parseInt(state.stageStatus),
     party: state.party.split(','),
     players: JSON.parse(state.players) as ChallengeState['players'],
     totalDeaths: Number.parseInt(state.totalDeaths),
     challengeTicks: Number.parseInt(state.challengeTicks),
-    state: Number.parseInt(state.state) as LifecycleState,
+    state: Number.parseInt(state.state),
     reportedChallengeTicks: state.reportedChallengeTicks
       ? Number.parseInt(state.reportedChallengeTicks)
       : null,
     reportedOverallTicks: state.reportedOverallTicks
       ? Number.parseInt(state.reportedOverallTicks)
       : null,
-    timeoutState: Number.parseInt(state.timeoutState) as TimeoutState,
+    timeoutState: Number.parseInt(state.timeoutState),
     processingStage: state.processingStage
       ? Number.parseInt(state.processingStage)
       : null,
@@ -202,13 +198,13 @@ function challengeFromRedis(
     result.uuid = state.uuid;
   }
   if (state.type !== undefined) {
-    result.type = Number.parseInt(state.type) as ChallengeType;
+    result.type = Number.parseInt(state.type);
   }
   if (state.mode !== undefined) {
-    result.mode = Number.parseInt(state.mode) as ChallengeMode;
+    result.mode = Number.parseInt(state.mode);
   }
   if (state.stage !== undefined) {
-    result.stage = Number.parseInt(state.stage) as Stage;
+    result.stage = Number.parseInt(state.stage);
   }
   if (state.stageAttempt !== undefined) {
     result.stageAttempt = state.stageAttempt
@@ -216,10 +212,10 @@ function challengeFromRedis(
       : null;
   }
   if (state.status !== undefined) {
-    result.status = Number.parseInt(state.status) as ChallengeStatus;
+    result.status = Number.parseInt(state.status);
   }
   if (state.stageStatus !== undefined) {
-    result.stageStatus = Number.parseInt(state.stageStatus) as StageStatus;
+    result.stageStatus = Number.parseInt(state.stageStatus);
   }
   if (state.party !== undefined) {
     result.party = state.party.split(',');
@@ -234,7 +230,7 @@ function challengeFromRedis(
     result.challengeTicks = Number.parseInt(state.challengeTicks);
   }
   if (state.state !== undefined) {
-    result.state = Number.parseInt(state.state) as LifecycleState;
+    result.state = Number.parseInt(state.state);
   }
   if (state.reportedChallengeTicks !== undefined) {
     result.reportedChallengeTicks = state.reportedChallengeTicks
@@ -247,7 +243,7 @@ function challengeFromRedis(
       : null;
   }
   if (state.timeoutState !== undefined) {
-    result.timeoutState = Number.parseInt(state.timeoutState) as TimeoutState;
+    result.timeoutState = Number.parseInt(state.timeoutState);
   }
   if (state.processingStage !== undefined) {
     result.processingStage = state.processingStage

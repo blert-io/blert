@@ -512,7 +512,7 @@ export function parseUnmergedEventsFile(
   }
   return {
     challengeId: match[1],
-    stage: Number(match[2]) as Stage,
+    stage: Number(match[2]),
     attempt: match[3] !== undefined ? Number(match[3]) : null,
   };
 }

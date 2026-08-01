@@ -44,10 +44,8 @@ export default function NetworkControlsOverlay({
 
   const handleModeChange = useCallback(
     (value: string | number) => {
-      const mode =
-        value === 'all'
-          ? undefined
-          : (parseInt(value.toString()) as ChallengeMode);
+      const mode: ChallengeMode | undefined =
+        value === 'all' ? undefined : parseInt(value.toString());
       onFiltersChange({
         ...filters,
         mode,

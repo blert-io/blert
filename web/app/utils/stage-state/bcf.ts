@@ -228,21 +228,21 @@ function buildBcfEncounterPhases(
 
   if (stage === Stage.INFERNO_WAVE_69) {
     eventsByType[EventType.NPC_SPAWN]?.forEach((evt) => {
-      const npcId = (evt as NpcSpawnEvent).npc.id;
+      const npcId = (evt as NpcSpawnEvent).npc.id as NpcId;
       switch (npcId) {
-        case NpcId.JAL_ZEK_ZUK as number:
+        case NpcId.JAL_ZEK_ZUK:
           encounterPhases.push({
             tick: evt.tick,
             phaseType: 'INFERNO_ZUK_SET',
           });
           break;
-        case NpcId.JALTOK_JAD_ZUK as number:
+        case NpcId.JALTOK_JAD_ZUK:
           encounterPhases.push({
             tick: evt.tick,
             phaseType: 'INFERNO_ZUK_JAD',
           });
           break;
-        case NpcId.JAL_MEJJAK as number:
+        case NpcId.JAL_MEJJAK:
           encounterPhases.push({
             tick: evt.tick,
             phaseType: 'INFERNO_ZUK_HEALERS',

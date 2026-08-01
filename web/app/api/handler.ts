@@ -67,6 +67,6 @@ export function withApiRoute(
       }
 
       return response;
-    }) as Promise<Response>;
+    });
   };
 }

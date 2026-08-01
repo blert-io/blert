@@ -1,10 +1,8 @@
-import { ChallengeType } from '@blert/common';
 import { NextRequest } from 'next/server';
 
 import {
   getSetups,
   SetupFilter,
-  SetupSort,
   SetupCursor,
   SetupState,
 } from '@/actions/setup';
@@ -80,9 +78,7 @@ export const GET = withApiRoute(
     }
 
     const filter: SetupFilter = {
-      orderBy: (sort === 'score' || sort === 'views'
-        ? sort
-        : 'latest') as SetupSort,
+      orderBy: sort === 'score' || sort === 'views' ? sort : 'latest',
     };
 
     const state = searchParams.get('state');
@@ -94,7 +90,7 @@ export const GET = withApiRoute(
     if (challenge !== null) {
       const challengeType = parseInt(challenge);
       if (!isNaN(challengeType)) {
-        filter.challenge = challengeType as ChallengeType;
+        filter.challenge = challengeType;
       }
     }
 

@@ -382,7 +382,7 @@ export class EventConsolidator {
     clientTick: number,
   ): void {
     for (const tagged of events) {
-      const type = tagged.event.getType() as EventType;
+      const type: EventType = tagged.event.getType();
       let list = buffer.get(type);
       if (list === undefined) {
         list = [];
@@ -1377,7 +1377,7 @@ export class EventConsolidator {
           });
           this.qualityFlags.push({
             kind: 'UNMAPPED_CROSS_TICK_REFERENCE',
-            eventType: tagged.event.getType() as EventType,
+            eventType: tagged.event.getType(),
             mergedTick: i,
             sourceTick: tick,
             resolvedTick: resolved,

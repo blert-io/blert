@@ -374,9 +374,9 @@ async function attachChallengeStats<T extends StatsTarget>(
             continue;
           }
           const handicaps: Partial<Record<Handicap, number>> = {};
-          for (const handicap of row.handicaps) {
-            handicaps[handicap as Handicap] =
-              (handicaps[handicap as Handicap] ?? 0) + 1;
+          for (const value of row.handicaps) {
+            const handicap: Handicap = value;
+            handicaps[handicap] = (handicaps[handicap] ?? 0) + 1;
           }
           target.colosseumStats = { handicaps };
         }
@@ -887,7 +887,7 @@ function applyFilters(
     for (const sort of sorts) {
       const sortKey = sort.slice(1).split('#')[0];
       if (sortKey.startsWith('splits:')) {
-        const split = parseInt(sortKey.slice(7)) as SplitType;
+        const split: SplitType = parseInt(sortKey.slice(7));
         addSplitsTable(split, sqlChallenges, joins, conditions, accurateSplits);
       }
 
@@ -1377,7 +1377,7 @@ export async function aggregateChallenges<
     let filter: postgres.Fragment | undefined;
 
     if (field.startsWith('splits:')) {
-      const split = parseInt(field.slice(7)) as SplitType;
+      const split: SplitType = parseInt(field.slice(7));
       addSplitsTable(split, queryTable, joins, conditions);
       if (options.accurateSplits) {
         filter = sql`${sqlTable}.accurate`;
@@ -2074,7 +2074,7 @@ export async function loadSessionWithStats(
       statsForPlayer[cp.username] = {
         username: cp.username,
         deaths: 0,
-        deathsByStage: {} as Record<Stage, number>,
+        deathsByStage: {},
         personalBests: Array.from(
           pbsByPlayer.get(cp.username)?.entries() ?? [],
         ).map(([type, ticks]) => ({
@@ -3118,7 +3118,7 @@ export async function findBestSplitTimes(
 
     // Attach tied teams to ranked splits, excluding the primary team.
     for (const [splitType, splits] of Object.entries(rankedSplits)) {
-      const ticksMap = tiedTeamsMap.get(parseInt(splitType) as SplitType);
+      const ticksMap = tiedTeamsMap.get(parseInt(splitType));
       if (ticksMap === undefined) {
         continue;
       }
