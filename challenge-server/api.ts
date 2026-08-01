@@ -29,10 +29,10 @@ import {
 import { ClientEvents, Merger, MergeTracer } from './merging';
 import { MetricsCollector, observeHttpRequest } from './metrics';
 
-function asyncHandler(
-  fn: (req: Request, res: Response) => Promise<void>,
-): (req: Request, res: Response, next: NextFunction) => void {
-  return function (req: Request, res: Response, next: NextFunction) {
+function asyncHandler<P>(
+  fn: (req: Request<P>, res: Response) => Promise<void>,
+): (req: Request<P>, res: Response, next: NextFunction) => void {
+  return function (req: Request<P>, res: Response, next: NextFunction) {
     Promise.resolve(fn(req, res)).catch(next);
   };
 }
@@ -224,7 +224,10 @@ type UpdateChallengeRequest = {
   update: ChallengeUpdate;
 };
 
-async function updateChallenge(req: Request, res: Response): Promise<void> {
+async function updateChallenge(
+  req: Request<{ challengeId: string }>,
+  res: Response,
+): Promise<void> {
   const challengeId = req.params.challengeId;
   const request = req.body as UpdateChallengeRequest;
 
@@ -265,7 +268,10 @@ type FinishChallengeRequest = {
   soft: boolean;
 };
 
-async function finishChallenge(req: Request, res: Response): Promise<void> {
+async function finishChallenge(
+  req: Request<{ challengeId: string }>,
+  res: Response,
+): Promise<void> {
   const challengeId = req.params.challengeId;
   const request = req.body as FinishChallengeRequest;
 
@@ -304,7 +310,10 @@ type JoinChallengeRequest = {
   recordingType: RecordingType;
 };
 
-async function joinChallenge(req: Request, res: Response): Promise<void> {
+async function joinChallenge(
+  req: Request<{ challengeId: string }>,
+  res: Response,
+): Promise<void> {
   const challengeId = req.params.challengeId;
   const request = req.body as JoinChallengeRequest;
 
@@ -410,7 +419,10 @@ async function listMergeCaptures(req: Request, res: Response): Promise<void> {
   recordHttpMetrics(route, req, res, start);
 }
 
-async function listMergeStages(req: Request, res: Response): Promise<void> {
+async function listMergeStages(
+  req: Request<{ challengeId: string }>,
+  res: Response,
+): Promise<void> {
   const route = '/test/merge/:challengeId/stages';
   const start = process.hrtime.bigint();
 
@@ -446,7 +458,10 @@ async function listMergeStages(req: Request, res: Response): Promise<void> {
   recordHttpMetrics(route, req, res, start);
 }
 
-async function mergeTestEvents(req: Request, res: Response): Promise<void> {
+async function mergeTestEvents(
+  req: Request<{ challengeId: string; stage: string }>,
+  res: Response,
+): Promise<void> {
   const route = '/test/merge/:challengeId/:stage';
   const start = process.hrtime.bigint();
 

@@ -91,7 +91,7 @@ function setupHttpRoutes(
     res.json(definitionsRepository.getSpellDefinitionsJson());
   });
 
-  app.use('/admin/*', (req, res, next) => {
+  app.use('/admin', (req, res, next) => {
     if (req.headers.authorization !== process.env.ADMIN_TOKEN) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
@@ -109,7 +109,7 @@ function setupHttpRoutes(
       shutdownTime,
       cancel = false,
       force = false,
-    } = req.body as ShutdownRequest;
+    } = (req.body ?? {}) as ShutdownRequest;
     if (cancel) {
       if (serverManager.hasPendingShutdown()) {
         serverManager.cancelShutdown();
@@ -125,7 +125,7 @@ function setupHttpRoutes(
       gracePeriod,
       settleDelay,
       cancel = false,
-    } = req.body as DrainRequest;
+    } = (req.body ?? {}) as DrainRequest;
     if (cancel) {
       serverManager.cancelDrain();
     } else {
