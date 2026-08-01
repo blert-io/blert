@@ -445,7 +445,7 @@ export class ClientEvents {
           const underworld = soteMaze.getUnderworldPivotsList();
           if (overworld.length > 0 || underworld.length > 0) {
             stageData.sotePivots.push({
-              maze: soteMaze.getMaze() as Maze,
+              maze: soteMaze.getMaze(),
               overworld: overworld.map((c) => ({ x: c.getX(), y: c.getY() })),
               underworld: underworld.map((c) => ({ x: c.getX(), y: c.getY() })),
             });

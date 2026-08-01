@@ -387,7 +387,7 @@ function SlotSearch(props: {
     const menuPortal = document.createElement('div');
     menuPortal.classList.add('slot-search-portal');
     root?.appendChild(menuPortal);
-    portalNode.current = menuPortal as HTMLElement;
+    portalNode.current = menuPortal;
     setReady(true);
 
     return () => {

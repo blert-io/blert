@@ -486,7 +486,7 @@ export default function Menu(props: MenuProps) {
     const menuPortal = document.createElement('div');
     menuPortal.classList.add('menu-portal');
     root?.appendChild(menuPortal);
-    portalNode.current = menuPortal as HTMLElement;
+    portalNode.current = menuPortal;
     setReady(true);
 
     return () => {

@@ -55,11 +55,7 @@ export const GET = withApiRoute(
       groupings,
     );
     if (result !== null) {
-      restoreAggregateAliases(
-        result as Record<string, unknown>,
-        groupings.length,
-        aliases,
-      );
+      restoreAggregateAliases(result, groupings.length, aliases);
     }
     return Response.json(result);
   },

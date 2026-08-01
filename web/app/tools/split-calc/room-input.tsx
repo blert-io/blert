@@ -93,7 +93,7 @@ export function RoomInput({
   function handleBlur(e: React.FocusEvent) {
     // Stay in editing mode if focus moves to another element within this row
     // (e.g. the time/ticks toggle buttons).
-    if (wrapperRef.current?.contains(e.relatedTarget as Node)) {
+    if (wrapperRef.current?.contains(e.relatedTarget)) {
       return;
     }
     setEditing(false);

@@ -44,6 +44,11 @@ export default tseslint.config(
     rules: {
       curly: 'error',
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': [
+        'error',
+        // These enums are compared with arbitrary numbers for validity.
+        { typesToIgnore: ['ItemId', 'NpcId'] },
+      ],
       '@typescript-eslint/consistent-type-definitions': 'off',
       '@typescript-eslint/no-inferrable-types': 'off',
       '@typescript-eslint/no-unused-vars': [

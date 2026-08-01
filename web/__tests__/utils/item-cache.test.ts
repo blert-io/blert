@@ -285,7 +285,7 @@ describe('ExtendedItemCache', () => {
       });
 
       it('returns empty array for non-existent slot', () => {
-        const results = cache.search('dragon', 99 as EquipmentSlot);
+        const results = cache.search('dragon', 99);
         expect(results).toEqual([]);
       });
     });

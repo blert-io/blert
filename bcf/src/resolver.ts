@@ -266,7 +266,7 @@ export class BCFResolver<ActionType extends { type: string } = BCFAction> {
     if (this.getActor(actorId)?.type !== 'npc') {
       return undefined;
     }
-    return this.getActorState(actorId, tick) as ResolvedNpcState | undefined;
+    return this.getActorState(actorId, tick);
   }
 
   /**

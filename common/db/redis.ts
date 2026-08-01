@@ -268,7 +268,7 @@ export function stageStreamToRecord(
 export function stageStreamFromRecord(
   event: Record<string, string | Buffer>,
 ): ClientStageStream {
-  const type = Number.parseInt(event.type.toString()) as StageStreamType;
+  const type: StageStreamType = Number.parseInt(event.type.toString());
   const clientId = Number.parseInt(event.clientId.toString());
 
   switch (type) {
@@ -284,7 +284,7 @@ export function stageStreamFromRecord(
         type,
         clientId,
         update: JSON.parse(event.update.toString()) as StageUpdate,
-      } as StageStreamEnd;
+      };
 
     case StageStreamType.CLIENT_METADATA:
       return {
@@ -293,7 +293,7 @@ export function stageStreamFromRecord(
         userId: Number.parseInt(event.userId.toString()),
         pluginVersion: event.pluginVersion.toString(),
         runeLiteVersion: event.runeLiteVersion.toString(),
-      } as StageStreamMetadata;
+      };
   }
 
   const _exhaustive: never = type;

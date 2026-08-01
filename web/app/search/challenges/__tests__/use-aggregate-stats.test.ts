@@ -48,7 +48,7 @@ describe('useAggregateStats', () => {
       .fn()
       .mockReturnValueOnce(stale.promise)
       .mockReturnValueOnce(fresh.promise);
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
 
     const filters = defaultSearchFilters();
     const { result, rerender } = renderHook(
@@ -89,7 +89,7 @@ describe('useAggregateStats', () => {
 
   it('coalesces a burst of query changes into a single request', async () => {
     const fetchMock = jest.fn().mockResolvedValue(jsonResponse({}));
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
 
     const debounceMs = 200;
 

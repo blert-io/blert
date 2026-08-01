@@ -306,8 +306,8 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
       break;
     }
     const handicap = wave.handicap;
-    const previousLevelHandicap = (handicap -
-      HANDICAP_LEVEL_VALUE_INCREMENT) as Handicap;
+    const previousLevelHandicap: Handicap =
+      handicap - HANDICAP_LEVEL_VALUE_INCREMENT;
     const index: number = handicapsSoFar.findIndex(
       (existingHandicap) =>
         existingHandicap === handicap ||

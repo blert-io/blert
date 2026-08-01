@@ -5,7 +5,6 @@ import {
   NpcAttack,
   NpcAttackEvent,
   NpcEvent,
-  NpcId,
   NpcSpawnEvent,
   PrayerSet,
   RoomNpcMap as RawRoomNpcMap,
@@ -121,7 +120,7 @@ function postprocessNpc(
     return;
   }
 
-  if (npc.spawnNpcId === (NpcId.JAL_ZEK as number)) {
+  if (Npc.isJalZek(npc.spawnNpcId)) {
     for (let tick = fromTick; tick < npc.stateByTick.length; tick++) {
       const attack = npc.stateByTick[tick]?.attack;
       if (!attack) {

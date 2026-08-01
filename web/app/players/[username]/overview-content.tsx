@@ -437,7 +437,7 @@ export default function PlayerOverviewContent({
     ]);
 
     const statusData = Object.entries(statuses ?? {}).flatMap(([s, data]) => {
-      const status = parseInt(s, 10) as ChallengeStatus;
+      const status: ChallengeStatus = parseInt(s, 10);
       if (status === ChallengeStatus.IN_PROGRESS) {
         return [];
       }

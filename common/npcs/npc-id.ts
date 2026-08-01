@@ -550,6 +550,10 @@ export class Npc {
     );
   }
 
+  static isVerzikPillar(npcId: number): boolean {
+    return (npcId as NpcId) === NpcId.VERZIK_PILLAR;
+  }
+
   private static readonly VERZIK_ISCHYROS_IDS: number[] = [
     NpcId.VERZIK_NYLOCAS_ISCHYROS_ENTRY,
     NpcId.VERZIK_NYLOCAS_ISCHYROS_REGULAR,
@@ -609,30 +613,30 @@ export class Npc {
   }
 
   static isJaguarWarrior(npcId: number): boolean {
-    return npcId === (NpcId.JAGUAR_WARRIOR as number);
+    return (npcId as NpcId) === NpcId.JAGUAR_WARRIOR;
   }
 
   static isSerpentShaman(npcId: number): boolean {
-    return npcId === (NpcId.SERPENT_SHAMAN as number);
+    return (npcId as NpcId) === NpcId.SERPENT_SHAMAN;
   }
 
   static isMinotaur(npcId: number): boolean {
     return (
-      npcId === (NpcId.MINOTAUR as number) ||
-      npcId === (NpcId.MINOTAUR_RED_FLAG as number)
+      (npcId as NpcId) === NpcId.MINOTAUR ||
+      (npcId as NpcId) === NpcId.MINOTAUR_RED_FLAG
     );
   }
 
   static isFremennikArcher(npcId: number): boolean {
-    return npcId === (NpcId.FREMENNIK_ARCHER as number);
+    return (npcId as NpcId) === NpcId.FREMENNIK_ARCHER;
   }
 
   static isFremennikSeer(npcId: number): boolean {
-    return npcId === (NpcId.FREMENNIK_SEER as number);
+    return (npcId as NpcId) === NpcId.FREMENNIK_SEER;
   }
 
   static isFremennikBerserker(npcId: number): boolean {
-    return npcId === (NpcId.FREMENNIK_BERSERKER as number);
+    return (npcId as NpcId) === NpcId.FREMENNIK_BERSERKER;
   }
 
   static isFremennik(npcId: number): boolean {
@@ -644,35 +648,35 @@ export class Npc {
   }
 
   static isJavelinColossus(npcId: number): boolean {
-    return npcId === (NpcId.JAVELIN_COLOSSUS as number);
+    return (npcId as NpcId) === NpcId.JAVELIN_COLOSSUS;
   }
 
   static isManticore(npcId: number): boolean {
-    return npcId === (NpcId.MANTICORE as number);
+    return (npcId as NpcId) === NpcId.MANTICORE;
   }
 
   static isShockwaveColossus(npcId: number): boolean {
-    return npcId === (NpcId.SHOCKWAVE_COLOSSUS as number);
+    return (npcId as NpcId) === NpcId.SHOCKWAVE_COLOSSUS;
   }
 
   static isSolHeredit(npcId: number): boolean {
-    return npcId === (NpcId.SOL_HEREDIT as number);
+    return (npcId as NpcId) === NpcId.SOL_HEREDIT;
   }
 
   static isBeeSwarm(npcId: number): boolean {
-    return npcId === (NpcId.BEE_SWARM as number);
+    return (npcId as NpcId) === NpcId.BEE_SWARM;
   }
 
   static isLaserPrism(npcId: number): boolean {
-    return npcId === (NpcId.LASER_PRISM as number);
+    return (npcId as NpcId) === NpcId.LASER_PRISM;
   }
 
   static isHealingTotem(npcId: number): boolean {
-    return npcId === (NpcId.HEALING_TOTEM as number);
+    return (npcId as NpcId) === NpcId.HEALING_TOTEM;
   }
 
   static isSolarflare(npcId: number): boolean {
-    return npcId === (NpcId.SOLARFLARE as number);
+    return (npcId as NpcId) === NpcId.SOLARFLARE;
   }
 
   private static readonly BLOBLET_IDS: number[] = [
@@ -703,5 +707,13 @@ export class Npc {
 
   static isDemonicLarva(npcId: number): boolean {
     return Npc.DEMONIC_LARVA_IDS.includes(npcId);
+  }
+
+  static isJalZek(npcId: number): boolean {
+    return (npcId as NpcId) === NpcId.JAL_ZEK;
+  }
+
+  static isRockySupport(npcId: number): boolean {
+    return (npcId as NpcId) === NpcId.ROCKY_SUPPORT;
   }
 }

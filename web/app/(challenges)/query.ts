@@ -29,7 +29,7 @@ export function parseSessionStats(
   let totalChallenges = 0;
 
   Object.entries(sessionsByStatus).forEach(([s, data]) => {
-    const status = parseInt(s, 10) as SessionStatus;
+    const status: SessionStatus = parseInt(s, 10);
     if (status === SessionStatus.ACTIVE) {
       sessionStats.active += data['*'].count;
     }

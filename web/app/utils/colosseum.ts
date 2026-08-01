@@ -18,10 +18,7 @@ const HANDICAP_SLUGS: Record<number, string> = {
 };
 
 const HANDICAP_BY_SLUG: Record<string, Handicap> = Object.fromEntries(
-  Object.entries(HANDICAP_SLUGS).map(([id, slug]) => [
-    slug,
-    Number(id) as Handicap,
-  ]),
+  Object.entries(HANDICAP_SLUGS).map(([id, slug]) => [slug, Number(id)]),
 );
 
 /** Returns the API slug for a handicap, or `null` if unknown. */
@@ -44,7 +41,7 @@ export function handicapFromToken(token: string): Handicap | null {
     return fromSlug;
   }
   if (/^\d+$/.test(token) && HANDICAP_SLUGS[Number(token)] !== undefined) {
-    return Number(token) as Handicap;
+    return Number(token);
   }
   return null;
 }

@@ -47,6 +47,9 @@ export enum Prayer {
   AUGURY = 28,
 }
 
+/** Book-agnostic maximum prayer index. */
+const MAX_ALLOWED_PRAYER = 49 as Prayer;
+
 export class PrayerSet {
   private static readonly PRAYER_BOOK_SHIFT = BigInt(50);
   private static readonly PRAYER_BOOK_MASK = BigInt(0b111);
@@ -109,7 +112,7 @@ export class PrayerSet {
   public getBook(): PrayerBook {
     const book =
       (this.value >> PrayerSet.PRAYER_BOOK_SHIFT) & PrayerSet.PRAYER_BOOK_MASK;
-    return Number(book) as PrayerBook;
+    return Number(book);
   }
 
   /**
@@ -143,7 +146,7 @@ export class PrayerSet {
    * invalid.
    */
   public add(prayer: Prayer): boolean {
-    if ((prayer as number) >= 50) {
+    if (prayer > MAX_ALLOWED_PRAYER) {
       return false;
     }
     const prayerBit = BigInt(1) << BigInt(prayer);

@@ -51,7 +51,7 @@ function loadFixture(name: string): Fixture {
       'events' in record && record.events !== undefined
         ? { ...record, events: Buffer.from(record.events.data) }
         : record,
-    ) as ClientStageStream[],
+    ),
   };
 }
 

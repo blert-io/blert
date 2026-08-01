@@ -740,9 +740,7 @@ export function SplitCalculator({ connectedPlayers }: SplitCalculatorProps) {
             ref={targetWrapperRef}
             onFocus={() => setTargetEditing(true)}
             onBlur={(e) => {
-              if (
-                !targetWrapperRef.current?.contains(e.relatedTarget as Node)
-              ) {
+              if (!targetWrapperRef.current?.contains(e.relatedTarget)) {
                 setTargetEditing(false);
               }
             }}

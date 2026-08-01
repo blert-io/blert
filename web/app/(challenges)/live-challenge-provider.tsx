@@ -106,7 +106,7 @@ export default function LiveChallengeProvider({
         splitTrackerRef.current!.clear();
         setState({
           isLive: true,
-          currentStage: { stage: data.stage as Stage, attempt: data.attempt },
+          currentStage: { stage: data.stage, attempt: data.attempt },
           isStreaming: data.stageActive,
           replaying: false,
           stalled: false,
@@ -127,7 +127,7 @@ export default function LiveChallengeProvider({
         splitTrackerRef.current!.clear();
         setState({
           isLive: true,
-          currentStage: { stage: data.stage as Stage, attempt: data.attempt },
+          currentStage: { stage: data.stage, attempt: data.attempt },
           isStreaming: true,
           replaying: false,
           stalled: false,
@@ -286,7 +286,7 @@ export default function LiveChallengeProvider({
         splitTrackerRef.current!.clear();
         setState({
           isLive: true,
-          currentStage: { stage: data.stage as Stage, attempt: data.attempt },
+          currentStage: { stage: data.stage, attempt: data.attempt },
           isStreaming: data.stageActive,
           replaying: true,
           stalled: false,

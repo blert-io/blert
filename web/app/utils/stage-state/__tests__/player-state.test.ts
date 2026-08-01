@@ -65,7 +65,7 @@ function playerAttack(tick: number, name: string): PlayerAttackEvent {
 function occupiedSlots(equipment: PlayerEquipment): number[] {
   return Object.keys(equipment)
     .map(Number)
-    .filter((slot) => equipment[slot as EquipmentSlot] !== null);
+    .filter((slot) => equipment[slot] !== null);
 }
 
 describe('computePlayerState', () => {

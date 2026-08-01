@@ -501,9 +501,7 @@ export default function Carousel({
       key={`${slidesId} ${index}`}
       className={styles.progress}
       style={
-        isRunning
-          ? ({ animationDuration: `${cycleDuration}ms` } as React.CSSProperties)
-          : undefined
+        isRunning ? { animationDuration: `${cycleDuration}ms` } : undefined
       }
       data-running={isRunning}
       data-paused={paused}

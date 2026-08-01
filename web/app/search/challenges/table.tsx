@@ -897,14 +897,14 @@ export default function Table(props: TableProps) {
         const [type, ...rest] = (target.dataset.context ?? '').split(':');
         switch (type) {
           case 'heading': {
-            const column = Number.parseInt(rest[0]) as Column;
+            const column: Column = Number.parseInt(rest[0]);
             menu.heading = { column };
             break;
           }
 
           case 'row': {
             const index = Number.parseInt(rest[0]);
-            const column = Number.parseInt(rest[1]) as Column;
+            const column: Column = Number.parseInt(rest[1]);
 
             if (selectedChallenges.length > 1) {
               menu.multipleChallenges = selectedChallenges;

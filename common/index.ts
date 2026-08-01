@@ -307,15 +307,13 @@ export const spellDefinitions = spellDefinitionsJson;
 export const attackDefinitionsById: ReadonlyMap<
   PlayerAttackEnum,
   (typeof attackDefinitionsJson)[number]
-> = new Map(
-  attackDefinitionsJson.map((d) => [d.protoId as PlayerAttackEnum, d]),
-);
+> = new Map(attackDefinitionsJson.map((d) => [d.protoId, d]));
 
 /** Lookup table of spell metadata keyed by `PlayerSpell`. */
 export const spellDefinitionsById: ReadonlyMap<
   PlayerSpellEnum,
   (typeof spellDefinitionsJson)[number]
-> = new Map(spellDefinitionsJson.map((d) => [d.id as PlayerSpellEnum, d]));
+> = new Map(spellDefinitionsJson.map((d) => [d.id, d]));
 
 export {
   type LaneSpawnJson,

@@ -75,8 +75,8 @@ async function getThisWeekActivity(
     for (const [modeStr, byScale] of Object.entries(byMode)) {
       for (const [scaleStr, data] of Object.entries(byScale)) {
         activities.push({
-          type: parseInt(typeStr) as ChallengeType,
-          mode: parseInt(modeStr) as ChallengeMode,
+          type: parseInt(typeStr),
+          mode: parseInt(modeStr),
           scale: parseInt(scaleStr),
           count: data['*'].count,
         });

@@ -32,7 +32,7 @@ export default class ConnectionManager {
     this.definitionsRepository = definitionsRepository;
 
     if (redisClient !== null) {
-      this.pubsubClient = redisClient.duplicate() as RedisClientType;
+      this.pubsubClient = redisClient.duplicate();
       this.pubsubClient.on('error', (e) => {
         logger.error('redis_error', {
           key: NAME_CHANGE_PUBSUB_KEY,

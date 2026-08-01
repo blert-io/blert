@@ -102,9 +102,7 @@ export default class MessageHandler {
             pastRaid.setChallenge(challenge.type as Proto<ChallengeMap>);
             pastRaid.setMode(challenge.mode as Proto<ChallengeModeMap>);
             pastRaid.setStage(challenge.stage as Proto<StageMap>);
-            pastRaid.setStatus(
-              challenge.status as Proto<ServerMessage.PastChallenge.StatusMap>,
-            );
+            pastRaid.setStatus(challenge.status);
             const timestamp = new Timestamp();
             timestamp.setSeconds(
               Math.floor(challenge.timestamp.getTime() / 1000),

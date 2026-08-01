@@ -1,4 +1,4 @@
-import { ChallengeMode, Handicap, SplitType } from '@blert/common';
+import { ChallengeMode } from '@blert/common';
 
 import { ChallengeQuery, SortableFields } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
@@ -33,7 +33,7 @@ type NamespacedParamHandler = {
 const namespacedParams: Record<string, NamespacedParamHandler> = {
   split: {
     apply: (query, id, comparator) => {
-      (query.splits ??= new Map()).set(id as SplitType, comparator);
+      (query.splits ??= new Map()).set(id, comparator);
     },
   },
   'tob.bloatDown': {
@@ -50,10 +50,7 @@ const namespacedParams: Record<string, NamespacedParamHandler> = {
           `Invalid handicap level: ${comparator[1].toString()}`,
         );
       }
-      ((query.colosseum ??= {}).levels ??= new Map()).set(
-        id as Handicap,
-        comparator,
-      );
+      ((query.colosseum ??= {}).levels ??= new Map()).set(id, comparator);
     },
   },
 };
@@ -84,10 +81,10 @@ export function parseChallengeQuery(
   searchParams: NextSearchParams,
 ): ChallengeQuery | null {
   const party = expectSingle(searchParams, 'party')?.split(',') ?? undefined;
-  const mode = expectSingle(searchParams, 'mode')
+  const mode: ChallengeMode[] | undefined = expectSingle(searchParams, 'mode')
     ?.split(',')
     .map((m) => parseInt(m))
-    ?.filter((m) => !isNaN(m)) as ChallengeMode[] | undefined;
+    ?.filter((m) => !isNaN(m));
 
   const query: ChallengeQuery = {
     mode,

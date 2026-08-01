@@ -31,7 +31,7 @@ function parseSplit(value: string): SplitType | null {
   if (parts.length !== 2) {
     return null;
   }
-  const split = parseInt(parts[1]) as SplitType;
+  const split: SplitType = parseInt(parts[1]);
   if (Number.isNaN(split)) {
     return null;
   }

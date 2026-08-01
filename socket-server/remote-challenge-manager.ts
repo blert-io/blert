@@ -17,7 +17,6 @@ import {
   StageStreamType,
   challengeStageStreamKey,
   challengesKey,
-  ChallengeStatus,
   challengeProcessedStagesKey,
   challengeStreamsSetKey,
   stageAttemptKey,
@@ -310,10 +309,10 @@ export class RemoteChallengeManager extends ChallengeManager {
       }
 
       return {
-        type: Number.parseInt(challenge.type) as ChallengeType,
-        mode: Number.parseInt(challenge.mode) as ChallengeMode,
-        status: Number.parseInt(challenge.status) as ChallengeStatus,
-        stage: Number.parseInt(challenge.stage) as Stage,
+        type: Number.parseInt(challenge.type),
+        mode: Number.parseInt(challenge.mode),
+        status: Number.parseInt(challenge.status),
+        stage: Number.parseInt(challenge.stage),
         stageAttempt: challenge.stageAttempt
           ? Number.parseInt(challenge.stageAttempt)
           : null,

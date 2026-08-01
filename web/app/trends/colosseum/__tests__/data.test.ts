@@ -114,8 +114,8 @@ describe('playerWaveMarks', () => {
       playerDistributions,
       globalDistributions,
       new Map([
-        [SplitType.COLOSSEUM_WAVE_1 as number, 56],
-        [SplitType.COLOSSEUM_WAVE_2 as number, 22],
+        [SplitType.COLOSSEUM_WAVE_1, 56],
+        [SplitType.COLOSSEUM_WAVE_2, 22],
       ]),
     );
 
@@ -151,7 +151,7 @@ describe('playerWaveMarks', () => {
     const marks = playerWaveMarks(
       playerDistributions,
       null,
-      new Map([[SplitType.COLOSSEUM_WAVE_1 as number, 56]]),
+      new Map([[SplitType.COLOSSEUM_WAVE_1, 56]]),
     );
 
     expect(marks).toEqual(
@@ -193,7 +193,7 @@ describe('attachPlayerMarks', () => {
     ]);
 
     const marks = new Map([
-      [SplitType.COLOSSEUM_WAVE_1 as number, { median: 34, count: 4 }],
+      [SplitType.COLOSSEUM_WAVE_1, { median: 34, count: 4 }],
     ]);
 
     expect(attachPlayerMarks(categories, marks)).toEqual([
