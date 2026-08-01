@@ -273,7 +273,7 @@ export class BlertbankClient {
     const requestId =
       requestOptions?.requestId ?? this.requestIdProvider?.() ?? randomUUID();
 
-    const headers: HeadersInit = {
+    const headers = {
       'Content-Type': 'application/json',
       'X-Service-Token': this.serviceToken,
       'X-Service-Name': this.serviceName,
