@@ -1,8 +1,10 @@
 {
   "compilerOptions": {
     "target": "esnext",
+    "rootDir": ".",
     "outDir": "./dist/",
     "lib": ["esnext"],
+    "types": ["node"],
     "allowJs": false,
     "strict": true,
     "esModuleInterop": true,
@@ -10,7 +12,6 @@
     "moduleResolution": "NodeNext",
     "isolatedModules": true,
     "incremental": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }

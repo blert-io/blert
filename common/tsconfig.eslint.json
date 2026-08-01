@@ -1,7 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node", "jest"]
   },
   "include": ["**/*.ts", "generated/*_pb.js"],
   "exclude": ["dist/**/*", "node_modules"]

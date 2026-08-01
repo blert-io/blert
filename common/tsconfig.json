@@ -1,8 +1,10 @@
 {
   "compilerOptions": {
     "target": "es6",
+    "rootDir": ".",
     "outDir": "dist",
     "lib": ["esnext", "dom"],
+    "types": ["node"],
     "allowJs": true,
     "strict": true,
     "esModuleInterop": true,
