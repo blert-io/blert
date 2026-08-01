@@ -46,7 +46,10 @@ export async function createForUser(
   res.status(created ? 201 : 200).json(toUserAccountResponse(account));
 }
 
-export async function getByUserId(req: Request, res: Response): Promise<void> {
+export async function getByUserId(
+  req: Request<{ userId: string }>,
+  res: Response,
+): Promise<void> {
   const userId = Number.parseInt(req.params.userId, 10);
   if (!Number.isInteger(userId)) {
     throw new ApiError(ApiErrorCode.BAD_REQUEST, 'Invalid user ID');

@@ -52,10 +52,10 @@ export function apiErrorHandler(
   res.status(statusCode).json(response);
 }
 
-function asyncHandler(
-  fn: (req: Request, res: Response) => Promise<void>,
-): (req: Request, res: Response, next: NextFunction) => void {
-  return function (req: Request, res: Response, next: NextFunction) {
+function asyncHandler<P>(
+  fn: (req: Request<P>, res: Response) => Promise<void>,
+): (req: Request<P>, res: Response, next: NextFunction) => void {
+  return function (req: Request<P>, res: Response, next: NextFunction) {
     Promise.resolve(fn(req, res)).catch(next);
   };
 }
