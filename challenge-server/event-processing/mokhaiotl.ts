@@ -112,6 +112,18 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
     stage: Stage,
     events: MergedEvents,
   ): Promise<void> {
+    const delve = this.getDelve();
+
+    const state = this.getStageState();
+    this.mokhaiotlData.delves.push({
+      stage,
+      ticksLost: events.getMissingTickCount(),
+      npcs: Object.fromEntries(state?.npcs ?? []),
+      delve,
+      challengeTicks: events.getLastTick(),
+      larvaeLeaked: this.delveState.larvaeLeaked,
+    });
+
     if (stage !== Stage.MOKHAIOTL_DELVE_8PLUS) {
       if (stage === Stage.MOKHAIOTL_DELVE_8) {
         this.delve1To8Ticks = this.getTotalChallengeTicks();
@@ -138,8 +150,6 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
       }
     }
 
-    const delve = this.getDelve();
-
     for (const username of this.getParty()) {
       const stats = this.getCurrentStageStats(username);
       stats.mokhaiotlTotalDelves += 1;
@@ -150,16 +160,6 @@ export default class MokhaiotlProcessor extends ChallengeProcessor {
         }
       }
     }
-
-    const state = this.getStageState();
-    this.mokhaiotlData.delves.push({
-      stage,
-      ticksLost: events.getMissingTickCount(),
-      npcs: Object.fromEntries(state?.npcs ?? []),
-      delve,
-      challengeTicks: events.getLastTick(),
-      larvaeLeaked: this.delveState.larvaeLeaked,
-    });
 
     await Promise.all([
       this.updateChallengeStats(
