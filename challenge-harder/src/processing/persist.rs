@@ -9,9 +9,9 @@ use crate::proto::{Event, event};
 use crate::repository::DataRepository;
 use crate::skill::SkillLevel;
 
-use super::challenge_processor::ChallengeProcessor;
+use super::challenge_processor::{ChallengeProcessor, StageContext};
 use super::db;
-use super::interpret::{InterpretError, InterpretOutput, StageContext};
+use super::interpret::{InterpretError, InterpretOutput};
 use super::split::{SplitExt, SplitType};
 use super::stats::PlayerStatsDelta;
 use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
@@ -30,7 +30,13 @@ pub(super) async fn persist(
 
     if let Ok(mut output) = result {
         processor
-            .on_stage_finished(txn, &mut output.ctx, challenge.stage, &output.events)
+            .on_stage_finished(
+                txn,
+                stored,
+                &mut output.ctx,
+                challenge.stage,
+                &output.events,
+            )
             .await?;
 
         let splits = write_splits(
@@ -53,15 +59,27 @@ pub(super) async fn persist(
         let queryable_until = output.events.queryable_until();
         let events = output.into_kept_events();
         let total_events = events.len();
-        repository
-            .save_stage_events(
+
+        let challenge_data = processor.challenge_data();
+        let save_events = async {
+            if let Some(data) = challenge_data {
+                repository.save_challenge(challenge.uuid, &data).await
+            } else {
+                Ok(())
+            }
+        };
+
+        tokio::try_join!(
+            save_events,
+            repository.save_stage_events(
                 challenge.uuid,
                 challenge.stage,
                 challenge.stage_attempt,
                 &challenge.party,
                 events,
             )
-            .await?;
+        )?;
+
         tracing::info!(
             uuid = %challenge.uuid,
             stage = ?challenge.stage,

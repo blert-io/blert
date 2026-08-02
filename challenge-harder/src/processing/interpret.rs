@@ -1,8 +1,5 @@
 //! Stage event reconstruction and interpretation.
 
-// TODO(frolv): Remove once the context's full surface has consumers.
-#![cfg_attr(not(test), expect(dead_code))]
-
 use std::collections::BTreeMap;
 
 use crate::item::{self, ItemDelta};
@@ -11,146 +8,7 @@ use crate::merging::{self, MergedEvents};
 use crate::proto::{Event, event};
 
 use super::ChallengeInfo;
-use super::challenge_processor::{ChallengeProcessor, EventCursor};
-use super::split::{ChallengeSplit, SplitType, StageSplit};
-use super::stats::PlayerStatsDelta;
-
-/// An NPC tracked through a stage.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RoomNpc {
-    pub spawn_npc_id: u32,
-    pub room_id: u64,
-    pub spawn_tick: u32,
-    pub spawn_point: (i32, i32),
-    pub death_tick: u32,
-    pub death_point: (i32, i32),
-    pub kind: Option<event::npc::Type>,
-}
-
-/// Data accumulated about a single party member during a stage.
-#[derive(Debug, Clone, Default)]
-pub struct PlayerData {
-    pub gear: Option<PrimaryMeleeGear>,
-    pub stats: PlayerStatsDelta,
-}
-
-/// Generic stage state accumulated by the event loop.
-#[derive(Debug)]
-pub struct StageContext {
-    party: Vec<String>,
-    npcs: BTreeMap<u64, RoomNpc>,
-    /// Party indices of players who died this stage, in death order.
-    deaths: Vec<usize>,
-    /// Per-player data, indexed by party position.
-    players: Vec<PlayerData>,
-    /// Local splits recorded within the stage.
-    stage_splits: BTreeMap<SplitType, StageSplit>,
-    /// Challenge-wide splits recorded during the stage.
-    challenge_splits: BTreeMap<SplitType, ChallengeSplit>,
-}
-
-impl StageContext {
-    fn new(party: Vec<String>) -> StageContext {
-        let scale = party.len();
-        StageContext {
-            party,
-            npcs: BTreeMap::new(),
-            deaths: Vec::new(),
-            players: vec![PlayerData::default(); scale],
-            stage_splits: BTreeMap::new(),
-            challenge_splits: BTreeMap::new(),
-        }
-    }
-
-    pub fn party(&self) -> &[String] {
-        &self.party
-    }
-
-    /// Returns the tracked NPC with the given room ID.
-    pub fn npc(&self, room_id: u64) -> Option<&RoomNpc> {
-        self.npcs.get(&room_id)
-    }
-
-    /// Iterates over every NPC tracked this stage.
-    pub fn npcs(&self) -> impl Iterator<Item = &RoomNpc> {
-        self.npcs.values()
-    }
-
-    /// Party indices of players who died this stage, in death order.
-    pub fn deaths(&self) -> &[usize] {
-        &self.deaths
-    }
-
-    /// Returns all players' collected data, indexed by party position.
-    pub(super) fn players(&self) -> &[PlayerData] {
-        &self.players
-    }
-
-    /// Returns the accumulated data of the player at `party_index`.
-    pub(super) fn player_mut(&mut self, party_index: usize) -> Option<&mut PlayerData> {
-        self.players.get_mut(party_index)
-    }
-
-    /// Returns the index of `username` in the party.
-    pub(super) fn party_index(&self, username: &str) -> Option<usize> {
-        self.party.iter().position(|name| name == username)
-    }
-
-    /// Records a split whose timer is local to the current stage.
-    ///
-    /// `tick` is the tick on which the split occurred, counted as elapsed from
-    /// `start`. `requires_completion` indicates whether the split lasts until
-    /// the end of the stage. When set, accuracy is contingent on completion.
-    ///
-    /// Recording the same split again overwrites it.
-    pub fn set_stage_split(
-        &mut self,
-        split: SplitType,
-        tick: u32,
-        start: u32,
-        requires_completion: bool,
-    ) {
-        if tick > start {
-            self.stage_splits.insert(
-                split,
-                StageSplit {
-                    tick,
-                    start,
-                    requires_completion,
-                },
-            );
-        }
-    }
-
-    /// Returns the recorded stage split of the given type.
-    pub fn stage_split(&self, split: SplitType) -> Option<StageSplit> {
-        self.stage_splits.get(&split).copied()
-    }
-
-    /// Records a split whose timer spans the entire challenge.
-    pub fn set_challenge_split(&mut self, split: SplitType, ticks: u32, accurate: Option<bool>) {
-        if ticks > 0 {
-            self.challenge_splits
-                .insert(split, ChallengeSplit { ticks, accurate });
-        }
-    }
-
-    /// Iterates over recorded stage splits in split order.
-    pub(super) fn stage_splits(&self) -> impl Iterator<Item = (SplitType, StageSplit)> + '_ {
-        self.stage_splits
-            .iter()
-            .map(|(&split, &entry)| (split, entry))
-    }
-
-    /// Iterates over recorded challenge splits in split order.
-    pub(super) fn challenge_splits(
-        &self,
-    ) -> impl Iterator<Item = (SplitType, ChallengeSplit)> + '_ {
-        self.challenge_splits
-            .iter()
-            .map(|(&split, &entry)| (split, entry))
-    }
-}
+use super::challenge_processor::{ChallengeProcessor, EventCursor, RoomNpc, StageContext};
 
 /// The interpreted result of a stage's events.
 #[derive(Debug)]
@@ -261,7 +119,7 @@ fn track_event(ctx: &mut StageContext, event: &Event) {
     match event.r#type() {
         event::Type::PlayerUpdate => {
             if let Some(player) = &event.player
-                && let Some(data) = ctx.players.get_mut(player.party_index as usize)
+                && let Some(data) = ctx.player_mut(player.party_index as usize)
                 && data.gear.is_none()
                 && let Some(gear) = try_determine_gear(player)
             {
@@ -269,31 +127,26 @@ fn track_event(ctx: &mut StageContext, event: &Event) {
             }
         }
         event::Type::PlayerDeath => {
-            if let Some(player) = &event.player
-                && (player.party_index as usize) < ctx.party.len()
-            {
-                ctx.deaths.push(player.party_index as usize);
+            if let Some(player) = &event.player {
+                ctx.record_death(player.party_index as usize);
             }
         }
         event::Type::NpcSpawn => {
             if let Some(npc) = &event.npc {
-                ctx.npcs.insert(
-                    npc.room_id,
-                    RoomNpc {
-                        spawn_npc_id: npc.id,
-                        room_id: npc.room_id,
-                        spawn_tick: event.tick,
-                        spawn_point: (event.x_coord, event.y_coord),
-                        death_tick: 0,
-                        death_point: (0, 0),
-                        kind: npc.r#type,
-                    },
-                );
+                ctx.track_npc(RoomNpc {
+                    spawn_npc_id: npc.id,
+                    room_id: npc.room_id,
+                    spawn_tick: event.tick,
+                    spawn_point: (event.x_coord, event.y_coord),
+                    death_tick: 0,
+                    death_point: (0, 0),
+                    kind: npc.r#type,
+                });
             }
         }
         event::Type::NpcDeath => {
             if let Some(npc) = &event.npc
-                && let Some(room_npc) = ctx.npcs.get_mut(&npc.room_id)
+                && let Some(room_npc) = ctx.npc_mut(npc.room_id)
             {
                 room_npc.death_tick = event.tick;
                 room_npc.death_point = (event.x_coord, event.y_coord);
@@ -339,6 +192,7 @@ mod tests {
     use bytes::Bytes;
     use prost::Message;
 
+    use super::super::challenge_processor::ChallengeContext;
     use super::super::db;
     use super::*;
     use crate::lifecycle::core::types::{
@@ -469,82 +323,6 @@ mod tests {
     }
 
     #[test]
-    fn stage_splits_must_progress_past_their_start() {
-        let mut ctx = context();
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 0, 0, false);
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 32, 52, false);
-        assert_eq!(ctx.stage_split(SplitType::TobEntryMaiden70s50s), None);
-
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 52, 32, false);
-        assert_eq!(
-            ctx.stage_split(SplitType::TobEntryMaiden70s50s),
-            Some(StageSplit {
-                tick: 52,
-                start: 32,
-                requires_completion: false,
-            }),
-        );
-    }
-
-    #[test]
-    fn stage_splits_overwrite_and_iterate_in_split_order() {
-        let mut ctx = context();
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s, 32, 0, false);
-        ctx.set_stage_split(SplitType::TobEntryMaiden, 150, 0, true);
-        ctx.set_stage_split(SplitType::TobEntryMaiden, 155, 0, true);
-        assert_eq!(
-            ctx.stage_splits().collect::<Vec<_>>(),
-            vec![
-                (
-                    SplitType::TobEntryMaiden,
-                    StageSplit {
-                        tick: 155,
-                        start: 0,
-                        requires_completion: true,
-                    },
-                ),
-                (
-                    SplitType::TobEntryMaiden70s,
-                    StageSplit {
-                        tick: 32,
-                        start: 0,
-                        requires_completion: false,
-                    },
-                ),
-            ],
-        );
-    }
-
-    #[test]
-    fn challenge_splits_need_nonzero_ticks_and_iterate_in_split_order() {
-        let mut ctx = context();
-        ctx.set_challenge_split(SplitType::TobEntryChallenge, 0, None);
-        assert_eq!(ctx.challenge_splits().count(), 0);
-
-        ctx.set_challenge_split(SplitType::TobEntryNyloStart, 280, Some(true));
-        ctx.set_challenge_split(SplitType::TobEntryChallenge, 1534, None);
-        assert_eq!(
-            ctx.challenge_splits().collect::<Vec<_>>(),
-            vec![
-                (
-                    SplitType::TobEntryChallenge,
-                    ChallengeSplit {
-                        ticks: 1534,
-                        accurate: None,
-                    },
-                ),
-                (
-                    SplitType::TobEntryNyloStart,
-                    ChallengeSplit {
-                        ticks: 280,
-                        accurate: Some(true),
-                    },
-                ),
-            ],
-        );
-    }
-
-    #[test]
     fn gear_is_determined_once_from_added_equipment() {
         let mut ctx = context();
         track_event(
@@ -605,6 +383,7 @@ mod tests {
             async fn on_stage_finished(
                 &mut self,
                 _txn: &db::Transaction,
+                _stored: &super::super::StoredState,
                 _ctx: &mut StageContext,
                 _stage: Stage,
                 _events: &MergedEvents,
@@ -615,12 +394,17 @@ mod tests {
             async fn on_finish(
                 &mut self,
                 _txn: &db::Transaction,
+                _ctx: &mut ChallengeContext,
                 _final_ticks: u32,
             ) -> Result<(), db::Error> {
                 Ok(())
             }
 
             fn custom_data(&self) -> Option<serde_json::Value> {
+                None
+            }
+
+            fn challenge_data(&self) -> Option<crate::proto::ChallengeData> {
                 None
             }
 

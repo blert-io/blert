@@ -10,16 +10,13 @@
 
 use crate::lifecycle::challenge::StoreError;
 use crate::lifecycle::core::types::{
-    ChallengeType, ClientStageStream, PlayerId, PrimaryMeleeGear, ProcessingError,
-    ProcessingPayload,
+    ClientStageStream, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
 use crate::repository::DataRepository;
 use crate::store::Store;
 
-use super::challenge_processor::ChallengeProcessor;
 use super::db;
 use super::interpret::interpret;
-use super::mokhaiotl::MokhaiotlProcessor;
 use super::persist::persist;
 use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
 
@@ -30,30 +27,22 @@ pub async fn process(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
 ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
-    let mut processor = match challenge.challenge_type {
-        ChallengeType::Mokhaiotl => MokhaiotlProcessor,
-        // TODO(frolv): port
-        ChallengeType::Tob
-        | ChallengeType::Cox
-        | ChallengeType::Toa
-        | ChallengeType::Colosseum
-        | ChallengeType::Inferno
-        | ChallengeType::UnknownChallenge => {
-            tracing::info!(
-                uuid = %challenge.uuid,
-                challenge_type = ?challenge.challenge_type,
-                stage = ?challenge.stage,
-                "stage_processing_skipped",
-            );
-            return Ok((ProcessingPayload::None, None));
-        }
+    let (stream, stored) = gather(store, txn, challenge).await?;
+
+    let Some(mut processor) = super::processor_for(challenge, stored.custom_data.as_ref())? else {
+        tracing::info!(
+            uuid = %challenge.uuid,
+            challenge_type = ?challenge.challenge_type,
+            stage = ?challenge.stage,
+            "stage_processing_skipped",
+        );
+        return Ok((ProcessingPayload::None, None));
     };
 
-    let (stream, stored) = gather(store, txn, challenge).await?;
     let info = challenge.clone();
 
     let (result, mut processor) = tokio::task::spawn_blocking(move || {
-        let result = interpret(info, stream, &mut processor);
+        let result = interpret(info, stream, &mut *processor);
         (result, processor)
     })
     .await
@@ -62,7 +51,7 @@ pub async fn process(
         message: format!("interpret task failed: {error}"),
     })?;
 
-    let payload = persist(txn, repository, challenge, &stored, result, &mut processor).await?;
+    let payload = persist(txn, repository, challenge, &stored, result, &mut *processor).await?;
     Ok((payload, processor.custom_data()))
 }
 
@@ -93,35 +82,47 @@ pub(super) async fn load_database_state(
     txn: &db::Transaction,
     expected_scale: i16,
 ) -> Result<StoredState, db::Error> {
-    let rows = txn
-        .query(
-            "SELECT player_id, primary_gear FROM challenge_players
-             WHERE challenge_id = $1
-             ORDER BY orb",
-            &[&txn.challenge_id()],
-        )
-        .await?;
-    if rows.len() != expected_scale.cast_unsigned() as usize {
-        return Err(db::Error::InvalidData(format!(
-            "challenge has {} players, expected {expected_scale}",
-            rows.len(),
-        )));
-    }
+    let players = async {
+        let rows = txn
+            .query(
+                "SELECT player_id, primary_gear FROM challenge_players
+                 WHERE challenge_id = $1
+                 ORDER BY orb",
+                &[&txn.challenge_id()],
+            )
+            .await?;
+        if rows.len() != expected_scale.cast_unsigned() as usize {
+            return Err(db::Error::InvalidData(format!(
+                "challenge has {} players, expected {expected_scale}",
+                rows.len(),
+            )));
+        }
 
-    let players = rows
-        .iter()
-        .map(|row| {
-            let gear: i16 = row.get(1);
-            Ok(StoredPlayerInfo {
-                id: PlayerId(row.get(0)),
-                gear: PrimaryMeleeGear::try_from(gear)
-                    .map_err(|value| db::Error::InvalidData(format!("primary gear {value}")))?,
+        rows.iter()
+            .map(|row| {
+                let gear: i16 = row.get(1);
+                Ok(StoredPlayerInfo {
+                    id: PlayerId(row.get(0)),
+                    gear: PrimaryMeleeGear::try_from(gear)
+                        .map_err(|value| db::Error::InvalidData(format!("primary gear {value}")))?,
+                })
             })
-        })
-        .collect::<Result<Vec<_>, db::Error>>()?;
+            .collect::<Result<Vec<_>, db::Error>>()
+    };
+    let challenge_ticks = async {
+        let row = txn
+            .query_one(
+                "SELECT challenge_ticks FROM challenges WHERE id = $1",
+                &[&txn.challenge_id()],
+            )
+            .await?;
+        Ok(row.get::<_, i32>(0).cast_unsigned())
+    };
+    let (players, challenge_ticks) = tokio::try_join!(players, challenge_ticks)?;
 
     Ok(StoredState {
         players,
+        challenge_ticks,
         custom_data: txn.custom_data().cloned(),
     })
 }
@@ -132,10 +133,11 @@ mod tests {
     use prost::Message;
 
     use super::super::interpret::{InterpretError, InterpretOutput};
+    use super::super::mokhaiotl::MokhaiotlProcessor;
     use super::*;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ClientId, ServerTicks, Stage, StageStatus, StageUpdate,
-        Uuid,
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ServerTicks, Stage, StageStatus,
+        StageUpdate, Uuid,
     };
     use crate::proto::{ChallengeEvents, Event};
 
@@ -188,7 +190,8 @@ mod tests {
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
         };
-        let mut processor = MokhaiotlProcessor;
+        let mut processor =
+            MokhaiotlProcessor::new(info.clone(), None).expect("empty custom data is valid");
         interpret(info, records, &mut processor)
     }
 
