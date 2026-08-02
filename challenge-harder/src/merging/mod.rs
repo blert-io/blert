@@ -7,6 +7,8 @@
 #![cfg_attr(not(test), expect(dead_code))]
 
 mod client_events;
+#[cfg(test)]
+pub(crate) mod fixtures;
 
 use client_events::ClientEvents;
 
@@ -42,6 +44,10 @@ pub struct MergedEvents {
 }
 
 impl MergedEvents {
+    fn new(events: Vec<Event>, metadata: Metadata) -> MergedEvents {
+        MergedEvents { events, metadata }
+    }
+
     /// Builds a timeline from a single client's stream, trusting its
     /// self-reported metadata.
     // TODO(frolv): temporary, remove

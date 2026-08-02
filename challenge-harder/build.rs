@@ -25,6 +25,16 @@ fn main() -> Result<()> {
         );
     }
 
+    // NPC kinds are stored as JSON within processor custom data.
+    for ty in [
+        ".blert.Event.Npc.type",
+        ".blert.Event.Npc.MaidenCrab",
+        ".blert.Event.Npc.Nylo",
+        ".blert.Event.Npc.VerzikCrab",
+    ] {
+        config.type_attribute(ty, "#[derive(serde::Serialize, serde::Deserialize)]");
+    }
+
     config.compile_protos(
         &[
             &format!("{proto_dir}/challenge_storage.proto"),

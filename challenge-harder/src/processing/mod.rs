@@ -6,10 +6,13 @@ use async_trait::async_trait;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
+    ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
 use crate::repository::DataRepository;
 use crate::store::Store;
+
+use challenge_processor::ChallengeProcessor;
+use mokhaiotl::MokhaiotlProcessor;
 
 pub use crate::lifecycle::core::types::ChallengeInfo;
 
@@ -24,6 +27,25 @@ mod split;
 mod stage;
 mod stats;
 
+fn processor_for(
+    challenge: &ChallengeInfo,
+    custom_data: Option<&serde_json::Value>,
+) -> Result<Option<Box<dyn ChallengeProcessor>>, ProcessingError> {
+    match challenge.challenge_type {
+        ChallengeType::Mokhaiotl => Ok(Some(Box::new(MokhaiotlProcessor::new(
+            challenge.clone(),
+            custom_data,
+        )?))),
+        // TODO(frolv): port
+        ChallengeType::Tob
+        | ChallengeType::Cox
+        | ChallengeType::Toa
+        | ChallengeType::Colosseum
+        | ChallengeType::Inferno
+        | ChallengeType::UnknownChallenge => Ok(None),
+    }
+}
+
 /// A challenge party member.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StoredPlayerInfo {
@@ -37,6 +59,8 @@ pub struct StoredPlayerInfo {
 pub struct StoredState {
     /// Party members in order.
     pub players: Vec<StoredPlayerInfo>,
+    /// Tick count so far.
+    pub challenge_ticks: u32,
     /// Type-specific processor state persisted across runs.
     pub custom_data: Option<serde_json::Value>,
 }
@@ -99,7 +123,18 @@ impl StageProcessor for Pipeline {
         let (payload, custom_data) = match request.trigger {
             Trigger::Create { .. } => {
                 challenge::create(&mut txn, &request.challenge).await?;
-                (ProcessingPayload::None, None)
+                match processor_for(&request.challenge, None)? {
+                    Some(mut processor) => {
+                        processor.on_create(&txn).await?;
+                        if let Some(data) = processor.challenge_data() {
+                            self.repository
+                                .save_challenge(request.challenge.uuid, &data)
+                                .await?;
+                        }
+                        (ProcessingPayload::None, processor.custom_data())
+                    }
+                    None => (ProcessingPayload::None, None),
+                }
             }
             Trigger::Recorder {
                 user_id,
