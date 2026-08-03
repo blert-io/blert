@@ -62,7 +62,7 @@ fn client_finished(client: i64) -> LifecycleEvent {
 }
 
 fn terminated() -> LifecycleEvent {
-    LifecycleEvent::ChallengeTerminated { empty: false }
+    LifecycleEvent::ChallengeTerminated
 }
 
 #[tokio::test(start_paused = true)]

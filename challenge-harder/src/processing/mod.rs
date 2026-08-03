@@ -111,7 +111,7 @@ impl StageProcessor for Pipeline {
             "processing_started",
         );
 
-        let mut txn = match self.db.start_transaction(uuid, request.trigger.seq()).await {
+        let mut txn = match self.db.start_transaction(uuid, request.trigger).await {
             Ok(txn) => txn,
             Err(db::Error::AlreadyApplied(payload)) => {
                 tracing::debug!(%uuid, seq = ?request.trigger.seq(), "processing_step_already_applied");
@@ -122,19 +122,9 @@ impl StageProcessor for Pipeline {
 
         let (payload, custom_data) = match request.trigger {
             Trigger::Create { .. } => {
-                challenge::create(&mut txn, &request.challenge).await?;
-                match processor_for(&request.challenge, None)? {
-                    Some(mut processor) => {
-                        processor.on_create(&txn).await?;
-                        if let Some(data) = processor.challenge_data() {
-                            self.repository
-                                .save_challenge(request.challenge.uuid, &data)
-                                .await?;
-                        }
-                        (ProcessingPayload::None, processor.custom_data())
-                    }
-                    None => (ProcessingPayload::None, None),
-                }
+                let custom_data =
+                    challenge::create(&mut txn, &self.repository, &request.challenge).await?;
+                (ProcessingPayload::None, custom_data)
             }
             Trigger::Recorder {
                 user_id,
@@ -153,7 +143,7 @@ impl StageProcessor for Pipeline {
                 (ProcessingPayload::None, None)
             }
             Trigger::Finish { .. } => {
-                challenge::finish(&txn, &request.challenge).await?;
+                challenge::finish(&mut txn, &self.repository, &request.challenge).await?;
                 (ProcessingPayload::None, None)
             }
             Trigger::Stage { .. } => {

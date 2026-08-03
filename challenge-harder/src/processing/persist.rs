@@ -1,110 +1,19 @@
-//! Stage result persistence.
+//! Database writers for challenge processing effects.
 
 use std::collections::BTreeMap;
 
-use crate::lifecycle::core::types::{
-    PrimaryMeleeGear, ProcessingError, ProcessingPayload, Stage, StageStatus,
-};
+use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::proto::{Event, event};
-use crate::repository::DataRepository;
 use crate::skill::SkillLevel;
 
-use super::challenge_processor::{ChallengeProcessor, StageContext};
+use super::challenge_processor::{PlayerData, StageContext};
 use super::db;
-use super::interpret::{InterpretError, InterpretOutput};
-use super::split::{SplitExt, SplitType};
+use super::interpret::InterpretOutput;
+use super::split::{SavedSplit, SplitExt, SplitType};
 use super::stats::PlayerStatsDelta;
-use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
+use super::{ChallengeInfo, StoredPlayerInfo};
 
-/// Writes a stage's processed results to the database and blob store.
-/// Returns the payload to be sent back to the challenge.
-pub(super) async fn persist(
-    txn: &db::Transaction,
-    repository: &DataRepository,
-    challenge: &ChallengeInfo,
-    stored: &StoredState,
-    result: Result<InterpretOutput, InterpretError>,
-    processor: &mut dyn ChallengeProcessor,
-) -> Result<ProcessingPayload, ProcessingError> {
-    let payload = payload_from(&result);
-
-    if let Ok(mut output) = result {
-        processor
-            .on_stage_finished(
-                txn,
-                stored,
-                &mut output.ctx,
-                challenge.stage,
-                &output.events,
-            )
-            .await?;
-
-        let splits = write_splits(
-            txn,
-            challenge,
-            output.events.accurate_until(),
-            output.events.status() == StageStatus::Completed,
-            &output.ctx,
-        )
-        .await?;
-        update_personal_bests(txn, challenge, &stored.players, &splits).await?;
-
-        let ((), (), queryable_events, ()) = tokio::try_join!(
-            update_players(txn, challenge.stage, &output.ctx, &stored.players),
-            update_player_stats(txn, &output.ctx, &stored.players),
-            write_queryable_events(txn, challenge, &output, &stored.players),
-            update_challenge_row(txn, output.events.last_tick(), output.ctx.deaths().len())
-        )?;
-
-        let queryable_until = output.events.queryable_until();
-        let events = output.into_kept_events();
-        let total_events = events.len();
-
-        let challenge_data = processor.challenge_data();
-        let save_events = async {
-            if let Some(data) = challenge_data {
-                repository.save_challenge(challenge.uuid, &data).await
-            } else {
-                Ok(())
-            }
-        };
-
-        tokio::try_join!(
-            save_events,
-            repository.save_stage_events(
-                challenge.uuid,
-                challenge.stage,
-                challenge.stage_attempt,
-                &challenge.party,
-                events,
-            )
-        )?;
-
-        tracing::info!(
-            uuid = %challenge.uuid,
-            stage = ?challenge.stage,
-            total_events,
-            queryable_events,
-            queryable_until,
-            "challenge_stage_events_saved",
-        );
-    }
-
-    Ok(payload)
-}
-
-fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingPayload {
-    match result {
-        Ok(output) => ProcessingPayload::Stage {
-            status: output.events.status(),
-            ticks: output.events.last_tick(),
-        },
-        // TODO(frolv): Handle errors.
-        Err(InterpretError::NoData) => ProcessingPayload::None,
-    }
-}
-
-async fn update_players(
+pub(super) async fn update_players(
     txn: &db::Transaction,
     stage: Stage,
     ctx: &StageContext,
@@ -146,14 +55,14 @@ async fn update_players(
 }
 
 /// Applies each player's accumulated stat changes to their `player_stats`.
-async fn update_player_stats(
+pub(super) async fn update_player_stats(
     txn: &db::Transaction,
-    ctx: &StageContext,
+    data: &[PlayerData],
     players: &[StoredPlayerInfo],
 ) -> Result<(), db::Error> {
     let updates: Vec<_> = players
         .iter()
-        .zip(ctx.players())
+        .zip(data)
         .filter(|(_, data)| !data.stats.is_empty())
         .map(|(info, data)| (info.id, data.stats.columns()))
         .collect();
@@ -250,45 +159,42 @@ struct InsertedSplit {
     accurate: bool,
 }
 
-/// Inserts a stage's recorded splits, returning the inserted rows.
-///
-/// Stage splits count their ticks from their recorded start, and are accurate
-/// when they lie within the timeline's accurate prefix.
-/// Challenge splits are inaccurate unless explicitly overridden.
+/// Stores resolved splits, updating players' personal bests from any that are
+/// accurate.
+pub(super) async fn save_splits(
+    txn: &db::Transaction,
+    challenge: &ChallengeInfo,
+    splits: Vec<SavedSplit>,
+    players: &[StoredPlayerInfo],
+) -> Result<(), db::Error> {
+    let inserted = write_splits(txn, challenge, splits).await?;
+    update_personal_bests(txn, challenge, players, &inserted).await
+}
+
 async fn write_splits(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
-    accurate_until: u32,
-    completed: bool,
-    ctx: &StageContext,
+    splits: Vec<SavedSplit>,
 ) -> Result<Vec<InsertedSplit>, db::Error> {
-    let mut rows = Vec::new();
-    for (split, entry) in ctx.stage_splits() {
-        rows.push((
-            split.adjust_to(challenge.mode),
-            entry.tick - entry.start,
-            entry.tick < accurate_until && (!entry.requires_completion || completed),
-        ));
-    }
-    for (split, entry) in ctx.challenge_splits() {
-        rows.push((
-            split.adjust_to(challenge.mode),
-            entry.ticks,
-            entry.accurate.unwrap_or(false),
-        ));
-    }
-
-    if rows.is_empty() {
+    if splits.is_empty() {
         return Ok(Vec::new());
     }
 
-    let mut types = Vec::with_capacity(rows.len());
-    let mut ticks = Vec::with_capacity(rows.len());
-    let mut accurate = Vec::with_capacity(rows.len());
-    for &(split, t, acc) in &rows {
-        types.push(split as i16);
-        ticks.push(t.cast_signed());
-        accurate.push(acc);
+    let splits: Vec<SavedSplit> = splits
+        .into_iter()
+        .map(|entry| SavedSplit {
+            split: entry.split.adjust_to(challenge.mode),
+            ..entry
+        })
+        .collect();
+
+    let mut types = Vec::with_capacity(splits.len());
+    let mut ticks = Vec::with_capacity(splits.len());
+    let mut accurate = Vec::with_capacity(splits.len());
+    for entry in &splits {
+        types.push(entry.split as i16);
+        ticks.push(entry.ticks.cast_signed());
+        accurate.push(entry.accurate);
     }
 
     let ids = txn
@@ -309,12 +215,12 @@ async fn write_splits(
 
     Ok(ids
         .into_iter()
-        .zip(rows)
-        .map(|(row, (split, ticks, accurate))| InsertedSplit {
+        .zip(splits)
+        .map(|(row, entry)| InsertedSplit {
             id: row.get(0),
-            split,
-            ticks,
-            accurate,
+            split: entry.split,
+            ticks: entry.ticks,
+            accurate: entry.accurate,
         })
         .collect())
 }
@@ -393,7 +299,7 @@ async fn update_personal_bests(
     Ok(())
 }
 
-async fn update_challenge_row(
+pub(super) async fn update_challenge_row(
     txn: &db::Transaction,
     stage_ticks: u32,
     new_deaths: usize,
@@ -430,7 +336,7 @@ struct QueryableEvent {
 
 /// Writes the stage's kept events within the queryable prefix to the
 /// `queryable_events` table. Returns the number of rows written.
-async fn write_queryable_events(
+pub(super) async fn write_queryable_events(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
     output: &InterpretOutput,
@@ -703,17 +609,4 @@ fn to_queryable_event(
     };
 
     Some(row)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn no_data_yields_no_payload() {
-        assert_eq!(
-            payload_from(&Err(InterpretError::NoData)),
-            ProcessingPayload::None,
-        );
-    }
 }

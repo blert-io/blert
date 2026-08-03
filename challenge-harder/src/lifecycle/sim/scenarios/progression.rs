@@ -96,12 +96,7 @@ async fn solo_colosseum_wipe_full_trace() {
                     times: None,
                 },
             ),
-            entry(
-                11,
-                1_000,
-                cmd(6),
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(11, 1_000, cmd(6), LifecycleEvent::ChallengeTerminated,),
         ],
     );
 }

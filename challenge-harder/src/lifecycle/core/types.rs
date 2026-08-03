@@ -322,6 +322,8 @@ pub struct ChallengeInfo {
     pub stage_attempt: Option<u32>,
     pub status: ChallengeStatus,
     pub created_unix_ms: u64,
+    pub finished_unix_ms: Option<u64>,
+    pub reported_times: Option<ReportedTimes>,
 }
 
 impl ChallengeInfo {

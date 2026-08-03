@@ -965,7 +965,7 @@ mod tests {
                     seq: JournalSeq(3),
                     at: Timestamp::ZERO,
                     caused_by: Cause::Command(MsgId::sequence(2)),
-                    event: LifecycleEvent::ChallengeTerminated { empty: false },
+                    event: LifecycleEvent::ChallengeTerminated,
                 },
             ],
         );
@@ -977,7 +977,9 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
             party_changed: false,
-            phase: PhaseState::Terminated,
+            phase: PhaseState::Terminated {
+                finished_unix_ms: 0,
+            },
             reported_times: None,
             stage: Stage::TobMaiden,
             stage_attempt: None,
@@ -1086,12 +1088,7 @@ mod tests {
                 times: None,
             },
         ));
-        journal.push(journaled(
-            3,
-            500,
-            2,
-            LifecycleEvent::ChallengeTerminated { empty: false },
-        ));
+        journal.push(journaled(3, 500, 2, LifecycleEvent::ChallengeTerminated));
 
         // The queued command is never processed.
         let outcome = run_scripted(vec![], journal, vec![finish_command()], false).await;
@@ -1111,7 +1108,9 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             party: vec!["a".into()],
             party_changed: false,
-            phase: PhaseState::Terminated,
+            phase: PhaseState::Terminated {
+                finished_unix_ms: 0,
+            },
             reported_times: None,
             stage: Stage::TobMaiden,
             stage_attempt: None,
@@ -1179,12 +1178,7 @@ mod tests {
                         times: None,
                     },
                 ),
-                journaled(
-                    3,
-                    0,
-                    2,
-                    LifecycleEvent::ChallengeTerminated { empty: false },
-                ),
+                journaled(3, 0, 2, LifecycleEvent::ChallengeTerminated,),
             ],
         );
         assert_eq!(outcome.log.deleted.lock().unwrap().len(), 1);
@@ -1222,7 +1216,7 @@ mod tests {
                 seq: JournalSeq(3),
                 at: Timestamp::from_millis(1_000 + window),
                 caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-                event: LifecycleEvent::ChallengeTerminated { empty: false },
+                event: LifecycleEvent::ChallengeTerminated,
             }],
         );
         assert_eq!(outcome.log.deleted.lock().unwrap().len(), 1);
@@ -1254,7 +1248,7 @@ mod tests {
                 seq: JournalSeq(4),
                 at: Timestamp::from_millis(window * 3),
                 caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-                event: LifecycleEvent::ChallengeTerminated { empty: false },
+                event: LifecycleEvent::ChallengeTerminated,
             }],
         );
         assert_eq!(outcome.log.deleted.lock().unwrap().len(), 1);

@@ -149,7 +149,7 @@ async fn terminated_incumbent_is_superseded() {
     assert!(
         result.journals[&first]
             .iter()
-            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated { .. },))
+            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated))
     );
     assert_eq!(result.projections[&first].status, ChallengeStatus::Reset);
 }
@@ -209,7 +209,7 @@ async fn start_for_another_party_leaves_the_recorded_challenge() {
                 3,
                 301_000,
                 Cause::Deadline(DeadlineKind::CleanupDisconnect),
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ChallengeTerminated,
             ),
         ],
     );
@@ -244,7 +244,7 @@ async fn start_joins_the_left_challenge_within_its_window() {
     assert!(
         result.journals[&duo_watch]
             .iter()
-            .all(|e| !matches!(e.event, LifecycleEvent::ChallengeTerminated { .. }))
+            .all(|e| !matches!(e.event, LifecycleEvent::ChallengeTerminated))
     );
     assert!(!result.deleted.contains(&duo_watch));
     assert!(result.deleted.contains(&solo_watch));
@@ -322,7 +322,7 @@ async fn start_attaching_to_an_incumbent_leaves_the_recorded_challenge() {
     assert!(
         result.journals[&solo]
             .iter()
-            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated { .. }))
+            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated))
     );
     assert!(result.deleted.contains(&solo));
 }
@@ -369,7 +369,7 @@ async fn finishing_challenge_is_not_joined() {
                 6,
                 5_100,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ChallengeTerminated,
             ),
         ],
     );

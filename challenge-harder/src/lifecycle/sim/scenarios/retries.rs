@@ -47,12 +47,7 @@ fn client_finished(seq: u64, at_ms: u64, caused_by: Cause) -> JournalEntry {
 }
 
 fn completed(seq: u64, at_ms: u64, caused_by: Cause) -> JournalEntry {
-    entry(
-        seq,
-        at_ms,
-        caused_by,
-        LifecycleEvent::ChallengeTerminated { empty: false },
-    )
+    entry(seq, at_ms, caused_by, LifecycleEvent::ChallengeTerminated)
 }
 
 #[tokio::test(start_paused = true)]

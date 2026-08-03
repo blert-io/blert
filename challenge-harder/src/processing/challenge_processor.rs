@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::StoredState;
 use super::db;
-use super::split::{ChallengeSplit, SplitType, StageSplit};
+use super::split::{ChallengeSplit, SavedSplit, SplitType, StageSplit};
 use super::stats::PlayerStatsDelta;
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::MergedEvents;
@@ -140,6 +140,18 @@ impl ChallengeContext {
             .iter()
             .map(|(&split, &entry)| (split, entry))
     }
+
+    /// Resolves the recorded challenge splits to their final accuracy.
+    pub(super) fn splits(&self, default_accuracy: bool) -> Vec<SavedSplit> {
+        self.challenge_splits
+            .iter()
+            .map(|(&split, entry)| SavedSplit {
+                split,
+                ticks: entry.ticks,
+                accurate: entry.accurate.unwrap_or(default_accuracy),
+            })
+            .collect()
+    }
 }
 
 /// Stage-scoped state accumulated by the event loop.
@@ -216,13 +228,6 @@ impl StageContext {
         self.challenge.set_challenge_split(split, ticks, accurate);
     }
 
-    /// Iterates over recorded challenge splits in split order.
-    pub(super) fn challenge_splits(
-        &self,
-    ) -> impl Iterator<Item = (SplitType, ChallengeSplit)> + '_ {
-        self.challenge.challenge_splits()
-    }
-
     /// Records a split whose timer is local to the current stage.
     ///
     /// `tick` is the tick on which the split occurred, counted as elapsed from
@@ -260,10 +265,27 @@ impl StageContext {
             .iter()
             .map(|(&split, &entry)| (split, entry))
     }
+
+    /// Resolves every split recorded during the stage to its final accuracy.
+    /// Stage splits are accurate when they fall within the timeline's accurate
+    /// prefix. Challenge splits recorded following a stage are inaccurate
+    /// unless overridden.
+    pub(super) fn splits(&self, accurate_until: u32, completed: bool) -> Vec<SavedSplit> {
+        let mut splits: Vec<SavedSplit> = self
+            .stage_splits
+            .iter()
+            .map(|(&split, entry)| SavedSplit {
+                split,
+                ticks: entry.tick - entry.start,
+                accurate: entry.tick < accurate_until && (!entry.requires_completion || completed),
+            })
+            .collect();
+        splits.extend(self.challenge.splits(false));
+        splits
+    }
 }
 
 /// Type-specific challenge processing behavior.
-#[cfg_attr(not(test), expect(dead_code))]
 #[async_trait]
 pub trait ChallengeProcessor: Send {
     /// Handles one event during the stage processing loop, returning whether

@@ -439,6 +439,8 @@ mod tests {
             stage_attempt: None,
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
 
         let output = interpret(

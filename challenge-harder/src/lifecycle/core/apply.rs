@@ -161,8 +161,16 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
         LifecycleEvent::ClientRemoved { client_id } => {
             state.clients.remove(&client_id);
         }
-        LifecycleEvent::ChallengeTerminated { empty: _ } => {
-            state.phase = PhaseState::Terminated;
+        LifecycleEvent::ChallengeTerminated => {
+            // Prefer a real time from a streamed command, falling back to the
+            // relative time since challenge start, which excludes downtime.
+            let finished_unix_ms = match entry.caused_by {
+                Cause::Command(id) => id.unix_millis(),
+                Cause::Deadline(_) | Cause::Processing(_) => {
+                    state.created_unix_ms.saturating_add(entry.at.as_millis())
+                }
+            };
+            state.phase = PhaseState::Terminated { finished_unix_ms };
         }
         LifecycleEvent::ModeChanged { mode } => {
             state.mode = mode;
@@ -334,7 +342,7 @@ mod tests {
                     uuid,
                     challenge_type,
                     mode,
-                    party: vec!["Skitter".into()],
+                    party: vec!["aSaradomin".into()],
                     stage,
                 },
             ),
@@ -376,7 +384,7 @@ mod tests {
         let state = created_tob_state();
         assert_eq!(state.challenge_type, ChallengeType::Tob);
         assert_eq!(state.mode, ChallengeMode::TobRegular);
-        assert_eq!(state.party, vec!["Skitter".to_string()]);
+        assert_eq!(state.party, vec!["aSaradomin".to_string()]);
         assert_eq!(state.stage, Stage::TobMaiden);
         assert_eq!(state.stage_attempt, None);
         assert_eq!(state.stage_status, StageStatus::Entered);
@@ -841,17 +849,58 @@ mod tests {
     }
 
     #[test]
-    fn challenge_terminated_sets_status() {
+    fn challenge_terminated_uses_time_from_the_causing_command() {
         let mut state = created_tob_state();
         apply(
             &mut state,
-            entry(
-                9_000,
-                2,
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            JournalEntry {
+                seq: JournalSeq(2),
+                at: Timestamp::from_millis(9_000),
+                caused_by: Cause::Command("1785693975535-0".parse().unwrap()),
+                event: LifecycleEvent::ChallengeTerminated,
+            },
         );
-        assert_eq!(state.phase, PhaseState::Terminated);
+        assert_eq!(
+            state.phase,
+            PhaseState::Terminated {
+                finished_unix_ms: 1_785_693_975_535,
+            },
+        );
+    }
+
+    #[test]
+    fn deadline_termination_uses_time_relative_to_start() {
+        let mut state = ChallengeState::default();
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(0),
+                at: Timestamp::from_millis(0),
+                caused_by: Cause::Command("1785693558201-0".parse().unwrap()),
+                event: LifecycleEvent::ChallengeCreated {
+                    uuid: Uuid::from_u128(1),
+                    challenge_type: ChallengeType::Tob,
+                    mode: ChallengeMode::TobRegular,
+                    party: vec!["1Ogp".into()],
+                    stage: Stage::TobMaiden,
+                },
+            },
+        );
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(1),
+                at: Timestamp::from_millis(417_333),
+                caused_by: Cause::Deadline(DeadlineKind::ChallengeEnd),
+                event: LifecycleEvent::ChallengeTerminated,
+            },
+        );
+        assert_eq!(
+            state.phase,
+            PhaseState::Terminated {
+                finished_unix_ms: 1_785_693_975_534,
+            },
+        );
     }
 
     #[test]
@@ -938,6 +987,8 @@ mod tests {
             max_attempts: 2,
             run_timeout: Duration::from_secs(10),
             retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: 4,
+            finish_retry_backoff: Duration::from_secs(9),
         });
         state
     }
@@ -1016,6 +1067,8 @@ mod tests {
                 max_attempts: 2,
                 run_timeout: Duration::from_secs(10),
                 retry_backoff: Duration::from_secs(3),
+                finish_max_attempts: 4,
+                finish_retry_backoff: Duration::from_secs(9),
             }),
             ..ChallengeState::default()
         };
@@ -1044,7 +1097,7 @@ mod tests {
                 seq: JournalSeq(1),
                 at: Timestamp::from_millis(200),
                 caused_by: Cause::Command(MsgId::sequence(1)),
-                event: LifecycleEvent::ChallengeTerminated { empty: false },
+                event: LifecycleEvent::ChallengeTerminated,
             },
         );
 
@@ -1110,12 +1163,14 @@ mod tests {
                 uuid: Uuid::from_u128(0xb1e47),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["Skitter".into()],
+                party: vec!["aSaradomin".into()],
                 party_changed: false,
                 stage: Stage::TobMaiden,
                 stage_attempt: None,
                 status: ChallengeStatus::InProgress,
                 created_unix_ms: 0,
+                reported_times: None,
+                finished_unix_ms: None,
             },
         );
 
@@ -1144,12 +1199,14 @@ mod tests {
                 uuid: Uuid::from_u128(0xb1e47),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobHard,
-                party: vec!["Skitter".into()],
+                party: vec!["aSaradomin".into()],
                 party_changed: true,
                 stage: Stage::TobMaiden,
                 stage_attempt: None,
                 status: ChallengeStatus::InProgress,
                 created_unix_ms: 0,
+                reported_times: None,
+                finished_unix_ms: None,
             },
         );
     }
@@ -1161,10 +1218,27 @@ mod tests {
         apply(
             &mut state,
             entry(
-                6_000,
+                5_500,
                 4,
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ClientFinished {
+                    client_id: CLIENT,
+                    definitive: true,
+                    soft: false,
+                    times: Some(ReportedTimes {
+                        challenge: 1_437,
+                        overall: 1_500,
+                    }),
+                },
             ),
+        );
+        apply(
+            &mut state,
+            JournalEntry {
+                seq: JournalSeq(6),
+                at: Timestamp::from_millis(6_000),
+                caused_by: Cause::Command("1785693975535-0".parse().unwrap()),
+                event: LifecycleEvent::ChallengeTerminated,
+            },
         );
 
         // No finish is queued until the stage run completes.
@@ -1195,7 +1269,25 @@ mod tests {
 
         let run = state.processing.active().expect("exists");
         assert_eq!(run.trigger, Trigger::Finish { seq: JournalSeq(9) });
-        assert_eq!(run.info.status, ChallengeStatus::Wiped);
+        assert_eq!(
+            run.info,
+            ChallengeInfo {
+                uuid: Uuid::from_u128(0xb1e47),
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                party: vec!["aSaradomin".into()],
+                party_changed: false,
+                stage: Stage::TobMaiden,
+                stage_attempt: None,
+                status: ChallengeStatus::Wiped,
+                created_unix_ms: 0,
+                reported_times: Some(ReportedTimes {
+                    challenge: 1_437,
+                    overall: 1_500,
+                }),
+                finished_unix_ms: Some(1_785_693_975_535),
+            },
+        );
 
         apply(
             &mut state,
@@ -1314,11 +1406,7 @@ mod tests {
 
         apply(
             &mut state,
-            entry(
-                9_000,
-                4,
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(9_000, 4, LifecycleEvent::ChallengeTerminated),
         );
         assert_eq!(state.status(), ChallengeStatus::Reset);
     }
@@ -1562,11 +1650,7 @@ mod tests {
         );
         apply(
             &mut state,
-            entry(
-                11_000,
-                7,
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(11_000, 7, LifecycleEvent::ChallengeTerminated),
         );
 
         // The final status falls back to the challenge's reported progress

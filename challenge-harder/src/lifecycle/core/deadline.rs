@@ -80,6 +80,8 @@ impl LifecycleConfig {
                 max_attempts: self.processing.max_attempts,
                 run_timeout: self.processing.run_timeout / factor,
                 retry_backoff: self.processing.retry_backoff / factor,
+                finish_max_attempts: self.processing.finish_max_attempts,
+                finish_retry_backoff: self.processing.finish_retry_backoff / factor,
             },
         }
     }
@@ -101,7 +103,7 @@ pub fn next_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option
 }
 
 fn lifecycle_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Option<Deadline> {
-    if let PhaseState::Terminated = state.phase {
+    if state.terminated() {
         return None;
     }
 
@@ -155,7 +157,7 @@ fn processing_deadline(state: &ChallengeState) -> Option<Deadline> {
             let backoff = if run.attempts == 0 {
                 Duration::ZERO
             } else {
-                config.retry_backoff
+                config.backoff_for(run.trigger)
             };
             Some(Deadline {
                 kind: DeadlineKind::ProcessingDue,
@@ -211,6 +213,8 @@ mod tests {
             max_attempts: 3,
             run_timeout: Duration::from_secs(10),
             retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: 4,
+            finish_retry_backoff: Duration::from_secs(12),
         });
         processing.push(
             Trigger::Stage {
@@ -256,6 +260,11 @@ mod tests {
         assert_eq!(config.processing.run_timeout, Duration::from_secs(3));
         assert_eq!(config.processing.retry_backoff, Duration::from_millis(500));
         assert_eq!(config.processing.max_attempts, 0);
+        assert_eq!(
+            config.processing.finish_retry_backoff,
+            Duration::from_secs(3)
+        );
+        assert_eq!(config.processing.finish_max_attempts, 10);
     }
 
     #[test]
@@ -419,7 +428,9 @@ mod tests {
     #[test]
     fn terminated_challenge_without_processing_has_no_deadlines() {
         let state = ChallengeState {
-            phase: PhaseState::Terminated,
+            phase: PhaseState::Terminated {
+                finished_unix_ms: 1_785_693_975_535,
+            },
             stage_state: StageState::Complete {
                 since: Timestamp::from_millis(7_000),
             },
@@ -459,6 +470,46 @@ mod tests {
     }
 
     #[test]
+    fn failed_finish_run_retries_after_configured_backoff() {
+        let mut processing = Processing::new(ProcessingConfig {
+            max_attempts: 3,
+            run_timeout: Duration::from_secs(10),
+            retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: 4,
+            finish_retry_backoff: Duration::from_secs(12),
+        });
+        processing.push(
+            Trigger::Finish { seq: JournalSeq(7) },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(5_000),
+        );
+        processing.start(JournalSeq(7), Timestamp::from_millis(5_000));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(5_000),
+            Err(ProcessingError {
+                message: "scripted".into(),
+                retriable: true,
+            }),
+        );
+
+        let state = ChallengeState {
+            phase: PhaseState::Terminated {
+                finished_unix_ms: 1_785_693_975_535,
+            },
+            processing,
+            ..mid_stage_state()
+        };
+        assert_eq!(
+            next_deadline(&state, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::ProcessingDue,
+                at: Timestamp::from_millis(17_000),
+            }),
+        );
+    }
+
+    #[test]
     fn active_processing_run_has_a_timeout() {
         let state = ChallengeState {
             processing: running_processing(Timestamp::from_millis(5_000)),
@@ -476,7 +527,9 @@ mod tests {
     #[test]
     fn terminated_challenge_with_active_processing_has_a_timeout() {
         let state = ChallengeState {
-            phase: PhaseState::Terminated,
+            phase: PhaseState::Terminated {
+                finished_unix_ms: 1_785_693_975_535,
+            },
             processing: running_processing(Timestamp::from_millis(5_000)),
             ..mid_stage_state()
         };

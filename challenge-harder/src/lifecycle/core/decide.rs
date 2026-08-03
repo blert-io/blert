@@ -286,26 +286,23 @@ fn deadline_fired(
                 .keys()
                 .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
                 .collect();
-            events.push(LifecycleEvent::ChallengeTerminated {
-                // TODO(frolv): Set based on recorded data once stage processing exists.
-                empty: false,
-            });
+            events.extend(seal_open_stage(state));
+            events.push(LifecycleEvent::ChallengeTerminated);
             events
         }
-        DeadlineKind::CleanupDisconnect => vec![LifecycleEvent::ChallengeTerminated {
-            // TODO(frolv): Set based on recorded data once stage processing exists.
-            empty: false,
-        }],
+        DeadlineKind::CleanupDisconnect => {
+            let mut events: Vec<LifecycleEvent> = seal_open_stage(state).into_iter().collect();
+            events.push(LifecycleEvent::ChallengeTerminated);
+            events
+        }
         DeadlineKind::CleanupAllIdle => {
             let mut events: Vec<LifecycleEvent> = state
                 .clients
                 .keys()
                 .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
                 .collect();
-            events.push(LifecycleEvent::ChallengeTerminated {
-                // TODO(frolv): Set based on recorded data once stage processing exists.
-                empty: false,
-            });
+            events.extend(seal_open_stage(state));
+            events.push(LifecycleEvent::ChallengeTerminated);
             events
         }
         DeadlineKind::ProcessingDue => {
@@ -325,6 +322,17 @@ fn deadline_fired(
             }]
         }
     }
+}
+
+/// Seals the current stage if it has not already been.
+fn seal_open_stage(state: &ChallengeState) -> Option<LifecycleEvent> {
+    let open = !matches!(state.stage_state, StageState::Complete { .. })
+        && state.stage_status != StageStatus::Entered;
+    open.then_some(LifecycleEvent::StageSealed {
+        stage: state.stage,
+        attempt: state.stage_attempt,
+        forced: true,
+    })
 }
 
 fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
@@ -358,20 +366,11 @@ fn finish(state: &ChallengeState, finish: &Finish) -> Vec<LifecycleEvent> {
     }
 
     let mut events = vec![finished];
-    if let StageState::Ending { .. } = state.stage_state {
-        // Once the last client leaves, there is no longer a state end to
-        // receive, so finalize the stage if it is still open.
-        events.push(LifecycleEvent::StageSealed {
-            stage: state.stage,
-            attempt: state.stage_attempt,
-            forced: true,
-        });
-    }
+    // Once the last client leaves, there are no more stage events to receive,
+    // so finalize the stage if it is still open.
+    events.extend(seal_open_stage(state));
 
-    events.push(LifecycleEvent::ChallengeTerminated {
-        // TODO(frolv): Set based on recorded data once stage processing exists.
-        empty: false,
-    });
+    events.push(LifecycleEvent::ChallengeTerminated);
     events
 }
 
@@ -935,7 +934,12 @@ mod tests {
                     soft: true,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -959,7 +963,12 @@ mod tests {
                     soft: false,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -983,7 +992,12 @@ mod tests {
                     soft: false,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -994,10 +1008,13 @@ mod tests {
             challenge: 1_437,
             overall: 1_500,
         };
-        let state = tob_state(vec![(
-            CLIENT_A,
-            client(Stage::TobVerzik, StageStatus::Completed, None),
-        )]);
+        let state = ChallengeState {
+            stage: Stage::TobVerzik,
+            ..tob_state(vec![(
+                CLIENT_A,
+                client(Stage::TobVerzik, StageStatus::Completed, None),
+            )])
+        };
         assert_eq!(
             decide(
                 &state,
@@ -1011,7 +1028,12 @@ mod tests {
                     soft: false,
                     times: Some(times),
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobVerzik,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -1046,7 +1068,7 @@ mod tests {
                     soft: false,
                     times: None,
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -1239,7 +1261,14 @@ mod tests {
                 &LifecycleConfig::default(),
                 &Command::DeadlineFired(fired),
             ),
-            vec![LifecycleEvent::ChallengeTerminated { empty: false }],
+            vec![
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobBloat,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated,
+            ],
         );
     }
 
@@ -1275,7 +1304,12 @@ mod tests {
                 LifecycleEvent::ClientRemoved {
                     client_id: CLIENT_B
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: true,
+                },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -1668,7 +1702,7 @@ mod tests {
                     attempt: None,
                     forced: true,
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -1699,7 +1733,7 @@ mod tests {
                 LifecycleEvent::ClientRemoved {
                     client_id: CLIENT_B,
                 },
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ChallengeTerminated,
             ],
         );
     }
@@ -1743,6 +1777,8 @@ mod tests {
             max_attempts: 2,
             run_timeout: Duration::from_secs(10),
             retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: 4,
+            finish_retry_backoff: Duration::from_secs(9),
         });
         state.processing.push(
             Trigger::Stage {
@@ -1981,7 +2017,9 @@ mod tests {
     #[test]
     fn terminated_challenge_only_accepts_processing_reports() {
         let mut state = processing_tob_state();
-        state.phase = PhaseState::Terminated;
+        state.phase = PhaseState::Terminated {
+            finished_unix_ms: 1_785_693_975_535,
+        };
         state.clients.clear();
 
         assert_eq!(

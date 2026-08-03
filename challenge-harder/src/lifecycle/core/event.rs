@@ -112,10 +112,7 @@ pub enum LifecycleEvent {
         client_id: ClientId,
     },
     /// Terminal challenge event.
-    /// `empty` marks a challenge with no recorded data which should be deleted.
-    ChallengeTerminated {
-        empty: bool,
-    },
+    ChallengeTerminated,
 }
 
 #[cfg(test)]

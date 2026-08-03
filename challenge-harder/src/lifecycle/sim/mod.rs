@@ -1034,7 +1034,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
     for (uuid, journal) in &result.journals {
         let terminated = journal
             .iter()
-            .any(|entry| matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. }));
+            .any(|entry| matches!(entry.event, LifecycleEvent::ChallengeTerminated));
         if terminated {
             assert!(
                 !result.snapshots.contains_key(uuid),
@@ -1160,7 +1160,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                 !terminated || processing_event,
                 "non-processing entry recorded after termination: {uuid}",
             );
-            terminated |= matches!(entry.event, LifecycleEvent::ChallengeTerminated { .. });
+            terminated |= matches!(entry.event, LifecycleEvent::ChallengeTerminated);
 
             match &entry.event {
                 LifecycleEvent::ChallengeCreated {

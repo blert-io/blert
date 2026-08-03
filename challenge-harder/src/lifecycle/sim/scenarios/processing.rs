@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use super::*;
 use crate::lifecycle::challenge::{ChallengeServerUpdate, ChallengeStore, run_challenge};
 use crate::lifecycle::coordinator::Coordinator;
-use crate::lifecycle::core::command::{Create, Finish, Update};
+use crate::lifecycle::core::command::{ClientStatus, Create, Finish, Update};
 use crate::lifecycle::core::deadline::{DeadlineKind, LifecycleConfig};
 use crate::lifecycle::core::state::{ProcessingConfig, Trigger};
 use crate::lifecycle::core::types::{ChallengeStatus, ProcessingError, ProcessingPayload, Uuid};
@@ -24,6 +24,8 @@ fn config() -> LifecycleConfig {
             max_attempts: 2,
             run_timeout: Duration::from_secs(10),
             retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: 4,
+            finish_retry_backoff: Duration::from_secs(9),
         },
         ..LifecycleConfig::default()
     }
@@ -163,12 +165,7 @@ async fn sealed_stage_processes_and_journals_its_run() {
                     times: None,
                 },
             ),
-            entry(
-                13,
-                2_000,
-                cmd(4),
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(13, 2_000, cmd(4), LifecycleEvent::ChallengeTerminated,),
             entry(
                 14,
                 2_000,
@@ -339,12 +336,7 @@ async fn finalization_waits_for_processing_to_finish_after_termination() {
     assert_eq!(
         journal[12..],
         vec![
-            entry(
-                12,
-                2_000,
-                cmd(4),
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(12, 2_000, cmd(4), LifecycleEvent::ChallengeTerminated,),
             entry(
                 13,
                 6_000,
@@ -509,12 +501,7 @@ async fn late_commands_post_termination_while_processing() {
     assert_eq!(
         journal[12..],
         vec![
-            entry(
-                12,
-                2_000,
-                cmd(4),
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(12, 2_000, cmd(4), LifecycleEvent::ChallengeTerminated,),
             entry(
                 13,
                 6_000,
@@ -548,49 +535,132 @@ async fn failed_finish_run_concludes_afterwards() {
         ProcessingAttempt::Resolve(0, Ok(outcome(StageStatus::Wiped, 60))),
         ProcessingAttempt::Resolve(0, Err(retriable_failure())),
         ProcessingAttempt::Resolve(0, Err(retriable_failure())),
+        ProcessingAttempt::Resolve(0, Err(retriable_failure())),
+        ProcessingAttempt::Resolve(0, Err(retriable_failure())),
     ]);
     let result = run_with(options(&processor), solo_maiden_wipe(2_000)).await;
 
+    // Finish is configured with 4 retries at a 9s backoff.
     let (uuid, journal) = result.only_challenge();
-    assert_eq!(
-        journal[14..],
-        vec![
-            entry(
-                14,
-                2_000,
-                Cause::Deadline(DeadlineKind::ProcessingDue),
-                started(13)
-            ),
-            entry(
-                15,
-                2_000,
-                processing(13),
-                LifecycleEvent::ProcessingFailed {
-                    trigger: JournalSeq(13),
-                    error: retriable_failure(),
-                },
-            ),
-            entry(
-                16,
-                5_000,
-                Cause::Deadline(DeadlineKind::ProcessingDue),
-                started(13)
-            ),
-            entry(
-                17,
-                5_000,
-                processing(13),
-                LifecycleEvent::ProcessingFailed {
-                    trigger: JournalSeq(13),
-                    error: retriable_failure(),
-                },
-            ),
-        ],
-    );
+    let mut expected = Vec::new();
+    for attempt in 0..4u64 {
+        let at_ms = 2_000 + attempt * 9_000;
+        expected.push(entry(
+            14 + attempt * 2,
+            at_ms,
+            Cause::Deadline(DeadlineKind::ProcessingDue),
+            started(13),
+        ));
+        expected.push(entry(
+            15 + attempt * 2,
+            at_ms,
+            processing(13),
+            LifecycleEvent::ProcessingFailed {
+                trigger: JournalSeq(13),
+                error: retriable_failure(),
+            },
+        ));
+    }
+    assert_eq!(journal[14..], expected);
 
     assert!(result.deleted.contains(&uuid));
     assert_eq!(result.updates, vec![(uuid, ChallengeServerUpdate::Finish)]);
     assert_eq!(result.only_status(), ChallengeStatus::Wiped);
+}
+
+#[tokio::test(start_paused = true)]
+async fn finish_after_mid_stage_disconnect_reports_abandoned() {
+    let processor = ScriptedProcessor::new(vec![
+        no_payload(),
+        no_payload(),
+        ProcessingAttempt::Resolve(0, Ok(outcome(StageStatus::Completed, 237))),
+        no_payload(),
+        no_payload(),
+        no_payload(),
+    ]);
+    let result = run_with(
+        options(&processor),
+        Scenario {
+            clients: vec![
+                Client::participant("a", 1)
+                    .at(0, solo_hmt_start())
+                    .at(10, report(Stage::TobMaiden, StageStatus::Started))
+                    .at(500, report(Stage::TobMaiden, StageStatus::Completed))
+                    .at(600, report(Stage::TobBloat, StageStatus::Started))
+                    .at(900, Action::Status(ClientStatus::Disconnected)),
+            ],
+            run_until: 330_000,
+        },
+    )
+    .await;
+
+    // The cleanup deadline seals Bloat so its outstanding data is processed
+    // before the finish runs.
+    let (_, journal) = result.only_challenge();
+    assert_eq!(
+        journal[16..],
+        vec![
+            entry(
+                16,
+                900,
+                cmd(5),
+                LifecycleEvent::ClientRemoved {
+                    client_id: client_id(1),
+                },
+            ),
+            entry(
+                17,
+                300_900,
+                Cause::Deadline(DeadlineKind::CleanupDisconnect),
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobBloat,
+                    attempt: None,
+                    forced: true,
+                },
+            ),
+            entry(
+                18,
+                300_900,
+                Cause::Deadline(DeadlineKind::CleanupDisconnect),
+                LifecycleEvent::ChallengeTerminated,
+            ),
+            entry(
+                19,
+                300_900,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(17)
+            ),
+            entry(
+                20,
+                300_900,
+                processing(17),
+                finished(17, ProcessingPayload::None),
+            ),
+            entry(
+                21,
+                300_900,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(20)
+            ),
+            entry(
+                22,
+                300_900,
+                processing(20),
+                finished(20, ProcessingPayload::None),
+            ),
+        ],
+    );
+
+    let requests = processor.requests();
+    let finish_request = requests.last().expect("the finish should process");
+    assert_eq!(
+        finish_request.trigger,
+        Trigger::Finish {
+            seq: JournalSeq(20)
+        }
+    );
+    assert_eq!(finish_request.challenge.status, ChallengeStatus::Abandoned);
+    assert_eq!(result.only_status(), ChallengeStatus::Abandoned);
 }
 
 /// A fresh runtime starting with a paused clock. Dropping it kills every
@@ -741,7 +811,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
     assert!(
         journal
             .iter()
-            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated { .. })),
+            .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated)),
     );
     assert_eq!(collector.finish_announcements(uuid), 0);
     assert!(!collector.is_deleted(uuid));

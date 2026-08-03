@@ -77,12 +77,7 @@ async fn each_finish_extends_the_grace_period() {
                     times: None,
                 },
             ),
-            entry(
-                14,
-                8_500,
-                cmd(10),
-                LifecycleEvent::ChallengeTerminated { empty: false },
-            ),
+            entry(14, 8_500, cmd(10), LifecycleEvent::ChallengeTerminated,),
         ],
     );
 }
@@ -142,7 +137,7 @@ async fn unfinished_client_cut_off_after_grace_period() {
                 11,
                 8_000,
                 Cause::Deadline(DeadlineKind::ChallengeEnd),
-                LifecycleEvent::ChallengeTerminated { empty: false },
+                LifecycleEvent::ChallengeTerminated,
             ),
         ],
     );
