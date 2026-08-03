@@ -317,6 +317,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::lifecycle::core::state::Trigger;
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, StageStatus, Uuid,
     };
@@ -340,6 +341,8 @@ mod tests {
                 stage_attempt: None,
                 status: ChallengeStatus::InProgress,
                 created_unix_ms: 0,
+                reported_times: None,
+                finished_unix_ms: None,
             },
             None,
         )
@@ -363,6 +366,8 @@ mod tests {
                 stage_attempt: None,
                 status: ChallengeStatus::InProgress,
                 created_unix_ms: 0,
+                reported_times: None,
+                finished_unix_ms: None,
             },
             Some(&json!({"delves": 51})),
         )
@@ -416,6 +421,8 @@ mod tests {
             stage_attempt: None,
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
 
         let contiguous = MokhaiotlProcessor {
@@ -477,6 +484,8 @@ mod tests {
             stage_attempt: Some(2),
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
 
         let capped = MokhaiotlProcessor {
@@ -512,6 +521,8 @@ mod tests {
             stage_attempt: None,
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
         for (initial, style, expected) in [
             (
@@ -590,6 +601,8 @@ mod tests {
             stage_attempt: None,
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
         let mut ctx = StageContext::new(vec!["1Ogp".to_string()]);
@@ -638,6 +651,8 @@ mod tests {
             stage_attempt: None,
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
         let mut ctx = StageContext::new(vec!["1Ogp".to_string()]);
@@ -663,7 +678,7 @@ mod tests {
             return;
         };
         let txn = db
-            .start_transaction(Uuid::new_v4(), JournalSeq(1))
+            .start_transaction(Uuid::new_v4(), Trigger::Create { seq: JournalSeq(1) })
             .await
             .expect("guard should pass");
 
@@ -713,6 +728,8 @@ mod tests {
                     stage_attempt,
                     status,
                     created_unix_ms: 0,
+                    reported_times: None,
+                    finished_unix_ms: None,
                 },
                 None,
             )

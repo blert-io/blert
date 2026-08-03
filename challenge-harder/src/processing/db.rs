@@ -5,9 +5,8 @@ use std::ops::Deref;
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, RecyclingMethod};
 use tokio_postgres::NoTls;
 
-use crate::lifecycle::core::types::{
-    JournalSeq, ProcessingError, ProcessingPayload, StageStatus, Uuid,
-};
+use crate::lifecycle::core::state::Trigger;
+use crate::lifecycle::core::types::{ProcessingError, ProcessingPayload, StageStatus, Uuid};
 
 /// A database operation failure.
 #[derive(Debug, thiserror::Error)]
@@ -76,21 +75,23 @@ impl Postgres {
         Ok(Postgres { pool })
     }
 
-    /// Opens a guarded transaction for the processing stage triggered by `seq`,
+    /// Opens a guarded transaction for the processing run of `trigger`,
     /// failing with [`Error::AlreadyApplied`] if the processing step has
     /// previously been applied to the database.
     pub async fn start_transaction(
         &self,
         uuid: Uuid,
-        seq: JournalSeq,
+        trigger: Trigger,
     ) -> Result<Transaction, Error> {
+        let seq = trigger.seq();
         let client = self.pool.get().await?;
         client.batch_execute("BEGIN").await?;
         let mut txn = Transaction {
             client: Some(client),
-            seq,
+            trigger,
             challenge_id: 0,
             custom_data: None,
+            deleted: false,
         };
 
         let guard = txn
@@ -102,14 +103,23 @@ impl Postgres {
                 &[&uuid],
             )
             .await?;
-        if let Some(row) = guard {
-            if let Some(processed_seq) = row.get::<_, Option<i64>>(1)
-                && processed_seq >= seq.0.cast_signed()
-            {
-                return Err(Error::AlreadyApplied(stored_payload(&row)?));
+        match guard {
+            Some(row) => {
+                if let Some(processed_seq) = row.get::<_, Option<i64>>(1)
+                    && processed_seq >= seq.0.cast_signed()
+                {
+                    return Err(Error::AlreadyApplied(stored_payload(&row)?));
+                }
+                txn.challenge_id = row.get(0);
+                txn.custom_data = row.get(4);
             }
-            txn.challenge_id = row.get(0);
-            txn.custom_data = row.get(4);
+            None => {
+                // Nothing runs after a finish, so no row existing means a
+                // prior attempt deleted the challenge.
+                if matches!(trigger, Trigger::Finish { .. }) {
+                    return Err(Error::AlreadyApplied(ProcessingPayload::None));
+                }
+            }
         }
 
         Ok(txn)
@@ -136,11 +146,13 @@ fn stored_payload(row: &tokio_postgres::Row) -> Result<ProcessingPayload, Error>
 /// advances the challenge's processing cursor.
 pub struct Transaction {
     client: Option<Object>,
-    seq: JournalSeq,
+    trigger: Trigger,
     /// Database ID of the challenge row.
     challenge_id: i32,
     /// The processor continuation state stored by the last committed run.
     custom_data: Option<serde_json::Value>,
+    /// Whether the challenge's rows were removed within the transaction.
+    deleted: bool,
 }
 
 impl Transaction {
@@ -161,22 +173,61 @@ impl Transaction {
         self.custom_data.as_ref()
     }
 
+    /// Removes the challenge's rows, if they exist.
+    pub async fn delete_challenge(&mut self) -> Result<(), Error> {
+        self.execute(
+            "DELETE FROM challenges WHERE id = $1",
+            &[&self.challenge_id],
+        )
+        .await?;
+        self.deleted = true;
+        Ok(())
+    }
+
     /// Commits the transaction, advancing the challenge's cursor and storing
     /// the processed payload.
     /// `custom_data` replaces the challenge's custom state when present;
     /// `None` preserves it.
+    /// A transaction marked deleted commits without recording processing
+    /// state, as the rows it would reference no longer exist.
     pub async fn commit(
         mut self,
         payload: &ProcessingPayload,
         custom_data: Option<&serde_json::Value>,
     ) -> Result<(), Error> {
+        let client = self.client.take().expect("transaction is active");
+        let seq = self.trigger.seq().0.cast_signed();
+
+        if self.deleted {
+            client.batch_execute("COMMIT").await?;
+            return Ok(());
+        }
+
+        if matches!(self.trigger, Trigger::Finish { .. }) {
+            client
+                .execute(
+                    "INSERT INTO challenge_processing_state
+                       (challenge_id, processed_seq, finalized_seq)
+                     VALUES ($1, $2, $2)
+                     ON CONFLICT (challenge_id)
+                     DO UPDATE SET processed_seq = EXCLUDED.processed_seq,
+                                   outcome_status = NULL,
+                                   outcome_ticks = NULL,
+                                   custom_data = NULL,
+                                   finalized_seq = EXCLUDED.finalized_seq",
+                    &[&self.challenge_id, &seq],
+                )
+                .await?;
+            client.batch_execute("COMMIT").await?;
+            return Ok(());
+        }
+
         let (status, ticks) = match payload {
             ProcessingPayload::Stage { status, ticks } => {
                 (Some(*status as i16), Some(ticks.cast_signed()))
             }
             ProcessingPayload::None => (None, None),
         };
-        let client = self.client.take().expect("transaction is active");
         client
             .execute(
                 "INSERT INTO challenge_processing_state
@@ -190,13 +241,7 @@ impl Transaction {
                                    EXCLUDED.custom_data,
                                    challenge_processing_state.custom_data
                                )",
-                &[
-                    &self.challenge_id,
-                    &self.seq.0.cast_signed(),
-                    &status,
-                    &ticks,
-                    &custom_data,
-                ],
+                &[&self.challenge_id, &seq, &status, &ticks, &custom_data],
             )
             .await?;
         client.batch_execute("COMMIT").await?;
@@ -222,6 +267,14 @@ impl Drop for Transaction {
     }
 }
 
+#[cfg(test)]
+impl Postgres {
+    /// Gets a raw connection from the pool.
+    pub(crate) async fn client(&self) -> Object {
+        self.pool.get().await.expect("failed to check out a client")
+    }
+}
+
 /// Connects to the migrated Postgres database at `BLERT_TEST_DATABASE_URI`,
 /// or returns `None` when it is unset.
 #[cfg(test)]
@@ -240,7 +293,7 @@ pub(crate) async fn test_database() -> Option<Postgres> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::StageStatus;
+    use crate::lifecycle::core::types::{JournalSeq, Stage, StageStatus};
 
     /// Inserts a bare challenge row to satisfy foreign keys.
     async fn insert_challenge(db: &Postgres, uuid: Uuid) -> i32 {
@@ -271,10 +324,19 @@ mod tests {
         let uuid = Uuid::new_v4();
 
         let txn = db
-            .start_transaction(uuid, JournalSeq(1))
+            .start_transaction(uuid, Trigger::Create { seq: JournalSeq(1) })
             .await
             .expect("guard should pass");
         assert_eq!(txn.challenge_id(), 0);
+        drop(txn);
+
+        let finish = db
+            .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(1) })
+            .await;
+        assert!(matches!(
+            finish,
+            Err(Error::AlreadyApplied(ProcessingPayload::None))
+        ));
     }
 
     #[tokio::test]
@@ -288,7 +350,14 @@ mod tests {
         let custom = serde_json::json!({ "delve": 3, "larvae": [1, 2] });
 
         let txn = db
-            .start_transaction(uuid, JournalSeq(3))
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(3),
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            )
             .await
             .expect("guard should pass");
         assert_eq!(txn.challenge_id(), id);
@@ -325,7 +394,16 @@ mod tests {
         drop(client);
 
         // Reopening the committed step returns its stored payload.
-        let replay = db.start_transaction(uuid, JournalSeq(3)).await;
+        let replay = db
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(3),
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            )
+            .await;
         assert!(matches!(
             replay,
             Err(Error::AlreadyApplied(ProcessingPayload::Stage {
@@ -336,7 +414,14 @@ mod tests {
 
         // Custom state is read back, and committing without new state preserves it.
         let next = db
-            .start_transaction(uuid, JournalSeq(4))
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(4),
+                    stage: Stage::TobBloat,
+                    attempt: None,
+                },
+            )
             .await
             .expect("guard should pass");
         assert_eq!(next.custom_data(), Some(&custom));
@@ -345,7 +430,14 @@ mod tests {
             .expect("commit failed");
 
         let after = db
-            .start_transaction(uuid, JournalSeq(5))
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(5),
+                    stage: Stage::TobNylocas,
+                    attempt: None,
+                },
+            )
             .await
             .expect("guard should pass");
         assert_eq!(after.custom_data(), Some(&custom));
@@ -363,7 +455,14 @@ mod tests {
         let id = insert_challenge(&db, uuid).await;
 
         let txn = db
-            .start_transaction(uuid, JournalSeq(1))
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(1),
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            )
             .await
             .expect("guard should pass");
         txn.commit(&ProcessingPayload::None, None)
@@ -383,13 +482,131 @@ mod tests {
         assert_eq!(row.get::<_, Option<i16>>(1), None);
         assert_eq!(row.get::<_, Option<i32>>(2), None);
 
-        let replay = db.start_transaction(uuid, JournalSeq(1)).await;
+        let replay = db
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(1),
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            )
+            .await;
         assert!(matches!(
             replay,
             Err(Error::AlreadyApplied(ProcessingPayload::None))
         ));
 
         delete_challenge(&db, uuid).await;
+    }
+
+    #[tokio::test]
+    async fn finish_commit_finalizes_processing_state() {
+        let Some(db) = test_database().await else {
+            return;
+        };
+        let uuid = Uuid::new_v4();
+        let id = insert_challenge(&db, uuid).await;
+
+        // A stage run leaves continuation state behind.
+        let custom = serde_json::json!({ "delve": 6 });
+        let txn = db
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(3),
+                    stage: Stage::MokhaiotlDelve6,
+                    attempt: None,
+                },
+            )
+            .await
+            .expect("guard should pass");
+        txn.commit(
+            &ProcessingPayload::Stage {
+                status: StageStatus::Completed,
+                ticks: 154,
+            },
+            Some(&custom),
+        )
+        .await
+        .expect("commit failed");
+
+        let txn = db
+            .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(5) })
+            .await
+            .expect("guard should pass");
+        assert_eq!(txn.custom_data(), Some(&custom));
+        txn.commit(&ProcessingPayload::None, None)
+            .await
+            .expect("commit failed");
+
+        let client = db.pool.get().await.expect("client");
+        let row = client
+            .query_one(
+                "SELECT processed_seq, outcome_status, outcome_ticks, custom_data, finalized_seq
+                 FROM challenge_processing_state WHERE challenge_id = $1",
+                &[&id],
+            )
+            .await
+            .expect("state row missing");
+        assert_eq!(row.get::<_, i64>(0), 5);
+        assert_eq!(row.get::<_, Option<i16>>(1), None);
+        assert_eq!(row.get::<_, Option<i32>>(2), None);
+        assert_eq!(row.get::<_, Option<serde_json::Value>>(3), None);
+        assert_eq!(row.get::<_, Option<i64>>(4), Some(5));
+        drop(client);
+
+        let replay = db
+            .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(5) })
+            .await;
+        assert!(matches!(
+            replay,
+            Err(Error::AlreadyApplied(ProcessingPayload::None))
+        ));
+
+        delete_challenge(&db, uuid).await;
+    }
+
+    #[tokio::test]
+    async fn deleted_transaction_commits_without_any_processing_state() {
+        let Some(db) = test_database().await else {
+            return;
+        };
+        let uuid = Uuid::new_v4();
+        let id = insert_challenge(&db, uuid).await;
+
+        let mut txn = db
+            .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(2) })
+            .await
+            .expect("guard should pass");
+        txn.delete_challenge().await.expect("delete failed");
+        txn.commit(&ProcessingPayload::None, None)
+            .await
+            .expect("commit failed");
+
+        let client = db.pool.get().await.expect("client");
+        let challenges = client
+            .query("SELECT 1 FROM challenges WHERE id = $1", &[&id])
+            .await
+            .expect("challenges query");
+        assert!(challenges.is_empty());
+        let state = client
+            .query(
+                "SELECT 1 FROM challenge_processing_state WHERE challenge_id = $1",
+                &[&id],
+            )
+            .await
+            .expect("state query");
+        assert!(state.is_empty());
+        drop(client);
+
+        let replay = db
+            .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(2) })
+            .await;
+        assert!(matches!(
+            replay,
+            Err(Error::AlreadyApplied(ProcessingPayload::None))
+        ));
     }
 
     #[tokio::test]
@@ -401,7 +618,14 @@ mod tests {
         let id = insert_challenge(&db, uuid).await;
 
         let txn = db
-            .start_transaction(uuid, JournalSeq(1))
+            .start_transaction(
+                uuid,
+                Trigger::Stage {
+                    seq: JournalSeq(1),
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            )
             .await
             .expect("guard should pass");
         txn.execute("UPDATE challenges SET scale = 5 WHERE id = $1", &[&id])

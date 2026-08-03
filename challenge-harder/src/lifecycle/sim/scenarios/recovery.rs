@@ -174,7 +174,7 @@ fn killed_server_resumes_windows_with_time_to_run() {
         seq: JournalSeq(3),
         at: Timestamp::from_millis(61_000),
         caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-        event: LifecycleEvent::ChallengeTerminated { empty: false },
+        event: LifecycleEvent::ChallengeTerminated,
     });
     assert_eq!(journal(&collector, uuid), expected);
     assert!(deleted(&collector, uuid));
@@ -209,7 +209,7 @@ fn finished_entries(uuid: Uuid, finish_id: MsgId) -> Vec<JournalEntry> {
         seq: JournalSeq(3),
         at: Timestamp::ZERO,
         caused_by: Cause::Command(finish_id),
-        event: LifecycleEvent::ChallengeTerminated { empty: false },
+        event: LifecycleEvent::ChallengeTerminated,
     });
     entries
 }
@@ -308,7 +308,7 @@ fn shutdown_server_hands_over_resumable_state() {
         seq: JournalSeq(3),
         at: Timestamp::from_millis(61_000),
         caused_by: Cause::Deadline(DeadlineKind::CleanupDisconnect),
-        event: LifecycleEvent::ChallengeTerminated { empty: false },
+        event: LifecycleEvent::ChallengeTerminated,
     });
     assert_eq!(journal(&collector, uuid), expected);
     assert!(deleted(&collector, uuid));

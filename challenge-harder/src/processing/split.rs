@@ -24,6 +24,13 @@ pub struct ChallengeSplit {
     pub accurate: Option<bool>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SavedSplit {
+    pub split: SplitType,
+    pub ticks: u32,
+    pub accurate: bool,
+}
+
 pub trait SplitExt {
     /// Converts a split type to a different mode,
     /// For example, `TobEntryNyloBossSpawn` adjusted to `TobHard` becomes

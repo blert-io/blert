@@ -102,7 +102,7 @@ fn client_finished(client: i64) -> LifecycleEvent {
 }
 
 fn terminated() -> LifecycleEvent {
-    LifecycleEvent::ChallengeTerminated { empty: false }
+    LifecycleEvent::ChallengeTerminated
 }
 
 #[tokio::test(start_paused = true)]
@@ -149,6 +149,12 @@ async fn disconnect_without_finish_cleans_up_after_reconnection_window() {
             entry(8, 900, cmd(5), removed(1)),
             entry(
                 9,
+                300_900,
+                fired(DeadlineKind::CleanupDisconnect),
+                sealed(Stage::TobBloat, None, true)
+            ),
+            entry(
+                10,
                 300_900,
                 fired(DeadlineKind::CleanupDisconnect),
                 terminated()
@@ -291,6 +297,12 @@ async fn logout_without_return_cleans_up_after_inactivity_window() {
                 10,
                 905_000,
                 fired(DeadlineKind::CleanupAllIdle),
+                sealed(Stage::InfernoWave2, None, true)
+            ),
+            entry(
+                11,
+                905_000,
+                fired(DeadlineKind::CleanupAllIdle),
                 terminated()
             ),
         ],
@@ -404,7 +416,7 @@ async fn wipe_then_crash_before_finish_is_wiped() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn deep_delve_disconnect_completes() {
+async fn deep_delve_disconnect_abandons() {
     let result = run(Scenario {
         clients: vec![
             Client::participant("a", 1)
@@ -487,11 +499,17 @@ async fn deep_delve_disconnect_completes() {
                 13,
                 301_200,
                 fired(DeadlineKind::CleanupDisconnect),
+                sealed(Stage::MokhaiotlDelve8plus, Some(2), true)
+            ),
+            entry(
+                14,
+                301_200,
+                fired(DeadlineKind::CleanupDisconnect),
                 terminated()
             ),
         ],
     );
-    assert_eq!(result.only_status(), ChallengeStatus::Completed);
+    assert_eq!(result.only_status(), ChallengeStatus::Abandoned);
 }
 
 #[tokio::test(start_paused = true)]
@@ -673,6 +691,12 @@ async fn rejoin_after_window_starts_fresh() {
             entry(4, 700, cmd(3), removed(1)),
             entry(
                 5,
+                300_700,
+                fired(DeadlineKind::CleanupDisconnect),
+                sealed(Stage::TobMaiden, None, true)
+            ),
+            entry(
+                6,
                 300_700,
                 fired(DeadlineKind::CleanupDisconnect),
                 terminated()

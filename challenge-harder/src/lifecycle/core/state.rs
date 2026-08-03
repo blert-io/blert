@@ -36,7 +36,10 @@ pub enum PhaseState {
         since: Timestamp,
     },
     /// The challenge has ended.
-    Terminated,
+    Terminated {
+        /// Time at which the terminated state was first entered.
+        finished_unix_ms: u64,
+    },
 }
 
 impl PhaseState {
@@ -46,7 +49,7 @@ impl PhaseState {
         match self {
             PhaseState::Active => ChallengePhase::Active,
             PhaseState::Finishing { .. } => ChallengePhase::Finishing,
-            PhaseState::Terminated => ChallengePhase::Terminated,
+            PhaseState::Terminated { .. } => ChallengePhase::Terminated,
         }
     }
 }
@@ -60,6 +63,10 @@ pub struct ProcessingConfig {
     pub run_timeout: Duration,
     /// Delay following a failed attempt before retrying.
     pub retry_backoff: Duration,
+    /// Attempts allowed for the challenge's finish run.
+    pub finish_max_attempts: u32,
+    /// Delay following a failed finish attempt before retrying.
+    pub finish_retry_backoff: Duration,
 }
 
 impl Default for ProcessingConfig {
@@ -68,6 +75,36 @@ impl Default for ProcessingConfig {
             max_attempts: 0,
             run_timeout: Duration::from_secs(30),
             retry_backoff: Duration::from_secs(5),
+            finish_max_attempts: 10,
+            finish_retry_backoff: Duration::from_secs(30),
+        }
+    }
+}
+
+impl ProcessingConfig {
+    /// Attempt limit for a trigger's runs.
+    #[must_use]
+    pub fn attempts_for(&self, trigger: Trigger) -> u32 {
+        match trigger {
+            Trigger::Finish { .. } => self.finish_max_attempts,
+            Trigger::Create { .. }
+            | Trigger::Recorder { .. }
+            | Trigger::StageStart { .. }
+            | Trigger::Mode { .. }
+            | Trigger::Stage { .. } => self.max_attempts,
+        }
+    }
+
+    /// Failure retry delay for a trigger's runs.
+    #[must_use]
+    pub fn backoff_for(&self, trigger: Trigger) -> Duration {
+        match trigger {
+            Trigger::Finish { .. } => self.finish_retry_backoff,
+            Trigger::Create { .. }
+            | Trigger::Recorder { .. }
+            | Trigger::StageStart { .. }
+            | Trigger::Mode { .. }
+            | Trigger::Stage { .. } => self.retry_backoff,
         }
     }
 }
@@ -154,7 +191,7 @@ impl ProcessingRun {
     /// If `true`, the run cannot be retried any further.
     #[must_use]
     pub fn exhausted(&self, config: &ProcessingConfig) -> bool {
-        !self.retriable || self.attempts >= config.max_attempts
+        !self.retriable || self.attempts >= config.attempts_for(self.trigger)
     }
 }
 
@@ -454,6 +491,11 @@ impl ChallengeState {
             stage_attempt: self.stage_attempt,
             status: self.status(),
             created_unix_ms: self.created_unix_ms,
+            reported_times: self.reported_times,
+            finished_unix_ms: match self.phase {
+                PhaseState::Terminated { finished_unix_ms } => Some(finished_unix_ms),
+                PhaseState::Active | PhaseState::Finishing { .. } => None,
+            },
         }
     }
 
@@ -462,7 +504,7 @@ impl ChallengeState {
     pub fn status(&self) -> ChallengeStatus {
         match self.phase {
             PhaseState::Active | PhaseState::Finishing { .. } => ChallengeStatus::InProgress,
-            PhaseState::Terminated => self.processing.status.unwrap_or_else(|| {
+            PhaseState::Terminated { .. } => self.processing.status.unwrap_or_else(|| {
                 status_if_finished_now(self.challenge_type, self.stage, self.stage_status)
             }),
         }
@@ -472,7 +514,7 @@ impl ChallengeState {
     #[inline]
     #[must_use]
     pub fn terminated(&self) -> bool {
-        matches!(self.phase, PhaseState::Terminated)
+        matches!(self.phase, PhaseState::Terminated { .. })
     }
 }
 
@@ -484,12 +526,10 @@ fn status_if_finished_now(
 ) -> ChallengeStatus {
     let last_stage = challenge_type.last_stage();
 
-    if last_stage.is_some_and(|last| stage > last) {
-        return ChallengeStatus::Completed;
-    }
-
     match stage_status {
+        // If we didn't see the actual conclusion of the challenge, abandon it.
         StageStatus::Started => ChallengeStatus::Abandoned,
+        _ if last_stage.is_some_and(|last| stage > last) => ChallengeStatus::Completed,
         StageStatus::Entered => ChallengeStatus::Reset,
         StageStatus::Wiped => ChallengeStatus::Wiped,
         StageStatus::Completed => {
@@ -511,6 +551,8 @@ mod tests {
             max_attempts,
             run_timeout: Duration::from_secs(10),
             retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: max_attempts + 2,
+            finish_retry_backoff: Duration::from_secs(9),
         }
     }
 
@@ -688,6 +730,57 @@ mod tests {
     }
 
     #[test]
+    fn processing_finish_trigger_retries_until_the_configured_limit() {
+        // Stage budget of 1, finish of 3.
+        let mut processing = Processing::new(config(1));
+        processing.push(
+            Trigger::Finish { seq: JournalSeq(4) },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
+
+        processing.start(JournalSeq(4), Timestamp::from_millis(150));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(300),
+            Err(error(true)),
+        );
+        assert_eq!(
+            processing.active(),
+            Some(&ProcessingRun {
+                trigger: Trigger::Finish { seq: JournalSeq(4) },
+                info: ChallengeState::default().challenge_info(),
+                attempts: 1,
+                retriable: true,
+                state: ProcessingState::Idle {
+                    since: Timestamp::from_millis(300)
+                },
+            }),
+        );
+
+        processing.start(JournalSeq(4), Timestamp::from_millis(9_300));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(9_400),
+            Err(error(true)),
+        );
+        assert_eq!(processing.active().unwrap().attempts, 2);
+
+        processing.start(JournalSeq(4), Timestamp::from_millis(18_400));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(18_500),
+            Err(error(true)),
+        );
+        assert_eq!(processing.active(), None);
+        assert_eq!(
+            processing.failed,
+            vec![Trigger::Finish { seq: JournalSeq(4) }]
+        );
+        assert!(processing.settled());
+    }
+
+    #[test]
     fn status_stays_in_progress_until_terminated() {
         let mut state = ChallengeState {
             challenge_type: ChallengeType::Tob,
@@ -702,7 +795,9 @@ mod tests {
         };
         assert_eq!(state.status(), ChallengeStatus::InProgress);
 
-        state.phase = PhaseState::Terminated;
+        state.phase = PhaseState::Terminated {
+            finished_unix_ms: 1_785_693_975_535,
+        };
         assert_eq!(state.status(), ChallengeStatus::Wiped);
     }
 
@@ -712,7 +807,9 @@ mod tests {
             challenge_type: ChallengeType::Tob,
             stage: Stage::TobMaiden,
             stage_status: StageStatus::Wiped,
-            phase: PhaseState::Terminated,
+            phase: PhaseState::Terminated {
+                finished_unix_ms: 1_785_693_975_535,
+            },
             processing: Processing::new(config(2)),
             ..ChallengeState::default()
         };
@@ -776,7 +873,7 @@ mod tests {
                 ChallengeType::Mokhaiotl,
                 Stage::MokhaiotlDelve8plus,
                 StageStatus::Started,
-                ChallengeStatus::Completed,
+                ChallengeStatus::Abandoned,
             ),
             (
                 ChallengeType::Mokhaiotl,

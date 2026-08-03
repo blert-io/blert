@@ -10,15 +10,19 @@
 
 use crate::lifecycle::challenge::StoreError;
 use crate::lifecycle::core::types::{
-    ClientStageStream, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
+    ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
 };
 use crate::repository::DataRepository;
 use crate::store::Store;
 
+use super::challenge::load_database_state;
+use super::challenge_processor::ChallengeProcessor;
 use super::db;
-use super::interpret::interpret;
-use super::persist::persist;
-use super::{ChallengeInfo, StoredPlayerInfo, StoredState};
+use super::interpret::{InterpretError, InterpretOutput, interpret};
+use super::persist::{
+    save_splits, update_challenge_row, update_player_stats, update_players, write_queryable_events,
+};
+use super::{ChallengeInfo, StoredState};
 
 /// Processes a stage's events from its recorded streams.
 pub async fn process(
@@ -71,60 +75,101 @@ async fn gather(
             })
     };
     let stored = async {
-        load_database_state(txn, challenge.scale())
+        load_database_state(txn, challenge)
             .await
             .map_err(ProcessingError::from)
     };
     tokio::try_join!(stream, stored)
 }
 
-pub(super) async fn load_database_state(
+/// Writes a stage's processed results to the database and blob store.
+/// Returns the payload to be sent back to the challenge.
+async fn persist(
     txn: &db::Transaction,
-    expected_scale: i16,
-) -> Result<StoredState, db::Error> {
-    let players = async {
-        let rows = txn
-            .query(
-                "SELECT player_id, primary_gear FROM challenge_players
-                 WHERE challenge_id = $1
-                 ORDER BY orb",
-                &[&txn.challenge_id()],
-            )
-            .await?;
-        if rows.len() != expected_scale.cast_unsigned() as usize {
-            return Err(db::Error::InvalidData(format!(
-                "challenge has {} players, expected {expected_scale}",
-                rows.len(),
-            )));
+    repository: &DataRepository,
+    challenge: &ChallengeInfo,
+    stored: &StoredState,
+    result: Result<InterpretOutput, InterpretError>,
+    processor: &mut dyn ChallengeProcessor,
+) -> Result<ProcessingPayload, ProcessingError> {
+    let payload = payload_from(&result);
+    let Ok(mut output) = result else {
+        return Ok(payload);
+    };
+
+    processor
+        .on_stage_finished(
+            txn,
+            stored,
+            &mut output.ctx,
+            challenge.stage,
+            &output.events,
+        )
+        .await?;
+
+    save_splits(
+        txn,
+        challenge,
+        output.ctx.splits(
+            output.events.accurate_until(),
+            output.events.status() == StageStatus::Completed,
+        ),
+        &stored.players,
+    )
+    .await?;
+
+    let ((), (), queryable_events, ()) = tokio::try_join!(
+        update_players(txn, challenge.stage, &output.ctx, &stored.players),
+        update_player_stats(txn, output.ctx.players(), &stored.players),
+        write_queryable_events(txn, challenge, &output, &stored.players),
+        update_challenge_row(txn, output.events.last_tick(), output.ctx.deaths().len())
+    )?;
+
+    let queryable_until = output.events.queryable_until();
+    let events = output.into_kept_events();
+    let total_events = events.len();
+
+    let challenge_data = processor.challenge_data();
+    let save_challenge_data = async {
+        if let Some(data) = challenge_data {
+            repository.save_challenge(challenge.uuid, &data).await
+        } else {
+            Ok(())
         }
-
-        rows.iter()
-            .map(|row| {
-                let gear: i16 = row.get(1);
-                Ok(StoredPlayerInfo {
-                    id: PlayerId(row.get(0)),
-                    gear: PrimaryMeleeGear::try_from(gear)
-                        .map_err(|value| db::Error::InvalidData(format!("primary gear {value}")))?,
-                })
-            })
-            .collect::<Result<Vec<_>, db::Error>>()
     };
-    let challenge_ticks = async {
-        let row = txn
-            .query_one(
-                "SELECT challenge_ticks FROM challenges WHERE id = $1",
-                &[&txn.challenge_id()],
-            )
-            .await?;
-        Ok(row.get::<_, i32>(0).cast_unsigned())
-    };
-    let (players, challenge_ticks) = tokio::try_join!(players, challenge_ticks)?;
 
-    Ok(StoredState {
-        players,
-        challenge_ticks,
-        custom_data: txn.custom_data().cloned(),
-    })
+    tokio::try_join!(
+        save_challenge_data,
+        repository.save_stage_events(
+            challenge.uuid,
+            challenge.stage,
+            challenge.stage_attempt,
+            &challenge.party,
+            events,
+        )
+    )?;
+
+    tracing::info!(
+        uuid = %challenge.uuid,
+        stage = ?challenge.stage,
+        total_events,
+        queryable_events,
+        queryable_until,
+        "challenge_stage_events_saved",
+    );
+
+    Ok(payload)
+}
+
+fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingPayload {
+    match result {
+        Ok(output) => ProcessingPayload::Stage {
+            status: output.events.status(),
+            ticks: output.events.last_tick(),
+        },
+        // TODO(frolv): Handle errors.
+        Err(InterpretError::NoData) => ProcessingPayload::None,
+    }
 }
 
 #[cfg(test)]
@@ -132,7 +177,6 @@ mod tests {
     use bytes::Bytes;
     use prost::Message;
 
-    use super::super::interpret::{InterpretError, InterpretOutput};
     use super::super::mokhaiotl::MokhaiotlProcessor;
     use super::*;
     use crate::lifecycle::core::types::{
@@ -143,6 +187,14 @@ mod tests {
 
     fn test_uuid() -> Uuid {
         "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap()
+    }
+
+    #[test]
+    fn no_data_yields_no_payload() {
+        assert_eq!(
+            payload_from(&Err(InterpretError::NoData)),
+            ProcessingPayload::None,
+        );
     }
 
     fn events(client: i64, ticks: &[u32]) -> ClientStageStream {
@@ -189,6 +241,8 @@ mod tests {
             stage_attempt: None,
             status: ChallengeStatus::InProgress,
             created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
         };
         let mut processor =
             MokhaiotlProcessor::new(info.clone(), None).expect("empty custom data is valid");

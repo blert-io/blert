@@ -29,6 +29,8 @@ const SWEEP_CONFIG: LifecycleConfig = LifecycleConfig {
         max_attempts: 0,
         run_timeout: Duration::from_secs(30),
         retry_backoff: Duration::from_secs(5),
+        finish_max_attempts: 10,
+        finish_retry_backoff: Duration::from_secs(30),
     },
 };
 
