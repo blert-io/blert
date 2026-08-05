@@ -1006,7 +1006,7 @@ mod tests {
     fn finish_after_final_stage_completes() {
         let times = ReportedTimes {
             challenge: 1_437,
-            overall: 1_500,
+            overall: Some(1_500),
         };
         let state = ChallengeState {
             stage: Stage::TobVerzik,

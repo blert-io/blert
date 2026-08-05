@@ -32,7 +32,7 @@ use scripts::{
 };
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 /// Private channel carrying challenge state update signals.
 const SIGNAL_CHANNEL: &str = "2c2s:challenge-signal";

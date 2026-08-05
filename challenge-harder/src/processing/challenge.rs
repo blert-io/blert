@@ -238,7 +238,10 @@ async fn finalize_challenge_row(
         &[
             &(info.status as i16),
             &final_ticks.cast_signed(),
-            &info.reported_times.map(|times| times.overall.cast_signed()),
+            &info
+                .reported_times
+                .and_then(|times| times.overall)
+                .map(u32::cast_signed),
             &finish_time,
             &full_recording,
             &txn.challenge_id(),

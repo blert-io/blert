@@ -40,6 +40,10 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 uuid = { version = "1.23.4", features = ["serde", "v4"] }
 
 [dev-dependencies]
+console = "0.16.4"
+flate2 = "1.1.9"
+prost-reflect = { version = "0.16.5", features = ["serde"] }
+similar = { version = "3.1.1", features = ["inline"] }
 tempfile = "3.27.0"
 tokio = { version = "1.52.3", features = [
   "macros",

@@ -250,7 +250,8 @@ const _: () = {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReportedTimes {
     pub challenge: u32,
-    pub overall: u32,
+    /// Absent if the challenge type doesn't report overall time.
+    pub overall: Option<u32>,
 }
 
 /// A client's reported completion state for a stage.
