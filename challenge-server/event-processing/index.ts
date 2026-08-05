@@ -93,7 +93,7 @@ export function loadChallengeProcessor(
   state: ChallengeState,
 ) {
   const reportedTimes =
-    state.reportedChallengeTicks !== null && state.reportedOverallTicks !== null
+    state.reportedChallengeTicks !== null
       ? {
           challenge: state.reportedChallengeTicks,
           overall: state.reportedOverallTicks,

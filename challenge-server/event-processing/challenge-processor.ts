@@ -118,7 +118,8 @@ type SessionFinalizationOptions = {
 
 export type ReportedTimes = {
   challenge: number;
-  overall: number;
+  /** Absent when the challenge has no overall timer. */
+  overall: number | null;
 };
 
 export type ChallengeSplit = {
