@@ -144,17 +144,16 @@ export class RemoteChallengeManager extends ChallengeManager {
     inGameTimes: RecordedTimes | null,
     soft: boolean,
   ): Promise<void> {
-    // The plugin uses -1 to indicate that a time was not reported. Also, it is
-    // unlikely that one of of the two times would be captured and not the other
-    // so only send the times if both are present to simplify the server logic.
-    //
-    // TODO(frolv): The behavior of the plugin should be made consistent with
-    // the logic below so that its times can be sent directly.
+    // The plugin uses -1 to indicate that a time was not reported.
+    // Not all challenges report an overall time.
     const ts = Date.now();
 
     let times = null;
-    if (inGameTimes && inGameTimes.challenge > 0 && inGameTimes.overall > 0) {
-      times = inGameTimes;
+    if (inGameTimes && inGameTimes.challenge > 0) {
+      times = {
+        challenge: inGameTimes.challenge,
+        overall: inGameTimes.overall > 0 ? inGameTimes.overall : null,
+      };
     }
 
     const body = {
