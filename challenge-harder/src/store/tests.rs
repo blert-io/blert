@@ -78,7 +78,7 @@ const TEST_IDENTITY: &str = "test-server";
 
 static TEST_DB_FLUSHED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
 
-async fn test_store() -> Option<Store> {
+pub(crate) async fn test_store() -> Option<Store> {
     let Ok(uri) = std::env::var("BLERT_TEST_REDIS_URI") else {
         eprintln!("BLERT_TEST_REDIS_URI is not set; skipping Redis tests");
         return None;

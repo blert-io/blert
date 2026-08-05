@@ -13,6 +13,9 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed={proto_dir}");
     let mut config = prost_build::Config::new();
 
+    let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
+    config.file_descriptor_set_path(Path::new(&out_dir).join("blert_descriptor.bin"));
+
     for ty in [
         ".blert.Challenge",
         ".blert.ChallengeMode",

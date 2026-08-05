@@ -26,6 +26,8 @@ mod persist;
 mod split;
 mod stage;
 mod stats;
+#[cfg(test)]
+mod tests;
 
 fn processor_for(
     challenge: &ChallengeInfo,

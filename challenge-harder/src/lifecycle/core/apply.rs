@@ -661,7 +661,7 @@ mod tests {
 
         let times = ReportedTimes {
             challenge: 1_437,
-            overall: 1_500,
+            overall: Some(1_500),
         };
         apply(
             &mut state,
@@ -707,7 +707,7 @@ mod tests {
                     soft: false,
                     times: Some(ReportedTimes {
                         challenge: 1_440,
-                        overall: 1_503,
+                        overall: Some(1_503),
                     }),
                 },
             ),
@@ -1226,7 +1226,7 @@ mod tests {
                     soft: false,
                     times: Some(ReportedTimes {
                         challenge: 1_437,
-                        overall: 1_500,
+                        overall: Some(1_500),
                     }),
                 },
             ),
@@ -1283,7 +1283,7 @@ mod tests {
                 created_unix_ms: 0,
                 reported_times: Some(ReportedTimes {
                     challenge: 1_437,
-                    overall: 1_500,
+                    overall: Some(1_500),
                 }),
                 finished_unix_ms: Some(1_785_693_975_535),
             },

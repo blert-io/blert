@@ -72,15 +72,6 @@ impl MergedEvents {
         };
         let last_tick = reference.map_or(max_event_tick, |count| count.max(max_event_tick));
 
-        let mut populated = 0;
-        let mut previous = None;
-        for event in &events {
-            if previous != Some(event.tick) {
-                populated += 1;
-                previous = Some(event.tick);
-            }
-        }
-
         let trusted_until = if accurate { last_tick + 1 } else { 0 };
 
         MergedEvents {
@@ -88,7 +79,7 @@ impl MergedEvents {
             metadata: Metadata {
                 status,
                 last_tick,
-                missing_tick_count: (last_tick + 1) - populated,
+                missing_tick_count: last_tick.saturating_sub(recorded_ticks),
                 precise_server_tick_count: precise,
                 accurate_until: trusted_until,
                 queryable_until: trusted_until,
@@ -197,7 +188,7 @@ impl std::ops::Index<usize> for MergedEvents {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::ClientId;
+    use crate::lifecycle::core::types::{ClientId, ServerTicks};
 
     fn test_uuid() -> Uuid {
         "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap()
@@ -264,13 +255,22 @@ mod tests {
     }
 
     #[test]
-    fn missing_ticks_counts_gaps_and_padding() {
-        let merged = MergedEvents::from_single_client(client(
+    fn missing_ticks_counts_unrecorded_ticks() {
+        let accurate = MergedEvents::from_single_client(client(
             true,
             5,
             vec![tick_event(0, 0), tick_event(1, 0), tick_event(3, 0)],
         ));
-        assert_eq!(merged.last_tick(), 5);
+        assert_eq!(accurate.last_tick(), 5);
+        assert_eq!(accurate.missing_tick_count(), 0);
+
+        let mut lagged = client(false, 5, vec![tick_event(0, 0), tick_event(4, 0)]);
+        lagged.server_ticks = Some(ServerTicks {
+            count: 8,
+            precise: true,
+        });
+        let merged = MergedEvents::from_single_client(lagged);
+        assert_eq!(merged.last_tick(), 8);
         assert_eq!(merged.missing_tick_count(), 3);
     }
 
