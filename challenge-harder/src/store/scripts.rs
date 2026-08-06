@@ -230,6 +230,34 @@ pub(super) static SEAL_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     )
 });
 
+/// Removes a processed stage's event stream, provided the remover's epoch
+/// still holds the challenge's fence.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = Challenge's lease hash
+/// - `KEYS[2]` = Challenge's stage streams set
+/// - `KEYS[3]` = The stage's event stream
+///
+/// - `ARGV[1]` = Lease epoch
+///
+/// ## Return value
+///
+/// - `1`: The stream was removed.
+/// - `0`: The epoch no longer holds the fence.
+pub(super) static REMOVE_STREAM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        if redis.call('HGET', KEYS[1], 'fence') ~= ARGV[1] then
+            return 0
+        end
+        redis.call('SREM', KEYS[2], KEYS[3])
+        redis.call('DEL', KEYS[3])
+        return 1
+        ",
+    )
+});
+
 /// Starts a challenge for a client, either creating a new challenge for the
 /// party, or joining the party's existing one if it is live. A live challenge
 /// is either active or does not yet have any state because it is initializing.

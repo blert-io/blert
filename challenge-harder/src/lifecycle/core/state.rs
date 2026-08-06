@@ -201,7 +201,8 @@ pub struct Processing {
     config: ProcessingConfig,
     active: Option<ProcessingRun>,
     pending: VecDeque<QueuedTrigger>,
-    failed: Vec<Trigger>,
+    /// Triggers whose runs settled, successfully or not, in order.
+    completed: Vec<Trigger>,
     /// Whether the challenge's finish trigger has been queued.
     finish_queued: bool,
     /// Status derived from the most recently processed outcome.
@@ -214,7 +215,7 @@ impl Processing {
             config,
             active: None,
             pending: VecDeque::new(),
-            failed: Vec::new(),
+            completed: Vec::new(),
             finish_queued: false,
             status: None,
         }
@@ -277,10 +278,10 @@ impl Processing {
                     run.state = ProcessingState::Idle { since: at };
                     return;
                 }
-                self.failed.push(run.trigger);
             }
         }
 
+        self.completed.push(run.trigger);
         self.active = self
             .pending
             .pop_front()
@@ -301,10 +302,10 @@ impl Processing {
             .chain(self.pending.iter().map(|queued| queued.trigger))
     }
 
-    /// Triggers whose runs were abandoned after exhausting their attempts.
+    /// Triggers whose runs settled, successfully or not, in order.
     #[must_use]
-    pub fn failed(&self) -> &[Trigger] {
-        &self.failed
+    pub fn completed(&self) -> &[Trigger] {
+        &self.completed
     }
 
     /// Timing parameters of the pipeline's runs.
@@ -705,7 +706,7 @@ mod tests {
             Err(error(true)),
         );
         assert_eq!(processing.status, None);
-        assert_eq!(processing.failed, vec![trigger(3, Stage::TobMaiden)]);
+        assert_eq!(processing.completed, vec![trigger(3, Stage::TobMaiden)]);
         assert_eq!(processing.active().unwrap().trigger.seq(), JournalSeq(7));
     }
 
@@ -725,7 +726,7 @@ mod tests {
             Err(error(false)),
         );
         assert_eq!(processing.active(), None);
-        assert_eq!(processing.failed, vec![trigger(3, Stage::TobMaiden)]);
+        assert_eq!(processing.completed, vec![trigger(3, Stage::TobMaiden)]);
         assert!(processing.settled());
     }
 
@@ -774,7 +775,7 @@ mod tests {
         );
         assert_eq!(processing.active(), None);
         assert_eq!(
-            processing.failed,
+            processing.completed,
             vec![Trigger::Finish { seq: JournalSeq(4) }]
         );
         assert!(processing.settled());

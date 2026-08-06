@@ -253,7 +253,6 @@ fn diff_commands(
     Ok((compared, skipped))
 }
 
-// TODO(frolv): Track `STAGE_END` after the stage processor lands.
 fn diff_announcements(
     capture: &Capture,
     run: &RunDir,
@@ -261,6 +260,7 @@ fn diff_announcements(
     divergences: &mut Vec<Divergence>,
 ) -> usize {
     let mut recorded_finish = BTreeSet::new();
+    // STAGE_END is ignored as it requires stage processing to be active.
     for record in &capture.records {
         if record.op == CaptureOp::ServerUpdate
             && record.request.get("action").and_then(Value::as_str) == Some("FINISH")
@@ -586,8 +586,6 @@ mod tests {
             vec![(CAP_A, REP_Y)],
             vec![finish_announcement(REP_Y)],
         );
-
-        // TODO(frolv): STAGE_END is ignored
 
         assert_eq!(
             diff(&capture, &run),
