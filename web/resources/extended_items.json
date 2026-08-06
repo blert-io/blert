@@ -11206,12 +11206,12 @@
   {"id":12743,"name":"Box trap pack","tradeable":true,"equipable":false,"stackable":true,"bankNote":true,"weight":0.0},
   {"id":12744,"name":"Magic imp box pack","tradeable":true,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12745,"name":"Magic imp box pack","tradeable":true,"equipable":false,"stackable":true,"bankNote":true,"weight":0.0},
-  {"id":12746,"name":"Archaic emblem (tier 1)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":12746,"name":"Archaic emblem (tier 1)","tradeable":true,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12747,"name":"Archaic emblem (tier 1)","tradeable":false,"equipable":false,"stackable":true,"bankNote":false,"weight":0.0},
   {"id":12748,"name":"Archaic emblem (tier 2)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12749,"name":"Archaic emblem (tier 3)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12750,"name":"Archaic emblem (tier 4)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
-  {"id":12751,"name":"Archaic emblem (tier 5)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":12751,"name":"Archaic emblem (tier 5)","tradeable":true,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12752,"name":"Archaic emblem (tier 6)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12753,"name":"Archaic emblem (tier 7)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":12754,"name":"Archaic emblem (tier 8)","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
@@ -21886,5 +21886,7 @@
   {"id":34055,"name":"Staircase key","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":34056,"name":"Dull sunstone core","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":34057,"name":"Final letter","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
-  {"id":34058,"name":"Wyrmscraig","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0}
+  {"id":34058,"name":"Wyrmscraig","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34059,"name":"Fairy tale quest lamp","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34060,"name":"Archaic emblem (tier 5)","tradeable":true,"equipable":false,"stackable":true,"bankNote":true,"weight":0.0}
 ]
