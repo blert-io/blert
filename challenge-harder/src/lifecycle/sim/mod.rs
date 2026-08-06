@@ -143,6 +143,8 @@ pub struct ScenarioResult {
     pub inboxes: BTreeMap<Uuid, Vec<MsgId>>,
     /// Stage attempts whose streams were marked processed, per challenge.
     pub marked: MarkedStages,
+    /// Stage attempts whose streams were removed, per challenge.
+    pub removed: RemovedStreams,
     /// Challenges whose state was deleted from the store.
     pub deleted: BTreeSet<Uuid>,
 }
@@ -256,9 +258,8 @@ pub fn perturb(scenario: &mut Scenario, rng: &mut Rng, jitter_ms: u64) {
 }
 
 type SignalSink = Arc<Mutex<Option<mpsc::Sender<ChallengeSignal>>>>;
-
-/// Stage attempts whose streams were marked processed, per challenge.
 type MarkedStages = BTreeMap<Uuid, BTreeSet<(Stage, Option<u32>)>>;
+type RemovedStreams = BTreeMap<Uuid, BTreeSet<(Stage, Option<u32>)>>;
 
 /// Identity of a party for routing, built from its raw names.
 fn party_identity(challenge_type: ChallengeType, party: &[String]) -> String {
@@ -295,6 +296,7 @@ pub(crate) struct Collector {
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
     marked: Arc<Mutex<MarkedStages>>,
+    removed: Arc<Mutex<RemovedStreams>>,
     signals: SignalSink,
 }
 
@@ -319,14 +321,25 @@ impl Collector {
             .contains(&uuid)
     }
 
-    /// How many times the finish of challenge `uuid` has been announced.
-    pub fn finish_announcements(&self, uuid: Uuid) -> usize {
+    /// Updates published for challenge `uuid`, in publish order.
+    pub fn challenge_updates(&self, uuid: Uuid) -> Vec<ChallengeServerUpdate> {
         self.updates
             .lock()
             .expect("collector lock poisoned")
             .iter()
-            .filter(|(id, update)| *id == uuid && *update == ChallengeServerUpdate::Finish)
-            .count()
+            .filter(|(id, _)| *id == uuid)
+            .map(|(_, update)| *update)
+            .collect()
+    }
+
+    /// Stage streams removed for challenge `uuid`.
+    pub fn removed_streams(&self, uuid: Uuid) -> BTreeSet<(Stage, Option<u32>)> {
+        self.removed
+            .lock()
+            .expect("collector lock poisoned")
+            .get(&uuid)
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn collector_claim(&self, uuid: Uuid) -> CollectorClaim {
@@ -338,6 +351,7 @@ impl Collector {
             projections: self.projections.clone(),
             updates: self.updates.clone(),
             marked: self.marked.clone(),
+            removed: self.removed.clone(),
             signals: self.signals.clone(),
         }
     }
@@ -372,6 +386,7 @@ struct CollectorClaim {
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
     marked: Arc<Mutex<MarkedStages>>,
+    removed: Arc<Mutex<RemovedStreams>>,
     signals: SignalSink,
 }
 
@@ -669,6 +684,20 @@ impl ChallengeClaim for CollectorClaim {
         Ok(())
     }
 
+    async fn remove_stage_stream(
+        &self,
+        stage: Stage,
+        attempt: Option<u32>,
+    ) -> Result<(), StoreError> {
+        self.removed
+            .lock()
+            .expect("collector lock poisoned")
+            .entry(self.uuid)
+            .or_default()
+            .insert((stage, attempt));
+        Ok(())
+    }
+
     async fn renew(&self) -> Result<(), StoreError> {
         Ok(())
     }
@@ -876,6 +905,11 @@ pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> Sce
         .lock()
         .expect("collector lock poisoned")
         .clone();
+    let removed = collector
+        .removed
+        .lock()
+        .expect("collector lock poisoned")
+        .clone();
     let deleted = collector
         .routing
         .lock()
@@ -901,6 +935,7 @@ pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> Sce
         updates,
         inboxes,
         marked,
+        removed,
         deleted,
     };
     check_invariants(&result, &config);
@@ -1067,6 +1102,35 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
             .collect();
         let marked = result.marked.get(uuid).cloned().unwrap_or_default();
         assert_eq!(marked, sealed, "seal markers mismatch: {uuid}");
+
+        // Every settled stage run deletes its stream and publishes a stage end.
+        let completed_stages: Vec<(Stage, Option<u32>)> = folded
+            .processing
+            .completed()
+            .iter()
+            .filter_map(|trigger| match trigger {
+                Trigger::Stage { stage, attempt, .. } => Some((*stage, *attempt)),
+                _ => None,
+            })
+            .collect();
+        let stage_ends: Vec<(Stage, Option<u32>)> = result
+            .updates
+            .iter()
+            .filter_map(|(id, update)| match update {
+                ChallengeServerUpdate::StageEnd { stage, attempt } if id == uuid => {
+                    Some((*stage, *attempt))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(stage_ends, completed_stages, "stage ends mismatch: {uuid}");
+        let removed = result.removed.get(uuid).cloned().unwrap_or_default();
+        let expected_removed: BTreeSet<(Stage, Option<u32>)> =
+            completed_stages.iter().copied().collect();
+        assert_eq!(
+            removed, expected_removed,
+            "stream removals mismatch: {uuid}"
+        );
 
         // A challenge whose processing completed after termination is deleted
         // and announces its finish exactly once.

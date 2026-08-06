@@ -18,7 +18,7 @@ use super::core::state::{
     ChallengeState, LastCompleted, PhaseState, Processing, ProcessingState, PublishedClient,
     Snapshot, Trigger,
 };
-use super::core::types::{ClientId, JournalSeq, MsgId, Stage, Timestamp, Uuid};
+use super::core::types::{ClientId, JournalSeq, MsgId, ProcessingPayload, Stage, Timestamp, Uuid};
 use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -85,11 +85,12 @@ pub enum Rejoin {
 
 /// A lifecycle milestone broadcast to external consumers.
 /// Mirrors `ChallengeServerUpdate` in `//common/db/redis.ts`.
-// TODO(frolv): STAGE_END should be added alongside the stage processor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChallengeServerUpdate {
     /// The challenge has ended.
     Finish,
+    /// Processing of a stage has concluded.
+    StageEnd { stage: Stage, attempt: Option<u32> },
 }
 
 /// A change to a challenge's published state, delivered to store subscribers.
@@ -184,6 +185,13 @@ pub trait ChallengeClaim: Send + Sync + 'static {
 
     /// Marks stages' event streams as sealed, blocking further writes.
     async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError>;
+
+    /// Deletes a processed stage's event stream.
+    async fn remove_stage_stream(
+        &self,
+        stage: Stage,
+        attempt: Option<u32>,
+    ) -> Result<(), StoreError>;
 
     /// Extends this claim's hold on the challenge.
     async fn renew(&self) -> Result<(), StoreError>;
@@ -282,6 +290,7 @@ pub struct ActiveChallenge {
     claim: Claim,
     next_seq: u64,
     processor: Option<Arc<dyn StageProcessor>>,
+    processing_task: Option<ProcessingTask>,
 }
 
 /// A challenge data processing task which is aborted when dropped.
@@ -311,6 +320,7 @@ impl ActiveChallenge {
             claim,
             next_seq,
             processor,
+            processing_task: None,
         }
     }
 
@@ -320,7 +330,6 @@ impl ActiveChallenge {
     /// it terminates.
     /// `resumed_at` is the time of the last journal entry in the challenge's
     /// clock, to continue timestamps from it.
-    #[allow(clippy::too_many_lines)]
     pub async fn run(&mut self, resumed_at: Timestamp, mut shutdown: watch::Receiver<bool>) {
         if self.state.terminated() && self.state.processing.settled() {
             // A previous task stopped between its terminal entry and deletion.
@@ -349,7 +358,7 @@ impl ActiveChallenge {
                 _ => None,
             })
             .collect();
-        if !self.mark_processed(&outstanding).await {
+        if self.mark_processed(&outstanding).await.is_err() {
             return;
         }
 
@@ -359,8 +368,7 @@ impl ActiveChallenge {
         let (chanel_tx, mut chanel) = mpsc::channel(CHANEL_BUFFER_LEN);
 
         // Respawn any run the journal shows started but never finished.
-        // The task is held purely for drop semantics.
-        let mut _run_task = match self.state.processing.active() {
+        self.processing_task = match self.state.processing.active() {
             Some(run) if matches!(run.state, ProcessingState::Running { .. }) => {
                 self.spawn_processing_run(chanel_tx.clone())
             }
@@ -417,80 +425,16 @@ impl ActiveChallenge {
                 base.saturating_add(u64::try_from(elapsed).unwrap_or(u64::MAX)),
             );
 
-            let batch: Vec<JournalEntry> = decide(&self.state, &self.config, &cmd)
-                .into_iter()
-                .map(|event| {
-                    let seq = JournalSeq(self.next_seq);
-                    self.next_seq += 1;
-                    JournalEntry {
-                        seq,
-                        at,
-                        caused_by: cause,
-                        event,
-                    }
-                })
-                .collect();
-
-            let decided = !batch.is_empty();
-            if decided {
-                if let Err(error) = self.append(&batch).await {
-                    tracing::error!(uuid = %self.state.uuid, %error, "journal_append_failed");
-                    return;
-                }
-                let mut sealed = Vec::new();
-                for entry in batch {
-                    tracing::info!(
-                        uuid = %self.state.uuid,
-                        seq = entry.seq.0,
-                        caused_by = ?entry.caused_by,
-                        event = ?entry.event,
-                        "journal_entry",
-                    );
-                    let starts_run =
-                        matches!(entry.event, LifecycleEvent::ProcessingStarted { .. });
-                    let ends_run = match entry.event {
-                        LifecycleEvent::ProcessingFinished { .. } => true,
-                        LifecycleEvent::ProcessingFailed { trigger, ref error } => {
-                            tracing::error!(
-                                uuid = %self.state.uuid,
-                                trigger = trigger.0,
-                                error = %error.message,
-                                "processing_failed",
-                            );
-                            true
-                        }
-                        LifecycleEvent::ProcessingTimedOut { trigger } => {
-                            tracing::warn!(
-                                uuid = %self.state.uuid,
-                                trigger = trigger.0,
-                                "processing_timed_out",
-                            );
-                            true
-                        }
-                        _ => false,
-                    };
-                    if let LifecycleEvent::StageSealed { stage, attempt, .. } = entry.event {
-                        sealed.push((stage, attempt));
-                    }
-                    apply(&mut self.state, entry);
-                    if starts_run {
-                        _run_task = self.spawn_processing_run(chanel_tx.clone());
-                    } else if ends_run {
-                        _run_task = None;
-                    }
-                }
-                // Close stage streams immediately after they're sealed.
-                if !self.mark_processed(&sealed).await {
-                    return;
-                }
-            }
+            let Ok(updated) = self.handle_command(&cmd, cause, at, &chanel_tx).await else {
+                return;
+            };
 
             if let Cause::Command(id) = cause {
                 cursor = id;
             }
 
             // Only publish if the state changed.
-            let changed = decided || matches!(cause, Cause::Command(_));
+            let changed = updated || matches!(cause, Cause::Command(_));
             if changed && !self.project(cursor).await {
                 return;
             }
@@ -502,19 +446,118 @@ impl ActiveChallenge {
         }
     }
 
-    /// Closes sealed stages' streams to further writes, returning false if
-    /// the markers could not be written. Marking nothing trivially succeeds.
-    async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> bool {
+    /// Processes a command occurring at time `at`, applying changes and effects.
+    /// Returns whether any of its outcomes modified the challenge state.
+    async fn handle_command(
+        &mut self,
+        cmd: &Command,
+        cause: Cause,
+        at: Timestamp,
+        chanel: &mpsc::Sender<Processed>,
+    ) -> Result<bool, StoreError> {
+        let batch: Vec<JournalEntry> = decide(&self.state, &self.config, cmd)
+            .into_iter()
+            .map(|event| {
+                let seq = JournalSeq(self.next_seq);
+                self.next_seq += 1;
+                JournalEntry {
+                    seq,
+                    at,
+                    caused_by: cause,
+                    event,
+                }
+            })
+            .collect();
+
+        if batch.is_empty() {
+            return Ok(false);
+        }
+
+        if let Err(error) = self.append(&batch).await {
+            tracing::error!(uuid = %self.state.uuid, %error, "journal_append_failed");
+            return Err(error);
+        }
+
+        let mut sealed = Vec::new();
+        let completed_runs_before = self.state.processing.completed().len();
+
+        for entry in batch {
+            tracing::info!(
+                uuid = %self.state.uuid,
+                seq = entry.seq.0,
+                caused_by = ?entry.caused_by,
+                event = ?entry.event,
+                "journal_entry",
+            );
+            let starts_run = matches!(entry.event, LifecycleEvent::ProcessingStarted { .. });
+            let ends_run = match entry.event {
+                LifecycleEvent::ProcessingFinished { .. } => true,
+                LifecycleEvent::ProcessingFailed { trigger, ref error } => {
+                    tracing::error!(
+                        uuid = %self.state.uuid,
+                        trigger = trigger.0,
+                        error = %error.message,
+                        "processing_failed",
+                    );
+                    true
+                }
+                LifecycleEvent::ProcessingTimedOut { trigger } => {
+                    tracing::warn!(
+                        uuid = %self.state.uuid,
+                        trigger = trigger.0,
+                        "processing_timed_out",
+                    );
+                    true
+                }
+                _ => false,
+            };
+            if let LifecycleEvent::StageSealed { stage, attempt, .. } = entry.event {
+                sealed.push((stage, attempt));
+            }
+            apply(&mut self.state, entry);
+            if starts_run {
+                self.processing_task = self.spawn_processing_run(chanel.clone());
+            } else if ends_run {
+                self.processing_task = None;
+            }
+        }
+        // Close stage streams immediately after they're sealed.
+        self.mark_processed(&sealed).await?;
+
+        for &trigger in &self.state.processing.completed()[completed_runs_before..] {
+            if let Trigger::Stage { stage, attempt, .. } = trigger {
+                if let Err(error) = with_retries(self.state.uuid, || {
+                    self.claim.remove_stage_stream(stage, attempt)
+                })
+                .await
+                {
+                    tracing::error!(uuid = %self.state.uuid, %error, "stage_stream_removal_failed");
+                }
+                let update = ChallengeServerUpdate::StageEnd { stage, attempt };
+                if let Err(error) =
+                    with_retries(self.state.uuid, || self.claim.announce(&update)).await
+                {
+                    tracing::error!(uuid = %self.state.uuid, %error, "stage_end_publish_failed");
+                }
+            }
+        }
+
+        Ok(true)
+    }
+
+    /// Closes sealed stages' streams to further writes. Marking nothing
+    /// trivially succeeds.
+    async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
         if stages.is_empty() {
-            return true;
+            return Ok(());
         }
         if let Err(error) =
             with_retries(self.state.uuid, || self.claim.mark_processed(stages)).await
         {
             tracing::error!(uuid = %self.state.uuid, %error, "mark_processed_failed");
-            return false;
+            return Err(error);
         }
-        true
+        Ok(())
     }
 
     /// Publishes a snapshot of the current state and its clients, returning
@@ -648,6 +691,7 @@ mod tests {
         projected: Mutex<Vec<(Snapshot, Vec<PublishedClient>)>>,
         announced: Mutex<Vec<ChallengeServerUpdate>>,
         marked: Mutex<Vec<(Stage, Option<u32>)>>,
+        removed: Mutex<Vec<(Stage, Option<u32>)>>,
         deleted: Mutex<Vec<ChallengeState>>,
         // Holds the inbox feed's sender when the run is deadline-driven,
         // as dropping it would close the actor's inbox and end the run.
@@ -723,6 +767,16 @@ mod tests {
         async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
             self.log.next_result()?;
             self.log.marked.lock().unwrap().extend_from_slice(stages);
+            Ok(())
+        }
+
+        async fn remove_stage_stream(
+            &self,
+            stage: Stage,
+            attempt: Option<u32>,
+        ) -> Result<(), StoreError> {
+            self.log.next_result()?;
+            self.log.removed.lock().unwrap().push((stage, attempt));
             Ok(())
         }
 
@@ -924,6 +978,8 @@ mod tests {
         assert_eq!(outcome.log.calls.load(Ordering::Relaxed), 2);
         assert!(outcome.log.appended.lock().unwrap().is_empty());
         assert!(outcome.log.projected.lock().unwrap().is_empty());
+        assert!(outcome.log.announced.lock().unwrap().is_empty());
+        assert!(outcome.log.removed.lock().unwrap().is_empty());
     }
 
     #[tokio::test(start_paused = true)]

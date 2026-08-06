@@ -1,5 +1,6 @@
 //! Stage processing machinery scenarios, driven by a scripted processor.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use tokio::sync::watch;
@@ -359,7 +360,19 @@ async fn finalization_waits_for_processing_to_finish_after_termination() {
     );
 
     assert!(result.deleted.contains(&uuid));
-    assert_eq!(result.updates, vec![(uuid, ChallengeServerUpdate::Finish)],);
+    assert_eq!(
+        result.updates,
+        vec![
+            (
+                uuid,
+                ChallengeServerUpdate::StageEnd {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            ),
+            (uuid, ChallengeServerUpdate::Finish),
+        ],
+    );
     assert_eq!(result.only_status(), ChallengeStatus::Reset);
 }
 
@@ -564,7 +577,19 @@ async fn failed_finish_run_concludes_afterwards() {
     assert_eq!(journal[14..], expected);
 
     assert!(result.deleted.contains(&uuid));
-    assert_eq!(result.updates, vec![(uuid, ChallengeServerUpdate::Finish)]);
+    assert_eq!(
+        result.updates,
+        vec![
+            (
+                uuid,
+                ChallengeServerUpdate::StageEnd {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            ),
+            (uuid, ChallengeServerUpdate::Finish),
+        ],
+    );
     assert_eq!(result.only_status(), ChallengeStatus::Wiped);
 }
 
@@ -757,6 +782,8 @@ fn killed_run_respawns_on_resume() {
     let journal = collector.journal(uuid);
     assert_eq!(journal.last().unwrap().event, started(7));
     assert_eq!(first.requests().len(), 3);
+    assert!(collector.challenge_updates(uuid).is_empty());
+    assert!(collector.removed_streams(uuid).is_empty());
 
     // A new server resumes and the journal's unfinished run respawns without
     // repeating its `Started` entry.
@@ -781,6 +808,29 @@ fn killed_run_respawns_on_resume() {
         finished(7, outcome(StageStatus::Wiped, 60)),
     );
     assert_eq!(second.requests().len(), 1);
+
+    // The completed processing publishes an update.
+    let expected_updates = vec![ChallengeServerUpdate::StageEnd {
+        stage: Stage::TobMaiden,
+        attempt: None,
+    }];
+    assert_eq!(collector.challenge_updates(uuid), expected_updates);
+    let expected_removed = BTreeSet::from([(Stage::TobMaiden, None)]);
+    assert_eq!(collector.removed_streams(uuid), expected_removed);
+
+    // A later instance resuming does not re-run publishes.
+    let third = ScriptedProcessor::new(vec![]);
+    let store = collector.clone();
+    let processor = Arc::clone(&third) as Arc<dyn StageProcessor>;
+    runtime().block_on(async move {
+        let claim = claim_only(&store, uuid).await;
+        tokio::spawn(run_challenge(config(), claim, Some(processor), rx));
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    });
+
+    assert!(third.requests().is_empty());
+    assert_eq!(collector.challenge_updates(uuid), expected_updates);
+    assert_eq!(collector.removed_streams(uuid), expected_removed);
 }
 
 #[test]
@@ -813,7 +863,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
             .iter()
             .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated)),
     );
-    assert_eq!(collector.finish_announcements(uuid), 0);
+    assert!(collector.challenge_updates(uuid).is_empty());
     assert!(!collector.is_deleted(uuid));
 
     // Resume and finish processing.
@@ -834,7 +884,20 @@ fn final_processing_concludes_exactly_once_on_resume() {
         .await;
     });
 
-    assert_eq!(collector.finish_announcements(uuid), 1);
+    assert_eq!(
+        collector.challenge_updates(uuid),
+        vec![
+            ChallengeServerUpdate::StageEnd {
+                stage: Stage::TobMaiden,
+                attempt: None,
+            },
+            ChallengeServerUpdate::Finish,
+        ],
+    );
+    assert_eq!(
+        collector.removed_streams(uuid),
+        BTreeSet::from([(Stage::TobMaiden, None)]),
+    );
     assert!(collector.is_deleted(uuid));
     assert_eq!(
         collector.journal(uuid).last().unwrap().event,

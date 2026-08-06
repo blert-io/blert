@@ -27,8 +27,8 @@ use crate::players::normalize_rsn;
 mod scripts;
 use scripts::{
     ANNOUNCE_SCRIPT, APPEND_SCRIPT, CLAIM_SCRIPT, CLIENT_SEND_SCRIPT, DELETE_SCRIPT,
-    PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, RENEW_SCRIPT, SEAL_SCRIPT, SEND_SCRIPT,
-    START_SCRIPT,
+    PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, REMOVE_STREAM_SCRIPT, RENEW_SCRIPT, SEAL_SCRIPT,
+    SEND_SCRIPT, START_SCRIPT,
 };
 
 #[cfg(test)]
@@ -188,6 +188,12 @@ fn stage_set(stages: &[Stage]) -> String {
 enum UpdateMessage {
     #[serde(rename = "FINISH")]
     Finish { id: Uuid },
+    #[serde(rename = "STAGE_END")]
+    StageEnd {
+        id: Uuid,
+        stage: Stage,
+        attempt: Option<u32>,
+    },
 }
 
 /// Cloneable handle to the Redis storage layer.
@@ -710,6 +716,11 @@ impl ChallengeClaim for RedisClaim {
     async fn announce(&self, update: &ChallengeServerUpdate) -> Result<(), StoreError> {
         let message = match update {
             ChallengeServerUpdate::Finish => UpdateMessage::Finish { id: self.uuid },
+            ChallengeServerUpdate::StageEnd { stage, attempt } => UpdateMessage::StageEnd {
+                id: self.uuid,
+                stage: *stage,
+                attempt: *attempt,
+            },
         };
         let payload = serde_json::to_string(&message).expect("update serializes");
         let mut connection = checkout(&self.pool).await?;
@@ -751,6 +762,31 @@ impl ChallengeClaim for RedisClaim {
             .await
             .map_err(|e| StoreError::Unavailable(e.to_string()))?;
         if marked == 1 {
+            Ok(())
+        } else {
+            Err(StoreError::Fenced)
+        }
+    }
+
+    async fn remove_stage_stream(
+        &self,
+        stage: Stage,
+        attempt: Option<u32>,
+    ) -> Result<(), StoreError> {
+        let mut connection = checkout(&self.pool).await?;
+
+        let mut invocation = REMOVE_STREAM_SCRIPT.prepare_invoke();
+        invocation
+            .key(&self.lease_key)
+            .key(streams_set_key(self.uuid))
+            .key(stage_stream_key(self.uuid, stage, attempt))
+            .arg(self.epoch.0);
+
+        let removed: i64 = invocation
+            .invoke_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        if removed == 1 {
             Ok(())
         } else {
             Err(StoreError::Fenced)

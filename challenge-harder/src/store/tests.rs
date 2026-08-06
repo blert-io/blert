@@ -766,12 +766,65 @@ async fn announce_publishes_finish() {
         .await
         .expect("announce should succeed");
 
-    let message = tokio::time::timeout(Duration::from_secs(5), messages.next())
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let message = tokio::time::timeout_at(deadline, messages.next())
+            .await
+            .expect("update should arrive within the timeout")
+            .expect("pubsub stream should stay open");
+        let payload: String = message.get_payload().unwrap();
+        if payload.contains(&uuid.to_string()) {
+            assert_eq!(payload, format!(r#"{{"action":"FINISH","id":"{uuid}"}}"#));
+            break;
+        }
+    }
+
+    clean_up(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn announce_publishes_stage_end() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let claim = stub_claim(&store, uuid).await;
+
+    let mut pubsub = test_pubsub(CHALLENGE_UPDATES_CHANNEL).await;
+    let mut messages = pubsub.on_message();
+
+    claim
+        .announce(&ChallengeServerUpdate::StageEnd {
+            stage: Stage::MokhaiotlDelve8,
+            attempt: None,
+        })
         .await
-        .expect("update should arrive within the timeout")
-        .expect("pubsub stream should stay open");
-    let payload: String = message.get_payload().unwrap();
-    assert_eq!(payload, format!(r#"{{"action":"FINISH","id":"{uuid}"}}"#));
+        .expect("announce should succeed");
+    claim
+        .announce(&ChallengeServerUpdate::StageEnd {
+            stage: Stage::MokhaiotlDelve8plus,
+            attempt: Some(9),
+        })
+        .await
+        .expect("announce should succeed");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    for expected in [
+        format!(r#"{{"action":"STAGE_END","id":"{uuid}","stage":57,"attempt":null}}"#),
+        format!(r#"{{"action":"STAGE_END","id":"{uuid}","stage":58,"attempt":9}}"#),
+    ] {
+        loop {
+            let message = tokio::time::timeout_at(deadline, messages.next())
+                .await
+                .expect("update should arrive within the timeout")
+                .expect("pubsub stream should stay open");
+            let payload: String = message.get_payload().unwrap();
+            if payload.contains(&uuid.to_string()) {
+                assert_eq!(payload, expected);
+                break;
+            }
+        }
+    }
 
     clean_up(&store, uuid).await;
 }
@@ -2013,6 +2066,57 @@ async fn mark_processed_closes_stage_streams_under_the_fence() {
 
     let _: () = connection
         .del(&[processed_stages_key(uuid)][..])
+        .await
+        .unwrap();
+    clean_up(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn remove_stage_stream_deletes_the_stream_and_its_set_entry() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let claim = stub_claim(&store, uuid).await;
+
+    let mut connection = store.pool.get().await.unwrap();
+    let streams = [
+        format!("challenge-events:{uuid}:57"),
+        format!("challenge-events:{uuid}:58:9"),
+    ];
+    for stream in &streams {
+        let _: () = connection.set(stream, "events").await.unwrap();
+        let _: () = connection
+            .sadd(streams_set_key(uuid), stream)
+            .await
+            .unwrap();
+    }
+
+    claim
+        .remove_stage_stream(Stage::MokhaiotlDelve8, None)
+        .await
+        .expect("removal should succeed");
+
+    let exists: bool = connection.exists(&streams[0]).await.unwrap();
+    assert!(!exists);
+    let members: BTreeSet<String> = connection.smembers(streams_set_key(uuid)).await.unwrap();
+    assert_eq!(members, BTreeSet::from([streams[1].clone()]));
+
+    // Remove fails if the claim is no longer valid.
+    let _: () = connection.hset(lease_key(uuid), "fence", 99).await.unwrap();
+    assert_eq!(
+        claim
+            .remove_stage_stream(Stage::MokhaiotlDelve8plus, Some(9))
+            .await,
+        Err(StoreError::Fenced),
+    );
+    let members: BTreeSet<String> = connection.smembers(streams_set_key(uuid)).await.unwrap();
+    assert_eq!(members, BTreeSet::from([streams[1].clone()]));
+    let exists: bool = connection.exists(&streams[1]).await.unwrap();
+    assert!(exists);
+
+    let _: () = connection
+        .del(&[streams[1].clone(), streams_set_key(uuid)][..])
         .await
         .unwrap();
     clean_up(&store, uuid).await;

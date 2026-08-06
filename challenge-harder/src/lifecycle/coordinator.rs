@@ -705,6 +705,10 @@ mod tests {
             unreachable!();
         }
 
+        async fn remove_stage_stream(&self, _: Stage, _: Option<u32>) -> Result<(), StoreError> {
+            unreachable!();
+        }
+
         async fn renew(&self) -> Result<(), StoreError> {
             unreachable!();
         }
