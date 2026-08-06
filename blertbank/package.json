@@ -34,6 +34,6 @@
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.12",
     "tsc-alias": "^1.9.1",
-    "tsc-watch": "^6.0.4"
+    "tsc-watch": "^7.2.1"
   }
 }
