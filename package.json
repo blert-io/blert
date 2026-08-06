@@ -32,9 +32,9 @@
   },
   "dependencies": {
     "@types/google-protobuf": "^3.15.12",
-    "@wise-old-man/utils": "^4.0.21",
+    "@wise-old-man/utils": "^4.0.22",
     "google-protobuf": "^4.0.2",
-    "node-addon-api": "^8.9.0",
+    "node-addon-api": "^8.9.1",
     "ts-protoc-gen": "^0.15.0",
     "zod": "^4.4.3"
   }
