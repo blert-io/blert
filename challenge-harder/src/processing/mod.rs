@@ -1,6 +1,7 @@
 //! Challenge processing pipeline.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use async_trait::async_trait;
 
@@ -8,6 +9,7 @@ use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
     ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
+use crate::metrics;
 use crate::repository::DataRepository;
 use crate::store::Store;
 
@@ -112,6 +114,7 @@ impl StageProcessor for Pipeline {
             trigger = ?request.trigger,
             "processing_started",
         );
+        let started = Instant::now();
 
         let mut txn = match self.db.start_transaction(uuid, request.trigger).await {
             Ok(txn) => txn,
@@ -153,6 +156,13 @@ impl StageProcessor for Pipeline {
             }
         };
         txn.commit(&payload, custom_data.as_ref()).await?;
+
+        if let Trigger::Stage { stage, .. } = request.trigger {
+            metrics::observe_stage_processing_duration(
+                stage,
+                started.elapsed().as_secs_f64() * 1000.0,
+            );
+        }
 
         Ok(payload)
     }

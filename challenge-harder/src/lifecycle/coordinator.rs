@@ -13,6 +13,7 @@ use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Up
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, PublishedClient, Snapshot};
 use super::core::types::{ClientId, MsgId, Uuid};
+use crate::metrics::{self, Decision, RequestAction};
 use crate::processing::StageProcessor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -171,6 +172,7 @@ struct Registry {
 
 impl Registry {
     fn new(count: watch::Sender<usize>) -> Self {
+        metrics::set_active_challenges(0);
         Registry {
             challenges: HashSet::new(),
             count,
@@ -179,11 +181,13 @@ impl Registry {
 
     fn insert(&mut self, uuid: Uuid) {
         self.challenges.insert(uuid);
+        metrics::set_active_challenges(self.challenges.len());
         let _ = self.count.send(self.challenges.len());
     }
 
     fn remove(&mut self, uuid: Uuid) {
         self.challenges.remove(&uuid);
+        metrics::set_active_challenges(self.challenges.len());
         let _ = self.count.send(self.challenges.len());
     }
 }
@@ -280,26 +284,27 @@ impl Coordinator {
     /// the challenge's state once the request has been applied.
     /// `None` means the challenge shut down before the request could be processed.
     pub async fn create_or_join_challenge(&self, create: Create) -> Option<Snapshot> {
-        let challenge_type = create.challenge_type;
-        let stage = create.stage;
-        let user_id = create.user_id;
-        let client_id = create.client_id;
-        let party = create.party.clone();
-
         let (id, uuid, joined) = {
             // Hold off claim scans until the started challenge is registered,
             // so they cannot claim it away during its start.
             let _guard = self.starts.read().await;
-            let start = match self.store.start(create).await {
+            let start = match self.store.start(create.clone()).await {
                 Ok(start) => start,
                 Err(error) => {
                     tracing::error!(
-                        ?challenge_type,
-                        ?party,
-                        %user_id,
-                        %client_id,
+                        challenge_type = ?create.challenge_type,
+                        party = ?create.party,
+                        user_id = %create.user_id,
+                        client_id = %create.client_id,
                         %error,
                         "challenge_start_failed",
+                    );
+                    metrics::record_challenge_request(
+                        RequestAction::Create,
+                        create.challenge_type,
+                        create.mode,
+                        create.recording_type,
+                        Decision::Error,
                     );
                     return None;
                 }
@@ -310,11 +315,11 @@ impl Coordinator {
                     let uuid = claim.uuid();
                     tracing::debug!(
                         %uuid,
-                        ?challenge_type,
-                        ?party,
-                        ?stage,
-                        %user_id,
-                        %client_id,
+                        challenge_type = ?create.challenge_type,
+                        party = ?create.party,
+                        stage = ?create.stage,
+                        user_id = %create.user_id,
+                        client_id = %create.client_id,
                         "challenge_created",
                     );
                     spawn_challenge(
@@ -328,7 +333,12 @@ impl Coordinator {
                     (id, uuid, false)
                 }
                 Start::Joined { uuid, id } => {
-                    tracing::debug!(%uuid, %user_id, %client_id, "challenge_joined");
+                    tracing::debug!(
+                        %uuid,
+                        user_id = %create.user_id,
+                        client_id = %create.client_id,
+                        "challenge_joined",
+                    );
                     (id, uuid, true)
                 }
             }
@@ -342,6 +352,24 @@ impl Coordinator {
             // a realistic path for this to happen. Just log if it ever occurs.
             tracing::error!(msg_id = %id, "challenge_join_incumbent_terminated");
         }
+
+        let action = if joined {
+            RequestAction::Join
+        } else {
+            RequestAction::Create
+        };
+        let decision = if snapshot.is_some() {
+            Decision::Accepted
+        } else {
+            Decision::Error
+        };
+        metrics::record_challenge_request(
+            action,
+            create.challenge_type,
+            create.mode,
+            create.recording_type,
+            decision,
+        );
         snapshot
     }
 
@@ -355,17 +383,31 @@ impl Coordinator {
         );
         let id = match self.store.rejoin(uuid, &join).await {
             Ok(Rejoin::Queued(id)) => id,
-            Ok(Rejoin::UnknownChallenge) => return Err(CommandError::UnknownChallenge),
-            Ok(Rejoin::AlreadyInChallenge) => return Err(CommandError::AlreadyInChallenge),
+            Ok(Rejoin::UnknownChallenge) => {
+                metrics::record_client_reconnect(join.recording_type, Decision::Rejected);
+                return Err(CommandError::UnknownChallenge);
+            }
+            Ok(Rejoin::AlreadyInChallenge) => {
+                metrics::record_client_reconnect(join.recording_type, Decision::Rejected);
+                return Err(CommandError::AlreadyInChallenge);
+            }
             Err(error) => {
                 tracing::warn!(%uuid, %error, "command_enqueue_failed");
+                metrics::record_client_reconnect(join.recording_type, Decision::Error);
                 return Err(CommandError::Unavailable);
             }
         };
+
         self.cache
             .applied(uuid, id)
             .await
             .ok_or(CommandError::Unavailable)
+            .inspect(|_| {
+                metrics::record_client_reconnect(join.recording_type, Decision::Accepted);
+            })
+            .inspect_err(|_| {
+                metrics::record_client_reconnect(join.recording_type, Decision::Error);
+            })
     }
 
     /// Updates the state of an active challenge, returning its new state.
@@ -430,7 +472,10 @@ impl Coordinator {
         );
         match self.store.send(uuid, &Command::Finish(finish)).await {
             Ok(Some(_)) => Ok(()),
-            Ok(None) => Err(CommandError::UnknownChallenge),
+            Ok(None) => {
+                metrics::record_finish_request(false, Decision::Rejected);
+                Err(CommandError::UnknownChallenge)
+            }
             Err(error) => {
                 tracing::warn!(%uuid, %error, "command_enqueue_failed");
                 Err(CommandError::Unavailable)

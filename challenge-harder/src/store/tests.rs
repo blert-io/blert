@@ -1906,6 +1906,7 @@ fn terminated_state(uuid: Uuid, create: &Create) -> ChallengeState {
         party: create.party.clone(),
         phase: PhaseState::Terminated {
             finished_unix_ms: 1_785_693_975_535,
+            cause: Cause::Command("1785693975535-0".parse().unwrap()),
         },
         recorded_by: [create.client_id].into(),
         ..ChallengeState::default()

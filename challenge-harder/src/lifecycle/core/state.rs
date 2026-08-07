@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use core::time::Duration;
 
+use super::event::Cause;
 use super::types::{
     ChallengeInfo, ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, ClientId,
     JournalSeq, MsgId, ProcessingError, ProcessingPayload, RecordingType, ReportedTimes,
@@ -39,6 +40,8 @@ pub enum PhaseState {
     Terminated {
         /// Time at which the terminated state was first entered.
         finished_unix_ms: u64,
+        /// What terminated the challenge.
+        cause: Cause,
     },
 }
 
@@ -494,7 +497,9 @@ impl ChallengeState {
             created_unix_ms: self.created_unix_ms,
             reported_times: self.reported_times,
             finished_unix_ms: match self.phase {
-                PhaseState::Terminated { finished_unix_ms } => Some(finished_unix_ms),
+                PhaseState::Terminated {
+                    finished_unix_ms, ..
+                } => Some(finished_unix_ms),
                 PhaseState::Active | PhaseState::Finishing { .. } => None,
             },
         }
@@ -546,6 +551,7 @@ fn status_if_finished_now(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lifecycle::core::deadline::DeadlineKind;
 
     fn config(max_attempts: u32) -> ProcessingConfig {
         ProcessingConfig {
@@ -798,6 +804,7 @@ mod tests {
 
         state.phase = PhaseState::Terminated {
             finished_unix_ms: 1_785_693_975_535,
+            cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
         };
         assert_eq!(state.status(), ChallengeStatus::Wiped);
     }
@@ -810,6 +817,7 @@ mod tests {
             stage_status: StageStatus::Wiped,
             phase: PhaseState::Terminated {
                 finished_unix_ms: 1_785_693_975_535,
+                cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
             processing: Processing::new(config(2)),
             ..ChallengeState::default()

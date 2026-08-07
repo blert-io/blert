@@ -848,6 +848,7 @@ dependencies = [
  "http-body-util",
  "hyper-util",
  "nix",
+ "prometheus",
  "prost",
  "prost-build",
  "prost-reflect",

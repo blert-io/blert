@@ -170,7 +170,10 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
                     state.created_unix_ms.saturating_add(entry.at.as_millis())
                 }
             };
-            state.phase = PhaseState::Terminated { finished_unix_ms };
+            state.phase = PhaseState::Terminated {
+                finished_unix_ms,
+                cause: entry.caused_by,
+            };
         }
         LifecycleEvent::ModeChanged { mode } => {
             state.mode = mode;
@@ -864,6 +867,7 @@ mod tests {
             state.phase,
             PhaseState::Terminated {
                 finished_unix_ms: 1_785_693_975_535,
+                cause: Cause::Command("1785693975535-0".parse().unwrap()),
             },
         );
     }
@@ -899,6 +903,7 @@ mod tests {
             state.phase,
             PhaseState::Terminated {
                 finished_unix_ms: 1_785_693_975_534,
+                cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
         );
     }

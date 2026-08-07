@@ -12,6 +12,7 @@ use crate::lifecycle::challenge::StoreError;
 use crate::lifecycle::core::types::{
     ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
 };
+use crate::metrics;
 use crate::repository::DataRepository;
 use crate::store::Store;
 
@@ -138,16 +139,20 @@ async fn persist(
         }
     };
 
-    tokio::try_join!(
-        save_challenge_data,
-        repository.save_stage_events(
-            challenge.uuid,
-            challenge.stage,
-            challenge.stage_attempt,
-            &challenge.party,
-            events,
-        )
-    )?;
+    let save_stage_events = async {
+        let result = repository
+            .save_stage_events(
+                challenge.uuid,
+                challenge.stage,
+                challenge.stage_attempt,
+                &challenge.party,
+                events,
+            )
+            .await;
+        metrics::record_stage_events_write(result.is_ok());
+        result
+    };
+    tokio::try_join!(save_challenge_data, save_stage_events)?;
 
     tracing::info!(
         uuid = %challenge.uuid,
@@ -157,6 +162,7 @@ async fn persist(
         queryable_until,
         "challenge_stage_events_saved",
     );
+    metrics::record_queryable_events(challenge.stage, queryable_events);
 
     Ok(payload)
 }

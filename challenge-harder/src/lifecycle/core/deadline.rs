@@ -170,6 +170,7 @@ fn processing_deadline(state: &ChallengeState) -> Option<Deadline> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lifecycle::core::event::Cause;
     use crate::lifecycle::core::state::{ClientState, Processing, Trigger};
     use crate::lifecycle::core::types::{
         ChallengeStatus, ChallengeType, ClientId, JournalSeq, ProcessingError, RecordingType,
@@ -430,6 +431,7 @@ mod tests {
         let state = ChallengeState {
             phase: PhaseState::Terminated {
                 finished_unix_ms: 1_785_693_975_535,
+                cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
             stage_state: StageState::Complete {
                 since: Timestamp::from_millis(7_000),
@@ -496,6 +498,7 @@ mod tests {
         let state = ChallengeState {
             phase: PhaseState::Terminated {
                 finished_unix_ms: 1_785_693_975_535,
+                cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
             processing,
             ..mid_stage_state()
@@ -529,6 +532,7 @@ mod tests {
         let state = ChallengeState {
             phase: PhaseState::Terminated {
                 finished_unix_ms: 1_785_693_975_535,
+                cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
             processing: running_processing(Timestamp::from_millis(5_000)),
             ..mid_stage_state()
