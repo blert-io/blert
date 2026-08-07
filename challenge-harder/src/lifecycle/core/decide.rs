@@ -404,6 +404,7 @@ mod tests {
 
     use super::*;
     use crate::lifecycle::core::command::{Processed, StageProgress};
+    use crate::lifecycle::core::event::Cause;
     use crate::lifecycle::core::state::{ClientState, Processing, ProcessingConfig, Trigger};
     use crate::lifecycle::core::types::{
         ClientId, JournalSeq, ProcessingError, ProcessingPayload, RecordingType, ReportedTimes,
@@ -2019,6 +2020,7 @@ mod tests {
         let mut state = processing_tob_state();
         state.phase = PhaseState::Terminated {
             finished_unix_ms: 1_785_693_975_535,
+            cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
         };
         state.clients.clear();
 

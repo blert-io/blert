@@ -3,10 +3,12 @@
 //! Routes and body shapes mirror the current `challenge-server/api.ts`.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{MatchedPath, Path, Request, State};
 use axum::http::StatusCode;
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
@@ -29,13 +31,41 @@ pub fn router(coordinator: Arc<Coordinator>) -> Router {
         .route("/challenges/{challenge_id}/finish", post(finish_challenge))
         .route("/challenges/{challenge_id}/join", post(join_challenge))
         .route("/client-status", post(client_status))
+        // Keep health out of the metrics tracking.
+        .layer(middleware::from_fn(track_http))
         .route("/health", get(health))
+        .route("/metrics", get(metrics))
         .layer(TraceLayer::new_for_http())
         .with_state(coordinator)
 }
 
 async fn health() -> StatusCode {
     StatusCode::OK
+}
+
+async fn metrics() -> String {
+    crate::metrics::encode_metrics()
+}
+
+async fn track_http(request: Request, next: Next) -> Response {
+    let start = Instant::now();
+    let route = request
+        .extensions()
+        .get::<MatchedPath>()
+        .map(|path| path.as_str().to_owned());
+    let method = request.method().clone();
+
+    let response = next.run(request).await;
+
+    if let Some(route) = route {
+        crate::metrics::observe_http_request(
+            &route,
+            method.as_str(),
+            response.status().as_u16(),
+            start.elapsed().as_secs_f64() * 1000.0,
+        );
+    }
+    response
 }
 
 #[derive(Deserialize)]

@@ -10,6 +10,7 @@ mod api;
 mod item;
 mod lifecycle;
 mod merging;
+mod metrics;
 mod players;
 mod processing;
 mod proto;

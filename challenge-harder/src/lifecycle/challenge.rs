@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 
 use super::core::apply::apply;
 use super::core::command::{Command, Create, Envelope, Join, Processed};
-use super::core::deadline::{LifecycleConfig, next_deadline};
+use super::core::deadline::{DeadlineKind, LifecycleConfig, next_deadline};
 use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
 use super::core::state::{
@@ -19,6 +19,7 @@ use super::core::state::{
     Snapshot, Trigger,
 };
 use super::core::types::{ClientId, JournalSeq, MsgId, ProcessingPayload, Stage, Timestamp, Uuid};
+use crate::metrics::{self, Decision, FinalizationPath, RunResult, StoreOutcome};
 use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -231,7 +232,7 @@ pub async fn run_challenge(
     let mut next_seq = 0;
     let mut resumed_at = Timestamp::ZERO;
 
-    match with_retries(uuid, || claim.load()).await {
+    match with_retries(uuid, "load", || claim.load()).await {
         Ok(entries) => {
             for entry in entries {
                 next_seq = entry.seq.0 + 1;
@@ -265,7 +266,7 @@ const STORE_ATTEMPTS: u32 = 3;
 const STORE_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 /// Runs a store operation, retrying transient failures.
-async fn with_retries<T, F, Fut>(uuid: Uuid, op: F) -> Result<T, StoreError>
+async fn with_retries<T, F, Fut>(uuid: Uuid, name: &'static str, op: F) -> Result<T, StoreError>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T, StoreError>>,
@@ -278,7 +279,16 @@ where
                 tracing::warn!(%uuid, reason, "store_retry");
                 tokio::time::sleep(STORE_RETRY_DELAY).await;
             }
-            result => return result,
+            result => {
+                let outcome = match &result {
+                    Ok(_) if attempts == STORE_ATTEMPTS => StoreOutcome::Ok,
+                    Ok(_) => StoreOutcome::Retried,
+                    Err(StoreError::Unavailable(_)) => StoreOutcome::Exhausted,
+                    Err(StoreError::Fenced | StoreError::Corrupt(_)) => StoreOutcome::Error,
+                };
+                metrics::record_store_operation(name, outcome);
+                return result;
+            }
         }
     }
 }
@@ -469,7 +479,12 @@ impl ActiveChallenge {
             })
             .collect();
 
+        let record_finish = matches!(cmd, Command::Finish(_));
+
         if batch.is_empty() {
+            if record_finish {
+                metrics::record_finish_request(false, Decision::Rejected);
+            }
             return Ok(false);
         }
 
@@ -482,51 +497,19 @@ impl ActiveChallenge {
         let completed_runs_before = self.state.processing.completed().len();
 
         for entry in batch {
-            tracing::info!(
-                uuid = %self.state.uuid,
-                seq = entry.seq.0,
-                caused_by = ?entry.caused_by,
-                event = ?entry.event,
-                "journal_entry",
-            );
-            let starts_run = matches!(entry.event, LifecycleEvent::ProcessingStarted { .. });
-            let ends_run = match entry.event {
-                LifecycleEvent::ProcessingFinished { .. } => true,
-                LifecycleEvent::ProcessingFailed { trigger, ref error } => {
-                    tracing::error!(
-                        uuid = %self.state.uuid,
-                        trigger = trigger.0,
-                        error = %error.message,
-                        "processing_failed",
-                    );
-                    true
-                }
-                LifecycleEvent::ProcessingTimedOut { trigger } => {
-                    tracing::warn!(
-                        uuid = %self.state.uuid,
-                        trigger = trigger.0,
-                        "processing_timed_out",
-                    );
-                    true
-                }
-                _ => false,
-            };
-            if let LifecycleEvent::StageSealed { stage, attempt, .. } = entry.event {
-                sealed.push((stage, attempt));
-            }
-            apply(&mut self.state, entry);
-            if starts_run {
-                self.processing_task = self.spawn_processing_run(chanel.clone());
-            } else if ends_run {
-                self.processing_task = None;
-            }
+            self.apply_journal_entry(entry, &mut sealed, chanel);
         }
+
+        if record_finish {
+            metrics::record_finish_request(self.state.clients.is_empty(), Decision::Accepted);
+        }
+
         // Close stage streams immediately after they're sealed.
         self.mark_processed(&sealed).await?;
 
         for &trigger in &self.state.processing.completed()[completed_runs_before..] {
             if let Trigger::Stage { stage, attempt, .. } = trigger {
-                if let Err(error) = with_retries(self.state.uuid, || {
+                if let Err(error) = with_retries(self.state.uuid, "remove_stream", || {
                     self.claim.remove_stage_stream(stage, attempt)
                 })
                 .await
@@ -534,8 +517,10 @@ impl ActiveChallenge {
                     tracing::error!(uuid = %self.state.uuid, %error, "stage_stream_removal_failed");
                 }
                 let update = ChallengeServerUpdate::StageEnd { stage, attempt };
-                if let Err(error) =
-                    with_retries(self.state.uuid, || self.claim.announce(&update)).await
+                if let Err(error) = with_retries(self.state.uuid, "challenge_update", || {
+                    self.claim.announce(&update)
+                })
+                .await
                 {
                     tracing::error!(uuid = %self.state.uuid, %error, "stage_end_publish_failed");
                 }
@@ -545,14 +530,76 @@ impl ActiveChallenge {
         Ok(true)
     }
 
+    fn apply_journal_entry(
+        &mut self,
+        entry: JournalEntry,
+        sealed: &mut Vec<(Stage, Option<u32>)>,
+        chanel: &mpsc::Sender<Processed>,
+    ) {
+        tracing::info!(
+            uuid = %self.state.uuid,
+            seq = entry.seq.0,
+            caused_by = ?entry.caused_by,
+            event = ?entry.event,
+            "journal_entry",
+        );
+
+        let mut starts_run = false;
+        let mut processing_outcome = None;
+        match entry.event {
+            LifecycleEvent::StageStarted { stage, .. }
+            | LifecycleEvent::StageAttemptStarted { stage, .. } => {
+                metrics::record_stage_start(self.state.challenge_type, self.state.mode, stage);
+            }
+            LifecycleEvent::StageSealed { stage, attempt, .. } => {
+                sealed.push((stage, attempt));
+            }
+            LifecycleEvent::ProcessingStarted { .. } => starts_run = true,
+            LifecycleEvent::ProcessingFinished { .. } => {
+                processing_outcome = Some(RunResult::Finished);
+            }
+            LifecycleEvent::ProcessingFailed { trigger, ref error } => {
+                tracing::error!(
+                    uuid = %self.state.uuid,
+                    trigger = trigger.0,
+                    error = %error.message,
+                    "processing_failed",
+                );
+                processing_outcome = Some(RunResult::Failed);
+            }
+            LifecycleEvent::ProcessingTimedOut { trigger } => {
+                tracing::warn!(
+                    uuid = %self.state.uuid,
+                    trigger = trigger.0,
+                    "processing_timed_out",
+                );
+                processing_outcome = Some(RunResult::TimedOut);
+            }
+            _ => {}
+        }
+        if let (Some(run), Some(res)) = (self.state.processing.active(), processing_outcome) {
+            metrics::record_processing_run(run.trigger, res);
+        }
+
+        apply(&mut self.state, entry);
+
+        if starts_run {
+            self.processing_task = self.spawn_processing_run(chanel.clone());
+        } else if processing_outcome.is_some() {
+            self.processing_task = None;
+        }
+    }
+
     /// Closes sealed stages' streams to further writes. Marking nothing
     /// trivially succeeds.
     async fn mark_processed(&self, stages: &[(Stage, Option<u32>)]) -> Result<(), StoreError> {
         if stages.is_empty() {
             return Ok(());
         }
-        if let Err(error) =
-            with_retries(self.state.uuid, || self.claim.mark_processed(stages)).await
+        if let Err(error) = with_retries(self.state.uuid, "mark_processed", || {
+            self.claim.mark_processed(stages)
+        })
+        .await
         {
             tracing::error!(uuid = %self.state.uuid, %error, "mark_processed_failed");
             return Err(error);
@@ -570,8 +617,10 @@ impl ActiveChallenge {
             .iter()
             .map(|(&client_id, client)| PublishedClient::of(client_id, client))
             .collect();
-        if let Err(error) =
-            with_retries(self.state.uuid, || self.claim.project(&current, &clients)).await
+        if let Err(error) = with_retries(self.state.uuid, "project", || {
+            self.claim.project(&current, &clients)
+        })
+        .await
         {
             tracing::error!(uuid = %self.state.uuid, %error, "projection_failed");
             return false;
@@ -615,7 +664,7 @@ impl ActiveChallenge {
     }
 
     async fn release_lease(&self) {
-        match with_retries(self.state.uuid, || self.claim.release()).await {
+        match with_retries(self.state.uuid, "release", || self.claim.release()).await {
             Ok(()) => tracing::info!(uuid = %self.state.uuid, "lease_released"),
             Err(error) => {
                 tracing::error!(uuid = %self.state.uuid, %error, "lease_release_failed");
@@ -625,17 +674,42 @@ impl ActiveChallenge {
 
     /// Publishes the challenge's finish and deletes its durable state.
     async fn conclude(&self) {
-        let finish = ChallengeServerUpdate::Finish;
-        if let Err(error) = with_retries(self.state.uuid, || self.claim.announce(&finish)).await {
-            tracing::error!(uuid = %self.state.uuid, %error, "announce_failed");
+        if let PhaseState::Terminated { cause, .. } = self.state.phase {
+            let path = match cause {
+                Cause::Command(_) | Cause::Deadline(DeadlineKind::ChallengeEnd) => {
+                    FinalizationPath::Normal
+                }
+                Cause::Deadline(DeadlineKind::CleanupDisconnect | DeadlineKind::CleanupAllIdle) => {
+                    FinalizationPath::Timeout
+                }
+                // Other causes don't end a challenge.
+                Cause::Deadline(
+                    DeadlineKind::StageEnd
+                    | DeadlineKind::ProcessingDue
+                    | DeadlineKind::ProcessingTimeout,
+                )
+                | Cause::Processing(_) => unreachable!(),
+            };
+            metrics::record_challenge_finalization(path, self.state.status());
         }
-        if let Err(error) = with_retries(self.state.uuid, || self.claim.delete(&self.state)).await {
+
+        let finish = ChallengeServerUpdate::Finish;
+        if let Err(error) = with_retries(self.state.uuid, "challenge_update", || {
+            self.claim.announce(&finish)
+        })
+        .await
+        {
+            tracing::error!(uuid = %self.state.uuid, %error, "challenge_update_failed");
+        }
+        if let Err(error) =
+            with_retries(self.state.uuid, "delete", || self.claim.delete(&self.state)).await
+        {
             tracing::error!(uuid = %self.state.uuid, %error, "challenge_delete_failed");
         }
     }
 
     async fn append(&self, batch: &[JournalEntry]) -> Result<(), StoreError> {
-        with_retries(self.state.uuid, || self.claim.append(batch)).await
+        with_retries(self.state.uuid, "append", || self.claim.append(batch)).await
     }
 
     fn spawn_processing_run(&self, chanel: mpsc::Sender<Processed>) -> Option<ProcessingTask> {
@@ -1035,6 +1109,7 @@ mod tests {
             party_changed: false,
             phase: PhaseState::Terminated {
                 finished_unix_ms: 0,
+                cause: Cause::Command(MsgId::sequence(2)),
             },
             reported_times: None,
             stage: Stage::TobMaiden,
@@ -1166,6 +1241,7 @@ mod tests {
             party_changed: false,
             phase: PhaseState::Terminated {
                 finished_unix_ms: 0,
+                cause: Cause::Command(MsgId::sequence(2)),
             },
             reported_times: None,
             stage: Stage::TobMaiden,

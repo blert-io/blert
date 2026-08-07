@@ -6,6 +6,7 @@ use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeTypeExt, PlayerId, PrimaryMeleeGear, ProcessingError,
     RecordingType, Stage, UserId,
 };
+use crate::metrics;
 use crate::players::normalize_rsn;
 use crate::repository::DataRepository;
 
@@ -167,6 +168,7 @@ pub async fn finish(
             reported_ticks = times.challenge,
             "challenge_time_mismatch",
         );
+        metrics::record_reported_time_mismatch();
         final_ticks = times.challenge;
     }
 
