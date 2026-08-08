@@ -22,7 +22,6 @@ use tokio::sync::{mpsc, watch};
 
 use super::challenge::{
     ChallengeClaim, ChallengeServerUpdate, ChallengeSignal, ChallengeStore, Claim, Rejoin, Start,
-    StoreError,
 };
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
@@ -40,6 +39,7 @@ use super::core::types::{
     ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage, StageExt, StageStatus,
     UserId, Uuid,
 };
+use super::store::StoreError;
 use crate::processing::{ProcessingRequest, StageProcessor};
 
 /// A scripted client action, issued at a scenario-relative time.

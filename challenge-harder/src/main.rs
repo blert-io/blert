@@ -14,10 +14,10 @@ mod metrics;
 mod players;
 mod processing;
 mod proto;
+mod redis;
 mod repository;
 mod shadow;
 mod skill;
-mod store;
 
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -94,7 +94,7 @@ async fn serve(config: LifecycleConfig) {
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_REDIS_POOL_SIZE);
     let store = Arc::new(
-        store::Store::connect(&redis_uri, identity.clone(), redis_pool_size)
+        redis::Store::connect(&redis_uri, identity.clone(), redis_pool_size)
             .await
             .expect("failed to connect to Redis"),
     );

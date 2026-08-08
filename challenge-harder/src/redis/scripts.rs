@@ -5,8 +5,8 @@ use std::sync::LazyLock;
 use redis::Script;
 
 use super::{
-    CHALLENGE_KEY_PREFIX, CHALLENGE_UPDATES_CHANNEL, INBOX_KEY_PREFIX, LEASE_KEY_PREFIX,
-    SIGNAL_CHANNEL,
+    CHALLENGE_INBOX_KEY_PREFIX, CHALLENGE_KEY_PREFIX, CHALLENGE_LEASE_KEY_PREFIX,
+    CHALLENGE_UPDATES_CHANNEL, SESSION_LEASE_KEY_PREFIX, SIGNAL_CHANNEL,
 };
 use crate::lifecycle::core::{state::ChallengePhase, types::Epoch};
 
@@ -29,7 +29,7 @@ use crate::lifecycle::core::{state::ChallengePhase, types::Epoch};
 ///
 /// A flat list of alternating uuid, epoch pairs for each claimed challenge.
 /// Empty when nothing was claimable.
-pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+fn claim_script(lease_prefix: &str) -> Script {
     Script::new(&format!(
         r"
         local skip = {{}}
@@ -43,7 +43,7 @@ pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
                 break
             end
             local uuid = index[i]
-            local lease = '{LEASE_KEY_PREFIX}' .. uuid
+            local lease = '{lease_prefix}' .. uuid
             if not skip[uuid]
                 and (tonumber(index[i + 1]) <= tonumber(ARGV[2])
                     or redis.call('HGET', lease, 'owner') == ARGV[1]) then
@@ -57,7 +57,13 @@ pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         return claimed
         ",
     ))
-});
+}
+
+pub(super) static CLAIM_SCRIPT: LazyLock<Script> =
+    LazyLock::new(|| claim_script(CHALLENGE_LEASE_KEY_PREFIX));
+
+pub(super) static SESSION_CLAIM_SCRIPT: LazyLock<Script> =
+    LazyLock::new(|| claim_script(SESSION_LEASE_KEY_PREFIX));
 
 /// Extends a challenge's lease deadline, provided the renewer's epoch still
 /// holds the challenge's fence.
@@ -303,7 +309,7 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
             local previous = redis.call('GET', KEYS[4])
             if previous and previous ~= target
                 and redis.call('ZSCORE', KEYS[2], previous) then
-                redis.call('XADD', '{INBOX_KEY_PREFIX}' .. previous, '*', 'cmd', ARGV[7])
+                redis.call('XADD', '{CHALLENGE_INBOX_KEY_PREFIX}' .. previous, '*', 'cmd', ARGV[7])
             end
         end
 
@@ -319,7 +325,7 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
             if joinable then
                 leave_previous(incumbent)
                 redis.call('SET', KEYS[4], incumbent)
-                local id = redis.call('XADD', '{INBOX_KEY_PREFIX}' .. incumbent, '*', 'cmd', ARGV[6])
+                local id = redis.call('XADD', '{CHALLENGE_INBOX_KEY_PREFIX}' .. incumbent, '*', 'cmd', ARGV[6])
                 return {{'JOIN', incumbent, id}}
             end
         end
@@ -400,6 +406,44 @@ pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         return 1
         ",
     ))
+});
+
+/// Deletes an expired session's state, provided the deleter's epoch still
+/// holds the session's fence, permanently removing it from the session index.
+/// The journal and inbox are left to expire for inspection.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = Session's lease hash
+/// - `KEYS[2]` = Session index
+/// - `KEYS[3]` = Session's party directory key
+/// - `KEYS[4]` = Session's journal stream
+/// - `KEYS[5]` = Session's inbox stream
+///
+/// - `ARGV[1]` = Lease epoch
+/// - `ARGV[2]` = Session uuid
+/// - `ARGV[3]` = Journal and inbox retention, in seconds
+///
+/// ## Return value
+///
+/// - `1`: The session was deleted.
+/// - `0`: The epoch no longer holds the fence.
+pub(super) static SESSION_DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        if redis.call('HGET', KEYS[1], 'fence') ~= ARGV[1] then
+            return 0
+        end
+        if redis.call('GET', KEYS[3]) == ARGV[2] then
+            redis.call('DEL', KEYS[3])
+        end
+        redis.call('EXPIRE', KEYS[4], ARGV[3])
+        redis.call('EXPIRE', KEYS[5], ARGV[3])
+        redis.call('ZREM', KEYS[2], ARGV[2])
+        redis.call('DEL', KEYS[1])
+        return 1
+        ",
+    )
 });
 
 /// Queues a join command into a challenge's inbox and links the client to
@@ -495,7 +539,7 @@ pub(super) static CLIENT_SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         if phase == '{terminated}' then
             return false
         end
-        local id = redis.call('XADD', '{INBOX_KEY_PREFIX}' .. uuid, '*', 'cmd', ARGV[1])
+        local id = redis.call('XADD', '{CHALLENGE_INBOX_KEY_PREFIX}' .. uuid, '*', 'cmd', ARGV[1])
         return {{uuid, id}}
         ",
         terminated = ChallengePhase::Terminated.tag(),

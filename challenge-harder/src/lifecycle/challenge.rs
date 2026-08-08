@@ -19,21 +19,9 @@ use super::core::state::{
     Snapshot, Trigger,
 };
 use super::core::types::{ClientId, JournalSeq, MsgId, ProcessingPayload, Stage, Timestamp, Uuid};
-use crate::metrics::{self, Decision, FinalizationPath, RunResult, StoreOutcome};
+use super::store::{StoreError, with_retries};
+use crate::metrics::{self, Decision, FinalizationPath, RunResult};
 use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum StoreError {
-    /// A newer incarnation owns the challenge; the challenge must exit.
-    #[error("fenced off by a newer incarnation")]
-    Fenced,
-    /// The operation could not be completed.
-    #[error("store unavailable: {0}")]
-    Unavailable(String),
-    /// Stored state exists but cannot be interpreted.
-    #[error("corrupt state: {0}")]
-    Corrupt(String),
-}
 
 /// A claim on a challenge, pairing the challenge's identity with exclusive
 /// write access to its durable state.
@@ -259,38 +247,6 @@ pub async fn run_challenge(
 
     let mut challenge = ActiveChallenge::new(config, claim, state, next_seq, processor);
     challenge.run(resumed_at, shutdown).await;
-}
-
-// Transient store failures are retried inline before the caller gives up.
-const STORE_ATTEMPTS: u32 = 3;
-const STORE_RETRY_DELAY: Duration = Duration::from_millis(250);
-
-/// Runs a store operation, retrying transient failures.
-async fn with_retries<T, F, Fut>(uuid: Uuid, name: &'static str, op: F) -> Result<T, StoreError>
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<T, StoreError>>,
-{
-    let mut attempts = STORE_ATTEMPTS;
-    loop {
-        match op().await {
-            Err(StoreError::Unavailable(reason)) if attempts > 1 => {
-                attempts -= 1;
-                tracing::warn!(%uuid, reason, "store_retry");
-                tokio::time::sleep(STORE_RETRY_DELAY).await;
-            }
-            result => {
-                let outcome = match &result {
-                    Ok(_) if attempts == STORE_ATTEMPTS => StoreOutcome::Ok,
-                    Ok(_) => StoreOutcome::Retried,
-                    Err(StoreError::Unavailable(_)) => StoreOutcome::Exhausted,
-                    Err(StoreError::Fenced | StoreError::Corrupt(_)) => StoreOutcome::Error,
-                };
-                metrics::record_store_operation(name, outcome);
-                return result;
-            }
-        }
-    }
 }
 
 /// Processing task for an ongoing challenge.
@@ -693,6 +649,8 @@ impl ActiveChallenge {
             metrics::record_challenge_finalization(path, self.state.status());
         }
 
+        // TODO(frolv): Trigger external effects like feed and webhooks.
+
         let finish = ChallengeServerUpdate::Finish;
         if let Err(error) = with_retries(self.state.uuid, "challenge_update", || {
             self.claim.announce(&finish)
@@ -755,8 +713,10 @@ mod tests {
     #[derive(Default)]
     struct ClaimLog {
         /// Outcomes of upcoming store operations, popped per call in order;
-        /// once drained, operations succeed.
+        /// once drained, operations resolve with `steady_failure` or succeed.
         results: Mutex<VecDeque<Result<(), StoreError>>>,
+        /// Failure returned by every operation after `results` drains.
+        steady_failure: Option<StoreError>,
         /// Outcomes of upcoming lease renewals.
         renew_results: Mutex<VecDeque<Result<(), StoreError>>>,
         renewals: AtomicU64,
@@ -776,7 +736,14 @@ mod tests {
     impl ClaimLog {
         fn next_result(&self) -> Result<(), StoreError> {
             self.calls.fetch_add(1, Ordering::Relaxed);
-            self.results.lock().unwrap().pop_front().unwrap_or(Ok(()))
+            self.results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or_else(|| match &self.steady_failure {
+                    Some(error) => Err(error.clone()),
+                    None => Ok(()),
+                })
         }
     }
 
@@ -911,6 +878,7 @@ mod tests {
     /// call order.
     async fn run_scripted(
         script: Vec<Result<(), StoreError>>,
+        steady_failure: Option<StoreError>,
         journal: Vec<JournalEntry>,
         commands: Vec<Command>,
         hold_inbox: bool,
@@ -918,6 +886,7 @@ mod tests {
         let uuid = Uuid::new_v4();
         let log = Arc::new(ClaimLog {
             results: Mutex::new(script.into()),
+            steady_failure,
             ..ClaimLog::default()
         });
         let inbox = commands
@@ -949,7 +918,7 @@ mod tests {
         script: Vec<Result<(), StoreError>>,
         commands: Vec<Command>,
     ) -> RunOutcome {
-        run_scripted(script, Vec::new(), commands, false).await
+        run_scripted(script, None, Vec::new(), commands, false).await
     }
 
     /// Runs a challenge over a single create command whose store operations
@@ -1031,16 +1000,16 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn repeated_transient_failures_exit_unapplied() {
-        let mut script = vec![Ok(())];
-        script.extend(vec![unavailable(); STORE_ATTEMPTS as usize]);
-        let outcome = run_solo_create(script).await;
+    async fn failing_append_exits_unapplied() {
+        let outcome = run_scripted(
+            vec![Ok(())],
+            Some(StoreError::Unavailable("scripted".into())),
+            Vec::new(),
+            vec![create_command()],
+            false,
+        )
+        .await;
 
-        // The load, then the append's exhausted attempts.
-        assert_eq!(
-            outcome.log.calls.load(Ordering::Relaxed),
-            u64::from(STORE_ATTEMPTS) + 1,
-        );
         assert!(outcome.log.appended.lock().unwrap().is_empty());
         assert!(outcome.log.projected.lock().unwrap().is_empty());
     }
@@ -1192,13 +1161,15 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn failing_load_exits_before_processing() {
-        let script = vec![unavailable(); STORE_ATTEMPTS as usize];
-        let outcome = run_commands(script, vec![create_command()]).await;
+        let outcome = run_scripted(
+            Vec::new(),
+            Some(StoreError::Unavailable("scripted".into())),
+            Vec::new(),
+            vec![create_command()],
+            false,
+        )
+        .await;
 
-        assert_eq!(
-            outcome.log.calls.load(Ordering::Relaxed),
-            u64::from(STORE_ATTEMPTS),
-        );
         assert!(outcome.log.appended.lock().unwrap().is_empty());
         assert!(outcome.log.projected.lock().unwrap().is_empty());
         assert!(outcome.log.deleted.lock().unwrap().is_empty());
@@ -1222,7 +1193,7 @@ mod tests {
         journal.push(journaled(3, 500, 2, LifecycleEvent::ChallengeTerminated));
 
         // The queued command is never processed.
-        let outcome = run_scripted(vec![], journal, vec![finish_command()], false).await;
+        let outcome = run_scripted(vec![], None, journal, vec![finish_command()], false).await;
 
         // Load, announcement, deletion.
         assert_eq!(outcome.log.calls.load(Ordering::Relaxed), 3);
@@ -1261,7 +1232,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn resume_projects_the_folded_state_once() {
         let uuid = Uuid::new_v4();
-        let outcome = run_scripted(vec![], created_journal(uuid), vec![], false).await;
+        let outcome = run_scripted(vec![], None, created_journal(uuid), vec![], false).await;
 
         assert!(outcome.log.appended.lock().unwrap().is_empty());
         assert_eq!(
@@ -1289,6 +1260,7 @@ mod tests {
         let uuid = Uuid::new_v4();
         let outcome = run_scripted(
             vec![],
+            None,
             created_journal(uuid),
             vec![create_command(), finish_command()],
             false,
@@ -1337,7 +1309,7 @@ mod tests {
         let window = u64::try_from(config.reconnection_window.as_millis()).unwrap();
 
         let uuid = Uuid::new_v4();
-        let outcome = run_scripted(vec![], dormant_journal(uuid, 1_000), vec![], true).await;
+        let outcome = run_scripted(vec![], None, dormant_journal(uuid, 1_000), vec![], true).await;
 
         // The reconnection window opened at the disconnect and fires a full
         // window after it on the resumed clock.
@@ -1371,7 +1343,7 @@ mod tests {
                 mode: ChallengeMode::TobHard,
             },
         ));
-        let outcome = run_scripted(vec![], journal, vec![], true).await;
+        let outcome = run_scripted(vec![], None, journal, vec![], true).await;
 
         let appended = outcome.log.appended.lock().unwrap();
         assert_eq!(
@@ -1393,7 +1365,7 @@ mod tests {
         let interval = config.lease_renewal_interval.as_millis();
 
         let uuid = Uuid::new_v4();
-        let outcome = run_scripted(vec![], dormant_journal(uuid, 1_000), vec![], true).await;
+        let outcome = run_scripted(vec![], None, dormant_journal(uuid, 1_000), vec![], true).await;
 
         assert_eq!(
             u128::from(outcome.log.renewals.load(Ordering::Relaxed)),

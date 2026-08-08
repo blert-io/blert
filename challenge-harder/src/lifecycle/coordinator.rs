@@ -561,7 +561,7 @@ impl Coordinator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::challenge::{ChallengeClaim, ChallengeServerUpdate, StoreError};
+    use crate::lifecycle::challenge::{ChallengeClaim, ChallengeServerUpdate};
     use crate::lifecycle::core::command::{ClientStatus, Envelope, StageProgress};
     use crate::lifecycle::core::event::JournalEntry;
     use crate::lifecycle::core::state::ChallengeState;
@@ -569,6 +569,7 @@ mod tests {
         ChallengeMode, ChallengeType, ClientId, RecordingType, Stage, StageStatus, UserId,
     };
     use crate::lifecycle::sim::Collector;
+    use crate::lifecycle::store::StoreError;
 
     fn create_request() -> Create {
         create_request_for(1)
