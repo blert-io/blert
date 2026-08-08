@@ -8,13 +8,13 @@
 //! 3. `persist` receives the results and writes them to the database and
 //!    blob store.
 
-use crate::lifecycle::challenge::StoreError;
 use crate::lifecycle::core::types::{
     ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
 };
+use crate::lifecycle::store::StoreError;
 use crate::metrics;
+use crate::redis::Store;
 use crate::repository::DataRepository;
-use crate::store::Store;
 
 use super::challenge::load_database_state;
 use super::challenge_processor::ChallengeProcessor;

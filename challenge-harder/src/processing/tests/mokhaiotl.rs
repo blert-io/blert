@@ -16,8 +16,8 @@ use crate::lifecycle::core::types::{
 use crate::processing::split::SplitType;
 use crate::processing::{Pipeline, ProcessingRequest, StageProcessor, db};
 use crate::proto::{ChallengeData, challenge_data, event};
+use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
-use crate::store;
 
 /// Properties of the test challenge, fixed so runs are deterministic.
 const CREATED_UNIX_MS: u64 = 1_782_864_000_000;
@@ -28,7 +28,7 @@ async fn delve_test() {
     let Some(db) = db::test_database().await else {
         return;
     };
-    let Some(redis) = store::tests::test_store().await else {
+    let Some(redis) = redis::tests::test_store().await else {
         return;
     };
     let client = db.client().await;

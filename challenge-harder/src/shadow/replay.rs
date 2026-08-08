@@ -120,7 +120,7 @@ async fn read_journals(
     let mut journals = BTreeMap::new();
     for uuid in challenges {
         let batches: Vec<(String, Vec<(String, String)>)> = redis::cmd("XRANGE")
-            .arg(crate::store::journal_key(uuid))
+            .arg(crate::redis::challenge_journal_key(uuid))
             .arg("-")
             .arg("+")
             .query_async(redis)
@@ -165,7 +165,7 @@ async fn wait_for_timeouts(
 
     loop {
         let members: Vec<String> = redis::cmd("ZRANGE")
-            .arg(crate::store::LEASES_KEY)
+            .arg(crate::redis::CHALLENGE_LEASES_KEY)
             .arg(0)
             .arg(-1)
             .query_async(redis)
@@ -192,7 +192,7 @@ async fn record_announcements(
 ) -> Result<(tokio::task::JoinHandle<()>, Announcements), ReplayError> {
     let mut pubsub = redis::Client::open(redis_uri)?.get_async_pubsub().await?;
     pubsub
-        .subscribe(crate::store::CHALLENGE_UPDATES_CHANNEL)
+        .subscribe(crate::redis::CHALLENGE_UPDATES_CHANNEL)
         .await?;
 
     let announcements = Announcements::default();

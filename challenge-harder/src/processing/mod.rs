@@ -10,8 +10,8 @@ use crate::lifecycle::core::types::{
     ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
 use crate::metrics;
+use crate::redis::Store;
 use crate::repository::DataRepository;
-use crate::store::Store;
 
 use challenge_processor::ChallengeProcessor;
 use mokhaiotl::MokhaiotlProcessor;

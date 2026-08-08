@@ -32,12 +32,12 @@ fn test_party_members(client: ClientId) -> Vec<String> {
 
 /// The directory identity of a create request's party.
 fn party_of(create: &Create) -> String {
-    party_key(create.challenge_type, &create.party)
+    party_identifier(create.challenge_type, &create.party)
 }
 
 #[test]
 fn party_key_normalizes_then_sorts_names() {
-    let key = party_key(
+    let key = party_identifier(
         ChallengeType::Tob,
         &[
             "WWWWWWWWWWQQ".into(),
@@ -48,7 +48,7 @@ fn party_key_normalizes_then_sorts_names() {
     );
     assert_eq!(key, "1-1ogp-715-caps_lock13-wwwwwwwwwwqq");
 
-    let key = party_key(ChallengeType::Tob, &["AB".into(), "Aa".into()]);
+    let key = party_identifier(ChallengeType::Tob, &["AB".into(), "Aa".into()]);
     assert_eq!(key, "1-aa-ab");
 }
 
@@ -138,11 +138,11 @@ fn as_identity(store: &Store, identity: &str) -> Store {
 
 /// Establishes a fresh challenge's lease as a start would, returning its
 /// claim at the initial epoch.
-async fn stub_claim(store: &Store, uuid: Uuid) -> RedisClaim {
+async fn stub_claim(store: &Store, uuid: Uuid) -> RedisChallengeClaim {
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .hset_multiple(
-            lease_key(uuid),
+            challenge_lease_key(uuid),
             &[
                 ("fence", Epoch::INITIAL.to_string()),
                 ("owner", TEST_IDENTITY.to_string()),
@@ -151,10 +151,10 @@ async fn stub_claim(store: &Store, uuid: Uuid) -> RedisClaim {
         .await
         .unwrap();
     let _: () = connection
-        .zadd(LEASES_KEY, uuid.to_string(), lease_deadline())
+        .zadd(CHALLENGE_LEASES_KEY, uuid.to_string(), lease_deadline())
         .await
         .unwrap();
-    store.redis_claim(uuid, Epoch::INITIAL)
+    store.new_challenge_claim(uuid, Epoch::INITIAL)
 }
 
 /// Serializes tests that hold lapsed or foreign-identity leases in the shared
@@ -163,14 +163,17 @@ static SWEEP_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 async fn clean_up(store: &Store, uuid: Uuid) {
     let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection.zrem(LEASES_KEY, uuid.to_string()).await.unwrap();
+    let _: () = connection
+        .zrem(CHALLENGE_LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
     let _: () = connection
         .del(
             &[
-                journal_key(uuid),
-                lease_key(uuid),
+                challenge_journal_key(uuid),
+                challenge_lease_key(uuid),
                 challenge_key(uuid),
-                inbox_key(uuid),
+                challenge_inbox_key(uuid),
             ][..],
         )
         .await
@@ -181,7 +184,7 @@ async fn clean_up(store: &Store, uuid: Uuid) {
 /// is isolated by key uniqueness and dies at the next test run's flush.
 async fn clean_up_start(store: &Store, party: &str, clients: &[ClientId], uuids: &[Uuid]) {
     let mut connection = store.pool.get().await.unwrap();
-    let mut keys = vec![directory_key(party)];
+    let mut keys = vec![challenge_directory_key(party)];
     keys.extend(clients.iter().map(|client| client_key(*client)));
     let _: () = connection.del(keys).await.unwrap();
     for uuid in uuids {
@@ -194,7 +197,7 @@ async fn clean_up_start(store: &Store, party: &str, clients: &[ClientId], uuids:
 async fn read_journal(store: &Store, uuid: Uuid) -> Vec<(String, Vec<JournalEntry>)> {
     let mut connection = store.pool.get().await.unwrap();
     let entries: Vec<(String, Vec<(String, String)>)> = redis::cmd("XRANGE")
-        .arg(journal_key(uuid))
+        .arg(challenge_journal_key(uuid))
         .arg("-")
         .arg("+")
         .query_async(&mut connection)
@@ -218,7 +221,7 @@ async fn read_journal(store: &Store, uuid: Uuid) -> Vec<(String, Vec<JournalEntr
 async fn read_inbox(store: &Store, uuid: Uuid) -> Vec<(MsgId, Vec<(String, Command)>)> {
     let mut connection = store.pool.get().await.unwrap();
     let entries: Vec<(String, Vec<(String, String)>)> = redis::cmd("XRANGE")
-        .arg(inbox_key(uuid))
+        .arg(challenge_inbox_key(uuid))
         .arg("-")
         .arg("+")
         .query_async(&mut connection)
@@ -308,7 +311,10 @@ async fn bumped_fence_rejects_stale_epoch() {
     claim.append(&first).await.expect("append should succeed");
 
     let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 2)
+        .await
+        .unwrap();
 
     let second = vec![entry(
         1,
@@ -347,7 +353,7 @@ async fn expired_leases_are_claimed_and_fenced() {
     // The owning server dies.
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
-        .zadd(LEASES_KEY, uuid.to_string(), 500)
+        .zadd(CHALLENGE_LEASES_KEY, uuid.to_string(), 500)
         .await
         .unwrap();
 
@@ -374,11 +380,12 @@ async fn expired_leases_are_claimed_and_fenced() {
         .expect("append should succeed");
     assert_eq!(claim.append(&second).await, Err(StoreError::Fenced));
 
-    let lease: BTreeMap<String, String> = connection.hgetall(lease_key(uuid)).await.unwrap();
+    let lease: BTreeMap<String, String> =
+        connection.hgetall(challenge_lease_key(uuid)).await.unwrap();
     assert_eq!(lease["fence"], "2");
     assert_eq!(lease["owner"], "reclaimer");
     let deadline: Option<u64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert!(deadline.expect("challenge should stay indexed") > unix_millis());
@@ -419,7 +426,10 @@ async fn held_leases_are_reclaimable_only_by_their_owner() {
     assert_eq!(reclaimed.uuid(), uuid);
 
     let mut connection = store.pool.get().await.unwrap();
-    let fence: String = connection.hget(lease_key(uuid), "fence").await.unwrap();
+    let fence: String = connection
+        .hget(challenge_lease_key(uuid), "fence")
+        .await
+        .unwrap();
     assert_eq!(fence, "2");
 
     clean_up_start(&store, &party, &[client], &[uuid]).await;
@@ -450,7 +460,7 @@ async fn running_challenges_are_not_swept() {
 
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
-        .zadd(LEASES_KEY, uuid.to_string(), 500)
+        .zadd(CHALLENGE_LEASES_KEY, uuid.to_string(), 500)
         .await
         .unwrap();
     let claims = owner
@@ -459,7 +469,10 @@ async fn running_challenges_are_not_swept() {
         .expect("sweep should succeed");
     assert!(claims.is_empty(), "a running challenge was swept");
 
-    let fence: String = connection.hget(lease_key(uuid), "fence").await.unwrap();
+    let fence: String = connection
+        .hget(challenge_lease_key(uuid), "fence")
+        .await
+        .unwrap();
     assert_eq!(fence, "1");
 
     clean_up_start(&store, &party, &[client], &[uuid]).await;
@@ -483,7 +496,7 @@ async fn claim_sweeps_respect_the_batch_size() {
             panic!("expected a creation");
         };
         let _: () = connection
-            .zadd(LEASES_KEY, claim.uuid().to_string(), deadline)
+            .zadd(CHALLENGE_LEASES_KEY, claim.uuid().to_string(), deadline)
             .await
             .unwrap();
         challenges.push((party, client, claim.uuid()));
@@ -497,7 +510,7 @@ async fn claim_sweeps_respect_the_batch_size() {
     assert_eq!(claimed, vec![challenges[0].2, challenges[1].2]);
 
     let fence: String = connection
-        .hget(lease_key(challenges[2].2), "fence")
+        .hget(challenge_lease_key(challenges[2].2), "fence")
         .await
         .unwrap();
     assert_eq!(fence, "1");
@@ -518,23 +531,26 @@ async fn renewal_extends_a_held_lease() {
 
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
-        .zadd(LEASES_KEY, uuid.to_string(), 500)
+        .zadd(CHALLENGE_LEASES_KEY, uuid.to_string(), 500)
         .await
         .unwrap();
 
     claim.renew().await.expect("renew should succeed");
     let renewed: Option<u64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     let renewed = renewed.expect("challenge should stay indexed");
     assert!(renewed > unix_millis());
 
     // If claimed away, the extension fails.
-    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 2)
+        .await
+        .unwrap();
     assert_eq!(claim.renew().await, Err(StoreError::Fenced));
     let unchanged: Option<u64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert_eq!(unchanged, Some(renewed));
@@ -554,7 +570,7 @@ async fn release_makes_a_lease_immediately_claimable() {
     claim.release().await.expect("release should succeed");
     let mut connection = store.pool.get().await.unwrap();
     let released: Option<u64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert_eq!(released, Some(0));
@@ -572,7 +588,7 @@ async fn release_makes_a_lease_immediately_claimable() {
     // The releaser can no longer reclaim.
     assert_eq!(claim.release().await, Err(StoreError::Fenced));
     let deadline: Option<u64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert!(deadline.expect("challenge should stay indexed") > unix_millis());
@@ -659,7 +675,10 @@ async fn projection_writes_hash_and_signals() {
     assert_eq!(store.read(uuid).await, Ok(Some(updated)));
 
     // The clients hash holds the wire form the old contract's readers parse.
-    let clients: BTreeMap<String, String> = connection.hgetall(clients_key(uuid)).await.unwrap();
+    let clients: BTreeMap<String, String> = connection
+        .hgetall(challenge_clients_key(uuid))
+        .await
+        .unwrap();
     assert_eq!(
         clients,
         [(
@@ -684,7 +703,10 @@ async fn projection_writes_hash_and_signals() {
     let hash: BTreeMap<String, String> = connection.hgetall(challenge_key(uuid)).await.unwrap();
     assert!(!hash.contains_key("stageAttempt"), "{hash:?}");
     assert_eq!(store.read(uuid).await, Ok(Some(snapshot(uuid, 6))));
-    let clients: bool = connection.exists(clients_key(uuid)).await.unwrap();
+    let clients: bool = connection
+        .exists(challenge_clients_key(uuid))
+        .await
+        .unwrap();
     assert!(!clients);
 
     clean_up(&store, uuid).await;
@@ -738,7 +760,10 @@ async fn bumped_fence_rejects_projection() {
     let claim = stub_claim(&store, uuid).await;
 
     let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 2)
+        .await
+        .unwrap();
 
     assert_eq!(
         claim.project(&snapshot(uuid, 1), &[]).await,
@@ -838,7 +863,10 @@ async fn bumped_fence_rejects_announcements() {
     let claim = stub_claim(&store, uuid).await;
 
     let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 2)
+        .await
+        .unwrap();
 
     assert_eq!(
         claim.announce(&ChallengeServerUpdate::Finish).await,
@@ -857,7 +885,7 @@ async fn missing_fence_rejects_appends() {
     let claim = stub_claim(&store, uuid).await;
 
     let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection.del(lease_key(uuid)).await.unwrap();
+    let _: () = connection.del(challenge_lease_key(uuid)).await.unwrap();
 
     let batch = vec![entry(
         0,
@@ -906,7 +934,7 @@ async fn next_envelope(rx: &mut mpsc::Receiver<Envelope>) -> Envelope {
 async fn register(store: &Store, uuid: Uuid) {
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
-        .zadd(LEASES_KEY, uuid.to_string(), lease_deadline())
+        .zadd(CHALLENGE_LEASES_KEY, uuid.to_string(), lease_deadline())
         .await
         .unwrap();
 }
@@ -1026,7 +1054,10 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
     let uuid = claim.uuid();
 
     let mut connection = store.pool.get().await.unwrap();
-    let directory: String = connection.get(directory_key(&party)).await.unwrap();
+    let directory: String = connection
+        .get(challenge_directory_key(&party))
+        .await
+        .unwrap();
     assert_eq!(directory, uuid.to_string());
     let routed: String = connection.get(client_key(client)).await.unwrap();
     assert_eq!(routed, uuid.to_string());
@@ -1043,7 +1074,7 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
     // The challenge should have a lease deadline in the future, held by
     // this instance.
     let deadline: Option<u64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     let now = u64::try_from(
@@ -1054,7 +1085,10 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
     )
     .expect("time fits in u64");
     assert!(deadline.expect("challenge should be indexed") > now);
-    let owner: String = connection.hget(lease_key(uuid), "owner").await.unwrap();
+    let owner: String = connection
+        .hget(challenge_lease_key(uuid), "owner")
+        .await
+        .unwrap();
     assert_eq!(owner, TEST_IDENTITY);
 
     assert_eq!(
@@ -1113,7 +1147,10 @@ async fn start_joins_a_live_incumbent() {
     assert_eq!(target, uuid);
 
     let mut connection = store.pool.get().await.unwrap();
-    let directory: String = connection.get(directory_key(&party)).await.unwrap();
+    let directory: String = connection
+        .get(challenge_directory_key(&party))
+        .await
+        .unwrap();
     assert_eq!(directory, uuid.to_string());
     let routed: String = connection.get(client_key(joiner_client)).await.unwrap();
     assert_eq!(routed, uuid.to_string());
@@ -1220,7 +1257,10 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
     assert_ne!(second, first);
 
     let mut connection = store.pool.get().await.unwrap();
-    let directory: String = connection.get(directory_key(&party)).await.unwrap();
+    let directory: String = connection
+        .get(challenge_directory_key(&party))
+        .await
+        .unwrap();
     assert_eq!(directory, second.to_string());
 
     // The party's keys reference the new challenge.
@@ -1354,11 +1394,14 @@ async fn start_supersedes_a_finished_incumbent() {
     assert_ne!(second, first);
 
     let mut connection = store.pool.get().await.unwrap();
-    let directory: String = connection.get(directory_key(&party)).await.unwrap();
+    let directory: String = connection
+        .get(challenge_directory_key(&party))
+        .await
+        .unwrap();
     assert_eq!(directory, second.to_string());
     // The finished challenge remains indexed until deletion.
     let remaining: Option<f64> = connection
-        .zscore(LEASES_KEY, first.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, first.to_string())
         .await
         .unwrap();
     assert!(remaining.is_some());
@@ -1584,7 +1627,7 @@ async fn send_to_an_unknown_challenge_is_rejected() {
     assert_eq!(store.send(uuid, &update_command()).await, Ok(None));
 
     let mut connection = store.pool.get().await.unwrap();
-    let exists: bool = connection.exists(inbox_key(uuid)).await.unwrap();
+    let exists: bool = connection.exists(challenge_inbox_key(uuid)).await.unwrap();
     assert!(!exists);
 }
 
@@ -1969,20 +2012,20 @@ async fn delete_removes_a_terminated_challenges_state() {
 
     // Routing, stage streams, index entry, and lease are gone.
     for key in [
-        directory_key(&party),
+        challenge_directory_key(&party),
         client_key(client),
         player_key(&create.party[0]),
         player_key(&create.party[1]),
         streams[0].clone(),
         streams[1].clone(),
         streams_set_key(uuid),
-        lease_key(uuid),
+        challenge_lease_key(uuid),
     ] {
         let exists: bool = connection.exists(&key).await.unwrap();
         assert!(!exists, "key should be deleted: {key}");
     }
     let indexed: Option<f64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert_eq!(indexed, None);
@@ -1992,8 +2035,8 @@ async fn delete_removes_a_terminated_challenges_state() {
     let stream_retention = i64::try_from(DELETED_STREAM_RETENTION.as_millis()).unwrap();
     let state_retention = i64::try_from(DELETED_STATE_RETENTION.as_millis()).unwrap();
     for (key, retention) in [
-        (journal_key(uuid), stream_retention),
-        (inbox_key(uuid), stream_retention),
+        (challenge_journal_key(uuid), stream_retention),
+        (challenge_inbox_key(uuid), stream_retention),
         (processed_stages_key(uuid), stream_retention),
         (challenge_key(uuid), state_retention),
     ] {
@@ -2055,7 +2098,10 @@ async fn mark_processed_closes_stage_streams_under_the_fence() {
     assert_eq!(members, BTreeSet::from(["57".to_string(), "58:9".into()]));
 
     // A fenced-off claim marks nothing.
-    let _: () = connection.hset(lease_key(uuid), "fence", 99).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 99)
+        .await
+        .unwrap();
     assert_eq!(
         claim
             .mark_processed(&[(Stage::MokhaiotlDelve8plus, Some(10))])
@@ -2104,7 +2150,10 @@ async fn remove_stage_stream_deletes_the_stream_and_its_set_entry() {
     assert_eq!(members, BTreeSet::from([streams[1].clone()]));
 
     // Remove fails if the claim is no longer valid.
-    let _: () = connection.hset(lease_key(uuid), "fence", 99).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 99)
+        .await
+        .unwrap();
     assert_eq!(
         claim
             .remove_stage_stream(Stage::MokhaiotlDelve8plus, Some(9))
@@ -2141,7 +2190,7 @@ async fn delete_leaves_repointed_routing_keys_alone() {
     let successor = Uuid::new_v4();
     let mut connection = store.pool.get().await.unwrap();
     let routing = [
-        directory_key(&party),
+        challenge_directory_key(&party),
         client_key(client),
         player_key(&create.party[0]),
         player_key(&create.party[1]),
@@ -2160,11 +2209,11 @@ async fn delete_leaves_repointed_routing_keys_alone() {
         assert_eq!(value, successor.to_string(), "routing key: {key}");
     }
     let indexed: Option<f64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert_eq!(indexed, None);
-    let lease: bool = connection.exists(lease_key(uuid)).await.unwrap();
+    let lease: bool = connection.exists(challenge_lease_key(uuid)).await.unwrap();
     assert!(!lease);
 
     clean_up_start(&store, &party, &[client], &[uuid]).await;
@@ -2189,7 +2238,10 @@ async fn bumped_fence_rejects_deletion() {
         .expect("project should succeed");
 
     let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection.hset(lease_key(uuid), "fence", 2).await.unwrap();
+    let _: () = connection
+        .hset(challenge_lease_key(uuid), "fence", 2)
+        .await
+        .unwrap();
 
     assert_eq!(
         claim.delete(&terminated_state(uuid, &create)).await,
@@ -2199,7 +2251,7 @@ async fn bumped_fence_rejects_deletion() {
     // Everything survives, and nothing was scheduled to expire.
     for key in [
         challenge_key(uuid),
-        directory_key(&party),
+        challenge_directory_key(&party),
         client_key(client),
         player_key(&create.party[0]),
         player_key(&create.party[1]),
@@ -2208,12 +2260,12 @@ async fn bumped_fence_rejects_deletion() {
         assert!(exists, "key should survive: {key}");
     }
     let indexed: Option<f64> = connection
-        .zscore(LEASES_KEY, uuid.to_string())
+        .zscore(CHALLENGE_LEASES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert!(indexed.is_some());
     let inbox_ttl: i64 = redis::cmd("PTTL")
-        .arg(inbox_key(uuid))
+        .arg(challenge_inbox_key(uuid))
         .query_async(&mut connection)
         .await
         .unwrap();
@@ -2420,4 +2472,278 @@ async fn stage_streams_read_in_order_skipping_invalid_records() {
 
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.del(&key).await.unwrap();
+}
+
+use crate::lifecycle::session::{SessionCause, SessionCommand, SessionEvent};
+
+fn session_entry(seq: u64, event: SessionEvent) -> SessionJournalEntry {
+    SessionJournalEntry {
+        seq: JournalSeq(seq),
+        at: Timestamp::from_millis(seq * 100),
+        caused_by: SessionCause::Command(MsgId::sequence(seq + 1)),
+        event,
+    }
+}
+
+/// Establishes a fresh session's lease.
+async fn stub_session_claim(store: &Store, uuid: Uuid) -> RedisSessionClaim {
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .hset_multiple(
+            session_lease_key(uuid),
+            &[
+                ("fence", Epoch::INITIAL.to_string()),
+                ("owner", TEST_IDENTITY.to_string()),
+            ],
+        )
+        .await
+        .unwrap();
+    let _: () = connection
+        .zadd(SESSION_LEASES_KEY, uuid.to_string(), lease_deadline())
+        .await
+        .unwrap();
+    store.new_session_claim(uuid, Epoch::INITIAL)
+}
+
+async fn clean_up_session(store: &Store, uuid: Uuid) {
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .zrem(SESSION_LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    let _: () = connection
+        .del(&[
+            session_lease_key(uuid),
+            session_journal_key(uuid),
+            session_inbox_key(uuid),
+        ])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn session_sweep_claims_an_available_lease() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let uuid = Uuid::new_v4();
+
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .hset_multiple(
+            session_lease_key(uuid),
+            &[("fence", "3".to_string()), ("owner", "dead-server".into())],
+        )
+        .await
+        .unwrap();
+    let _: () = connection
+        .zadd(SESSION_LEASES_KEY, uuid.to_string(), 1)
+        .await
+        .unwrap();
+
+    let claimed = as_identity(&store, "session-reclaimer")
+        .claim_unowned_sessions(16, &[])
+        .await
+        .expect("sweep should succeed");
+    let claim = claimed
+        .iter()
+        .find(|claim| claim.uuid() == uuid)
+        .expect("the lapsed session should be claimed");
+
+    let fence: String = connection
+        .hget(session_lease_key(uuid), "fence")
+        .await
+        .unwrap();
+    assert_eq!(fence, "4");
+    let owner: String = connection
+        .hget(session_lease_key(uuid), "owner")
+        .await
+        .unwrap();
+    assert_eq!(owner, "session-reclaimer");
+    let deadline: u64 = connection
+        .zscore(SESSION_LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline > unix_millis());
+
+    claim.release().await.expect("release should succeed");
+    clean_up_session(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn session_journal_appends_and_loads_back() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let claim = stub_session_claim(&store, uuid).await;
+
+    let batch = vec![
+        session_entry(
+            0,
+            SessionEvent::Started {
+                uuid,
+                party_key: "1-1ogp-wwwwwwwwwwqq".into(),
+            },
+        ),
+        session_entry(1, SessionEvent::Activity),
+    ];
+    claim.append(&batch).await.expect("append should succeed");
+    assert_eq!(claim.load().await.expect("load should succeed"), batch);
+
+    let stale = store.new_session_claim(uuid, Epoch(0));
+    assert_eq!(
+        stale
+            .append(&[session_entry(2, SessionEvent::Expired)])
+            .await,
+        Err(StoreError::Fenced),
+    );
+    assert_eq!(claim.load().await.expect("load should succeed"), batch);
+
+    clean_up_session(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn session_renew_and_release_update_the_index_deadline() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let uuid = Uuid::new_v4();
+    let claim = stub_session_claim(&store, uuid).await;
+    let mut connection = store.pool.get().await.unwrap();
+
+    claim.renew().await.expect("renew should succeed");
+    let deadline: u64 = connection
+        .zscore(SESSION_LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline > unix_millis());
+
+    assert_eq!(
+        store.new_session_claim(uuid, Epoch(0)).renew().await,
+        Err(StoreError::Fenced),
+    );
+
+    claim.release().await.expect("release should succeed");
+    let released: u64 = connection
+        .zscore(SESSION_LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(released, 0);
+
+    clean_up_session(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn session_delete_removes_and_expires_keys() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let claim = stub_session_claim(&store, uuid).await;
+    let party_key = format!("1-1ogp_{uuid}");
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .set(session_directory_key(&party_key), uuid.to_string())
+        .await
+        .unwrap();
+    claim
+        .append(&[session_entry(
+            0,
+            SessionEvent::Started {
+                uuid,
+                party_key: party_key.clone(),
+            },
+        )])
+        .await
+        .expect("append should succeed");
+
+    assert_eq!(
+        store
+            .new_session_claim(uuid, Epoch(0))
+            .delete(&party_key)
+            .await,
+        Err(StoreError::Fenced),
+    );
+
+    claim
+        .delete(&party_key)
+        .await
+        .expect("delete should succeed");
+    let directory: Option<String> = connection
+        .get(session_directory_key(&party_key))
+        .await
+        .unwrap();
+    assert_eq!(directory, None);
+    let indexed: Option<u64> = connection
+        .zscore(SESSION_LEASES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(indexed, None);
+    let lease_exists: bool = connection.exists(session_lease_key(uuid)).await.unwrap();
+    assert!(!lease_exists);
+    let journal_ttl: i64 = connection.ttl(session_journal_key(uuid)).await.unwrap();
+    assert!(journal_ttl > 0);
+
+    clean_up_session(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn session_delete_leaves_directory_if_party_moved_on() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let successor = Uuid::new_v4();
+    let claim = stub_session_claim(&store, uuid).await;
+    let party_key = format!("1-1ogp_{uuid}");
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .set(session_directory_key(&party_key), successor.to_string())
+        .await
+        .unwrap();
+
+    claim
+        .delete(&party_key)
+        .await
+        .expect("delete should succeed");
+
+    let directory: Option<String> = connection
+        .get(session_directory_key(&party_key))
+        .await
+        .unwrap();
+    assert_eq!(directory, Some(successor.to_string()));
+
+    let _: () = connection
+        .del(session_directory_key(&party_key))
+        .await
+        .unwrap();
+    clean_up_session(&store, uuid).await;
+}
+
+#[tokio::test]
+async fn session_follow_delivers_queued_commands() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let uuid = Uuid::new_v4();
+    let claim = stub_session_claim(&store, uuid).await;
+    let mut connection = store.pool.get().await.unwrap();
+    let payload = serde_json::to_string(&SessionCommand::Activity).unwrap();
+    let _: String = connection
+        .xadd(session_inbox_key(uuid), "*", &[("cmd", &payload)])
+        .await
+        .unwrap();
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+    claim.follow(MsgId::default(), tx);
+    let envelope = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+        .await
+        .expect("follow should deliver within the timeout")
+        .expect("the feed should stay open");
+    assert_eq!(envelope.cmd, SessionCommand::Activity);
+
+    clean_up_session(&store, uuid).await;
 }
