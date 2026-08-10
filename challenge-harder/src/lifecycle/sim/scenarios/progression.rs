@@ -9,6 +9,7 @@ async fn solo_colosseum_wipe_full_trace() {
     let result = run(solo_colosseum()).await;
 
     let (uuid, journal) = result.only_challenge();
+    let (session_uuid, _) = result.only_session();
     assert_eq!(
         journal,
         vec![
@@ -18,6 +19,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 cmd(1),
                 LifecycleEvent::ChallengeCreated {
                     uuid,
+                    session_uuid,
                     challenge_type: ChallengeType::Colosseum,
                     mode: ChallengeMode::NoMode,
                     party: vec!["aSaradomin".into()],

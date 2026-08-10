@@ -9,10 +9,13 @@ use tokio::sync::{RwLock, mpsc, watch};
 use tokio::task::JoinHandle;
 
 use super::challenge::{ChallengeSignal, ChallengeStore, Claim, Rejoin, Start, run_challenge};
-use super::core::command::{ClientStatusChange, Command, Create, Finish, Join, Update};
+use super::core::command::{
+    ClientStatusChange, Command, Create, CreateRequest, Finish, Join, Update,
+};
 use super::core::deadline::LifecycleConfig;
 use super::core::state::{ChallengePhase, PublishedClient, Snapshot};
 use super::core::types::{ClientId, MsgId, Uuid};
+use super::session::{SessionFinalizer, SessionResolution, SessionStore};
 use crate::metrics::{self, Decision, RequestAction};
 use crate::processing::StageProcessor;
 
@@ -164,7 +167,7 @@ impl SnapshotCache {
     }
 }
 
-/// Record of the challenges whose processing tasks are running locally.
+/// Record of the challenges whose tasks are running locally.
 struct Registry {
     challenges: HashSet<Uuid>,
     count: watch::Sender<usize>,
@@ -199,6 +202,7 @@ fn spawn_challenge(
     registry: &Arc<Mutex<Registry>>,
     cache: &Arc<SnapshotCache>,
     claim: Claim,
+    sessions: Arc<dyn SessionStore>,
     processor: Option<Arc<dyn StageProcessor>>,
     shutdown: watch::Receiver<bool>,
 ) {
@@ -212,7 +216,8 @@ fn spawn_challenge(
     let cache = Arc::clone(cache);
     tokio::spawn(async move {
         // Run as a child to catch panics.
-        let outcome = tokio::spawn(run_challenge(config, claim, processor, shutdown)).await;
+        let outcome =
+            tokio::spawn(run_challenge(config, claim, sessions, processor, shutdown)).await;
         registry
             .lock()
             .expect("coordinator lock poisoned")
@@ -234,8 +239,10 @@ pub struct Coordinator {
     starts: Arc<RwLock<()>>,
     config: LifecycleConfig,
     store: Arc<dyn ChallengeStore>,
+    sessions: Arc<dyn SessionStore>,
     cache: Arc<SnapshotCache>,
     processor: Option<Arc<dyn StageProcessor>>,
+    session_finalizer: Option<Arc<dyn SessionFinalizer>>,
     shutdown: watch::Receiver<bool>,
 }
 
@@ -246,9 +253,13 @@ impl Coordinator {
     /// Longest a shutdown waits for local challenges to exit.
     const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
-    /// Creates a coordinator over a challenge store.
+    /// Creates a coordinator backed by a challenge and session store.
     #[must_use]
-    pub fn with_store(store: Arc<dyn ChallengeStore>, shutdown: watch::Receiver<bool>) -> Self {
+    pub fn with_stores(
+        store: Arc<dyn ChallengeStore>,
+        sessions: Arc<dyn SessionStore>,
+        shutdown: watch::Receiver<bool>,
+    ) -> Self {
         let (count, running) = watch::channel(0);
         Coordinator {
             registry: Arc::new(Mutex::new(Registry::new(count))),
@@ -257,7 +268,9 @@ impl Coordinator {
             config: LifecycleConfig::default(),
             cache: SnapshotCache::spawn(Arc::clone(&store)),
             store,
+            sessions,
             processor: None,
+            session_finalizer: None,
             shutdown,
         }
     }
@@ -275,6 +288,13 @@ impl Coordinator {
         self
     }
 
+    /// Sets the finalizer that closes expired sessions.
+    #[must_use]
+    pub fn with_session_finalizer(mut self, finalizer: Arc<dyn SessionFinalizer>) -> Self {
+        self.session_finalizer = Some(finalizer);
+        self
+    }
+
     /// Returns the current state of an active challenge, if it exists.
     pub async fn snapshot(&self, uuid: Uuid) -> Option<Snapshot> {
         self.cache.refresh(uuid).await
@@ -283,7 +303,54 @@ impl Coordinator {
     /// Creates a new challenge for a party or joins an existing one, returning
     /// the challenge's state once the request has been applied.
     /// `None` means the challenge shut down before the request could be processed.
-    pub async fn create_or_join_challenge(&self, create: Create) -> Option<Snapshot> {
+    pub async fn create_or_join_challenge(&self, request: CreateRequest) -> Option<Snapshot> {
+        let session_uuid = match self
+            .sessions
+            .resolve(
+                request.challenge_type,
+                &request.party,
+                self.config.session_activity_window,
+            )
+            .await
+        {
+            Ok(SessionResolution::Existing(session_uuid)) => session_uuid,
+            Ok(SessionResolution::Created(session_uuid)) => {
+                tracing::debug!(
+                    %session_uuid,
+                    challenge_type = ?request.challenge_type,
+                    party = ?request.party,
+                    "session_started",
+                );
+                session_uuid
+            }
+            Err(error) => {
+                tracing::error!(
+                    challenge_type = ?request.challenge_type,
+                    party = ?request.party,
+                    user_id = %request.user_id,
+                    client_id = %request.client_id,
+                    %error,
+                    "session_resolve_failed",
+                );
+                metrics::record_challenge_request(
+                    RequestAction::Create,
+                    request.challenge_type,
+                    request.mode,
+                    request.recording_type,
+                    Decision::Error,
+                );
+                return None;
+            }
+        };
+
+        self.start_challenge(Create {
+            session_uuid,
+            request,
+        })
+        .await
+    }
+
+    async fn start_challenge(&self, create: Create) -> Option<Snapshot> {
         let (id, uuid, joined) = {
             // Hold off claim scans until the started challenge is registered,
             // so they cannot claim it away during its start.
@@ -292,18 +359,18 @@ impl Coordinator {
                 Ok(start) => start,
                 Err(error) => {
                     tracing::error!(
-                        challenge_type = ?create.challenge_type,
-                        party = ?create.party,
-                        user_id = %create.user_id,
-                        client_id = %create.client_id,
+                        challenge_type = ?create.request.challenge_type,
+                        party = ?create.request.party,
+                        user_id = %create.request.user_id,
+                        client_id = %create.request.client_id,
                         %error,
                         "challenge_start_failed",
                     );
                     metrics::record_challenge_request(
                         RequestAction::Create,
-                        create.challenge_type,
-                        create.mode,
-                        create.recording_type,
+                        create.request.challenge_type,
+                        create.request.mode,
+                        create.request.recording_type,
                         Decision::Error,
                     );
                     return None;
@@ -315,11 +382,12 @@ impl Coordinator {
                     let uuid = claim.uuid();
                     tracing::debug!(
                         %uuid,
-                        challenge_type = ?create.challenge_type,
-                        party = ?create.party,
-                        stage = ?create.stage,
-                        user_id = %create.user_id,
-                        client_id = %create.client_id,
+                        session_uuid = %create.session_uuid,
+                        challenge_type = ?create.request.challenge_type,
+                        party = ?create.request.party,
+                        stage = ?create.request.stage,
+                        user_id = %create.request.user_id,
+                        client_id = %create.request.client_id,
                         "challenge_created",
                     );
                     spawn_challenge(
@@ -327,6 +395,7 @@ impl Coordinator {
                         &self.registry,
                         &self.cache,
                         claim,
+                        Arc::clone(&self.sessions),
                         self.processor.clone(),
                         self.shutdown.clone(),
                     );
@@ -335,8 +404,8 @@ impl Coordinator {
                 Start::Joined { uuid, id } => {
                     tracing::debug!(
                         %uuid,
-                        user_id = %create.user_id,
-                        client_id = %create.client_id,
+                        user_id = %create.request.user_id,
+                        client_id = %create.request.client_id,
                         "challenge_joined",
                     );
                     (id, uuid, true)
@@ -365,9 +434,9 @@ impl Coordinator {
         };
         metrics::record_challenge_request(
             action,
-            create.challenge_type,
-            create.mode,
-            create.recording_type,
+            create.request.challenge_type,
+            create.request.mode,
+            create.request.recording_type,
             decision,
         );
         snapshot
@@ -483,14 +552,16 @@ impl Coordinator {
         }
     }
 
-    /// Starts the background scan claiming unowned challenges and resuming them
-    /// locally on an interval of `every`.
+    /// Starts the background scan which claims unowned challenges and resumes
+    /// them locally, and cleans up expired sessions, on an interval of `every`.
     pub fn start_scan(&self, every: Duration) {
         let store = Arc::clone(&self.store);
         let registry = Arc::clone(&self.registry);
         let starts = Arc::clone(&self.starts);
         let cache = Arc::clone(&self.cache);
         let config = self.config.clone();
+        let sessions = Arc::clone(&self.sessions);
+        let finalizer = self.session_finalizer.clone();
         let processor = self.processor.clone();
         let mut shutdown = self.shutdown.clone();
 
@@ -502,26 +573,49 @@ impl Coordinator {
                     _ = ticker.tick() => {}
                     _ = shutdown.changed() => return,
                 }
-                let _exclusive = starts.write().await;
-                let running: Vec<Uuid> = {
-                    let registry = registry.lock().expect("coordinator lock poisoned");
-                    registry.challenges.iter().copied().collect()
-                };
-                match store.claim_unowned(Self::SCAN_BATCH_SIZE, &running).await {
-                    Ok(claims) => {
-                        for claim in claims {
-                            tracing::info!(uuid = %claim.uuid(), "challenge_claimed");
-                            spawn_challenge(
-                                config.clone(),
-                                &registry,
-                                &cache,
-                                claim,
-                                processor.clone(),
-                                shutdown.clone(),
-                            );
+
+                {
+                    let _exclusive = starts.write().await;
+                    let running: Vec<Uuid> = {
+                        let registry = registry.lock().expect("coordinator lock poisoned");
+                        registry.challenges.iter().copied().collect()
+                    };
+                    match store.claim_unowned(Self::SCAN_BATCH_SIZE, &running).await {
+                        Ok(claims) => {
+                            for claim in claims {
+                                tracing::info!(uuid = %claim.uuid(), "challenge_claimed");
+                                spawn_challenge(
+                                    config.clone(),
+                                    &registry,
+                                    &cache,
+                                    claim,
+                                    Arc::clone(&sessions),
+                                    processor.clone(),
+                                    shutdown.clone(),
+                                );
+                            }
+                        }
+                        Err(error) => tracing::warn!(%error, "claim_scan_failed"),
+                    }
+                }
+
+                match sessions.claim_expired_sessions(Self::SCAN_BATCH_SIZE).await {
+                    Ok(expired) => {
+                        for session in expired {
+                            tracing::info!(%session, "session_expired");
+                            if let Some(finalizer) = &finalizer
+                                && let Err(error) = finalizer.finalize(session).await
+                            {
+                                tracing::error!(%session, error, "session_finalize_failed");
+                                // A later sweep will try again.
+                                continue;
+                            }
+                            if let Err(error) = sessions.delete_session(session).await {
+                                tracing::error!(%session, %error, "session_delete_failed");
+                            }
                         }
                     }
-                    Err(error) => tracing::warn!(%error, "claim_scan_failed"),
+                    Err(error) => tracing::warn!(%error, "session_sweep_failed"),
                 }
             }
         });
@@ -563,30 +657,30 @@ mod tests {
     use super::*;
     use crate::lifecycle::challenge::{ChallengeClaim, ChallengeServerUpdate};
     use crate::lifecycle::core::command::{ClientStatus, Envelope, StageProgress};
-    use crate::lifecycle::core::event::JournalEntry;
+    use crate::lifecycle::core::event::{JournalEntry, LifecycleEvent};
     use crate::lifecycle::core::state::ChallengeState;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeType, ClientId, RecordingType, Stage, StageStatus, UserId,
+        ChallengeMode, ChallengeType, ClientId, JournalSeq, RecordingType, Stage, StageStatus,
+        Timestamp, UserId,
     };
     use crate::lifecycle::sim::Collector;
     use crate::lifecycle::store::StoreError;
 
-    fn create_request() -> Create {
-        create_request_for(1)
-    }
-
-    fn create_request_for(user: i64) -> Create {
+    fn create_command_for(user: i64) -> Create {
         Create {
-            user_id: UserId(user),
-            client_id: ClientId(10 * user),
-            session_token: format!("tok{user}").into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            challenge_type: ChallengeType::Tob,
-            mode: ChallengeMode::TobRegular,
-            party: vec!["WWWWWWWWWWQQ".into()],
-            stage: Stage::TobMaiden,
-            recording_type: RecordingType::Participant,
+            session_uuid: Uuid::from_u128(0x5e55),
+            request: CreateRequest {
+                user_id: UserId(user),
+                client_id: ClientId(10 * user),
+                session_token: format!("tok{user}").into(),
+                plugin_version: "0.9.14".into(),
+                runelite_version: "1.12.31.1".into(),
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                party: vec!["WWWWWWWWWWQQ".into()],
+                stage: Stage::TobMaiden,
+                recording_type: RecordingType::Participant,
+            },
         }
     }
 
@@ -622,11 +716,12 @@ mod tests {
     async fn commands_to_an_unprocessed_challenge_time_out() {
         let collector = Collector::default();
         let (_tx, rx) = watch::channel(false);
-        let coordinator = Coordinator::with_store(Arc::new(collector.clone()), rx);
+        let coordinator =
+            Coordinator::with_stores(Arc::new(collector.clone()), Arc::new(collector.clone()), rx);
 
         // The challenge exists durably, but no actor was ever spawned for it.
         let Start::Created { claim, .. } = collector
-            .start(create_request())
+            .start(create_command_for(1))
             .await
             .expect("start should succeed")
         else {
@@ -643,11 +738,12 @@ mod tests {
     async fn scan_claims_and_resumes_an_unowned_challenge() {
         let collector = Collector::default();
         let (_tx, rx) = watch::channel(false);
-        let coordinator = Coordinator::with_store(Arc::new(collector.clone()), rx);
+        let coordinator =
+            Coordinator::with_stores(Arc::new(collector.clone()), Arc::new(collector.clone()), rx);
 
         let (unowned_uuid, id) = {
             let Start::Created { claim, id } = collector
-                .start(create_request())
+                .start(create_command_for(1))
                 .await
                 .expect("start should succeed")
             else {
@@ -678,11 +774,12 @@ mod tests {
     async fn shutdown_releases_running_challenges_and_stops_scanning() {
         let collector = Collector::default();
         let (tx, rx) = watch::channel(false);
-        let coordinator = Coordinator::with_store(Arc::new(collector.clone()), rx);
+        let coordinator =
+            Coordinator::with_stores(Arc::new(collector.clone()), Arc::new(collector.clone()), rx);
         coordinator.start_scan(Duration::from_secs(1));
 
         let snapshot = coordinator
-            .create_or_join_challenge(create_request())
+            .create_or_join_challenge(create_command_for(1).request)
             .await
             .expect("create should apply");
         let uuid = snapshot.uuid;
@@ -705,10 +802,8 @@ mod tests {
         assert!(queued.is_some(), "challenge should still exist");
 
         // A second challenge is created but there is no one listening.
-        let foreign = Create {
-            party: vec!["2Ogp".into()],
-            ..create_request_for(2)
-        };
+        let mut foreign = create_command_for(2);
+        foreign.request.party = vec!["2Ogp".into()];
         let Start::Created { claim, .. } = collector
             .start(foreign)
             .await
@@ -772,7 +867,8 @@ mod tests {
     async fn panicked_challenge_is_deregistered() {
         let (_tx, rx) = watch::channel(false);
         let collector = Collector::default();
-        let coordinator = Coordinator::with_store(Arc::new(collector.clone()), rx);
+        let coordinator =
+            Coordinator::with_stores(Arc::new(collector.clone()), Arc::new(collector.clone()), rx);
         let uuid = Uuid::new_v4();
 
         spawn_challenge(
@@ -780,6 +876,7 @@ mod tests {
             &coordinator.registry,
             &coordinator.cache,
             Claim::new(uuid, Box::new(PanickingClaim)),
+            Arc::new(collector.clone()),
             None,
             coordinator.shutdown.clone(),
         );
@@ -795,5 +892,147 @@ mod tests {
 
         wait_for_reap().await;
         assert!(!registered(&coordinator));
+    }
+
+    #[derive(Default)]
+    struct FakeStore {
+        expired: Mutex<Vec<Uuid>>,
+        deleted: Mutex<Vec<Uuid>>,
+    }
+
+    #[async_trait::async_trait]
+    impl SessionStore for FakeStore {
+        async fn resolve(
+            &self,
+            _: ChallengeType,
+            _: &[String],
+            _: Duration,
+        ) -> Result<SessionResolution, StoreError> {
+            Err(StoreError::Unavailable("scripted failure".into()))
+        }
+
+        async fn refresh(&self, _: Uuid, _: Duration) -> Result<(), StoreError> {
+            Err(StoreError::Unavailable("scripted failure".into()))
+        }
+
+        async fn claim_expired_sessions(&self, _: usize) -> Result<Vec<Uuid>, StoreError> {
+            Ok(std::mem::take(
+                &mut *self.expired.lock().expect("test lock poisoned"),
+            ))
+        }
+
+        async fn delete_session(&self, session: Uuid) -> Result<(), StoreError> {
+            self.deleted
+                .lock()
+                .expect("test lock poisoned")
+                .push(session);
+            Ok(())
+        }
+    }
+
+    struct RecordingFinalizer {
+        finalized: Mutex<Vec<Uuid>>,
+        result: Result<(), String>,
+    }
+
+    #[async_trait::async_trait]
+    impl SessionFinalizer for RecordingFinalizer {
+        async fn finalize(&self, uuid: Uuid) -> Result<(), String> {
+            self.finalized
+                .lock()
+                .expect("test lock poisoned")
+                .push(uuid);
+            self.result.clone()
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn failed_session_resolve_fails_creation() {
+        let collector = Collector::default();
+        let (_tx, rx) = watch::channel(false);
+        let coordinator = Coordinator::with_stores(
+            Arc::new(collector.clone()),
+            Arc::new(FakeStore::default()),
+            rx,
+        );
+
+        assert!(
+            coordinator
+                .create_or_join_challenge(create_command_for(1).request)
+                .await
+                .is_none(),
+        );
+
+        // A challenge cannot start without a session.
+        let claims = collector
+            .claim_unowned(16, &[])
+            .await
+            .expect("claim should succeed");
+        assert!(claims.is_empty(), "a challenge was started");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sweep_finalizes_then_deletes_an_expired_session() {
+        let session = Uuid::new_v4();
+        let sessions = Arc::new(FakeStore {
+            expired: Mutex::new(vec![session]),
+            deleted: Mutex::default(),
+        });
+        let finalizer = Arc::new(RecordingFinalizer {
+            finalized: Mutex::default(),
+            result: Ok(()),
+        });
+        let (_tx, rx) = watch::channel(false);
+        let coordinator = Coordinator::with_stores(
+            Arc::new(Collector::default()),
+            Arc::clone(&sessions) as Arc<dyn SessionStore>,
+            rx,
+        )
+        .with_session_finalizer(finalizer.clone());
+        coordinator.start_scan(Duration::from_secs(1));
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_eq!(
+            *finalizer.finalized.lock().expect("test lock poisoned"),
+            vec![session],
+        );
+        assert_eq!(
+            *sessions.deleted.lock().expect("test lock poisoned"),
+            vec![session],
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sweep_leaves_a_session_whose_finalization_failed() {
+        let session = Uuid::new_v4();
+        let sessions = Arc::new(FakeStore {
+            expired: Mutex::new(vec![session]),
+            deleted: Mutex::default(),
+        });
+        let finalizer = Arc::new(RecordingFinalizer {
+            finalized: Mutex::default(),
+            result: Err("scripted failure".into()),
+        });
+        let (_tx, rx) = watch::channel(false);
+        let coordinator = Coordinator::with_stores(
+            Arc::new(Collector::default()),
+            Arc::clone(&sessions) as Arc<dyn SessionStore>,
+            rx,
+        )
+        .with_session_finalizer(finalizer.clone());
+        coordinator.start_scan(Duration::from_secs(1));
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_eq!(
+            *finalizer.finalized.lock().expect("test lock poisoned"),
+            vec![session],
+        );
+        assert!(
+            sessions
+                .deleted
+                .lock()
+                .expect("test lock poisoned")
+                .is_empty(),
+        );
     }
 }

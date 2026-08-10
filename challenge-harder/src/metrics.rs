@@ -3,8 +3,8 @@
 use std::sync::LazyLock;
 
 use prometheus::{
-    HistogramVec, IntCounterVec, IntGauge, Opts, TextEncoder, histogram_opts,
-    register_histogram_vec, register_int_counter_vec, register_int_gauge,
+    HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, TextEncoder, histogram_opts,
+    register_histogram_vec, register_int_counter, register_int_counter_vec, register_int_gauge,
 };
 
 use crate::lifecycle::core::state::Trigger;
@@ -143,6 +143,14 @@ static ACTIVE_CHALLENGES: LazyLock<IntGauge> = LazyLock::new(|| {
     register_int_gauge!(Opts::new(
         "challenge_server_active_challenges",
         "Locally owned active challenges"
+    ))
+    .unwrap()
+});
+
+static SESSIONS_FINALIZED: LazyLock<IntCounter> = LazyLock::new(|| {
+    register_int_counter!(Opts::new(
+        "challenge_server_sessions_finalized_total",
+        "Sessions whose records were finalized"
     ))
     .unwrap()
 });
@@ -402,6 +410,11 @@ pub fn record_reported_time_mismatch() {
 /// Sets the number of challenges this instance is running.
 pub fn set_active_challenges(count: usize) {
     ACTIVE_CHALLENGES.set(i64::try_from(count).unwrap_or(i64::MAX));
+}
+
+/// Records a session's record being finalized.
+pub fn record_session_finalized() {
+    SESSIONS_FINALIZED.inc();
 }
 
 /// Records a store operation's outcome.

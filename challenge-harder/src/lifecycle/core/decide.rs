@@ -51,16 +51,17 @@ fn create(state: &ChallengeState, c: &Create) -> Vec<LifecycleEvent> {
     vec![
         LifecycleEvent::ChallengeCreated {
             uuid: state.uuid,
-            challenge_type: c.challenge_type,
-            mode: c.mode,
-            party: c.party.clone(),
-            stage: c.stage,
+            session_uuid: c.session_uuid,
+            challenge_type: c.request.challenge_type,
+            mode: c.request.mode,
+            party: c.request.party.clone(),
+            stage: c.request.stage,
         },
         LifecycleEvent::ClientJoined {
-            client_id: c.client_id,
-            user_id: c.user_id,
-            session_token: c.session_token.clone(),
-            recording_type: c.recording_type,
+            client_id: c.request.client_id,
+            user_id: c.request.user_id,
+            session_token: c.request.session_token.clone(),
+            recording_type: c.request.recording_type,
         },
     ]
 }
@@ -403,7 +404,7 @@ mod tests {
     use core::time::Duration;
 
     use super::*;
-    use crate::lifecycle::core::command::{Processed, StageProgress};
+    use crate::lifecycle::core::command::{CreateRequest, Processed, StageProgress};
     use crate::lifecycle::core::event::Cause;
     use crate::lifecycle::core::state::{ClientState, Processing, ProcessingConfig, Trigger};
     use crate::lifecycle::core::types::{
@@ -466,22 +467,26 @@ mod tests {
             ..ChallengeState::default()
         };
         let create = Command::Create(super::Create {
-            user_id: UserId(1),
-            client_id: CLIENT_A,
-            session_token: "tok".into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            challenge_type: ChallengeType::Tob,
-            mode: ChallengeMode::TobRegular,
-            party: vec!["Skitter".into()],
-            stage: Stage::TobMaiden,
-            recording_type: RecordingType::Participant,
+            session_uuid: Uuid::from_u128(0x5e55),
+            request: CreateRequest {
+                user_id: UserId(1),
+                client_id: CLIENT_A,
+                session_token: "tok".into(),
+                plugin_version: "0.9.14".into(),
+                runelite_version: "1.12.31.1".into(),
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                party: vec!["Skitter".into()],
+                stage: Stage::TobMaiden,
+                recording_type: RecordingType::Participant,
+            },
         });
         assert_eq!(
             decide(&state, &LifecycleConfig::default(), &create),
             vec![
                 LifecycleEvent::ChallengeCreated {
                     uuid: state.uuid,
+                    session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: vec!["Skitter".into()],

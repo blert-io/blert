@@ -19,6 +19,7 @@ use super::core::state::{
     Snapshot, Trigger,
 };
 use super::core::types::{ClientId, JournalSeq, MsgId, ProcessingPayload, Stage, Timestamp, Uuid};
+use super::session::SessionStore;
 use super::store::{StoreError, with_retries};
 use crate::metrics::{self, Decision, FinalizationPath, RunResult};
 use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
@@ -208,6 +209,7 @@ const CHANEL_BUFFER_LEN: usize = 4;
 pub async fn run_challenge(
     config: LifecycleConfig,
     claim: Claim,
+    sessions: Arc<dyn SessionStore>,
     processor: Option<Arc<dyn StageProcessor>>,
     shutdown: watch::Receiver<bool>,
 ) {
@@ -234,7 +236,7 @@ pub async fn run_challenge(
             // The data issue must be resolved manually by either deleting the
             // bad journal or updating the server to understand it.
             tracing::error!(%uuid, reason, "journal_corrupt");
-            ActiveChallenge::new(config, claim, state, next_seq, processor)
+            ActiveChallenge::new(config, claim, sessions, state, next_seq, processor)
                 .quarantine(shutdown)
                 .await;
             return;
@@ -245,7 +247,7 @@ pub async fn run_challenge(
         }
     }
 
-    let mut challenge = ActiveChallenge::new(config, claim, state, next_seq, processor);
+    let mut challenge = ActiveChallenge::new(config, claim, sessions, state, next_seq, processor);
     challenge.run(resumed_at, shutdown).await;
 }
 
@@ -254,6 +256,7 @@ pub struct ActiveChallenge {
     pub state: ChallengeState,
     config: LifecycleConfig,
     claim: Claim,
+    sessions: Arc<dyn SessionStore>,
     next_seq: u64,
     processor: Option<Arc<dyn StageProcessor>>,
     processing_task: Option<ProcessingTask>,
@@ -276,6 +279,7 @@ impl ActiveChallenge {
     pub fn new(
         config: LifecycleConfig,
         claim: Claim,
+        sessions: Arc<dyn SessionStore>,
         state: ChallengeState,
         next_seq: u64,
         processor: Option<Arc<dyn StageProcessor>>,
@@ -284,6 +288,7 @@ impl ActiveChallenge {
             state,
             config,
             claim,
+            sessions,
             next_seq,
             processor,
             processing_task: None,
@@ -454,6 +459,23 @@ impl ActiveChallenge {
 
         for entry in batch {
             self.apply_journal_entry(entry, &mut sealed, chanel);
+        }
+
+        //  Poke the session on activity.
+        if matches!(cause, Cause::Command(_)) {
+            let session = self.state.session_uuid;
+            if let Err(error) = self
+                .sessions
+                .refresh(session, self.config.session_activity_window)
+                .await
+            {
+                tracing::warn!(
+                    uuid = %self.state.uuid,
+                    %session,
+                    %error,
+                    "session_refresh_failed",
+                );
+            }
         }
 
         if record_finish {
@@ -702,13 +724,14 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::lifecycle::core::command::{Create, Finish};
+    use crate::lifecycle::core::command::{Create, CreateRequest, Finish};
     use crate::lifecycle::core::deadline::DeadlineKind;
     use crate::lifecycle::core::state::{ChallengePhase, StageState};
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, RecordingType, Stage, StageStatus,
         UserId,
     };
+    use crate::lifecycle::sim::Collector;
 
     #[derive(Default)]
     struct ClaimLog {
@@ -850,16 +873,19 @@ mod tests {
 
     fn create_command() -> Command {
         Command::Create(Create {
-            user_id: UserId(1),
-            client_id: ClientId(10),
-            session_token: "tok1".into(),
-            plugin_version: "0.9.14".into(),
-            runelite_version: "1.12.31.1".into(),
-            challenge_type: ChallengeType::Tob,
-            mode: ChallengeMode::TobRegular,
-            party: vec!["a".into()],
-            stage: Stage::TobMaiden,
-            recording_type: RecordingType::Participant,
+            session_uuid: Uuid::from_u128(0x5e55),
+            request: CreateRequest {
+                user_id: UserId(1),
+                client_id: ClientId(10),
+                session_token: "tok1".into(),
+                plugin_version: "0.9.14".into(),
+                runelite_version: "1.12.31.1".into(),
+                challenge_type: ChallengeType::Tob,
+                mode: ChallengeMode::TobRegular,
+                party: vec!["a".into()],
+                stage: Stage::TobMaiden,
+                recording_type: RecordingType::Participant,
+            },
         })
     }
 
@@ -907,7 +933,14 @@ mod tests {
             }),
         );
         let (_tx, rx) = watch::channel(false);
-        run_challenge(LifecycleConfig::default(), claim, None, rx).await;
+        run_challenge(
+            LifecycleConfig::default(),
+            claim,
+            Arc::new(Collector::default()),
+            None,
+            rx,
+        )
+        .await;
 
         RunOutcome { log, uuid }
     }
@@ -946,6 +979,7 @@ mod tests {
                     caused_by: Cause::Command(MsgId::sequence(1)),
                     event: LifecycleEvent::ChallengeCreated {
                         uuid: outcome.uuid,
+                        session_uuid: Uuid::from_u128(0x5e55),
                         challenge_type: ChallengeType::Tob,
                         mode: ChallengeMode::TobRegular,
                         party: vec!["a".into()],
@@ -1071,6 +1105,7 @@ mod tests {
 
         let expected = ChallengeState {
             uuid: outcome.uuid,
+            session_uuid: Uuid::from_u128(0x5e55),
             created_unix_ms: 0,
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
@@ -1139,6 +1174,7 @@ mod tests {
                 1,
                 LifecycleEvent::ChallengeCreated {
                     uuid,
+                    session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: vec!["a".into()],
@@ -1205,6 +1241,7 @@ mod tests {
         );
         let expected = ChallengeState {
             uuid,
+            session_uuid: Uuid::from_u128(0x5e55),
             created_unix_ms: 0,
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
@@ -1391,7 +1428,14 @@ mod tests {
             }),
         );
         let (_tx, rx) = watch::channel(false);
-        run_challenge(LifecycleConfig::default(), claim, None, rx).await;
+        run_challenge(
+            LifecycleConfig::default(),
+            claim,
+            Arc::new(Collector::default()),
+            None,
+            rx,
+        )
+        .await;
 
         assert_eq!(log.renewals.load(Ordering::Relaxed), 1);
         assert!(log.appended.lock().unwrap().is_empty());
@@ -1413,7 +1457,13 @@ mod tests {
             }),
         );
         let (shutdown, rx) = watch::channel(false);
-        let actor = tokio::spawn(run_challenge(LifecycleConfig::default(), claim, None, rx));
+        let actor = tokio::spawn(run_challenge(
+            LifecycleConfig::default(),
+            claim,
+            Arc::new(Collector::default()),
+            None,
+            rx,
+        ));
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         shutdown.send(true).expect("actor should be listening");

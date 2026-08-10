@@ -8,7 +8,7 @@ use tokio::sync::watch;
 use super::*;
 use crate::lifecycle::challenge::{ChallengeServerUpdate, ChallengeStore, run_challenge};
 use crate::lifecycle::coordinator::Coordinator;
-use crate::lifecycle::core::command::{ClientStatus, Create, Finish, Update};
+use crate::lifecycle::core::command::{ClientStatus, CreateRequest, Finish, Update};
 use crate::lifecycle::core::deadline::{DeadlineKind, LifecycleConfig};
 use crate::lifecycle::core::state::{ProcessingConfig, Trigger};
 use crate::lifecycle::core::types::{ChallengeStatus, ProcessingError, ProcessingPayload, Uuid};
@@ -709,8 +709,8 @@ async fn claim_only(store: &Collector, uuid: Uuid) -> crate::lifecycle::challeng
     claim
 }
 
-fn hmt_creat() -> Create {
-    Create {
+fn hmt_creat() -> CreateRequest {
+    CreateRequest {
         user_id: UserId(1),
         client_id: ClientId(10),
         session_token: "tok1".into(),
@@ -771,7 +771,7 @@ fn killed_run_respawns_on_resume() {
     let first = ScriptedProcessor::new(vec![no_payload(), no_payload(), ProcessingAttempt::Hang]);
     let processor = Arc::clone(&first) as Arc<dyn StageProcessor>;
     let uuid = runtime().block_on(async move {
-        let coordinator = Coordinator::with_store(Arc::new(store), r1)
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), r1)
             .with_config(config())
             .with_processor(processor);
         let uuid = wipe_maiden(&coordinator).await;
@@ -796,7 +796,13 @@ fn killed_run_respawns_on_resume() {
     let processor = Arc::clone(&second) as Arc<dyn StageProcessor>;
     runtime().block_on(async move {
         let claim = claim_only(&store, uuid).await;
-        tokio::spawn(run_challenge(config(), claim, Some(processor), r2));
+        tokio::spawn(run_challenge(
+            config(),
+            claim,
+            Arc::new(store.clone()),
+            Some(processor),
+            r2,
+        ));
         tokio::time::sleep(Duration::from_secs(1)).await;
     });
 
@@ -824,7 +830,13 @@ fn killed_run_respawns_on_resume() {
     let processor = Arc::clone(&third) as Arc<dyn StageProcessor>;
     runtime().block_on(async move {
         let claim = claim_only(&store, uuid).await;
-        tokio::spawn(run_challenge(config(), claim, Some(processor), rx));
+        tokio::spawn(run_challenge(
+            config(),
+            claim,
+            Arc::new(store.clone()),
+            Some(processor),
+            rx,
+        ));
         tokio::time::sleep(Duration::from_secs(1)).await;
     });
 
@@ -845,7 +857,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
     let first = ScriptedProcessor::new(vec![no_payload(), no_payload(), ProcessingAttempt::Hang]);
     let processor = Arc::clone(&first) as Arc<dyn StageProcessor>;
     let uuid = runtime().block_on(async move {
-        let coordinator = Coordinator::with_store(Arc::new(store), r1)
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), r1)
             .with_config(config())
             .with_processor(processor);
         let uuid = wipe_maiden(&coordinator).await;
@@ -878,6 +890,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
         run_challenge(
             config(),
             claim_only(&store, uuid).await,
+            Arc::new(store.clone()),
             Some(processor),
             r2,
         )

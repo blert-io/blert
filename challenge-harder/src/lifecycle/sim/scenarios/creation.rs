@@ -24,6 +24,7 @@ async fn simultaneous_starts_yield_one_challenge() {
     assert_eq!(uuids[0], uuids[1]);
 
     let (uuid, journal) = result.only_challenge();
+    let (session_uuid, _) = result.only_session();
     assert_eq!(
         journal,
         vec![
@@ -33,6 +34,7 @@ async fn simultaneous_starts_yield_one_challenge() {
                 cmd(1),
                 LifecycleEvent::ChallengeCreated {
                     uuid,
+                    session_uuid,
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: duo(),
@@ -99,6 +101,8 @@ async fn earlier_stage_start_supersedes_a_live_challenge() {
     assert_ne!(second, first);
     assert_eq!(start_response.stage, Stage::TobMaiden);
 
+    // The second challenge is part of the same session.
+    let (session_uuid, _) = result.only_session();
     assert_eq!(
         result.journals[&second],
         vec![
@@ -108,6 +112,7 @@ async fn earlier_stage_start_supersedes_a_live_challenge() {
                 cmd(1),
                 LifecycleEvent::ChallengeCreated {
                     uuid: second,
+                    session_uuid,
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: duo(),
@@ -190,6 +195,7 @@ async fn start_for_another_party_leaves_the_recorded_challenge() {
                 cmd(1),
                 LifecycleEvent::ChallengeCreated {
                     uuid: first,
+                    session_uuid: result.sessions["Tob-715"],
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: vec!["715".into()],
@@ -248,6 +254,11 @@ async fn start_joins_the_left_challenge_within_its_window() {
     );
     assert!(!result.deleted.contains(&duo_watch));
     assert!(result.deleted.contains(&solo_watch));
+
+    // The joining player's start refreshes the duo's session, alongside the
+    // refreshes from the creator and the spectator.
+    let duo_session = result.sessions["Tob-715-WWWWWWWWWWQQ"];
+    assert_eq!(result.session_refreshes[&duo_session], 3);
 }
 
 #[tokio::test(start_paused = true)]

@@ -34,6 +34,7 @@ pub struct JournalEntry {
 pub enum LifecycleEvent {
     ChallengeCreated {
         uuid: Uuid,
+        session_uuid: Uuid,
         challenge_type: ChallengeType,
         mode: ChallengeMode,
         party: Vec<String>,

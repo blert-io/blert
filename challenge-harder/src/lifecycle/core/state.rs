@@ -452,6 +452,7 @@ impl Snapshot {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChallengeState {
     pub uuid: Uuid,
+    pub session_uuid: Uuid,
     /// Time at which the challenge's create command was queued.
     pub created_unix_ms: u64,
     pub challenge_type: ChallengeType,
@@ -487,6 +488,7 @@ impl ChallengeState {
     pub fn challenge_info(&self) -> ChallengeInfo {
         ChallengeInfo {
             uuid: self.uuid,
+            session_uuid: self.session_uuid,
             challenge_type: self.challenge_type,
             mode: self.mode,
             party: self.party.clone(),

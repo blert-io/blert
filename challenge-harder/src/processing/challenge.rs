@@ -1,6 +1,6 @@
 //! Challenge data processing.
 
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeTypeExt, PlayerId, PrimaryMeleeGear, ProcessingError,
@@ -12,7 +12,7 @@ use crate::repository::DataRepository;
 
 use super::challenge_processor::ChallengeContext;
 use super::persist::{save_splits, update_player_stats};
-use super::{ChallengeInfo, StoredPlayerInfo, StoredState, db};
+use super::{ChallengeInfo, StoredPlayerInfo, StoredState, db, session};
 
 /// Initializes a new challenge, returning custom processor state to persist.
 pub async fn create(
@@ -37,13 +37,16 @@ async fn insert_challenge(
     info: &ChallengeInfo,
 ) -> Result<(), db::Error> {
     let start_time = UNIX_EPOCH + Duration::from_millis(info.created_unix_ms);
+    let session_id = session::resolve_session(txn, info, start_time).await?;
     let row = txn
         .query_one(
-            "INSERT INTO challenges (uuid, type, mode, scale, stage, status, start_time)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            "INSERT INTO challenges
+               (uuid, session_id, type, mode, scale, stage, status, start_time)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING id",
             &[
                 &info.uuid,
+                &session_id,
                 &(info.challenge_type as i16),
                 &(info.mode as i16),
                 &info.scale(),
@@ -131,11 +134,15 @@ pub async fn update_stage(txn: &db::Transaction, stage: Stage) -> Result<(), db:
 
 /// Records a change to the challenge's mode.
 pub async fn update_mode(txn: &db::Transaction, mode: ChallengeMode) -> Result<(), db::Error> {
-    txn.execute(
-        "UPDATE challenges SET mode = $1 WHERE id = $2",
-        &[&(mode as i16), &txn.challenge_id()],
-    )
-    .await?;
+    let challenge = async {
+        txn.execute(
+            "UPDATE challenges SET mode = $1 WHERE id = $2",
+            &[&(mode as i16), &txn.challenge_id()],
+        )
+        .await?;
+        Ok::<_, db::Error>(())
+    };
+    tokio::try_join!(challenge, session::update_mode(txn, mode))?;
     Ok(())
 }
 
@@ -147,13 +154,20 @@ pub async fn finish(
     info: &ChallengeInfo,
 ) -> Result<(), ProcessingError> {
     let stored = load_database_state(txn, info).await?;
+    let finish_time = info
+        .finished_unix_ms
+        .map(|ms| UNIX_EPOCH + Duration::from_millis(ms))
+        .ok_or_else(|| db::Error::InvalidData("invalid finish without an end time".into()))?;
     if stored.challenge_ticks == 0 {
         tracing::info!(uuid = %info.uuid, "challenge_finished_no_data");
-        return delete_empty_challenge(txn, repository, info, &stored.players).await;
+        return delete_empty_challenge(txn, repository, info, &stored.players, finish_time).await;
     }
 
     let Some(mut processor) = super::processor_for(info, stored.custom_data.as_ref())? else {
-        finalize_challenge_row(txn, info, stored.challenge_ticks, false).await?;
+        tokio::try_join!(
+            finalize_challenge_row(txn, info, finish_time, stored.challenge_ticks, false),
+            session::update_end_time(txn, finish_time),
+        )?;
         return Ok(());
     };
 
@@ -179,7 +193,8 @@ pub async fn finish(
     let full_recording = processor.has_fully_recorded_up_to(info.stage);
     let mut ctx = ChallengeContext::new(info.party.clone());
     tokio::try_join!(
-        finalize_challenge_row(txn, info, challenge_ticks, full_recording),
+        finalize_challenge_row(txn, info, finish_time, challenge_ticks, full_recording),
+        session::update_end_time(txn, finish_time),
         processor.on_finish(txn, &mut ctx, final_ticks),
     )?;
 
@@ -203,7 +218,9 @@ async fn delete_empty_challenge(
     repository: &DataRepository,
     info: &ChallengeInfo,
     players: &[StoredPlayerInfo],
+    finish_time: SystemTime,
 ) -> Result<(), ProcessingError> {
+    session::update_end_time(txn, finish_time).await?;
     let delete_row = async { txn.delete_challenge().await.map_err(ProcessingError::from) };
     let delete_data = async {
         repository
@@ -226,12 +243,10 @@ async fn delete_empty_challenge(
 async fn finalize_challenge_row(
     txn: &db::Transaction,
     info: &ChallengeInfo,
+    finish_time: SystemTime,
     final_ticks: u32,
     full_recording: bool,
 ) -> Result<(), db::Error> {
-    let finish_time = info
-        .finished_unix_ms
-        .map(|ms| UNIX_EPOCH + Duration::from_millis(ms));
     txn.execute(
         "UPDATE challenges
          SET status = $1, challenge_ticks = $2, overall_ticks = $3, finish_time = $4,

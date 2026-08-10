@@ -6,7 +6,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use super::deadline::Deadline;
 use super::types::{
     ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingPayload,
-    RecordingType, ReportedTimes, SessionToken, Stage, StageStatus, UserId,
+    RecordingType, ReportedTimes, SessionToken, Stage, StageStatus, UserId, Uuid,
 };
 
 /// A client's stage progress report.
@@ -25,10 +25,10 @@ pub enum ClientStatus {
     Disconnected = 2,
 }
 
-/// Request to start a new challenge.
+/// External request to start a new challenge.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Create {
+pub struct CreateRequest {
     pub user_id: UserId,
     pub client_id: ClientId,
     pub session_token: SessionToken,
@@ -39,6 +39,15 @@ pub struct Create {
     pub party: Vec<String>,
     pub stage: Stage,
     pub recording_type: RecordingType,
+}
+
+/// Command to start a new challenge.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Create {
+    pub session_uuid: Uuid,
+    #[serde(flatten)]
+    pub request: CreateRequest,
 }
 
 /// Request to join an existing challenge.
@@ -53,15 +62,15 @@ pub struct Join {
     pub recording_type: RecordingType,
 }
 
-impl From<&Create> for Join {
-    fn from(create: &Create) -> Self {
+impl From<&CreateRequest> for Join {
+    fn from(request: &CreateRequest) -> Self {
         Join {
-            user_id: create.user_id,
-            client_id: create.client_id,
-            session_token: create.session_token.clone(),
-            plugin_version: create.plugin_version.clone(),
-            runelite_version: create.runelite_version.clone(),
-            recording_type: create.recording_type,
+            user_id: request.user_id,
+            client_id: request.client_id,
+            session_token: request.session_token.clone(),
+            plugin_version: request.plugin_version.clone(),
+            runelite_version: request.runelite_version.clone(),
+            recording_type: request.recording_type,
         }
     }
 }

@@ -103,8 +103,12 @@ async fn serve(config: LifecycleConfig) {
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
     let processing_enabled = config.processing.max_attempts > 0;
-    let mut coordinator =
-        Coordinator::with_store(Arc::clone(&store) as _, shutdown_rx).with_config(config);
+    let mut coordinator = Coordinator::with_stores(
+        Arc::clone(&store) as _,
+        Arc::clone(&store) as _,
+        shutdown_rx,
+    )
+    .with_config(config);
     if processing_enabled {
         let database_uri =
             std::env::var("BLERT_DATABASE_URI").expect("BLERT_DATABASE_URI must be set");
@@ -112,17 +116,24 @@ async fn serve(config: LifecycleConfig) {
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(DEFAULT_DB_POOL_SIZE);
-        let db = processing::db::Postgres::connect(&database_uri, pool_size)
-            .await
-            .expect("failed to connect to Postgres");
+        let db = Arc::new(
+            processing::db::Postgres::connect(&database_uri, pool_size)
+                .await
+                .expect("failed to connect to Postgres"),
+        );
         tracing::info!("postgres_connected");
         let repository_uri =
             std::env::var("BLERT_DATA_REPOSITORY").expect("BLERT_DATA_REPOSITORY must be set");
         let repository = repository::DataRepository::from_uri(&repository_uri)
             .await
             .expect("failed to open the data repository");
-        coordinator =
-            coordinator.with_processor(Arc::new(processing::Pipeline::new(db, store, repository)));
+        coordinator = coordinator
+            .with_processor(Arc::new(processing::Pipeline::new(
+                Arc::clone(&db),
+                store,
+                repository,
+            )))
+            .with_session_finalizer(Arc::new(processing::PostgresSessionFinalizer::new(db)));
     }
     let coordinator = Arc::new(coordinator);
     coordinator.start_scan(CLAIM_SCAN_INTERVAL);

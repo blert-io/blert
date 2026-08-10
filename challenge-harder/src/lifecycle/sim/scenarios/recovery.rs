@@ -8,7 +8,9 @@ use tokio::sync::watch;
 use super::super::Collector;
 use crate::lifecycle::challenge::{ChallengeStore, Claim, run_challenge};
 use crate::lifecycle::coordinator::Coordinator;
-use crate::lifecycle::core::command::{ClientStatus, ClientStatusChange, Command, Create, Finish};
+use crate::lifecycle::core::command::{
+    ClientStatus, ClientStatusChange, Command, CreateRequest, Finish,
+};
 use crate::lifecycle::core::deadline::{DeadlineKind, LifecycleConfig};
 use crate::lifecycle::core::event::{Cause, JournalEntry, LifecycleEvent};
 use crate::lifecycle::core::types::{
@@ -33,8 +35,8 @@ fn runtime() -> tokio::runtime::Runtime {
         .expect("runtime builds")
 }
 
-fn create() -> Create {
-    Create {
+fn create() -> CreateRequest {
+    CreateRequest {
         user_id: UserId(1),
         client_id: ClientId(10),
         session_token: "tok1".into(),
@@ -48,7 +50,18 @@ fn create() -> Create {
     }
 }
 
-fn created_entries(uuid: Uuid) -> Vec<JournalEntry> {
+/// The session resolved for the collector's only party.
+fn only_session(collector: &Collector) -> Uuid {
+    let sessions = collector.sessions.lock().expect("collector lock poisoned");
+    assert_eq!(
+        sessions.directory.len(),
+        1,
+        "expected exactly one session in the run",
+    );
+    *sessions.directory.values().next().unwrap()
+}
+
+fn created_entries(uuid: Uuid, session_uuid: Uuid) -> Vec<JournalEntry> {
     vec![
         JournalEntry {
             seq: JournalSeq(0),
@@ -56,6 +69,7 @@ fn created_entries(uuid: Uuid) -> Vec<JournalEntry> {
             caused_by: Cause::Command(MsgId::sequence(1)),
             event: LifecycleEvent::ChallengeCreated {
                 uuid,
+                session_uuid,
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
                 party: vec!["WWWWWWWWWWQQ".into()],
@@ -117,7 +131,8 @@ fn killed_server_resumes_windows_with_time_to_run() {
     let store = collector.clone();
     let r1 = rx.clone();
     let uuid = runtime().block_on(async move {
-        let coordinator = Coordinator::with_store(Arc::new(store), r1).with_config(config());
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), r1)
+            .with_config(config());
         let snapshot = coordinator
             .create_or_join_challenge(create())
             .await
@@ -144,7 +159,7 @@ fn killed_server_resumes_windows_with_time_to_run() {
             client_id: ClientId(10),
         },
     };
-    let mut expected = created_entries(uuid);
+    let mut expected = created_entries(uuid, only_session(&collector));
     expected.push(removed);
     assert_eq!(journal(&collector, uuid), expected);
 
@@ -156,6 +171,7 @@ fn killed_server_resumes_windows_with_time_to_run() {
         tokio::spawn(run_challenge(
             config(),
             expect_claimable(&store, uuid).await,
+            Arc::new(store.clone()),
             None,
             r2,
         ));
@@ -192,8 +208,8 @@ fn finish() -> Command {
 
 /// The journal of a challenge finished by a backlogged finish command at
 /// `finish_id`, applied at the challenge clock's zero.
-fn finished_entries(uuid: Uuid, finish_id: MsgId) -> Vec<JournalEntry> {
-    let mut entries = created_entries(uuid);
+fn finished_entries(uuid: Uuid, session_uuid: Uuid, finish_id: MsgId) -> Vec<JournalEntry> {
+    let mut entries = created_entries(uuid, session_uuid);
     entries.push(JournalEntry {
         seq: JournalSeq(2),
         at: Timestamp::ZERO,
@@ -223,14 +239,18 @@ fn killed_server_drains_backlogged_commands_on_resume() {
     let store = collector.clone();
     let r1 = rx.clone();
     let uuid = runtime().block_on(async move {
-        let coordinator = Coordinator::with_store(Arc::new(store), r1).with_config(config());
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), r1)
+            .with_config(config());
         let snapshot = coordinator
             .create_or_join_challenge(create())
             .await
             .expect("create should apply");
         snapshot.uuid
     });
-    assert_eq!(journal(&collector, uuid), created_entries(uuid));
+    assert_eq!(
+        journal(&collector, uuid),
+        created_entries(uuid, only_session(&collector)),
+    );
 
     // A finish arrives while nothing is running; it queues durably.
     let store = collector.clone();
@@ -247,10 +267,20 @@ fn killed_server_drains_backlogged_commands_on_resume() {
     let store = collector.clone();
     let r2 = rx.clone();
     runtime().block_on(async {
-        run_challenge(config(), expect_claimable(&store, uuid).await, None, r2).await;
+        run_challenge(
+            config(),
+            expect_claimable(&store, uuid).await,
+            Arc::new(store.clone()),
+            None,
+            r2,
+        )
+        .await;
     });
 
-    assert_eq!(journal(&collector, uuid), finished_entries(uuid, finish_id));
+    assert_eq!(
+        journal(&collector, uuid),
+        finished_entries(uuid, only_session(&collector), finish_id),
+    );
     assert!(deleted(&collector, uuid));
 }
 
@@ -262,7 +292,8 @@ fn shutdown_server_hands_over_resumable_state() {
     let store = collector.clone();
     let uuid = runtime().block_on(async move {
         let (tx, rx) = watch::channel(false);
-        let coordinator = Coordinator::with_store(Arc::new(store), rx).with_config(config());
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), rx)
+            .with_config(config());
         let snapshot = coordinator
             .create_or_join_challenge(create())
             .await
@@ -283,7 +314,7 @@ fn shutdown_server_hands_over_resumable_state() {
         snapshot.uuid
     });
 
-    let mut expected = created_entries(uuid);
+    let mut expected = created_entries(uuid, only_session(&collector));
     expected.push(JournalEntry {
         seq: JournalSeq(2),
         at: Timestamp::from_millis(1_000),
@@ -299,7 +330,8 @@ fn shutdown_server_hands_over_resumable_state() {
     let store = collector.clone();
     runtime().block_on(async move {
         let (_tx, rx) = watch::channel(false);
-        let coordinator = Coordinator::with_store(Arc::new(store), rx).with_config(config());
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), rx)
+            .with_config(config());
         coordinator.start_scan(Duration::from_secs(5));
         tokio::time::sleep(Duration::from_secs(70)).await;
     });
@@ -323,7 +355,8 @@ fn killed_server_challenges_resume_through_the_boot_scan() {
     let store = collector.clone();
     let r1 = rx.clone();
     let uuid = runtime().block_on(async move {
-        let coordinator = Coordinator::with_store(Arc::new(store), r1).with_config(config());
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), r1)
+            .with_config(config());
         let snapshot = coordinator
             .create_or_join_challenge(create())
             .await
@@ -345,11 +378,15 @@ fn killed_server_challenges_resume_through_the_boot_scan() {
     let store = collector.clone();
     let r2 = rx.clone();
     runtime().block_on(async move {
-        let coordinator = Coordinator::with_store(Arc::new(store), r2).with_config(config());
+        let coordinator = Coordinator::with_stores(Arc::new(store.clone()), Arc::new(store), r2)
+            .with_config(config());
         coordinator.start_scan(Duration::from_secs(5));
         tokio::time::sleep(Duration::from_secs(1)).await;
     });
 
-    assert_eq!(journal(&collector, uuid), finished_entries(uuid, finish_id));
+    assert_eq!(
+        journal(&collector, uuid),
+        finished_entries(uuid, only_session(&collector), finish_id),
+    );
     assert!(deleted(&collector, uuid));
 }
