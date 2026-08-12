@@ -1193,7 +1193,55 @@ type GroupField = {
   /** Output column name the grouped value is selected as. */
   renamed: string;
   expression: postgres.Fragment;
+  /** Join which `expression` depends on, if any. */
+  join?: Join;
+  /** Expression resolving the group's display value and its label. */
+  label?: {
+    expression: postgres.Fragment;
+    name: string;
+  };
 };
+
+/** Wraps an aggregate query to attach group labels to the rows it returns. */
+function withGroupLabels(
+  aggregate: postgres.PendingQuery<postgres.Row[]>,
+  groupFields: GroupField[],
+  sortClause: postgres.Fragment,
+): postgres.PendingQuery<postgres.Row[]> {
+  const labels = groupFields.map((g) => g.label).filter((l) => l !== undefined);
+  if (labels.length === 0) {
+    return aggregate;
+  }
+
+  return sql`
+    WITH grouped AS (${aggregate})
+    SELECT
+      grouped.*,
+      ${labels.flatMap((l, i) => {
+        const projection = sql`${l.expression} AS ${sql(l.name)}`;
+        return i === 0 ? projection : [sql`, `, projection];
+      })}
+    FROM grouped
+    ${sortClause}
+  `;
+}
+
+function groupValue(row: postgres.Row, field: GroupField): string | number {
+  if (field.label !== undefined) {
+    const label = row[field.label.name] as string;
+    return Array.isArray(label) ? label.join(',') : label;
+  }
+
+  const value = row[field.renamed] as string | number | Date;
+  if (value instanceof Date) {
+    return (
+      `${value.getUTCFullYear()}-` +
+      `${(value.getUTCMonth() + 1).toString().padStart(2, '0')}-` +
+      `${value.getUTCDate().toString().padStart(2, '0')}`
+    );
+  }
+  return value;
+}
 
 type Aggregations = Aggregation | Aggregation[];
 
@@ -1414,15 +1462,18 @@ export async function aggregateChallenges<
       const [f, table] = shorthandToFullField(camelToSnake(field));
       const sqlTable = table === 'challenges' ? queryTable : sql(table);
 
-      if (
-        table !== 'challenges' &&
-        joins.find((j) => j.tableName === table) === undefined
-      ) {
-        joins.push({
-          table: sql(table),
-          on: sql`${queryTable}.id = ${sqlTable}.challenge_id`,
-          tableName: table,
-        });
+      if (table !== 'challenges') {
+        const existing = joins.find((j) => j.tableName === table);
+        if (existing === undefined) {
+          joins.push({
+            table: sql(table),
+            on: sql`${queryTable}.id = ${sqlTable}.challenge_id`,
+            tableName: table,
+          });
+        } else {
+          // NULL rows create their own group so force a join that filters them.
+          existing.type = 'inner';
+        }
       }
 
       const column = sql`${sqlTable}.${sql(f)}`;
@@ -1430,6 +1481,18 @@ export async function aggregateChallenges<
         groupFields.push({
           renamed: 'start_date',
           expression: sql`${column}::date`,
+        });
+      } else if (f === 'username') {
+        // Group by player ID and attach usernames after.
+        groupFields.push({
+          renamed: 'player_id',
+          expression: sql`${sqlTable}.player_id`,
+          label: {
+            expression: sql`(
+              SELECT p.username FROM players p WHERE p.id = grouped.player_id
+            )`,
+            name: 'username',
+          },
         });
       } else {
         groupFields.push({ renamed: f, expression: column });
@@ -1460,7 +1523,7 @@ export async function aggregateChallenges<
     sortClause = order(`${direction}${column}${suffix}`);
   }
 
-  const rows = await sql`
+  const aggregate = sql`
     SELECT
       ${
         groupFields.length > 0
@@ -1481,6 +1544,8 @@ export async function aggregateChallenges<
     ${sortClause}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
+
+  const rows = await withGroupLabels(aggregate, groupFields, sortClause);
 
   if (rows.length === 0) {
     if (groupFields.length > 0) {
@@ -1507,14 +1572,7 @@ export async function aggregateChallenges<
     let parent = result;
 
     groupFields.forEach((field, i) => {
-      let value = row[field.renamed] as string | number | Date;
-      if (value instanceof Date) {
-        const date = value;
-        value =
-          `${date.getUTCFullYear()}-` +
-          `${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-` +
-          `${date.getUTCDate().toString().padStart(2, '0')}`;
-      }
+      const value = groupValue(row, field);
 
       if (i === groupFields.length - 1) {
         parent[value] = groupResult;
@@ -2357,18 +2415,56 @@ function sessionFieldToExpression(field: string): postgres.Fragment {
   }
 }
 
-function sessionGroupingFieldToDb(field: string): string {
+function sessionColumnGrouping(column: string): GroupField {
+  return {
+    expression: sql`challenge_sessions.${sql(column)}`,
+    renamed: column,
+  };
+}
+
+function sessionGroupingFieldToDb(field: string): GroupField {
   switch (field) {
     case 'type':
-      return 'challenge_type';
+      return sessionColumnGrouping('challenge_type');
     case 'mode':
-      return 'challenge_mode';
+      return sessionColumnGrouping('challenge_mode');
     case 'party':
-      return 'party_hash';
+      // A session's party is the set of players in its first challenge.
+      return {
+        expression: sql`party.ids`,
+        renamed: 'party_ids',
+        join: {
+          table: sql`LATERAL (
+            SELECT array_agg(cp.player_id ORDER BY cp.player_id) AS ids
+            FROM challenge_players cp
+            WHERE cp.challenge_id = (
+              SELECT c.id
+              FROM challenges c
+              WHERE c.session_id = challenge_sessions.id
+              ORDER BY c.start_time
+              LIMIT 1
+            )
+          ) party`,
+          // Sessions with no challenges aggregate to NULL; ignore them.
+          on: sql`party.ids IS NOT NULL`,
+          tableName: 'party',
+        },
+        label: {
+          expression: sql`
+            ARRAY(
+              SELECT p.username
+              FROM players p
+              WHERE p.id = ANY(grouped.party_ids)
+              ORDER BY p.id
+            )
+          `,
+          name: 'party_names',
+        },
+      };
     case 'scale':
-      return 'scale';
+      return sessionColumnGrouping('scale');
     case 'status':
-      return 'status';
+      return sessionColumnGrouping('status');
     default:
       throw new InvalidQueryError(`Invalid grouping field: ${field}`);
   }
@@ -2450,11 +2546,12 @@ export async function aggregateSessions<
     return fragments;
   });
 
-  let groupFields: string[] = [];
+  let groupFields: GroupField[] = [];
   if (grouping !== undefined) {
     const fields = Array.isArray(grouping) ? grouping : [grouping];
     groupFields = (fields as string[]).map(sessionGroupingFieldToDb);
   }
+  const joins = groupFields.flatMap((g) => g.join ?? []);
 
   let sort = undefined;
   if (options.sort) {
@@ -2475,22 +2572,35 @@ export async function aggregateSessions<
     }
   }
 
-  const rows = await sql`
+  const aggregate = sql`
     SELECT
       ${
         groupFields.length > 0
           ? sql`${groupFields.map(
-              (g) => sql`challenge_sessions.${sql(g)} as ${sql(g)},`,
+              (g) => sql`${g.expression} as ${sql(g.renamed)},`,
             )}`
           : sql``
       }
       ${aggregateFields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}
     FROM challenge_sessions
+    ${join(joins)}
     ${where(conditions)}
-    ${groupFields.length > 0 ? sql`GROUP BY ${sql(groupFields)}` : sql``}
+    ${
+      groupFields.length > 0
+        ? sql`GROUP BY ${groupFields.flatMap((g, i) =>
+            i === 0 ? g.expression : [sql`, `, g.expression],
+          )}`
+        : sql``
+    }
     ${sort ? order(sort) : sql``}
     ${options.limit ? sql`LIMIT ${options.limit}` : sql``}
   `;
+
+  const rows = await withGroupLabels(
+    aggregate,
+    groupFields,
+    sort ? order(sort) : sql``,
+  );
 
   if (rows.length === 0) {
     if (groupFields.length > 0) {
@@ -2507,55 +2617,6 @@ export async function aggregateSessions<
   }
 
   const result = {} as GroupedAggregationResult<AggregationQuery, string>;
-  const groupingFieldsRaw = Array.isArray(grouping) ? grouping : [grouping!];
-
-  // If grouping by party, we want to return a list of usernames rather than
-  // the hash as the group key. Reconstruct the list from the players in the
-  // first challenge of each session that has the party hash.
-  const partyHashes = new Map<string, string[]>();
-
-  if (groupingFieldsRaw.includes('party' as G)) {
-    const partyField = sessionGroupingFieldToDb('party');
-    for (const row of rows) {
-      if (row[partyField]) {
-        partyHashes.set(row[partyField] as string, []);
-      }
-    }
-
-    const conditionsWithHash = [
-      ...conditions,
-      sql`party_hash = ANY(${Array.from(partyHashes.keys())})`,
-    ];
-
-    const partyUsernames = await sql<
-      { party_hash: string; username: string }[]
-    >`
-      WITH latest_sessions AS (
-        SELECT DISTINCT ON (party_hash) id, party_hash
-        FROM challenge_sessions
-        ${where(conditionsWithHash)}
-        ORDER BY party_hash, end_time DESC NULLS LAST
-      ),
-      first_challenges AS (
-        SELECT DISTINCT ON (session_id) id, session_id
-        FROM challenges
-        WHERE session_id IN (SELECT id FROM latest_sessions)
-        ORDER BY session_id, start_time
-      )
-      SELECT
-        cs.party_hash,
-        p.username
-      FROM latest_sessions cs
-      JOIN first_challenges fc ON fc.session_id = cs.id
-      JOIN challenge_players cp ON cp.challenge_id = fc.id
-      JOIN players p ON p.id = cp.player_id
-      ORDER BY cs.party_hash, cp.orb;
-    `;
-
-    for (const { party_hash, username } of partyUsernames) {
-      partyHashes.get(party_hash)?.push(username);
-    }
-  }
 
   rows.forEach((row) => {
     const groupResult = rowToAggregations(
@@ -2565,15 +2626,10 @@ export async function aggregateSessions<
 
     let parent = result;
 
-    groupingFieldsRaw.forEach((field: string, i) => {
-      const dbField = sessionGroupingFieldToDb(field);
-      let value = row[dbField] as string | number;
+    groupFields.forEach((g, i) => {
+      const value = groupValue(row, g);
 
-      if (field === 'party') {
-        value = partyHashes.get(value as string)?.join(',') ?? value;
-      }
-
-      if (i === groupingFieldsRaw.length - 1) {
+      if (i === groupFields.length - 1) {
         parent[value] = groupResult;
       } else {
         parent[value] ??= {};

@@ -421,6 +421,87 @@ describe('sessions', () => {
         expect(result![party3Usernames]['*'].count).toBe(1);
       });
 
+      it('groups by player IDs', async () => {
+        // PlayerB renamed from OldNameB to PlayerB.
+        const [session] = await sql<[{ id: number }]>`
+          INSERT INTO challenge_sessions ${sql({
+            uuid: '66666666-6666-6666-6666-666666666666',
+            challenge_type: ChallengeType.TOB,
+            challenge_mode: ChallengeMode.TOB_REGULAR,
+            scale: 2,
+            party_hash: partyHash1,
+            start_time: new Date('2024-01-06T10:00:00Z'),
+            end_time: new Date('2024-01-06T11:00:00Z'),
+            status: SessionStatus.COMPLETED,
+          })} RETURNING id
+        `;
+        const [challenge] = await sql<[{ id: number }]>`
+          INSERT INTO challenges ${sql({
+            session_id: session.id,
+            uuid: '88888888-8888-8888-8888-888888888888',
+            type: ChallengeType.TOB,
+            status: ChallengeStatus.COMPLETED,
+            start_time: new Date(),
+            scale: 2,
+          })} RETURNING id
+        `;
+        await sql`
+          INSERT INTO challenge_players ${sql([
+            {
+              challenge_id: challenge.id,
+              player_id: playerIds[0],
+              username: 'PlayerA',
+              orb: 0,
+              primary_gear: 0,
+            },
+            {
+              challenge_id: challenge.id,
+              player_id: playerIds[1],
+              username: 'OldNameB',
+              orb: 1,
+              primary_gear: 0,
+            },
+          ])}
+        `;
+
+        const result = await aggregateSessions(
+          {},
+          { '*': { type: 'count' } },
+          {},
+          'party',
+        );
+
+        expect(result).not.toBeNull();
+        expect(Object.keys(result!)).toHaveLength(3);
+        expect(result!['PlayerA,PlayerB']['*'].count).toBe(3);
+      });
+
+      it('excludes sessions with no challenges', async () => {
+        await sql`
+          INSERT INTO challenge_sessions ${sql({
+            uuid: '66666666-6666-6666-6666-666666666666',
+            challenge_type: ChallengeType.TOB,
+            challenge_mode: ChallengeMode.TOB_REGULAR,
+            scale: 2,
+            party_hash: partyHash1,
+            start_time: new Date('2024-01-06T10:00:00Z'),
+            end_time: new Date('2024-01-06T12:00:00Z'),
+            status: SessionStatus.COMPLETED,
+          })}
+        `;
+
+        const result = await aggregateSessions(
+          {},
+          { '*': { type: 'count' } },
+          {},
+          'party',
+        );
+
+        expect(result).not.toBeNull();
+        expect(Object.keys(result!)).toHaveLength(3);
+        expect(result!['PlayerA,PlayerB']['*'].count).toBe(2);
+      });
+
       it('should group by multiple fields', async () => {
         const query: SessionQuery = {};
         const result = await aggregateSessions(
@@ -1148,6 +1229,72 @@ describe('challenges', () => {
 
       expect(result!['*'].count).toBe(3);
       expect(result!['tob:xarpusHealing'].count).toBe(2);
+    });
+
+    describe('grouping by username', () => {
+      it("groups by the player's ID", async () => {
+        // PlayerB renamed; both names' challenges should be counted.
+        await sql`
+          UPDATE challenge_players SET username = 'OldNameB'
+          WHERE challenge_id = ${challengeIds[0]}
+            AND player_id = ${playerIds[1]}
+        `;
+
+        const result = await aggregateChallenges(
+          {},
+          { '*': { type: 'count' } },
+          {},
+          'username',
+        );
+
+        expect(result).not.toBeNull();
+        expect(Object.keys(result!).toSorted()).toEqual([
+          'PlayerA',
+          'PlayerB',
+          'PlayerC',
+        ]);
+        expect(result!.PlayerB['*'].count).toBe(2);
+      });
+
+      it('separates players who held the same name', async () => {
+        // PlayerD previously held the RSN "PlayerA" before its current owner.
+        const [player] = await sql<[{ id: number }]>`
+          INSERT INTO players ${sql({
+            username: 'PlayerD',
+            normalized_username: normalizeRsn('PlayerD'),
+          })} RETURNING id
+        `;
+        const [challenge] = await sql<[{ id: number }]>`
+          INSERT INTO challenges ${sql({
+            session_id: sessionId,
+            uuid: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+            type: ChallengeType.COLOSSEUM,
+            status: ChallengeStatus.COMPLETED,
+            start_time: new Date('2024-01-01T14:00:00Z'),
+            scale: 1,
+          })} RETURNING id
+        `;
+        await sql`
+          INSERT INTO challenge_players ${sql({
+            challenge_id: challenge.id,
+            player_id: player.id,
+            username: 'PlayerA',
+            orb: 0,
+            primary_gear: 0,
+          })}
+        `;
+
+        const result = await aggregateChallenges(
+          {},
+          { '*': { type: 'count' } },
+          {},
+          'username',
+        );
+
+        expect(result).not.toBeNull();
+        expect(result!.PlayerA['*'].count).toBe(3);
+        expect(result!.PlayerD['*'].count).toBe(1);
+      });
     });
 
     it('groups tob:xarpusHealing by scale', async () => {

@@ -15,6 +15,15 @@ export async function migrate(sql: TransactionSql) {
 }
 `;
 
+const NON_TRANSACTIONAL_MIGRATION_TEMPLATE = `import { Sql } from 'postgres';
+
+export const transactional = false;
+
+export async function migrate(sql: Sql) {
+  // Write your migration here
+}
+`;
+
 /**
  * Converts a path in the `dist` directory to a path in the `src` directory.
  * @param dir Path of the path in the `dist` directory.
@@ -48,17 +57,42 @@ async function ensureMigrationsTable(sql: Sql, tableName: string) {
   }
 }
 
-async function migrateFile(
-  sql: TransactionSql<Record<string, unknown>>,
+type MigrationSql = Sql | TransactionSql;
+
+/**
+ * A resolved migration module.
+ * A migration runs inside a transaction unless it exports
+ * `transactional = false`.
+ */
+type LoadedMigration = {
+  name: string;
+  migrate: (sql: MigrationSql) => Promise<void>;
+  transactional: boolean;
+};
+
+/**
+ * Loads a migration module.
+ *
+ * @param name Name of the migration.
+ * @param path Path to the migration's compiled module.
+ * @returns The loaded migration.
+ */
+async function loadMigration(
+  name: string,
   path: string,
-) {
-  const { migrate } = (await import(path)) as {
-    migrate: (sql: TransactionSql<Record<string, unknown>>) => Promise<void>;
+): Promise<LoadedMigration> {
+  const mod = (await import(path)) as {
+    migrate: (sql: MigrationSql) => Promise<void>;
+    transactional?: boolean;
   };
-  await migrate(sql);
+  return {
+    name,
+    migrate: mod.migrate,
+    transactional: mod.transactional ?? true,
+  };
 }
 
-function createMigration(dir: string, name: string) {
+function createMigration(dir: string, name: string, transactional: boolean) {
   const date = new Date();
   let timestamp = date.getUTCFullYear().toString();
   timestamp += (date.getUTCMonth() + 1).toString().padStart(2, '0');
@@ -70,7 +104,10 @@ function createMigration(dir: string, name: string) {
   const migrationName = `${timestamp}-${name}`;
   const sourceFile = path.join(distToSrc(dir), `${migrationName}.ts`);
 
-  fs.writeFileSync(sourceFile, MIGRATION_TEMPLATE);
+  fs.writeFileSync(
+    sourceFile,
+    transactional ? MIGRATION_TEMPLATE : NON_TRANSACTIONAL_MIGRATION_TEMPLATE,
+  );
   console.log(`Created migration ${migrationName} at ${sourceFile}`);
 }
 
@@ -102,10 +139,18 @@ export async function runMigrationsCli(options: MigrationRunnerOptions) {
   const command = process.argv[2];
 
   if (command === 'create') {
-    if (process.argv.length !== 4) {
-      throw new Error(`Usage: ${process.argv[1]} create <migration-name>`);
+    const args = process.argv.slice(3);
+    const names = args.filter((arg) => !arg.startsWith('--'));
+    if (names.length !== 1) {
+      throw new Error(
+        `Usage: ${process.argv[1]} create <migration-name> [--no-transaction]`,
+      );
     }
-    createMigration(migrationsDir, process.argv[3]);
+    createMigration(
+      migrationsDir,
+      names[0],
+      !args.includes('--no-transaction'),
+    );
     return;
   }
 
@@ -160,14 +205,49 @@ export async function runMigrationsCli(options: MigrationRunnerOptions) {
 
   migrationsToRun.sort((a, b) => a.name.localeCompare(b.name));
 
-  await sql.begin(async (sql) => {
-    let i = 0;
-    for (const { name, path } of migrationsToRun) {
-      ++i;
-      console.log(`Running migration ${name} [${i}/${migrationsToRun.length}]`);
+  const migrations = await Promise.all(
+    migrationsToRun.map(({ name, path }) => loadMigration(name, path)),
+  );
 
-      await migrateFile(sql, path);
-      await sql`INSERT INTO ${sql(tableName)} (name, run_at) VALUES (${name}, NOW())`;
+  // Partition the list into sections of consecutive transactional migrations,
+  // which run together under a shared DB transaction, and non-transactional
+  // ones, which cannot.
+  const segments: LoadedMigration[][] = [];
+  for (const migration of migrations) {
+    const current = segments[segments.length - 1];
+    if (
+      current !== undefined &&
+      current[0].transactional &&
+      migration.transactional
+    ) {
+      current.push(migration);
+    } else {
+      segments.push([migration]);
     }
-  });
+  }
+
+  let i = 0;
+  const run = async (sql: MigrationSql, migration: LoadedMigration) => {
+    ++i;
+    console.log(
+      `Running migration ${migration.name} [${i}/${migrations.length}]`,
+    );
+    await migration.migrate(sql);
+    await sql`
+      INSERT INTO ${sql(tableName)} (name, run_at)
+      VALUES (${migration.name}, NOW())
+    `;
+  };
+
+  for (const segment of segments) {
+    if (segment[0].transactional) {
+      await sql.begin(async (tx) => {
+        for (const migration of segment) {
+          await run(tx, migration);
+        }
+      });
+    } else {
+      await run(sql, segment[0]);
+    }
+  }
 }
