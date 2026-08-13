@@ -21,14 +21,14 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@protocolbuffers/protoc-gen-js": "4.0.2",
-    "@typescript-eslint/eslint-plugin": "~8.65.0",
-    "@typescript-eslint/parser": "~8.65.0",
+    "@typescript-eslint/eslint-plugin": "~8.66.0",
+    "@typescript-eslint/parser": "~8.66.0",
     "eslint": "^10.8.0",
     "patch-package": "^8.0.1",
     "prettier": "^3.9.6",
     "protoc": "35.1.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "~8.65.0"
+    "typescript-eslint": "~8.66.0"
   },
   "dependencies": {
     "@types/google-protobuf": "^3.15.12",
