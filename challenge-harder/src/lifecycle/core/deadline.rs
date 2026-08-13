@@ -48,6 +48,8 @@ pub struct LifecycleConfig {
     pub inactivity_timeout: Duration,
     /// Interval at which a running challenge renews its lease.
     pub lease_renewal_interval: Duration,
+    /// Time without any challenge activity after which a session ends.
+    pub session_activity_window: Duration,
     /// Options for challenge data processing runs.
     pub processing: ProcessingConfig,
 }
@@ -60,6 +62,7 @@ impl Default for LifecycleConfig {
             reconnection_window: Duration::from_mins(5),
             inactivity_timeout: Duration::from_mins(15),
             lease_renewal_interval: Duration::from_secs(10),
+            session_activity_window: Duration::from_mins(30),
             processing: ProcessingConfig::default(),
         }
     }
@@ -76,6 +79,7 @@ impl LifecycleConfig {
             reconnection_window: self.reconnection_window / factor,
             inactivity_timeout: self.inactivity_timeout / factor,
             lease_renewal_interval: self.lease_renewal_interval / factor,
+            session_activity_window: self.session_activity_window / factor,
             processing: ProcessingConfig {
                 max_attempts: self.processing.max_attempts,
                 run_timeout: self.processing.run_timeout / factor,
@@ -204,6 +208,7 @@ mod tests {
             reconnection_window: Duration::from_mins(5),
             inactivity_timeout: Duration::from_mins(15),
             lease_renewal_interval: Duration::from_secs(10),
+            session_activity_window: Duration::from_mins(30),
             processing: ProcessingConfig::default(),
         }
     }
@@ -266,6 +271,7 @@ mod tests {
             Duration::from_secs(3)
         );
         assert_eq!(config.processing.finish_max_attempts, 10);
+        assert_eq!(config.session_activity_window, Duration::from_mins(3));
     }
 
     #[test]

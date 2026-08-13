@@ -31,7 +31,7 @@ async fn delve_test() {
     let Some(redis) = redis::tests::test_store().await else {
         return;
     };
-    let client = db.client().await;
+    let client = db.checkout().await.expect("client");
 
     let uuid: Uuid = UUID.parse().expect("uuid is valid");
 
@@ -57,13 +57,14 @@ async fn delve_test() {
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
-        db,
+        Arc::new(db),
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
     );
 
     let info = ChallengeInfo {
         uuid,
+        session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Mokhaiotl,
         mode: ChallengeMode::NoMode,
         party: vec!["player1".to_string()],

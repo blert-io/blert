@@ -15,7 +15,7 @@ pub use crate::proto::Stage;
 pub use crate::proto::event::stage_update::Status as StageStatus;
 
 /// Milliseconds since a challenge-specific epoch.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Timestamp(u64);
 
 impl Timestamp {
@@ -315,6 +315,7 @@ impl ClientStageStream {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChallengeInfo {
     pub uuid: Uuid,
+    pub session_uuid: Uuid,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
     pub party: Vec<String>,

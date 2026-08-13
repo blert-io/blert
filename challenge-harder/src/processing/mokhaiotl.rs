@@ -333,6 +333,7 @@ mod tests {
         let processor = MokhaiotlProcessor::new(
             ChallengeInfo {
                 uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+                session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                 challenge_type: ChallengeType::Mokhaiotl,
                 mode: ChallengeMode::NoMode,
                 party: vec!["1Ogp".to_string()],
@@ -358,6 +359,7 @@ mod tests {
         let error = MokhaiotlProcessor::new(
             ChallengeInfo {
                 uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+                session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                 challenge_type: ChallengeType::Mokhaiotl,
                 mode: ChallengeMode::NoMode,
                 party: vec!["1Ogp".to_string()],
@@ -413,6 +415,7 @@ mod tests {
     fn full_recording_requires_every_delve_from_the_first() {
         let challenge = ChallengeInfo {
             uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],
@@ -476,6 +479,7 @@ mod tests {
     fn final_ticks_uses_delves_1_to_8() {
         let challenge = ChallengeInfo {
             uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],
@@ -513,6 +517,7 @@ mod tests {
     fn attack_style_events_update_the_referenced_attack() {
         let challenge = ChallengeInfo {
             uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],
@@ -593,6 +598,7 @@ mod tests {
     fn unmatched_attack_style_events_are_collected() {
         let challenge = ChallengeInfo {
             uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],
@@ -643,6 +649,7 @@ mod tests {
     fn larva_leaks_are_counted() {
         let challenge = ChallengeInfo {
             uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],
@@ -720,6 +727,7 @@ mod tests {
             let mut processor = MokhaiotlProcessor::new(
                 ChallengeInfo {
                     uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+                    session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                     challenge_type: ChallengeType::Mokhaiotl,
                     mode: ChallengeMode::NoMode,
                     party: vec!["1Ogp".to_string()],

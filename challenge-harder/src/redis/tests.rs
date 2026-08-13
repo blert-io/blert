@@ -10,7 +10,7 @@ use futures_util::StreamExt;
 use redis::AsyncCommands;
 
 use super::*;
-use crate::lifecycle::core::command::{Finish, Update};
+use crate::lifecycle::core::command::{CreateRequest, Finish, Update};
 use crate::lifecycle::core::event::{Cause, LifecycleEvent};
 use crate::lifecycle::core::state::{ChallengePhase, LastCompleted, PhaseState};
 use crate::lifecycle::core::types::{
@@ -32,7 +32,7 @@ fn test_party_members(client: ClientId) -> Vec<String> {
 
 /// The directory identity of a create request's party.
 fn party_of(create: &Create) -> String {
-    party_identifier(create.challenge_type, &create.party)
+    party_identifier(create.request.challenge_type, &create.request.party)
 }
 
 #[test]
@@ -52,8 +52,8 @@ fn party_key_normalizes_then_sorts_names() {
     assert_eq!(key, "1-aa-ab");
 }
 
-fn create_request(client: ClientId) -> Create {
-    Create {
+fn base_request(client: ClientId) -> CreateRequest {
+    CreateRequest {
         user_id: UserId(client.0),
         client_id: client,
         session_token: format!("tok{client}").into(),
@@ -67,10 +67,20 @@ fn create_request(client: ClientId) -> Create {
     }
 }
 
+fn create_request(client: ClientId) -> Create {
+    Create {
+        session_uuid: Uuid::new_v4(),
+        request: base_request(client),
+    }
+}
+
 fn create_request_at(client: ClientId, stage: Stage) -> Create {
     Create {
-        stage,
-        ..create_request(client)
+        session_uuid: Uuid::new_v4(),
+        request: CreateRequest {
+            stage,
+            ..base_request(client)
+        },
     }
 }
 
@@ -1071,6 +1081,17 @@ async fn start_creates_and_claims_a_challenge_for_a_free_party() {
         assert_eq!(active, uuid.to_string());
     }
 
+    // The challenge joins its session's active challenge set.
+    let members: Vec<String> = connection
+        .smembers(session_members_key(create.session_uuid))
+        .await
+        .unwrap();
+    assert_eq!(members, vec![uuid.to_string()]);
+    let _: () = connection
+        .del(session_members_key(create.session_uuid))
+        .await
+        .unwrap();
+
     // The challenge should have a lease deadline in the future, held by
     // this instance.
     let deadline: Option<u64> = connection
@@ -1129,10 +1150,8 @@ async fn start_joins_a_live_incumbent() {
         .expect("project should succeed");
 
     let joiner_client = test_client();
-    let joiner = Create {
-        party: creator.party.clone(),
-        ..create_request(joiner_client)
-    };
+    let mut joiner = create_request(joiner_client);
+    joiner.request.party = creator.request.party.clone();
     let start = store
         .start(joiner.clone())
         .await
@@ -1156,19 +1175,19 @@ async fn start_joins_a_live_incumbent() {
     assert_eq!(routed, uuid.to_string());
 
     // The join leaves player keys alone; they still reference the first challenge.
-    for name in &creator.party {
+    for name in &creator.request.party {
         let active: String = connection.get(player_key(name)).await.unwrap();
         assert_eq!(active, uuid.to_string());
     }
 
     // The join is queued behind the create in the incumbent's inbox.
     let expected_join = Join {
-        user_id: joiner.user_id,
-        client_id: joiner.client_id,
-        session_token: joiner.session_token.clone(),
-        plugin_version: joiner.plugin_version.clone(),
-        runelite_version: joiner.runelite_version.clone(),
-        recording_type: joiner.recording_type,
+        user_id: joiner.request.user_id,
+        client_id: joiner.request.client_id,
+        session_token: joiner.request.session_token.clone(),
+        plugin_version: joiner.request.plugin_version.clone(),
+        runelite_version: joiner.request.runelite_version.clone(),
+        recording_type: joiner.request.recording_type,
     };
     assert_eq!(
         read_inbox(&store, uuid).await,
@@ -1201,10 +1220,8 @@ async fn start_joins_an_incumbent_before_its_first_projection() {
     };
 
     let joiner_client = test_client();
-    let joiner = Create {
-        party: creator.party.clone(),
-        ..create_request_at(joiner_client, Stage::TobBloat)
-    };
+    let mut joiner = create_request_at(joiner_client, Stage::TobBloat);
+    joiner.request.party = creator.request.party.clone();
     let start = store.start(joiner).await.expect("start should succeed");
     let Start::Joined { uuid, .. } = start else {
         panic!("expected a join");
@@ -1242,10 +1259,8 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
 
     // The same players start again.
     let second_client = test_client();
-    let restart = Create {
-        party: creator.party.clone(),
-        ..create_request_at(second_client, Stage::TobMaiden)
-    };
+    let mut restart = create_request_at(second_client, Stage::TobMaiden);
+    restart.request.party = creator.request.party.clone();
     let start = store.start(restart).await.expect("start should succeed");
     let Start::Created {
         claim: successor, ..
@@ -1264,7 +1279,7 @@ async fn start_at_an_earlier_stage_creates_a_new_challenge() {
     assert_eq!(directory, second.to_string());
 
     // The party's keys reference the new challenge.
-    for name in &creator.party {
+    for name in &creator.request.party {
         let active: String = connection.get(player_key(name)).await.unwrap();
         assert_eq!(active, second.to_string());
     }
@@ -1310,10 +1325,8 @@ async fn start_joins_a_challenge_at_the_same_stage() {
         .expect("project should succeed");
 
     let joiner_client = test_client();
-    let joiner = Create {
-        party: creator.party.clone(),
-        ..create_request_at(joiner_client, Stage::TobVerzik)
-    };
+    let mut joiner = create_request_at(joiner_client, Stage::TobVerzik);
+    joiner.request.party = creator.request.party.clone();
     let start = store.start(joiner).await.expect("start should succeed");
     let Start::Joined { uuid, .. } = start else {
         panic!("expected a join");
@@ -1342,10 +1355,8 @@ async fn start_joins_a_challenge_from_a_later_stage() {
         .expect("project should succeed");
 
     let joiner_client = test_client();
-    let joiner = Create {
-        party: creator.party.clone(),
-        ..create_request_at(joiner_client, Stage::TobVerzik)
-    };
+    let mut joiner = create_request_at(joiner_client, Stage::TobVerzik);
+    joiner.request.party = creator.request.party.clone();
     let start = store.start(joiner).await.expect("start should succeed");
     let Start::Joined { uuid, .. } = start else {
         panic!("expected a join");
@@ -1379,10 +1390,8 @@ async fn start_supersedes_a_finished_incumbent() {
         .expect("project should succeed");
 
     let second_client = test_client();
-    let restart = Create {
-        party: creator.party.clone(),
-        ..create_request(second_client)
-    };
+    let mut restart = create_request(second_client);
+    restart.request.party = creator.request.party.clone();
     let start = store.start(restart).await.expect("start should succeed");
     let Start::Created {
         claim: successor, ..
@@ -1438,10 +1447,8 @@ async fn start_supersedes_a_finishing_incumbent() {
         .expect("project should succeed");
 
     let second_client = test_client();
-    let restart = Create {
-        party: creator.party.clone(),
-        ..create_request(second_client)
-    };
+    let mut restart = create_request(second_client);
+    restart.request.party = creator.request.party.clone();
     let start = store.start(restart).await.expect("start should succeed");
     let Start::Created {
         claim: successor, ..
@@ -1463,7 +1470,7 @@ async fn start_supersedes_a_finishing_incumbent() {
 /// The removal command a start queues to a challenge its client left.
 fn removal_command(create: &Create) -> Command {
     Command::ClientMovedOn(ClientMovedOn {
-        client_id: create.client_id,
+        client_id: create.request.client_id,
     })
 }
 
@@ -1482,10 +1489,8 @@ async fn start_sends_a_removal_to_an_existing_challenge() {
     let first = claim.uuid();
 
     // The same client starts a challenge for a different party.
-    let second_create = Create {
-        party: vec![format!("Second {client}")],
-        ..create_request(client)
-    };
+    let mut second_create = create_request(client);
+    second_create.request.party = vec![format!("Second {client}")];
     let second_party = party_of(&second_create);
     let Ok(Start::Created {
         claim: second_claim,
@@ -1546,10 +1551,8 @@ async fn start_sends_a_removal_to_an_existing_challenge_when_joining() {
     };
     let left = left_claim.uuid();
 
-    let attach = Create {
-        party: creator.party.clone(),
-        ..create_request(leaver_client)
-    };
+    let mut attach = create_request(leaver_client);
+    attach.request.party = creator.request.party.clone();
     let start = store.start(attach.clone()).await.expect("start succeeds");
     let Start::Joined { uuid: target, .. } = start else {
         panic!("expected a join");
@@ -1944,14 +1947,15 @@ async fn rejoin_before_first_projection_accepts() {
 fn terminated_state(uuid: Uuid, create: &Create) -> ChallengeState {
     ChallengeState {
         uuid,
-        challenge_type: create.challenge_type,
-        mode: create.mode,
-        party: create.party.clone(),
+        session_uuid: create.session_uuid,
+        challenge_type: create.request.challenge_type,
+        mode: create.request.mode,
+        party: create.request.party.clone(),
         phase: PhaseState::Terminated {
             finished_unix_ms: 1_785_693_975_535,
             cause: Cause::Command("1785693975535-0".parse().unwrap()),
         },
-        recorded_by: [create.client_id].into(),
+        recorded_by: [create.request.client_id].into(),
         ..ChallengeState::default()
     }
 }
@@ -2010,16 +2014,17 @@ async fn delete_removes_a_terminated_challenges_state() {
         .await
         .expect("delete should succeed");
 
-    // Routing, stage streams, index entry, and lease are gone.
+    // Routing, stage streams, index entry, lease, and session membership are gone.
     for key in [
         challenge_directory_key(&party),
         client_key(client),
-        player_key(&create.party[0]),
-        player_key(&create.party[1]),
+        player_key(&create.request.party[0]),
+        player_key(&create.request.party[1]),
         streams[0].clone(),
         streams[1].clone(),
         streams_set_key(uuid),
         challenge_lease_key(uuid),
+        session_members_key(create.session_uuid),
     ] {
         let exists: bool = connection.exists(&key).await.unwrap();
         assert!(!exists, "key should be deleted: {key}");
@@ -2192,8 +2197,8 @@ async fn delete_leaves_repointed_routing_keys_alone() {
     let routing = [
         challenge_directory_key(&party),
         client_key(client),
-        player_key(&create.party[0]),
-        player_key(&create.party[1]),
+        player_key(&create.request.party[0]),
+        player_key(&create.request.party[1]),
     ];
     for key in &routing {
         let _: () = connection.set(key, successor.to_string()).await.unwrap();
@@ -2253,8 +2258,8 @@ async fn bumped_fence_rejects_deletion() {
         challenge_key(uuid),
         challenge_directory_key(&party),
         client_key(client),
-        player_key(&create.party[0]),
-        player_key(&create.party[1]),
+        player_key(&create.request.party[0]),
+        player_key(&create.request.party[1]),
     ] {
         let exists: bool = connection.exists(&key).await.unwrap();
         assert!(exists, "key should survive: {key}");
@@ -2474,239 +2479,383 @@ async fn stage_streams_read_in_order_skipping_invalid_records() {
     let _: () = connection.del(&key).await.unwrap();
 }
 
-use crate::lifecycle::session::{SessionCause, SessionCommand, SessionEvent};
+/// The session activity window used by session tests.
+const TEST_WINDOW: Duration = Duration::from_mins(30);
 
-fn session_entry(seq: u64, event: SessionEvent) -> SessionJournalEntry {
-    SessionJournalEntry {
-        seq: JournalSeq(seq),
-        at: Timestamp::from_millis(seq * 100),
-        caused_by: SessionCause::Command(MsgId::sequence(seq + 1)),
-        event,
-    }
-}
-
-/// Establishes a fresh session's lease.
-async fn stub_session_claim(store: &Store, uuid: Uuid) -> RedisSessionClaim {
+async fn clean_up_session(store: &Store, party_key: &str, uuid: Uuid) {
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
-        .hset_multiple(
-            session_lease_key(uuid),
-            &[
-                ("fence", Epoch::INITIAL.to_string()),
-                ("owner", TEST_IDENTITY.to_string()),
-            ],
-        )
-        .await
-        .unwrap();
-    let _: () = connection
-        .zadd(SESSION_LEASES_KEY, uuid.to_string(), lease_deadline())
-        .await
-        .unwrap();
-    store.new_session_claim(uuid, Epoch::INITIAL)
-}
-
-async fn clean_up_session(store: &Store, uuid: Uuid) {
-    let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection
-        .zrem(SESSION_LEASES_KEY, uuid.to_string())
+        .zrem(SESSION_DEADLINES_KEY, uuid.to_string())
         .await
         .unwrap();
     let _: () = connection
         .del(&[
-            session_lease_key(uuid),
-            session_journal_key(uuid),
-            session_inbox_key(uuid),
+            session_directory_key(party_key),
+            session_members_key(uuid),
+            session_party_record_key(uuid),
         ])
         .await
         .unwrap();
 }
 
 #[tokio::test]
-async fn session_sweep_claims_an_available_lease() {
+async fn session_resolve_creates_a_session_for_a_new_party() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
+
+    let resolution = store
+        .resolve(ChallengeType::Tob, &party, TEST_WINDOW)
+        .await
+        .expect("resolve should succeed");
+    let SessionResolution::Created(uuid) = resolution else {
+        panic!("expected a creation");
+    };
+
+    let mut connection = store.pool.get().await.unwrap();
+    let directory: String = connection
+        .get(session_directory_key(&party_key))
+        .await
+        .unwrap();
+    assert_eq!(directory, uuid.to_string());
+    let deadline: u64 = connection
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline > unix_millis());
+    let party_record: String = connection
+        .get(session_party_record_key(uuid))
+        .await
+        .unwrap();
+    assert_eq!(party_record, party_key);
+
+    clean_up_session(&store, &party_key, uuid).await;
+}
+
+#[tokio::test]
+async fn session_resolve_returns_a_live_session_and_extends_its_deadline() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
+
+    let Ok(SessionResolution::Created(uuid)) =
+        store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+    else {
+        panic!("expected a creation");
+    };
+
+    // Age the deadline so the reuse's extension is observable.
+    let aged = unix_millis() + 60_000;
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .zadd(SESSION_DEADLINES_KEY, uuid.to_string(), aged)
+        .await
+        .unwrap();
+
+    let resolution = store
+        .resolve(ChallengeType::Tob, &party, TEST_WINDOW)
+        .await
+        .expect("resolve should succeed");
+    let SessionResolution::Existing(existing) = resolution else {
+        panic!("expected the live session");
+    };
+    assert_eq!(existing, uuid);
+
+    let directory: String = connection
+        .get(session_directory_key(&party_key))
+        .await
+        .unwrap();
+    assert_eq!(directory, uuid.to_string());
+    let deadline: u64 = connection
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline > aged);
+
+    clean_up_session(&store, &party_key, uuid).await;
+}
+
+#[tokio::test]
+async fn session_resolve_creates_a_new_session_after_the_previous_expires() {
     let Some(store) = test_store().await else {
         return;
     };
     let _guard = SWEEP_LOCK.lock().await;
-    let uuid = Uuid::new_v4();
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
+
+    let Ok(SessionResolution::Created(uuid)) =
+        store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+    else {
+        panic!("expected a creation");
+    };
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .zadd(SESSION_DEADLINES_KEY, uuid.to_string(), 1)
+        .await
+        .unwrap();
+
+    let resolution = store
+        .resolve(ChallengeType::Tob, &party, TEST_WINDOW)
+        .await
+        .expect("resolve should succeed");
+    let SessionResolution::Created(successor) = resolution else {
+        panic!("expected a fresh session");
+    };
+    assert_ne!(successor, uuid);
+
+    let directory: String = connection
+        .get(session_directory_key(&party_key))
+        .await
+        .unwrap();
+    assert_eq!(directory, successor.to_string());
+
+    // The predecessor keeps its deadline entry for the sweep.
+    let predecessor: Option<u64> = connection
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(predecessor, Some(1));
+
+    clean_up_session(&store, &party_key, successor).await;
+    clean_up_session(&store, &party_key, uuid).await;
+}
+
+#[tokio::test]
+async fn session_reuses_an_expired_session_if_it_has_an_active_challenge() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
+
+    let Ok(SessionResolution::Created(uuid)) =
+        store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+    else {
+        panic!("expected a creation");
+    };
+    let challenge = Uuid::new_v4();
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .sadd(session_members_key(uuid), challenge.to_string())
+        .await
+        .unwrap();
+    let _: () = connection
+        .zadd(SESSION_DEADLINES_KEY, uuid.to_string(), 1)
+        .await
+        .unwrap();
+
+    let resolution = store
+        .resolve(ChallengeType::Tob, &party, TEST_WINDOW)
+        .await
+        .expect("resolve should succeed");
+    let SessionResolution::Existing(existing) = resolution else {
+        panic!("expected the challenge to keep the session live");
+    };
+    assert_eq!(existing, uuid);
+    let deadline: u64 = connection
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline > unix_millis());
+
+    clean_up_session(&store, &party_key, uuid).await;
+}
+
+#[tokio::test]
+async fn session_refresh_extends_an_existing_deadline() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
+
+    let Ok(SessionResolution::Created(uuid)) =
+        store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+    else {
+        panic!("expected a creation");
+    };
+    let aged = unix_millis() + 60_000;
+    let mut connection = store.pool.get().await.unwrap();
+    let _: () = connection
+        .zadd(SESSION_DEADLINES_KEY, uuid.to_string(), aged)
+        .await
+        .unwrap();
+
+    store
+        .refresh(uuid, TEST_WINDOW)
+        .await
+        .expect("refresh should succeed");
+    let deadline: u64 = connection
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert!(deadline > aged);
+
+    // A session without a deadline entry cannot be refreshed.
+    let missing = Uuid::new_v4();
+    assert!(store.refresh(missing, TEST_WINDOW).await.is_err());
+    let resurrected: Option<u64> = connection
+        .zscore(SESSION_DEADLINES_KEY, missing.to_string())
+        .await
+        .unwrap();
+    assert_eq!(resurrected, None);
+
+    clean_up_session(&store, &party_key, uuid).await;
+}
+
+#[tokio::test]
+async fn session_sweep_claims_expired_sessions_without_challenges() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let _guard = SWEEP_LOCK.lock().await;
+    let mut sessions = Vec::new();
+    for _ in 0..3 {
+        let client = test_client();
+        let party = test_party_members(client);
+        let party_key = session_party_key(ChallengeType::Tob, &party);
+        let Ok(SessionResolution::Created(uuid)) =
+            store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+        else {
+            panic!("expected a creation");
+        };
+        sessions.push((party_key, uuid));
+    }
+    let (expired_key, expired) = sessions[0].clone();
+    let (membered_key, membered) = sessions[1].clone();
+    let (live_key, live) = sessions[2].clone();
 
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
-        .hset_multiple(
-            session_lease_key(uuid),
-            &[("fence", "3".to_string()), ("owner", "dead-server".into())],
-        )
+        .zadd(SESSION_DEADLINES_KEY, expired.to_string(), 1)
         .await
         .unwrap();
     let _: () = connection
-        .zadd(SESSION_LEASES_KEY, uuid.to_string(), 1)
+        .zadd(SESSION_DEADLINES_KEY, membered.to_string(), 1)
+        .await
+        .unwrap();
+    let _: () = connection
+        .sadd(session_members_key(membered), Uuid::new_v4().to_string())
         .await
         .unwrap();
 
-    let claimed = as_identity(&store, "session-reclaimer")
-        .claim_unowned_sessions(16, &[])
+    let claimed = store
+        .claim_expired_sessions(16)
         .await
         .expect("sweep should succeed");
-    let claim = claimed
-        .iter()
-        .find(|claim| claim.uuid() == uuid)
-        .expect("the lapsed session should be claimed");
+    assert!(claimed.contains(&expired));
+    assert!(!claimed.contains(&membered));
+    assert!(!claimed.contains(&live));
 
-    let fence: String = connection
-        .hget(session_lease_key(uuid), "fence")
+    // The claim advances the deadline by the hold and clears the routing key,
+    // leaving the rest of the session's state for deletion.
+    let hold: u64 = connection
+        .zscore(SESSION_DEADLINES_KEY, expired.to_string())
         .await
         .unwrap();
-    assert_eq!(fence, "4");
-    let owner: String = connection
-        .hget(session_lease_key(uuid), "owner")
+    assert!(hold > unix_millis());
+    let directory: Option<String> = connection
+        .get(session_directory_key(&expired_key))
         .await
         .unwrap();
-    assert_eq!(owner, "session-reclaimer");
-    let deadline: u64 = connection
-        .zscore(SESSION_LEASES_KEY, uuid.to_string())
+    assert_eq!(directory, None);
+    let party_record: String = connection
+        .get(session_party_record_key(expired))
         .await
         .unwrap();
-    assert!(deadline > unix_millis());
+    assert_eq!(party_record, expired_key);
 
-    claim.release().await.expect("release should succeed");
-    clean_up_session(&store, uuid).await;
+    // Skipped sessions' routing keys are untouched.
+    let membered_directory: Option<String> = connection
+        .get(session_directory_key(&membered_key))
+        .await
+        .unwrap();
+    assert_eq!(membered_directory, Some(membered.to_string()));
+    let live_directory: Option<String> = connection
+        .get(session_directory_key(&live_key))
+        .await
+        .unwrap();
+    assert_eq!(live_directory, Some(live.to_string()));
+
+    for (party_key, uuid) in &sessions {
+        clean_up_session(&store, party_key, *uuid).await;
+    }
 }
 
 #[tokio::test]
-async fn session_journal_appends_and_loads_back() {
+async fn session_delete_removes_session_state() {
     let Some(store) = test_store().await else {
         return;
     };
-    let uuid = Uuid::new_v4();
-    let claim = stub_session_claim(&store, uuid).await;
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
 
-    let batch = vec![
-        session_entry(
-            0,
-            SessionEvent::Started {
-                uuid,
-                party_key: "1-1ogp-wwwwwwwwwwqq".into(),
-            },
-        ),
-        session_entry(1, SessionEvent::Activity),
-    ];
-    claim.append(&batch).await.expect("append should succeed");
-    assert_eq!(claim.load().await.expect("load should succeed"), batch);
-
-    let stale = store.new_session_claim(uuid, Epoch(0));
-    assert_eq!(
-        stale
-            .append(&[session_entry(2, SessionEvent::Expired)])
-            .await,
-        Err(StoreError::Fenced),
-    );
-    assert_eq!(claim.load().await.expect("load should succeed"), batch);
-
-    clean_up_session(&store, uuid).await;
-}
-
-#[tokio::test]
-async fn session_renew_and_release_update_the_index_deadline() {
-    let Some(store) = test_store().await else {
-        return;
+    let Ok(SessionResolution::Created(uuid)) =
+        store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+    else {
+        panic!("expected a creation");
     };
-    let _guard = SWEEP_LOCK.lock().await;
-    let uuid = Uuid::new_v4();
-    let claim = stub_session_claim(&store, uuid).await;
-    let mut connection = store.pool.get().await.unwrap();
 
-    claim.renew().await.expect("renew should succeed");
-    let deadline: u64 = connection
-        .zscore(SESSION_LEASES_KEY, uuid.to_string())
-        .await
-        .unwrap();
-    assert!(deadline > unix_millis());
-
-    assert_eq!(
-        store.new_session_claim(uuid, Epoch(0)).renew().await,
-        Err(StoreError::Fenced),
-    );
-
-    claim.release().await.expect("release should succeed");
-    let released: u64 = connection
-        .zscore(SESSION_LEASES_KEY, uuid.to_string())
-        .await
-        .unwrap();
-    assert_eq!(released, 0);
-
-    clean_up_session(&store, uuid).await;
-}
-
-#[tokio::test]
-async fn session_delete_removes_and_expires_keys() {
-    let Some(store) = test_store().await else {
-        return;
-    };
-    let uuid = Uuid::new_v4();
-    let claim = stub_session_claim(&store, uuid).await;
-    let party_key = format!("1-1ogp_{uuid}");
-    let mut connection = store.pool.get().await.unwrap();
-    let _: () = connection
-        .set(session_directory_key(&party_key), uuid.to_string())
-        .await
-        .unwrap();
-    claim
-        .append(&[session_entry(
-            0,
-            SessionEvent::Started {
-                uuid,
-                party_key: party_key.clone(),
-            },
-        )])
-        .await
-        .expect("append should succeed");
-
-    assert_eq!(
-        store
-            .new_session_claim(uuid, Epoch(0))
-            .delete(&party_key)
-            .await,
-        Err(StoreError::Fenced),
-    );
-
-    claim
-        .delete(&party_key)
+    store
+        .delete_session(uuid)
         .await
         .expect("delete should succeed");
+
+    let mut connection = store.pool.get().await.unwrap();
     let directory: Option<String> = connection
         .get(session_directory_key(&party_key))
         .await
         .unwrap();
     assert_eq!(directory, None);
     let indexed: Option<u64> = connection
-        .zscore(SESSION_LEASES_KEY, uuid.to_string())
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
         .await
         .unwrap();
     assert_eq!(indexed, None);
-    let lease_exists: bool = connection.exists(session_lease_key(uuid)).await.unwrap();
-    assert!(!lease_exists);
-    let journal_ttl: i64 = connection.ttl(session_journal_key(uuid)).await.unwrap();
-    assert!(journal_ttl > 0);
-
-    clean_up_session(&store, uuid).await;
+    let party_record: Option<String> = connection
+        .get(session_party_record_key(uuid))
+        .await
+        .unwrap();
+    assert_eq!(party_record, None);
+    let members_exist: bool = connection.exists(session_members_key(uuid)).await.unwrap();
+    assert!(!members_exist);
 }
 
 #[tokio::test]
-async fn session_delete_leaves_directory_if_party_moved_on() {
+async fn session_delete_leaves_party_directory_if_party_moved_on() {
     let Some(store) = test_store().await else {
         return;
     };
-    let uuid = Uuid::new_v4();
+    let client = test_client();
+    let party = test_party_members(client);
+    let party_key = session_party_key(ChallengeType::Tob, &party);
     let successor = Uuid::new_v4();
-    let claim = stub_session_claim(&store, uuid).await;
-    let party_key = format!("1-1ogp_{uuid}");
+
+    let Ok(SessionResolution::Created(uuid)) =
+        store.resolve(ChallengeType::Tob, &party, TEST_WINDOW).await
+    else {
+        panic!("expected a creation");
+    };
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection
         .set(session_directory_key(&party_key), successor.to_string())
         .await
         .unwrap();
 
-    claim
-        .delete(&party_key)
+    store
+        .delete_session(uuid)
         .await
         .expect("delete should succeed");
 
@@ -2716,34 +2865,5 @@ async fn session_delete_leaves_directory_if_party_moved_on() {
         .unwrap();
     assert_eq!(directory, Some(successor.to_string()));
 
-    let _: () = connection
-        .del(session_directory_key(&party_key))
-        .await
-        .unwrap();
-    clean_up_session(&store, uuid).await;
-}
-
-#[tokio::test]
-async fn session_follow_delivers_queued_commands() {
-    let Some(store) = test_store().await else {
-        return;
-    };
-    let uuid = Uuid::new_v4();
-    let claim = stub_session_claim(&store, uuid).await;
-    let mut connection = store.pool.get().await.unwrap();
-    let payload = serde_json::to_string(&SessionCommand::Activity).unwrap();
-    let _: String = connection
-        .xadd(session_inbox_key(uuid), "*", &[("cmd", &payload)])
-        .await
-        .unwrap();
-
-    let (tx, mut rx) = tokio::sync::mpsc::channel(8);
-    claim.follow(MsgId::default(), tx);
-    let envelope = tokio::time::timeout(Duration::from_secs(5), rx.recv())
-        .await
-        .expect("follow should deliver within the timeout")
-        .expect("the feed should stay open");
-    assert_eq!(envelope.cmd, SessionCommand::Activity);
-
-    clean_up_session(&store, uuid).await;
+    clean_up_session(&store, &party_key, uuid).await;
 }

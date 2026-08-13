@@ -239,6 +239,7 @@ mod tests {
     fn run_interpret(records: Vec<ClientStageStream>) -> Result<InterpretOutput, InterpretError> {
         let info = ChallengeInfo {
             uuid: test_uuid(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
             party: vec!["1Ogp".to_string()],

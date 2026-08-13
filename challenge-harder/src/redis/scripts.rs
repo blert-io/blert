@@ -6,7 +6,8 @@ use redis::Script;
 
 use super::{
     CHALLENGE_INBOX_KEY_PREFIX, CHALLENGE_KEY_PREFIX, CHALLENGE_LEASE_KEY_PREFIX,
-    CHALLENGE_UPDATES_CHANNEL, SESSION_LEASE_KEY_PREFIX, SIGNAL_CHANNEL,
+    CHALLENGE_UPDATES_CHANNEL, SESSION_CHALLENGE_KEY_PREFIX, SESSION_DIRECTORY_KEY_PREFIX,
+    SESSION_PARTY_KEY_PREFIX, SIGNAL_CHANNEL,
 };
 use crate::lifecycle::core::{state::ChallengePhase, types::Epoch};
 
@@ -29,7 +30,7 @@ use crate::lifecycle::core::{state::ChallengePhase, types::Epoch};
 ///
 /// A flat list of alternating uuid, epoch pairs for each claimed challenge.
 /// Empty when nothing was claimable.
-fn claim_script(lease_prefix: &str) -> Script {
+pub(super) static CLAIM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     Script::new(&format!(
         r"
         local skip = {{}}
@@ -43,7 +44,7 @@ fn claim_script(lease_prefix: &str) -> Script {
                 break
             end
             local uuid = index[i]
-            local lease = '{lease_prefix}' .. uuid
+            local lease = '{CHALLENGE_LEASE_KEY_PREFIX}' .. uuid
             if not skip[uuid]
                 and (tonumber(index[i + 1]) <= tonumber(ARGV[2])
                     or redis.call('HGET', lease, 'owner') == ARGV[1]) then
@@ -57,13 +58,7 @@ fn claim_script(lease_prefix: &str) -> Script {
         return claimed
         ",
     ))
-}
-
-pub(super) static CLAIM_SCRIPT: LazyLock<Script> =
-    LazyLock::new(|| claim_script(CHALLENGE_LEASE_KEY_PREFIX));
-
-pub(super) static SESSION_CLAIM_SCRIPT: LazyLock<Script> =
-    LazyLock::new(|| claim_script(SESSION_LEASE_KEY_PREFIX));
+});
 
 /// Extends a challenge's lease deadline, provided the renewer's epoch still
 /// holds the challenge's fence.
@@ -272,8 +267,9 @@ pub(super) static REMOVE_STREAM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 ///
 /// If creating a challenge, adds its UUID to the index owned until the given
 /// lease deadline, establishes its fence at the initial epoch under the
-/// creator's ownership, points each party member's player key at it, and
-/// pushes an initial creation command to its inbox.
+/// creator's ownership, points each party member's player key at it, adds it
+/// to its session's active challenge set, and pushes an initial creation
+/// command to its inbox.
 /// If joining, pushes the join command to the incumbent's inbox instead,
 /// leaving the player keys alone as the party is unchanged.
 ///
@@ -286,7 +282,8 @@ pub(super) static REMOVE_STREAM_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// - `KEYS[3]` = New challenge's lease hash
 /// - `KEYS[4]` = The client's active challenge key
 /// - `KEYS[5]` = New challenge's inbox stream
-/// - `KEYS[6..]` = Party members' player keys
+/// - `KEYS[6]` = Session's active challenge set
+/// - `KEYS[7..]` = Party members' player keys
 ///
 /// - `ARGV[1]` = Fresh challenge uuid
 /// - `ARGV[2]` = Creating instance's identity
@@ -333,8 +330,9 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         redis.call('SET', KEYS[1], ARGV[1])
         redis.call('HSET', KEYS[3], 'fence', {initial_epoch}, 'owner', ARGV[2])
         redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
+        redis.call('SADD', KEYS[6], ARGV[1])
         redis.call('SET', KEYS[4], ARGV[1])
-        for i = 6, #KEYS do
+        for i = 7, #KEYS do
             redis.call('SET', KEYS[i], ARGV[1])
         end
         local id = redis.call('XADD', KEYS[5], '*', 'cmd', ARGV[5])
@@ -350,7 +348,8 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// index.
 ///
 /// Routing keys are removed only if they still point to the challenge, as a
-/// successor may have overwritten them. Stage event streams are swept through
+/// successor may have overwritten them. The challenge is removed from its
+/// session's active challenge set. Stage event streams are swept through
 /// the challenge's stream set. The journal and inbox are not deleted but left
 /// to expire, so that recently ended challenges can be inspected. The state
 /// and clients hashes are also left to expire, briefly, so that response
@@ -367,7 +366,8 @@ pub(super) static START_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
 /// - `KEYS[6]` = Challenge's stage streams set
 /// - `KEYS[7]` = Challenge's clients hash
 /// - `KEYS[8]` = Challenge's processed stages set
-/// - `KEYS[9..]` = The challenge's routing keys (directory, client, and player)
+/// - `KEYS[9]` = Session's active challenge set
+/// - `KEYS[10..]` = The challenge's routing keys (directory, client, and player)
 ///
 /// - `ARGV[1]` = Lease epoch
 /// - `ARGV[2]` = Challenge uuid
@@ -388,7 +388,8 @@ pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         redis.call('EXPIRE', KEYS[3], ARGV[5])
         redis.call('EXPIRE', KEYS[7], ARGV[5])
         redis.call('EXPIRE', KEYS[8], ARGV[4])
-        for i = 9, #KEYS do
+        redis.call('SREM', KEYS[9], ARGV[2])
+        for i = 10, #KEYS do
             if redis.call('GET', KEYS[i]) == ARGV[2] then
                 redis.call('DEL', KEYS[i])
             end
@@ -406,44 +407,6 @@ pub(super) static DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         return 1
         ",
     ))
-});
-
-/// Deletes an expired session's state, provided the deleter's epoch still
-/// holds the session's fence, permanently removing it from the session index.
-/// The journal and inbox are left to expire for inspection.
-///
-/// ## Arguments
-///
-/// - `KEYS[1]` = Session's lease hash
-/// - `KEYS[2]` = Session index
-/// - `KEYS[3]` = Session's party directory key
-/// - `KEYS[4]` = Session's journal stream
-/// - `KEYS[5]` = Session's inbox stream
-///
-/// - `ARGV[1]` = Lease epoch
-/// - `ARGV[2]` = Session uuid
-/// - `ARGV[3]` = Journal and inbox retention, in seconds
-///
-/// ## Return value
-///
-/// - `1`: The session was deleted.
-/// - `0`: The epoch no longer holds the fence.
-pub(super) static SESSION_DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
-    Script::new(
-        r"
-        if redis.call('HGET', KEYS[1], 'fence') ~= ARGV[1] then
-            return 0
-        end
-        if redis.call('GET', KEYS[3]) == ARGV[2] then
-            redis.call('DEL', KEYS[3])
-        end
-        redis.call('EXPIRE', KEYS[4], ARGV[3])
-        redis.call('EXPIRE', KEYS[5], ARGV[3])
-        redis.call('ZREM', KEYS[2], ARGV[2])
-        redis.call('DEL', KEYS[1])
-        return 1
-        ",
-    )
 });
 
 /// Queues a join command into a challenge's inbox and links the client to
@@ -543,5 +506,116 @@ pub(super) static CLIENT_SEND_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
         return {{uuid, id}}
         ",
         terminated = ChallengePhase::Terminated.tag(),
+    ))
+});
+
+/// Deletes a finalized session's state, permanently removing it from the
+/// session index. The session's party's routing key is cleared if it still
+/// points to the session.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = Session index
+/// - `KEYS[2]` = Session's active challenge set
+/// - `KEYS[3]` = Session's party record key
+///
+/// - `ARGV[1]` = Session UUID
+///
+/// ## Return value
+///
+/// `1` for the money
+pub(super) static SESSION_DELETE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        local party = redis.call('GET', KEYS[3])
+        if party and redis.call('GET', '{SESSION_DIRECTORY_KEY_PREFIX}' .. party) == ARGV[1] then
+            redis.call('DEL', '{SESSION_DIRECTORY_KEY_PREFIX}' .. party)
+        end
+        redis.call('ZREM', KEYS[1], ARGV[1])
+        redis.call('DEL', KEYS[2])
+        redis.call('DEL', KEYS[3])
+        return 1
+        "
+    ))
+});
+
+/// Resolves the active session for a party. If the party has an existing
+/// session that has not expired, returns its UUID. Otherwise, creates a new
+/// session with the provided UUID and routing set to the party's identity.
+/// A session with active challenges is treated as live even if its deadline
+/// has passed.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = The party's session directory key
+/// - `KEYS[2]` = Session index
+/// - `KEYS[3]` = New session's party record key
+///
+/// - `ARGV[1]` = New session UUID
+/// - `ARGV[2]` = Current time as a unix millisecond timestamp
+/// - `ARGV[3]` = New activity deadline as a unix millisecond timestamp
+/// - `ARGV[4]` = Party identity
+///
+/// ## Return value
+///
+/// - `["EXISTS", UUID]`: The party has a live session which was reused.
+/// - `["CREATED"]`: The candidate session was created.
+pub(super) static SESSION_RESOLVE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        local existing = redis.call('GET', KEYS[1])
+        if existing then
+            local deadline = redis.call('ZSCORE', KEYS[2], existing)
+            local challenges = redis.call('SCARD', '{SESSION_CHALLENGE_KEY_PREFIX}' .. existing)
+            if (deadline and tonumber(deadline) > tonumber(ARGV[2])) or challenges > 0 then
+                redis.call('ZADD', KEYS[2], ARGV[3], existing)
+                return {{'EXISTS', existing}}
+            end
+        end
+        redis.call('SET', KEYS[1], ARGV[1])
+        redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
+        redis.call('SET', KEYS[3], ARGV[4])
+        return {{'CREATED'}}
+        "
+    ))
+});
+
+/// Claims a batch of expired sessions for finalization. A session is expired
+/// if its deadline has lapsed and it has no active challenges. Each claimed
+/// session's party routing key is cleared and its deadline advanced by a
+/// short hold, so an instance that dies before deleting it leaves it
+/// claimable again.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = Session index
+///
+/// - `ARGV[1]` = Current time as a unix millisecond timestamp
+/// - `ARGV[2]` = Claim hold deadline as a unix millisecond timestamp
+/// - `ARGV[3]` = Batch size
+///
+/// ## Return value
+///
+/// A list of the claimed sessions' UUIDs, empty when none are expired.
+pub(super) static SESSION_SWEEP_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(&format!(
+        r"
+        local claimed = {{}}
+        local candidates = redis.call('ZRANGEBYSCORE', KEYS[1], 0, ARGV[1])
+        for _, uuid in ipairs(candidates) do
+            if #claimed >= tonumber(ARGV[3]) then
+                break
+            end
+            if redis.call('SCARD', '{SESSION_CHALLENGE_KEY_PREFIX}' .. uuid) == 0 then
+                redis.call('ZADD', KEYS[1], ARGV[2], uuid)
+                local party = redis.call('GET', '{SESSION_PARTY_KEY_PREFIX}' .. uuid)
+                if party and redis.call('GET', '{SESSION_DIRECTORY_KEY_PREFIX}' .. party) == uuid then
+                    redis.call('DEL', '{SESSION_DIRECTORY_KEY_PREFIX}' .. party)
+                end
+                claimed[#claimed + 1] = uuid
+            end
+        end
+        return claimed
+        "
     ))
 });

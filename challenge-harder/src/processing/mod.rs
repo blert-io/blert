@@ -17,6 +17,7 @@ use challenge_processor::ChallengeProcessor;
 use mokhaiotl::MokhaiotlProcessor;
 
 pub use crate::lifecycle::core::types::ChallengeInfo;
+pub use session::PostgresSessionFinalizer;
 
 pub mod db;
 
@@ -25,6 +26,7 @@ mod challenge_processor;
 mod interpret;
 mod mokhaiotl;
 mod persist;
+mod session;
 mod split;
 mod stage;
 mod stats;
@@ -87,13 +89,13 @@ pub trait StageProcessor: Send + Sync + 'static {
 
 /// Complete event processing pipeline.
 pub struct Pipeline {
-    db: db::Postgres,
+    db: Arc<db::Postgres>,
     store: Arc<Store>,
     repository: DataRepository,
 }
 
 impl Pipeline {
-    pub fn new(db: db::Postgres, store: Arc<Store>, repository: DataRepository) -> Pipeline {
+    pub fn new(db: Arc<db::Postgres>, store: Arc<Store>, repository: DataRepository) -> Pipeline {
         Pipeline {
             db,
             store,

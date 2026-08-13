@@ -25,6 +25,7 @@ const SWEEP_CONFIG: LifecycleConfig = LifecycleConfig {
     reconnection_window: Duration::from_secs(30),
     inactivity_timeout: Duration::from_mins(1),
     lease_renewal_interval: Duration::from_secs(10),
+    session_activity_window: Duration::from_mins(30),
     processing: ProcessingConfig {
         max_attempts: 0,
         run_timeout: Duration::from_secs(30),

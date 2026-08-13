@@ -26,8 +26,8 @@ use super::challenge::{
 use super::coordinator::Coordinator;
 use super::core::apply::apply;
 use super::core::command::{
-    ClientMovedOn, ClientStatus, ClientStatusChange, Command, Create, Envelope, Finish, Join,
-    StageProgress, Update,
+    ClientMovedOn, ClientStatus, ClientStatusChange, Command, Create, CreateRequest, Envelope,
+    Finish, Join, StageProgress, Update,
 };
 use super::core::deadline::LifecycleConfig;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
@@ -39,6 +39,7 @@ use super::core::types::{
     ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage, StageExt, StageStatus,
     UserId, Uuid,
 };
+use super::session::{SessionResolution, SessionStore};
 use super::store::StoreError;
 use crate::processing::{ProcessingRequest, StageProcessor};
 
@@ -134,6 +135,10 @@ pub struct Outcome {
 
 pub struct ScenarioResult {
     pub journals: CollectedJournals,
+    /// Session resolved for each party, keyed by party identity.
+    pub sessions: BTreeMap<String, Uuid>,
+    /// How many times each session was refreshed by its challenges.
+    pub session_refreshes: BTreeMap<Uuid, u64>,
     pub outcomes: Vec<Outcome>,
     pub snapshots: BTreeMap<Uuid, Snapshot>,
     pub projections: BTreeMap<Uuid, Snapshot>,
@@ -162,6 +167,23 @@ impl ScenarioResult {
         (*uuid, journal)
     }
 
+    /// Expects exactly one session in the scenario, returning its refresh count.
+    pub fn only_session(&self) -> (Uuid, u64) {
+        assert_eq!(
+            self.sessions.len(),
+            1,
+            "scenario produced {} sessions",
+            self.sessions.len(),
+        );
+        let uuid = *self.sessions.values().next().unwrap();
+        let refreshes = self
+            .session_refreshes
+            .get(&uuid)
+            .copied()
+            .unwrap_or_default();
+        (uuid, refreshes)
+    }
+
     /// Final projected status of the scenario's only challenge.
     pub fn only_status(&self) -> ChallengeStatus {
         let (uuid, _) = self.only_challenge();
@@ -174,6 +196,8 @@ impl ScenarioResult {
     }
 
     /// Returns the trace with each uuid replaced by its creation index.
+    /// Session uuids are replaced in party identity order, which is stable
+    /// for a fixed scenario.
     pub fn normalized_trace(&self) -> String {
         let ordered: Vec<&Vec<JournalEntry>> = self
             .journals
@@ -183,6 +207,9 @@ impl ScenarioResult {
         let mut trace = serde_json::to_string(&ordered).expect("journals should serialize");
         for (index, (uuid, _)) in self.journals.into_iter().enumerate() {
             trace = trace.replace(&uuid.to_string(), &format!("challenge-{index}"));
+        }
+        for (index, uuid) in self.sessions.values().enumerate() {
+            trace = trace.replace(&uuid.to_string(), &format!("session-{index}"));
         }
         trace
     }
@@ -285,6 +312,13 @@ struct CollectorRouting {
     deleted: BTreeSet<Uuid>,
 }
 
+/// Session state written by session resolution and challenge refreshes.
+#[derive(Default)]
+struct CollectorSessions {
+    directory: BTreeMap<String, Uuid>,
+    refreshes: BTreeMap<Uuid, u64>,
+}
+
 /// In-memory [`ChallengeStore`] collecting everything written through it.
 /// Update signals are delivered synchronously on projection, keeping runs
 /// deterministic.
@@ -292,6 +326,7 @@ struct CollectorRouting {
 pub(crate) struct Collector {
     inboxes: Arc<Mutex<CollectorInboxes>>,
     routing: Arc<Mutex<CollectorRouting>>,
+    sessions: Arc<Mutex<CollectorSessions>>,
     journals: Arc<Mutex<CollectedJournals>>,
     projections: Arc<Mutex<BTreeMap<Uuid, Snapshot>>>,
     updates: Arc<Mutex<Vec<(Uuid, ChallengeServerUpdate)>>>,
@@ -309,6 +344,17 @@ impl Collector {
             .journals
             .get(&uuid)
             .cloned()
+            .unwrap_or_default()
+    }
+
+    /// How many times session `uuid` has been refreshed by its challenges.
+    pub fn refresh_count(&self, uuid: Uuid) -> u64 {
+        self.sessions
+            .lock()
+            .expect("collector lock poisoned")
+            .refreshes
+            .get(&uuid)
+            .copied()
             .unwrap_or_default()
     }
 
@@ -468,8 +514,8 @@ impl ChallengeStore for Collector {
     }
 
     async fn start(&self, create: Create) -> Result<Start, StoreError> {
-        let client_id = create.client_id;
-        let party = party_identity(create.challenge_type, &create.party);
+        let client_id = create.request.client_id;
+        let party = party_identity(create.request.challenge_type, &create.request.party);
         let (joined, uuid, left) = {
             let mut routing = self.routing.lock().expect("collector lock poisoned");
             let incumbent = routing.directory.get(&party).copied().filter(|incumbent| {
@@ -479,7 +525,11 @@ impl ChallengeStore for Collector {
                     .get(incumbent)
                     .is_some_and(|snapshot| {
                         snapshot.phase == ChallengePhase::Active
-                            && !create.stage.later_stages().contains(&snapshot.stage)
+                            && !create
+                                .request
+                                .stage
+                                .later_stages()
+                                .contains(&snapshot.stage)
                     })
             });
             if let Some(incumbent) = incumbent {
@@ -506,7 +556,9 @@ impl ChallengeStore for Collector {
         }
 
         if joined {
-            let id = self.enqueue(uuid, Command::Join(Join::from(&create))).await;
+            let id = self
+                .enqueue(uuid, Command::Join(Join::from(&create.request)))
+                .await;
             Ok(Start::Joined { uuid, id })
         } else {
             let id = self.enqueue(uuid, Command::Create(create)).await;
@@ -601,6 +653,44 @@ impl ChallengeStore for Collector {
 
     fn subscribe(&self, sink: mpsc::Sender<ChallengeSignal>) {
         *self.signals.lock().expect("collector lock poisoned") = Some(sink);
+    }
+}
+
+#[async_trait]
+impl SessionStore for Collector {
+    async fn resolve(
+        &self,
+        challenge_type: ChallengeType,
+        party: &[String],
+        _window: Duration,
+    ) -> Result<SessionResolution, StoreError> {
+        let party_key = party_identity(challenge_type, party);
+        let mut sessions = self.sessions.lock().expect("collector lock poisoned");
+        if let Some(existing) = sessions.directory.get(&party_key) {
+            return Ok(SessionResolution::Existing(*existing));
+        }
+        let uuid = Uuid::new_v4();
+        sessions.directory.insert(party_key, uuid);
+        sessions.refreshes.insert(uuid, 0);
+        Ok(SessionResolution::Created(uuid))
+    }
+
+    async fn refresh(&self, session: Uuid, _window: Duration) -> Result<(), StoreError> {
+        let mut sessions = self.sessions.lock().expect("collector lock poisoned");
+        *sessions.refreshes.entry(session).or_default() += 1;
+        Ok(())
+    }
+
+    // The sim does not model session expiration.
+    async fn claim_expired_sessions(&self, _batch_size: usize) -> Result<Vec<Uuid>, StoreError> {
+        Ok(Vec::new())
+    }
+
+    async fn delete_session(&self, session: Uuid) -> Result<(), StoreError> {
+        let mut sessions = self.sessions.lock().expect("collector lock poisoned");
+        sessions.directory.retain(|_, uuid| *uuid != session);
+        sessions.refreshes.remove(&session);
+        Ok(())
     }
 }
 
@@ -831,12 +921,14 @@ impl From<LifecycleConfig> for RunOptions {
 
 /// Runs a scenario to completion under specific options and checks
 /// structural invariants.
+#[expect(clippy::too_many_lines)]
 pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> ScenarioResult {
     let RunOptions { config, processor } = options.into();
     let collector = Collector::default();
     let (_tx, rx) = watch::channel(false);
     let mut coordinator =
-        Coordinator::with_store(Arc::new(collector.clone()), rx).with_config(config.clone());
+        Coordinator::with_stores(Arc::new(collector.clone()), Arc::new(collector.clone()), rx)
+            .with_config(config.clone());
     if let Some(processor) = processor {
         coordinator = coordinator.with_processor(processor);
     }
@@ -882,6 +974,10 @@ pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> Sce
         .lock()
         .expect("collector lock poisoned")
         .clone();
+    let (sessions, session_refreshes) = {
+        let sessions = collector.sessions.lock().expect("collector lock poisoned");
+        (sessions.directory.clone(), sessions.refreshes.clone())
+    };
     let projections = collector
         .projections
         .lock()
@@ -929,6 +1025,8 @@ pub async fn run_with(options: impl Into<RunOptions>, scenario: Scenario) -> Sce
 
     let result = ScenarioResult {
         journals,
+        sessions,
+        session_refreshes,
         outcomes,
         snapshots,
         projections,
@@ -958,7 +1056,7 @@ async fn issue(
             stage,
         } => {
             let response = coordinator
-                .create_or_join_challenge(Create {
+                .create_or_join_challenge(CreateRequest {
                     user_id: identity.user_id,
                     client_id: identity.client_id,
                     session_token: identity.session_token.clone(),

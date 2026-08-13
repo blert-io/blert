@@ -23,12 +23,14 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
     match entry.event {
         LifecycleEvent::ChallengeCreated {
             uuid,
+            session_uuid,
             challenge_type,
             mode,
             party,
             stage,
         } => {
             state.uuid = uuid;
+            state.session_uuid = session_uuid;
             if let Cause::Command(id) = entry.caused_by {
                 state.created_unix_ms = id.unix_millis();
             }
@@ -343,6 +345,7 @@ mod tests {
                 1,
                 LifecycleEvent::ChallengeCreated {
                     uuid,
+                    session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type,
                     mode,
                     party: vec!["aSaradomin".into()],
@@ -544,6 +547,7 @@ mod tests {
                 1,
                 LifecycleEvent::ChallengeCreated {
                     uuid: Uuid::default(),
+                    session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Mokhaiotl,
                     mode: ChallengeMode::NoMode,
                     party: vec!["Skitter".into()],
@@ -805,6 +809,7 @@ mod tests {
                 1,
                 LifecycleEvent::ChallengeCreated {
                     uuid: Uuid::from_u128(1),
+                    session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
@@ -883,6 +888,7 @@ mod tests {
                 caused_by: Cause::Command("1785693558201-0".parse().unwrap()),
                 event: LifecycleEvent::ChallengeCreated {
                     uuid: Uuid::from_u128(1),
+                    session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
                     party: vec!["1Ogp".into()],
@@ -1084,6 +1090,7 @@ mod tests {
             caused_by: Cause::Command(MsgId::sequence(0)),
             event: LifecycleEvent::ChallengeCreated {
                 uuid: Uuid::nil(),
+                session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
                 party: vec!["a".into()],
@@ -1166,6 +1173,7 @@ mod tests {
             state.processing.active().expect("exists").info,
             ChallengeInfo {
                 uuid: Uuid::from_u128(0xb1e47),
+                session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
                 party: vec!["aSaradomin".into()],
@@ -1202,6 +1210,7 @@ mod tests {
             run.info,
             ChallengeInfo {
                 uuid: Uuid::from_u128(0xb1e47),
+                session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobHard,
                 party: vec!["aSaradomin".into()],
@@ -1278,6 +1287,7 @@ mod tests {
             run.info,
             ChallengeInfo {
                 uuid: Uuid::from_u128(0xb1e47),
+                session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
                 party: vec!["aSaradomin".into()],

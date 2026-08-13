@@ -75,6 +75,11 @@ impl Postgres {
         Ok(Postgres { pool })
     }
 
+    /// Checks a raw connection out of the pool.
+    pub(crate) async fn checkout(&self) -> Result<Object, Error> {
+        Ok(self.pool.get().await?)
+    }
+
     /// Opens a guarded transaction for the processing run of `trigger`,
     /// failing with [`Error::AlreadyApplied`] if the processing step has
     /// previously been applied to the database.
@@ -90,13 +95,15 @@ impl Postgres {
             client: Some(client),
             trigger,
             challenge_id: 0,
+            session_id: None,
             custom_data: None,
             deleted: false,
         };
 
         let guard = txn
             .query_opt(
-                "SELECT c.id, s.processed_seq, s.outcome_status, s.outcome_ticks, s.custom_data
+                "SELECT c.id, c.session_id, s.processed_seq, s.outcome_status, s.outcome_ticks,
+                        s.custom_data
                  FROM challenges c
                  LEFT JOIN challenge_processing_state s ON s.challenge_id = c.id
                  WHERE c.uuid = $1",
@@ -105,13 +112,14 @@ impl Postgres {
             .await?;
         match guard {
             Some(row) => {
-                if let Some(processed_seq) = row.get::<_, Option<i64>>(1)
+                if let Some(processed_seq) = row.get::<_, Option<i64>>(2)
                     && processed_seq >= seq.0.cast_signed()
                 {
                     return Err(Error::AlreadyApplied(stored_payload(&row)?));
                 }
                 txn.challenge_id = row.get(0);
-                txn.custom_data = row.get(4);
+                txn.session_id = row.get(1);
+                txn.custom_data = row.get(5);
             }
             None => {
                 // Nothing runs after a finish, so no row existing means a
@@ -129,13 +137,13 @@ impl Postgres {
 /// Reconstructs a processing outcome from a stored row.
 fn stored_payload(row: &tokio_postgres::Row) -> Result<ProcessingPayload, Error> {
     // Either both status and ticks are present, or neither.
-    let Some(status) = row.get::<_, Option<i16>>(2) else {
+    let Some(status) = row.get::<_, Option<i16>>(3) else {
         return Ok(ProcessingPayload::None);
     };
 
     let status = StageStatus::try_from(i32::from(status))
         .map_err(|_| Error::InvalidData(format!("stored outcome status {status}")))?;
-    let ticks = row.get::<_, Option<i32>>(3);
+    let ticks = row.get::<_, Option<i32>>(4);
     let ticks = ticks
         .and_then(|t| u32::try_from(t).ok())
         .ok_or_else(|| Error::InvalidData(format!("stored outcome ticks {ticks:?}")))?;
@@ -149,6 +157,8 @@ pub struct Transaction {
     trigger: Trigger,
     /// Database ID of the challenge row.
     challenge_id: i32,
+    /// Database ID of the challenge's session row.
+    session_id: Option<i32>,
     /// The processor continuation state stored by the last committed run.
     custom_data: Option<serde_json::Value>,
     /// Whether the challenge's rows were removed within the transaction.
@@ -165,6 +175,12 @@ impl Transaction {
     pub fn set_challenge_id(&mut self, id: i32) {
         debug_assert_eq!(self.challenge_id, 0);
         self.challenge_id = id;
+    }
+
+    /// Returns the database ID of the challenge's session.
+    pub fn session_id(&self) -> Result<i32, Error> {
+        self.session_id
+            .ok_or_else(|| Error::InvalidData("challenge has no session".into()))
     }
 
     /// Returns the processor state stored by the last committed run.
@@ -264,14 +280,6 @@ impl Drop for Transaction {
         if let Some(client) = self.client.take() {
             drop(Object::take(client));
         }
-    }
-}
-
-#[cfg(test)]
-impl Postgres {
-    /// Gets a raw connection from the pool.
-    pub(crate) async fn client(&self) -> Object {
-        self.pool.get().await.expect("failed to check out a client")
     }
 }
 

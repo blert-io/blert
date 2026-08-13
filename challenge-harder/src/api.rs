@@ -16,7 +16,7 @@ use tower_http::trace::TraceLayer;
 
 use crate::lifecycle::coordinator::{CommandError, Coordinator};
 use crate::lifecycle::core::command::{
-    ClientStatus, ClientStatusChange, Create, Finish, Join, StageProgress, Update,
+    ClientStatus, ClientStatusChange, CreateRequest, Finish, Join, StageProgress, Update,
 };
 use crate::lifecycle::core::state::Snapshot;
 use crate::lifecycle::core::types::{
@@ -174,7 +174,7 @@ async fn new_challenge(
     State(coordinator): State<Arc<Coordinator>>,
     Json(req): Json<NewChallengeRequest>,
 ) -> Response {
-    let create = Create {
+    let request = CreateRequest {
         user_id: req.user_id,
         client_id: req.client_id,
         session_token: req.session_token,
@@ -187,7 +187,7 @@ async fn new_challenge(
         recording_type: req.recording_type,
     };
 
-    match coordinator.create_or_join_challenge(create).await {
+    match coordinator.create_or_join_challenge(request).await {
         Some(p) => Json(ChallengeResponse::from(p)).into_response(),
         None => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -286,8 +286,10 @@ mod tests {
     fn test_router() -> Router {
         let (tx, rx) = tokio::sync::watch::channel(false);
         std::mem::forget(tx);
-        router(Arc::new(Coordinator::with_store(
-            Arc::new(Collector::default()),
+        let collector = Arc::new(Collector::default());
+        router(Arc::new(Coordinator::with_stores(
+            Arc::clone(&collector) as _,
+            collector,
             rx,
         )))
     }

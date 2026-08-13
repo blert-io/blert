@@ -21,17 +21,15 @@ use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ClientStageStream, Epoch, MsgId,
     Stage, StageExt, UserId, Uuid,
 };
-use crate::lifecycle::session::{
-    ClaimedSession, SessionClaim, SessionEnvelope, SessionJournalEntry, SessionStore,
-};
+use crate::lifecycle::session::{SessionResolution, SessionStore};
 use crate::lifecycle::store::StoreError;
-use crate::players::normalize_rsn;
+use crate::players::{normalize_rsn, party_hash};
 
 mod scripts;
 use scripts::{
     ANNOUNCE_SCRIPT, APPEND_SCRIPT, CLAIM_SCRIPT, CLIENT_SEND_SCRIPT, DELETE_SCRIPT,
     PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, REMOVE_STREAM_SCRIPT, RENEW_SCRIPT, SEAL_SCRIPT,
-    SEND_SCRIPT, SESSION_CLAIM_SCRIPT, SESSION_DELETE_SCRIPT, START_SCRIPT,
+    SEND_SCRIPT, SESSION_DELETE_SCRIPT, SESSION_RESOLVE_SCRIPT, SESSION_SWEEP_SCRIPT, START_SCRIPT,
 };
 
 #[cfg(test)]
@@ -59,6 +57,9 @@ const DELETED_STATE_RETENTION: Duration = Duration::from_mins(1);
 
 /// How long a lease grant lasts before its state becomes claimable.
 const LEASE_TTL: Duration = Duration::from_secs(30);
+
+/// How long an expired session is claimed for by sweep operations.
+const SESSION_CLAIM_HOLD: Duration = Duration::from_secs(30);
 
 /// Channel for public challenge lifecycle broadcasts.
 pub(crate) const CHALLENGE_UPDATES_CHANNEL: &str = "challenge-updates";
@@ -149,32 +150,38 @@ fn player_key(name: &str) -> String {
     format!("player:{}", normalize_rsn(name))
 }
 
-/// Prefix of every session lease hash key.
-const SESSION_LEASE_KEY_PREFIX: &str = "2c2s:session:lease:";
-
-/// Ownership record of a session.
-fn session_lease_key(uuid: Uuid) -> String {
-    format!("{SESSION_LEASE_KEY_PREFIX}{uuid}")
-}
-
-/// A session's journal stream.
-fn session_journal_key(uuid: Uuid) -> String {
-    format!("2c2s:session:journal:{uuid}")
-}
-
-/// The stream of commands sent to a session.
-fn session_inbox_key(uuid: Uuid) -> String {
-    format!("2c2s:session:inbox:{uuid}")
-}
+/// Prefix of the directory keys mapping a party to its session.
+const SESSION_DIRECTORY_KEY_PREFIX: &str = "2c2s:session:";
 
 /// Which session UUID a party is running.
 fn session_directory_key(party: &str) -> String {
-    format!("2c2s:session:{party}")
+    format!("{SESSION_DIRECTORY_KEY_PREFIX}{party}")
 }
 
-/// Existence index of every session between creation and expiry, as a
-/// sorted set scored by lease deadline as a Unix millisecond timestamp.
-pub(crate) const SESSION_LEASES_KEY: &str = "2c2s:leases:session";
+/// Deadline index of every session between creation and finalization, as a
+/// sorted set scored by activity deadline as a Unix millisecond timestamp.
+pub(crate) const SESSION_DEADLINES_KEY: &str = "2c2s:session:deadlines";
+
+/// Prefix of every session's live challenge set key.
+const SESSION_CHALLENGE_KEY_PREFIX: &str = "2c2s:session:challenges:";
+
+/// Set of the UUIDs of a session's live challenges.
+fn session_members_key(uuid: Uuid) -> String {
+    format!("{SESSION_CHALLENGE_KEY_PREFIX}{uuid}")
+}
+
+/// Prefix of every session's party record key.
+const SESSION_PARTY_KEY_PREFIX: &str = "2c2s:session:party:";
+
+/// The party key to which a session belongs.
+fn session_party_record_key(uuid: Uuid) -> String {
+    format!("{SESSION_PARTY_KEY_PREFIX}{uuid}")
+}
+
+/// Unique identity for a specific party's current session.
+fn session_party_key(challenge_type: ChallengeType, party: &[String]) -> String {
+    format!("{}:{}", challenge_type as i32, party_hash(party))
+}
 
 /// The current unix time, in milliseconds.
 fn unix_millis() -> u64 {
@@ -184,9 +191,14 @@ fn unix_millis() -> u64 {
     u64::try_from(now.as_millis()).expect("timestamp fits in u64")
 }
 
+/// The unix millisecond timestamp `duration` from now.
+fn deadline_after(duration: Duration) -> u64 {
+    unix_millis() + u64::try_from(duration.as_millis()).expect("deadline fits in u64")
+}
+
 /// The lease deadline for a grant issued now, in unix milliseconds.
 fn lease_deadline() -> u64 {
-    unix_millis() + u64::try_from(LEASE_TTL.as_millis()).expect("deadline fits in u64")
+    deadline_after(LEASE_TTL)
 }
 
 /// Unique identity for a party running a particular challenge type.
@@ -288,18 +300,6 @@ impl Store {
             lease_key: challenge_lease_key(uuid),
             challenge_key: challenge_key(uuid),
             clients_key: challenge_clients_key(uuid),
-            epoch,
-            client: self.client.clone(),
-            pool: self.pool.clone(),
-        }
-    }
-
-    fn new_session_claim(&self, uuid: Uuid, epoch: Epoch) -> RedisSessionClaim {
-        RedisSessionClaim {
-            uuid,
-            journal_key: session_journal_key(uuid),
-            inbox_key: session_inbox_key(uuid),
-            lease_key: session_lease_key(uuid),
             epoch,
             client: self.client.clone(),
             pool: self.pool.clone(),
@@ -449,7 +449,8 @@ impl ChallengeStore for Store {
 
     async fn start(&self, create: Create) -> Result<Start, StoreError> {
         let uuid = Uuid::new_v4();
-        let party = party_identifier(create.challenge_type, &create.party);
+        let request = &create.request;
+        let party = party_identifier(request.challenge_type, &request.party);
         let mut connection = checkout(&self.pool).await?;
 
         let mut invocation = START_SCRIPT.prepare_invoke();
@@ -457,18 +458,19 @@ impl ChallengeStore for Store {
             .key(challenge_directory_key(&party))
             .key(CHALLENGE_LEASES_KEY)
             .key(challenge_lease_key(uuid))
-            .key(client_key(create.client_id))
-            .key(challenge_inbox_key(uuid));
-        for key in create.party.iter().map(|name| player_key(name)) {
+            .key(client_key(request.client_id))
+            .key(challenge_inbox_key(uuid))
+            .key(session_members_key(create.session_uuid));
+        for key in request.party.iter().map(|name| player_key(name)) {
             invocation.key(key);
         }
 
-        let later_stages = stage_set(&create.stage.later_stages());
+        let later_stages = stage_set(&request.stage.later_stages());
 
         let join_payload =
-            serde_json::to_string(&Command::Join(Join::from(&create))).expect("command serializes");
+            serde_json::to_string(&Command::Join(Join::from(request))).expect("command serializes");
         let removal_payload = serde_json::to_string(&Command::ClientMovedOn(ClientMovedOn {
-            client_id: create.client_id,
+            client_id: request.client_id,
         }))
         .expect("command serializes");
         let create_payload =
@@ -640,41 +642,96 @@ impl ChallengeStore for Store {
 
 #[async_trait]
 impl SessionStore for Store {
-    async fn claim_unowned_sessions(
+    async fn resolve(
         &self,
-        batch_size: usize,
-        exclude: &[Uuid],
-    ) -> Result<Vec<ClaimedSession>, StoreError> {
+        challenge_type: ChallengeType,
+        party: &[String],
+        window: Duration,
+    ) -> Result<SessionResolution, StoreError> {
+        let uuid = Uuid::new_v4();
+        let party_key = session_party_key(challenge_type, party);
         let mut connection = checkout(&self.pool).await?;
 
-        let mut invocation = SESSION_CLAIM_SCRIPT.prepare_invoke();
+        let mut invocation = SESSION_RESOLVE_SCRIPT.prepare_invoke();
         invocation
-            .key(SESSION_LEASES_KEY)
-            .arg(&self.identity)
+            .key(session_directory_key(&party_key))
+            .key(SESSION_DEADLINES_KEY)
+            .key(session_party_record_key(uuid))
+            .arg(uuid.to_string())
             .arg(unix_millis())
-            .arg(lease_deadline())
-            .arg(batch_size);
-        for uuid in exclude {
-            invocation.arg(uuid.to_string());
-        }
+            .arg(deadline_after(window))
+            .arg(&party_key);
+        let outcome: Vec<String> = invocation
+            .invoke_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
 
-        let claimed: Vec<(String, u64)> = invocation
+        let invalid = || StoreError::Unavailable(format!("invalid resolve outcome: {outcome:?}"));
+        match outcome.as_slice() {
+            [tag, existing] if tag == "EXISTS" => Ok(SessionResolution::Existing(
+                existing.parse().map_err(|_| invalid())?,
+            )),
+            [tag] if tag == "CREATED" => Ok(SessionResolution::Created(uuid)),
+            _ => Err(invalid()),
+        }
+    }
+
+    async fn refresh(&self, session: Uuid, window: Duration) -> Result<(), StoreError> {
+        let mut connection = checkout(&self.pool).await?;
+        let extended: i64 = redis::cmd("ZADD")
+            .arg(SESSION_DEADLINES_KEY)
+            .arg("XX")
+            .arg("GT")
+            .arg("CH")
+            .arg(deadline_after(window))
+            .arg(session.to_string())
+            .query_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        if extended == 1 {
+            Ok(())
+        } else {
+            Err(StoreError::Unavailable("session has no deadline".into()))
+        }
+    }
+
+    async fn claim_expired_sessions(&self, batch_size: usize) -> Result<Vec<Uuid>, StoreError> {
+        let mut connection = checkout(&self.pool).await?;
+
+        let mut invocation = SESSION_SWEEP_SCRIPT.prepare_invoke();
+        invocation
+            .key(SESSION_DEADLINES_KEY)
+            .arg(unix_millis())
+            .arg(deadline_after(SESSION_CLAIM_HOLD))
+            .arg(batch_size);
+        let claimed: Vec<String> = invocation
             .invoke_async(&mut connection)
             .await
             .map_err(|e| StoreError::Unavailable(e.to_string()))?;
 
         claimed
             .into_iter()
-            .map(|(uuid, epoch)| {
-                let uuid: Uuid = uuid.parse().map_err(|_| {
-                    StoreError::Unavailable(format!("invalid claimed uuid: {uuid}"))
-                })?;
-                Ok(ClaimedSession::new(
-                    uuid,
-                    Box::new(self.new_session_claim(uuid, Epoch(epoch))),
-                ))
+            .map(|uuid| {
+                uuid.parse()
+                    .map_err(|_| StoreError::Unavailable(format!("invalid claimed uuid: {uuid}")))
             })
             .collect()
+    }
+
+    async fn delete_session(&self, session: Uuid) -> Result<(), StoreError> {
+        let mut connection = checkout(&self.pool).await?;
+
+        let mut invocation = SESSION_DELETE_SCRIPT.prepare_invoke();
+        invocation
+            .key(SESSION_DEADLINES_KEY)
+            .key(session_members_key(session))
+            .key(session_party_record_key(session))
+            .arg(session.to_string());
+        let _: i64 = invocation
+            .invoke_async(&mut connection)
+            .await
+            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
+        Ok(())
     }
 }
 
@@ -1037,6 +1094,7 @@ impl ChallengeClaim for RedisChallengeClaim {
             .key(streams_set_key(self.uuid))
             .key(&self.clients_key)
             .key(processed_stages_key(self.uuid))
+            .key(session_members_key(state.session_uuid))
             .key(challenge_directory_key(&party_identifier(
                 state.challenge_type,
                 &state.party,
@@ -1053,115 +1111,6 @@ impl ChallengeClaim for RedisChallengeClaim {
             .arg(signal)
             .arg(DELETED_STREAM_RETENTION.as_secs())
             .arg(DELETED_STATE_RETENTION.as_secs());
-
-        let deleted: i64 = invocation
-            .invoke_async(&mut connection)
-            .await
-            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
-        if deleted == 1 {
-            Ok(())
-        } else {
-            Err(StoreError::Fenced)
-        }
-    }
-}
-
-/// An exclusive handle to a session's Redis state.
-struct RedisSessionClaim {
-    uuid: Uuid,
-    journal_key: String,
-    inbox_key: String,
-    lease_key: String,
-    epoch: Epoch,
-    client: redis::Client,
-    pool: Pool,
-}
-
-#[async_trait]
-impl SessionClaim for RedisSessionClaim {
-    async fn load(&self) -> Result<Vec<SessionJournalEntry>, StoreError> {
-        load_journal(&self.pool, &self.journal_key).await
-    }
-
-    fn follow(&self, from: MsgId, sink: mpsc::Sender<SessionEnvelope>) {
-        tokio::spawn(follow_inbox(
-            self.client.clone(),
-            self.uuid,
-            self.inbox_key.clone(),
-            from,
-            sink,
-            |id, cmd| SessionEnvelope { id, cmd },
-        ));
-    }
-
-    async fn append(&self, batch: &[SessionJournalEntry]) -> Result<(), StoreError> {
-        let payload = serde_json::to_string(batch).expect("journal entries serialize");
-        append(
-            &self.pool,
-            &self.lease_key,
-            self.epoch,
-            &self.journal_key,
-            &payload,
-        )
-        .await
-    }
-
-    async fn renew(&self) -> Result<(), StoreError> {
-        let mut connection = checkout(&self.pool).await?;
-
-        let mut invocation = RENEW_SCRIPT.prepare_invoke();
-        invocation
-            .key(&self.lease_key)
-            .key(SESSION_LEASES_KEY)
-            .arg(self.epoch.0)
-            .arg(self.uuid.to_string())
-            .arg(lease_deadline());
-
-        let renewed: i64 = invocation
-            .invoke_async(&mut connection)
-            .await
-            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
-        if renewed == 1 {
-            Ok(())
-        } else {
-            Err(StoreError::Fenced)
-        }
-    }
-
-    async fn release(&self) -> Result<(), StoreError> {
-        let mut connection = checkout(&self.pool).await?;
-
-        let mut invocation = RELEASE_SCRIPT.prepare_invoke();
-        invocation
-            .key(&self.lease_key)
-            .key(SESSION_LEASES_KEY)
-            .arg(self.epoch.0)
-            .arg(self.uuid.to_string());
-
-        let released: i64 = invocation
-            .invoke_async(&mut connection)
-            .await
-            .map_err(|e| StoreError::Unavailable(e.to_string()))?;
-        if released == 1 {
-            Ok(())
-        } else {
-            Err(StoreError::Fenced)
-        }
-    }
-
-    async fn delete(&self, party_key: &str) -> Result<(), StoreError> {
-        let mut connection = checkout(&self.pool).await?;
-
-        let mut invocation = SESSION_DELETE_SCRIPT.prepare_invoke();
-        invocation
-            .key(&self.lease_key)
-            .key(SESSION_LEASES_KEY)
-            .key(session_directory_key(party_key))
-            .key(&self.journal_key)
-            .key(&self.inbox_key)
-            .arg(self.epoch.0)
-            .arg(self.uuid.to_string())
-            .arg(DELETED_STREAM_RETENTION.as_secs());
 
         let deleted: i64 = invocation
             .invoke_async(&mut connection)
