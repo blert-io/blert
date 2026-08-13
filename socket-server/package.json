@@ -27,7 +27,7 @@
     "google-protobuf": "^4.0.2",
     "postgres": "^3.4.9",
     "prom-client": "^15.1.3",
-    "redis": "^4.7.0",
+    "redis": "^6.2.0",
     "winston": "^3.18.3",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
