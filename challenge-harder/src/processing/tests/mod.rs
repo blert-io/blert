@@ -2,13 +2,21 @@
 //!
 //! Fixtures exist under `tests/fixtures/` and are recordings of real stages.
 
+use std::sync::LazyLock;
+
 use serde::Deserialize;
 
 use crate::lifecycle::core::types::{ClientStageStream, Stage, StageUpdate, Uuid};
 
+mod colosseum;
 mod finish;
 mod golden;
 mod mokhaiotl;
+
+// All fixture tests share the same database and write the same rows, so they
+// need to be serialized behind a lock.
+static FIXTURE_TESTS: LazyLock<tokio::sync::Mutex<()>> =
+    LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

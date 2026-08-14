@@ -4,8 +4,10 @@ use serde::Serialize;
 
 /// Changes to a player's lifetime stats accumulated over a processing run.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
-#[expect(clippy::struct_field_names)]
 pub struct PlayerStatsDelta {
+    pub colosseum_completions: i32,
+    pub colosseum_wipes: i32,
+    pub colosseum_resets: i32,
     pub mokhaiotl_completions: i32,
     pub mokhaiotl_wipes: i32,
     pub mokhaiotl_resets: i32,

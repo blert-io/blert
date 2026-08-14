@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Schema for integer enum values.
  * Protobuf enums serialize as their numeric values in JSON.
  */
-const enumValueSchema = z.number().int();
+const enumValueSchema = z.number().int().nonnegative();
 
 export const coordsSchema = z.object({
   x: z.number().int(),

@@ -1,0 +1,158 @@
+{
+  "challengeId": "3f9b2a71-88d4-4c5e-9c0f-5b1de60a2f13",
+  "colosseum": {
+    "allHandicaps": [
+      34
+    ],
+    "waves": [
+      {
+        "handicapChosen": 4,
+        "handicapOptions": [
+          4,
+          5,
+          12
+        ],
+        "npcs": [
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1824,
+              "y": 3113
+            },
+            "deathTick": 11,
+            "roomId": "58030",
+            "spawnNpcId": 12816,
+            "spawnPoint": {
+              "x": 1824,
+              "y": 3109
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1823,
+              "y": 3112
+            },
+            "deathTick": 11,
+            "roomId": "58031",
+            "spawnNpcId": 12814,
+            "spawnPoint": {
+              "x": 1823,
+              "y": 3108
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1830,
+              "y": 3109
+            },
+            "deathTick": 20,
+            "roomId": "58032",
+            "spawnNpcId": 12815,
+            "spawnPoint": {
+              "x": 1825,
+              "y": 3108
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1830,
+              "y": 3109
+            },
+            "deathTick": 23,
+            "roomId": "58033",
+            "spawnNpcId": 12811,
+            "spawnPoint": {
+              "x": 1832,
+              "y": 3107
+            }
+          }
+        ],
+        "stage": "COLOSSEUM_WAVE_1"
+      },
+      {
+        "handicapChosen": 34,
+        "handicapOptions": [
+          34,
+          11,
+          7
+        ],
+        "npcs": [
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1827,
+              "y": 3111
+            },
+            "deathTick": 13,
+            "roomId": "41353",
+            "spawnNpcId": 12816,
+            "spawnPoint": {
+              "x": 1822,
+              "y": 3110
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1823,
+              "y": 3107
+            },
+            "deathTick": 33,
+            "roomId": "41354",
+            "spawnNpcId": 12814,
+            "spawnPoint": {
+              "x": 1821,
+              "y": 3109
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1822,
+              "y": 3108
+            },
+            "deathTick": 23,
+            "roomId": "41355",
+            "spawnNpcId": 12815,
+            "spawnPoint": {
+              "x": 1823,
+              "y": 3109
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1822,
+              "y": 3108
+            },
+            "deathTick": 31,
+            "roomId": "41356",
+            "spawnNpcId": 12811,
+            "spawnPoint": {
+              "x": 1821,
+              "y": 3109
+            }
+          },
+          {
+            "basic": {},
+            "deathPoint": {
+              "x": 1835,
+              "y": 3103
+            },
+            "deathTick": 48,
+            "roomId": "41357",
+            "spawnNpcId": 12817,
+            "spawnPoint": {
+              "x": 1836,
+              "y": 3104
+            }
+          }
+        ],
+        "stage": "COLOSSEUM_WAVE_2"
+      }
+    ]
+  }
+}

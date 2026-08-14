@@ -84,6 +84,23 @@ pub fn mokhaiotl_attack_style_event(
     event
 }
 
+pub fn colosseum_handicap_choice_event(
+    tick: u32,
+    stage: Stage,
+    handicap: event::ColosseumHandicap,
+    options: &[event::ColosseumHandicap],
+) -> Event {
+    let mut event = Event {
+        tick,
+        stage: stage as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::ColosseumHandicapChoice);
+    event.handicap = Some(handicap as i32);
+    event.handicap_options = options.iter().map(|&option| option as i32).collect();
+    event
+}
+
 pub fn mokhaiotl_larva_leak_event(
     tick: u32,
     stage: Stage,
