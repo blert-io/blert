@@ -373,6 +373,7 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
 }
 
 #[tokio::test]
+#[expect(clippy::too_many_lines)]
 async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
     let Some(db) = db::test_database().await else {
         return;
@@ -435,13 +436,11 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         .await
         .expect("session should exist")
         .get(0);
-    assert_eq!(
-        stamped,
-        UNIX_EPOCH + Duration::from_millis(1_785_772_401_000),
-    );
+    assert_eq!(stamped, UNIX_EPOCH + Duration::from_secs(1_785_772_401),);
 
     // The end time should not be pushed back if a challenge delayed processing.
-    let provisional = UNIX_EPOCH + Duration::from_millis(1_785_772_500_000);
+    #[expect(clippy::duration_suboptimal_units)]
+    let provisional = UNIX_EPOCH + Duration::from_secs(1_785_772_500);
     client
         .execute(
             "UPDATE challenge_sessions SET end_time = $2 WHERE uuid = $1",
@@ -465,7 +464,7 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         .expect("session should survive finalization");
     assert_eq!(
         session.get::<_, SystemTime>(0),
-        UNIX_EPOCH + Duration::from_millis(1_785_772_101_000),
+        UNIX_EPOCH + Duration::from_secs(1_785_772_101),
     );
     assert_eq!(session.get::<_, Option<SystemTime>>(1), Some(provisional));
     assert_eq!(session.get::<_, i16>(2), SessionStatus::Completed as i16);

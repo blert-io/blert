@@ -14,6 +14,7 @@ use crate::redis::Store;
 use crate::repository::DataRepository;
 
 use challenge_processor::ChallengeProcessor;
+use colosseum::ColosseumProcessor;
 use mokhaiotl::MokhaiotlProcessor;
 
 pub use crate::lifecycle::core::types::ChallengeInfo;
@@ -23,6 +24,7 @@ pub mod db;
 
 mod challenge;
 mod challenge_processor;
+mod colosseum;
 mod interpret;
 mod mokhaiotl;
 mod persist;
@@ -38,6 +40,10 @@ fn processor_for(
     custom_data: Option<&serde_json::Value>,
 ) -> Result<Option<Box<dyn ChallengeProcessor>>, ProcessingError> {
     match challenge.challenge_type {
+        ChallengeType::Colosseum => Ok(Some(Box::new(ColosseumProcessor::new(
+            challenge.clone(),
+            custom_data,
+        )?))),
         ChallengeType::Mokhaiotl => Ok(Some(Box::new(MokhaiotlProcessor::new(
             challenge.clone(),
             custom_data,
@@ -46,7 +52,6 @@ fn processor_for(
         ChallengeType::Tob
         | ChallengeType::Cox
         | ChallengeType::Toa
-        | ChallengeType::Colosseum
         | ChallengeType::Inferno
         | ChallengeType::UnknownChallenge => Ok(None),
     }

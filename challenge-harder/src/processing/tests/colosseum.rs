@@ -1,6 +1,5 @@
-//! Runs a real recorded delve 8 stage through the processor, verifying results.
+//! Runs real recorded Colosseum waves through the processor, verifying results.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -15,16 +14,17 @@ use crate::lifecycle::core::types::{
 };
 use crate::processing::split::SplitType;
 use crate::processing::{Pipeline, ProcessingRequest, StageProcessor, db};
-use crate::proto::{ChallengeData, challenge_data, event};
+use crate::proto::{ChallengeData, challenge_data};
 use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
 
 /// Properties of the test challenge, fixed so runs are deterministic.
-const CREATED_UNIX_MS: u64 = 1_782_864_000_000;
-const UUID: &str = "a8cb035f-410a-45de-a4d3-2b0a5d8b464d";
+const CREATED_UNIX_MS: u64 = 1_786_716_274_057;
+const UUID: &str = "3f9b2a71-88d4-4c5e-9c0f-5b1de60a2f13";
 
 #[tokio::test]
-async fn delve_test() {
+#[expect(clippy::too_many_lines)]
+async fn wave_test() {
     let Some(db) = db::test_database().await else {
         return;
     };
@@ -51,8 +51,14 @@ async fn delve_test() {
 
     prepare_fixture(
         uuid,
-        Stage::MokhaiotlDelve8,
-        &load_fixture("mokhaiotl_delve_8"),
+        Stage::ColosseumWave1,
+        &load_fixture("colosseum_wave_1"),
+    )
+    .await;
+    prepare_fixture(
+        uuid,
+        Stage::ColosseumWave2,
+        &load_fixture("colosseum_wave_2"),
     )
     .await;
 
@@ -63,14 +69,14 @@ async fn delve_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
     );
 
-    let info = ChallengeInfo {
+    let mut info = ChallengeInfo {
         uuid,
         session_uuid: Uuid::new_v4(),
-        challenge_type: ChallengeType::Mokhaiotl,
+        challenge_type: ChallengeType::Colosseum,
         mode: ChallengeMode::NoMode,
         party: vec!["player1".to_string()],
         party_changed: false,
-        stage: Stage::MokhaiotlDelve8,
+        stage: Stage::ColosseumWave1,
         stage_attempt: None,
         status: ChallengeStatus::InProgress,
         created_unix_ms: CREATED_UNIX_MS,
@@ -95,23 +101,72 @@ async fn delve_test() {
         .process(ProcessingRequest {
             trigger: Trigger::Stage {
                 seq: JournalSeq(2),
-                stage: Stage::MokhaiotlDelve8,
+                stage: Stage::ColosseumWave1,
                 attempt: None,
             },
             challenge: info.clone(),
         })
         .await
-        .expect("stage runs");
+        .expect("wave 1 runs");
     assert_eq!(
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 192,
+            ticks: 23,
         },
     );
 
-    let custom_data = verify_stage_rows(&client, challenge_id, player_id).await;
-    verify_stage_artifacts(uuid, &repository, &custom_data).await;
+    let custom_data = verify_wave_1_rows(&client, challenge_id, player_id).await;
+    verify_stage_artifacts(
+        "colosseum_wave_1",
+        uuid,
+        Stage::ColosseumWave1,
+        &repository,
+        &custom_data,
+    )
+    .await;
+
+    info.stage = Stage::ColosseumWave2;
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::StageStart {
+                seq: JournalSeq(3),
+                stage: Stage::ColosseumWave2,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("stage start runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(4),
+                stage: Stage::ColosseumWave2,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("wave 2 runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 48,
+        },
+    );
+
+    let custom_data = verify_wave_2_rows(&client, challenge_id, player_id).await;
+    verify_stage_artifacts(
+        "colosseum_wave_2",
+        uuid,
+        Stage::ColosseumWave2,
+        &repository,
+        &custom_data,
+    )
+    .await;
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -123,8 +178,7 @@ async fn delve_test() {
         .expect("player cleanup");
 }
 
-/// Checks everything the create run writes, returning the challenge and
-/// player IDs it assigned.
+/// Returns the challenge and player IDs.
 async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepository) -> (i32, i32) {
     let row = client
         .query_one("SELECT id FROM challenges WHERE uuid = $1", &[&uuid])
@@ -132,18 +186,15 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
         .expect("challenge row");
     let challenge_id: i32 = row.get(0);
 
-    // Creation writes the stats row, the player, and an empty data file.
+    // Creation inserts a stats row, player, and an empty data file.
     let row = client
         .query_one(
-            "SELECT delve, larvae_leaked, max_completed_delve
-             FROM mokhaiotl_challenge_stats WHERE challenge_id = $1",
+            "SELECT handicaps FROM colosseum_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],
         )
         .await
         .expect("stats row");
-    assert_eq!(row.get::<_, i32>(0), 8);
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(0));
-    assert_eq!(row.get::<_, i32>(2), 0);
+    assert_eq!(row.get::<_, Vec<i16>>(0), Vec::<i16>::new());
 
     let row = client
         .query_one(
@@ -162,8 +213,11 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
             .expect("challenge file"),
         ChallengeData {
             challenge_id: uuid.to_string(),
-            stage_data: Some(challenge_data::StageData::Mokhaiotl(
-                challenge_data::Mokhaiotl { delves: Vec::new() },
+            stage_data: Some(challenge_data::StageData::Colosseum(
+                challenge_data::Colosseum {
+                    waves: Vec::new(),
+                    all_handicaps: Vec::new(),
+                },
             )),
         },
     );
@@ -171,10 +225,64 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
     (challenge_id, player_id)
 }
 
-/// Checks every database row the stage run writes, returning the stored
-/// custom data.
-#[expect(clippy::too_many_lines)]
-async fn verify_stage_rows(
+async fn verify_wave_1_rows(
+    client: &Object,
+    challenge_id: i32,
+    player_id: i32,
+) -> serde_json::Value {
+    let row = client
+        .query_one(
+            "SELECT handicaps FROM colosseum_challenge_stats WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("stats row");
+    assert_eq!(row.get::<_, Vec<i16>>(0), vec![4]);
+
+    let splits = client
+        .query(
+            "SELECT id, type, scale, ticks, accurate FROM challenge_splits
+             WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("split rows");
+    assert_eq!(splits.len(), 1);
+    let split_id: i32 = splits[0].get(0);
+    assert_eq!(splits[0].get::<_, i16>(1), SplitType::ColosseumWave1 as i16);
+    assert_eq!(splits[0].get::<_, i16>(2), 1);
+    assert_eq!(splits[0].get::<_, i32>(3), 23);
+    assert!(splits[0].get::<_, bool>(4));
+
+    let pbs = client
+        .query(
+            "SELECT challenge_split_id FROM personal_best_history WHERE player_id = $1",
+            &[&player_id],
+        )
+        .await
+        .expect("pb rows");
+    assert_eq!(pbs.len(), 1);
+    assert_eq!(pbs[0].get::<_, i32>(0), split_id);
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Completed as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(23));
+    row.get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present")
+}
+
+async fn verify_wave_2_rows(
     client: &Object,
     challenge_id: i32,
     player_id: i32,
@@ -187,12 +295,12 @@ async fn verify_stage_rows(
         )
         .await
         .expect("challenge row");
-    assert_eq!(row.get::<_, i16>(0), ChallengeType::Mokhaiotl as i16);
+    assert_eq!(row.get::<_, i16>(0), ChallengeType::Colosseum as i16);
     assert_eq!(row.get::<_, i16>(1), ChallengeMode::NoMode as i16);
     assert_eq!(row.get::<_, i16>(2), 1);
-    assert_eq!(row.get::<_, i16>(3), Stage::MokhaiotlDelve8 as i16);
+    assert_eq!(row.get::<_, i16>(3), Stage::ColosseumWave2 as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 192);
+    assert_eq!(row.get::<_, i32>(5), 71);
     assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
@@ -209,89 +317,52 @@ async fn verify_stage_rows(
         .expect("membership row");
     assert_eq!(row.get::<_, &str>(0), "player1");
     assert_eq!(row.get::<_, i16>(1), 0);
-    assert_eq!(row.get::<_, i16>(2), PrimaryMeleeGear::Unknown as i16);
+    assert_eq!(
+        row.get::<_, i16>(2),
+        PrimaryMeleeGear::RadiantOathplate as i16
+    );
     assert_eq!(row.get::<_, Vec<i16>>(3), Vec::<i16>::new());
 
-    // The stage completed delve 8 with three leaked larvae.
     let row = client
         .query_one(
-            "SELECT delve, larvae_leaked, max_completed_delve
-             FROM mokhaiotl_challenge_stats WHERE challenge_id = $1",
+            "SELECT handicaps FROM colosseum_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],
         )
         .await
         .expect("stats row");
-    assert_eq!(row.get::<_, i32>(0), 8);
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(3));
-    assert_eq!(row.get::<_, i32>(2), 8);
+    assert_eq!(row.get::<_, Vec<i16>>(0), vec![4, 4]);
 
-    // The stage is fully accurate, so all its splits are.
     let splits = client
         .query(
             "SELECT id, type, scale, ticks, accurate FROM challenge_splits
-             WHERE challenge_id = $1",
+             WHERE challenge_id = $1 ORDER BY type",
             &[&challenge_id],
         )
         .await
         .expect("split rows");
-    assert_eq!(splits.len(), 1);
-    let split_id: i32 = splits[0].get(0);
-    assert_eq!(
-        splits[0].get::<_, i16>(1),
-        SplitType::MokhaiotlDelve8 as i16
-    );
-    assert_eq!(splits[0].get::<_, i16>(2), 1);
-    assert_eq!(splits[0].get::<_, i32>(3), 192);
-    assert!(splits[0].get::<_, bool>(4));
+    assert_eq!(splits.len(), 3);
+    let expected = [
+        (SplitType::ColosseumWave1, 23),
+        (SplitType::ColosseumWave2, 48),
+        (SplitType::ColosseumWave3Start, 71),
+    ];
+    for (row, (split, ticks)) in splits.iter().zip(expected) {
+        assert_eq!(row.get::<_, i16>(1), split as i16, "{split:?}");
+        assert_eq!(row.get::<_, i16>(2), 1, "{split:?}");
+        assert_eq!(row.get::<_, i32>(3), ticks, "{split:?}");
+        assert!(row.get::<_, bool>(4), "{split:?}");
+    }
 
-    // The player receives PBs.
     let pbs = client
         .query(
-            "SELECT challenge_split_id FROM personal_best_history WHERE player_id = $1",
+            "SELECT DISTINCT challenge_split_id FROM personal_best_history
+             WHERE player_id = $1",
             &[&player_id],
         )
         .await
         .expect("pb rows");
-    assert_eq!(pbs.len(), 1);
-    assert_eq!(pbs[0].get::<_, i32>(0), split_id);
+    assert_eq!(pbs.len(), 3); // wave 1, wave 2, wave 3 entry
 
-    // Stats applied.
-    let stats = client
-        .query(
-            "SELECT mokhaiotl_total_delves, mokhaiotl_delves_completed,
-                    mokhaiotl_deep_delves_completed
-             FROM player_stats WHERE player_id = $1",
-            &[&player_id],
-        )
-        .await
-        .expect("player stats");
-    assert_eq!(stats.len(), 1);
-    assert_eq!(stats[0].get::<_, i32>(0), 1);
-    assert_eq!(stats[0].get::<_, i32>(1), 1);
-    assert_eq!(stats[0].get::<_, i32>(2), 1);
-
-    // All queryable events are written.
-    let rows = client
-        .query(
-            "SELECT event_type, count(*) FROM queryable_events
-             WHERE challenge_id = $1 GROUP BY event_type",
-            &[&challenge_id],
-        )
-        .await
-        .expect("queryable counts");
-    let counts: BTreeMap<i16, i64> = rows.iter().map(|row| (row.get(0), row.get(1))).collect();
-    assert_eq!(
-        counts,
-        BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 32),
-            (event::Type::PlayerSpell as i16, 3),
-            (event::Type::NpcSpawn as i16, 38),
-            (event::Type::NpcDeath as i16, 37),
-            (event::Type::NpcAttack as i16, 27),
-        ]),
-    );
-
-    // The processing cursor advanced, with the delve appended to custom data.
     let row = client
         .query_one(
             "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
@@ -300,18 +371,20 @@ async fn verify_stage_rows(
         )
         .await
         .expect("processing state");
-    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(row.get::<_, i64>(0), 4);
     assert_eq!(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(192));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(48));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }
 
 async fn verify_stage_artifacts(
+    name: &str,
     uuid: Uuid,
+    stage: Stage,
     repository: &DataRepository,
     custom_data: &serde_json::Value,
 ) {
@@ -320,8 +393,8 @@ async fn verify_stage_artifacts(
         .await
         .expect("challenge file");
     let events = repository
-        .load_stage_events(uuid, Stage::MokhaiotlDelve8, None)
+        .load_stage_events(uuid, stage, None)
         .await
-        .expect("delve 8 events");
-    golden::assert_stage_artifacts("mokhaiotl_delve_8", custom_data, &stored_data, &events);
+        .expect("stage events");
+    golden::assert_stage_artifacts(name, custom_data, &stored_data, &events);
 }
