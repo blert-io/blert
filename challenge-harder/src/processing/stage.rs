@@ -98,7 +98,7 @@ async fn persist(
         return Ok(payload);
     };
 
-    processor
+    let challenge_ticks = processor
         .on_stage_finished(
             txn,
             stored,
@@ -123,7 +123,7 @@ async fn persist(
         update_players(txn, challenge.stage, &output.ctx, &stored.players),
         update_player_stats(txn, output.ctx.players(), &stored.players),
         write_queryable_events(txn, challenge, &output, &stored.players),
-        update_challenge_row(txn, output.events.last_tick(), output.ctx.deaths().len())
+        update_challenge_row(txn, challenge_ticks, output.ctx.deaths().len())
     )?;
 
     let queryable_until = output.events.queryable_until();

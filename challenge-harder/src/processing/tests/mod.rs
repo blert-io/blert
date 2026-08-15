@@ -11,6 +11,7 @@ use crate::lifecycle::core::types::{ClientStageStream, Stage, StageUpdate, Uuid}
 mod colosseum;
 mod finish;
 mod golden;
+mod inferno;
 mod mokhaiotl;
 
 // All fixture tests share the same database and write the same rows, so they

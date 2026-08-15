@@ -285,6 +285,15 @@ impl StageContext {
     }
 }
 
+/// A stage's contribution to the challenge tick count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChallengeTicks {
+    /// Adds the stage's ticks to the total.
+    Add(u32),
+    /// Replaces the stored total.
+    Set(u32),
+}
+
 /// Type-specific challenge processing behavior.
 #[async_trait]
 pub trait ChallengeProcessor: Send {
@@ -299,7 +308,8 @@ pub trait ChallengeProcessor: Send {
     /// Invoked when the challenge's database records are created.
     async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error>;
 
-    /// Invoked after a stage's events have been processed.
+    /// Invoked after a stage's events have been processed, returning how the
+    /// stage updates the challenge tick count.
     async fn on_stage_finished(
         &mut self,
         txn: &db::Transaction,
@@ -307,12 +317,13 @@ pub trait ChallengeProcessor: Send {
         ctx: &mut StageContext,
         stage: Stage,
         events: &MergedEvents,
-    ) -> Result<(), db::Error>;
+    ) -> Result<ChallengeTicks, db::Error>;
 
     /// Invoked when the challenge finishes.
     async fn on_finish(
         &mut self,
         txn: &db::Transaction,
+        stored: &StoredState,
         ctx: &mut ChallengeContext,
         final_ticks: u32,
     ) -> Result<(), db::Error>;
