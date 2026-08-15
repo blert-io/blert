@@ -135,7 +135,7 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
     // Creation inserts a stats row, player, and an empty data file.
     let row = client
         .query_one(
-            "SELECT meleer_digs, mager_revives, wast_pillar_collapse_wave,
+            "SELECT meleer_digs, mager_revives, west_pillar_collapse_wave,
                     east_pillar_collapse_wave, south_pillar_collapse_wave
              FROM inferno_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],
@@ -211,7 +211,7 @@ async fn verify_wave_rows(client: &Object, challenge_id: i32, player_id: i32) ->
 
     let row = client
         .query_one(
-            "SELECT meleer_digs, mager_revives, wast_pillar_collapse_wave,
+            "SELECT meleer_digs, mager_revives, west_pillar_collapse_wave,
                     east_pillar_collapse_wave, south_pillar_collapse_wave
              FROM inferno_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],

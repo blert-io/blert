@@ -224,12 +224,11 @@ impl ChallengeProcessor for InfernoProcessor {
             start_tick,
         });
 
-        // wast_pillar_collapse_wave is the actual column name. don't ask.
         txn.execute(
             "UPDATE inferno_challenge_stats
              SET meleer_digs = $1,
                  mager_revives = $2,
-                 wast_pillar_collapse_wave = $3,
+                 west_pillar_collapse_wave = $3,
                  east_pillar_collapse_wave = $4,
                  south_pillar_collapse_wave = $5
              WHERE challenge_id = $6",

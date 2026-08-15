@@ -240,7 +240,7 @@ export default class InfernoProcessor extends ChallengeProcessor {
           switch (pillar) {
             case Pillar.WEST:
               await this.updateChallengeStats({
-                wastPillarCollapseWave: wave,
+                westPillarCollapseWave: wave,
               });
               break;
             case Pillar.EAST:
