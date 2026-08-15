@@ -192,7 +192,7 @@ mod tests {
     use bytes::Bytes;
     use prost::Message;
 
-    use super::super::challenge_processor::ChallengeContext;
+    use super::super::challenge_processor::{ChallengeContext, ChallengeTicks};
     use super::super::db;
     use super::*;
     use crate::lifecycle::core::types::{
@@ -386,14 +386,15 @@ mod tests {
                 _stored: &super::super::StoredState,
                 _ctx: &mut StageContext,
                 _stage: Stage,
-                _events: &MergedEvents,
-            ) -> Result<(), db::Error> {
-                Ok(())
+                events: &MergedEvents,
+            ) -> Result<ChallengeTicks, db::Error> {
+                Ok(ChallengeTicks::Add(events.last_tick()))
             }
 
             async fn on_finish(
                 &mut self,
                 _txn: &db::Transaction,
+                _stored: &super::super::StoredState,
                 _ctx: &mut ChallengeContext,
                 _final_ticks: u32,
             ) -> Result<(), db::Error> {

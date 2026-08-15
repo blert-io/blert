@@ -15,6 +15,7 @@ use crate::repository::DataRepository;
 
 use challenge_processor::ChallengeProcessor;
 use colosseum::ColosseumProcessor;
+use inferno::InfernoProcessor;
 use mokhaiotl::MokhaiotlProcessor;
 
 pub use crate::lifecycle::core::types::ChallengeInfo;
@@ -25,6 +26,7 @@ pub mod db;
 mod challenge;
 mod challenge_processor;
 mod colosseum;
+mod inferno;
 mod interpret;
 mod mokhaiotl;
 mod persist;
@@ -44,6 +46,10 @@ fn processor_for(
             challenge.clone(),
             custom_data,
         )?))),
+        ChallengeType::Inferno => Ok(Some(Box::new(InfernoProcessor::new(
+            challenge.clone(),
+            custom_data,
+        )?))),
         ChallengeType::Mokhaiotl => Ok(Some(Box::new(MokhaiotlProcessor::new(
             challenge.clone(),
             custom_data,
@@ -52,7 +58,6 @@ fn processor_for(
         ChallengeType::Tob
         | ChallengeType::Cox
         | ChallengeType::Toa
-        | ChallengeType::Inferno
         | ChallengeType::UnknownChallenge => Ok(None),
     }
 }

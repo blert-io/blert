@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::StoredState;
 use super::challenge_processor::{
-    ChallengeContext, ChallengeProcessor, EventCursor, RoomNpc, StageContext,
+    ChallengeContext, ChallengeProcessor, ChallengeTicks, EventCursor, RoomNpc, StageContext,
 };
 use super::db;
 use super::split::SplitType;
@@ -182,7 +182,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
         ctx: &mut StageContext,
         stage: Stage,
         events: &MergedEvents,
-    ) -> Result<(), db::Error> {
+    ) -> Result<ChallengeTicks, db::Error> {
         let completed = events.status() == StageStatus::Completed;
         let challenge_ticks = stored.challenge_ticks + events.last_tick();
         let delve = delve(stage, self.challenge.stage_attempt);
@@ -254,12 +254,13 @@ impl ChallengeProcessor for MokhaiotlProcessor {
                 "challenge_events_missing_npc_attack",
             );
         }
-        Ok(())
+        Ok(ChallengeTicks::Add(events.last_tick()))
     }
 
     async fn on_finish(
         &mut self,
         _txn: &db::Transaction,
+        _stored: &StoredState,
         ctx: &mut ChallengeContext,
         final_ticks: u32,
     ) -> Result<(), db::Error> {
@@ -319,12 +320,14 @@ mod tests {
     use super::*;
     use crate::lifecycle::core::state::Trigger;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, StageStatus, Uuid,
+        ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear,
+        StageStatus, Uuid,
     };
     use crate::merging::fixtures::{
         ServerTicks, merged_events, mokhaiotl_attack_style_event, mokhaiotl_larva_leak_event,
         npc_attack_event,
     };
+    use crate::processing::StoredPlayerInfo;
     use crate::processing::split::ChallengeSplit;
     use crate::processing::stats::PlayerStatsDelta;
 
@@ -744,7 +747,18 @@ mod tests {
             .unwrap();
 
             let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string()]);
-            processor.on_finish(&txn, &mut ctx, 723).await.unwrap();
+            let stored = StoredState {
+                players: vec![StoredPlayerInfo {
+                    id: PlayerId(1),
+                    gear: PrimaryMeleeGear::Unknown,
+                }],
+                challenge_ticks: 723,
+                custom_data: None,
+            };
+            processor
+                .on_finish(&txn, &stored, &mut ctx, 723)
+                .await
+                .unwrap();
 
             assert_eq!(
                 ctx.challenge_splits().collect::<Vec<_>>(),

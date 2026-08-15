@@ -65,6 +65,29 @@ pub fn npc_attack_event(
     event
 }
 
+pub fn npc_death_event(
+    tick: u32,
+    stage: Stage,
+    coords: (i32, i32),
+    npc_id: u32,
+    room_id: u64,
+) -> Event {
+    let mut event = Event {
+        tick,
+        stage: stage as i32,
+        x_coord: coords.0,
+        y_coord: coords.1,
+        ..Default::default()
+    };
+    event.set_type(event::Type::NpcDeath);
+    event.npc = Some(event::Npc {
+        id: npc_id,
+        room_id,
+        ..Default::default()
+    });
+    event
+}
+
 pub fn mokhaiotl_attack_style_event(
     tick: u32,
     stage: Stage,
@@ -98,6 +121,20 @@ pub fn colosseum_handicap_choice_event(
     event.set_type(event::Type::ColosseumHandicapChoice);
     event.handicap = Some(handicap as i32);
     event.handicap_options = options.iter().map(|&option| option as i32).collect();
+    event
+}
+
+pub fn inferno_wave_start_event(tick: u32, stage: Stage, wave: u32, overall_ticks: u32) -> Event {
+    let mut event = Event {
+        tick,
+        stage: stage as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::InfernoWaveStart);
+    event.inferno_wave_start = Some(event::InfernoWaveStart {
+        wave,
+        overall_ticks,
+    });
     event
 }
 

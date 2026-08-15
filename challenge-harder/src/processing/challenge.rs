@@ -195,7 +195,7 @@ pub async fn finish(
     tokio::try_join!(
         finalize_challenge_row(txn, info, finish_time, challenge_ticks, full_recording),
         session::update_end_time(txn, finish_time),
-        processor.on_finish(txn, &mut ctx, final_ticks),
+        processor.on_finish(txn, &stored, &mut ctx, final_ticks),
     )?;
 
     let times_accurate = !info.party_changed

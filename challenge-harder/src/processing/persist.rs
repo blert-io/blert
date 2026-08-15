@@ -6,7 +6,7 @@ use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::proto::{Event, event};
 use crate::skill::SkillLevel;
 
-use super::challenge_processor::{PlayerData, StageContext};
+use super::challenge_processor::{ChallengeTicks, PlayerData, StageContext};
 use super::db;
 use super::interpret::InterpretOutput;
 use super::split::{SavedSplit, SplitExt, SplitType};
@@ -299,17 +299,60 @@ async fn update_personal_bests(
     Ok(())
 }
 
+/// Marks all recorded splits for the challenge accurate and updates players' PBs.
+pub(super) async fn set_splits_accurate(
+    txn: &db::Transaction,
+    challenge: &ChallengeInfo,
+    players: &[StoredPlayerInfo],
+) -> Result<(), db::Error> {
+    let rows = txn
+        .query(
+            "UPDATE challenge_splits SET accurate = true
+             WHERE challenge_id = $1
+             RETURNING id, type, ticks",
+            &[&txn.challenge_id()],
+        )
+        .await?;
+
+    let mut splits = Vec::with_capacity(rows.len());
+    for row in rows {
+        let raw: i16 = row.get(1);
+        let split = SplitType::try_from(i32::from(raw)).map_err(|_| {
+            db::Error::InvalidData(format!("challenge has a split of unknown type {raw}"))
+        })?;
+        splits.push(InsertedSplit {
+            id: row.get(0),
+            split,
+            ticks: row.get::<_, i32>(2).cast_unsigned(),
+            accurate: true,
+        });
+    }
+    update_personal_bests(txn, challenge, players, &splits).await
+}
+
 pub(super) async fn update_challenge_row(
     txn: &db::Transaction,
-    stage_ticks: u32,
+    ticks: ChallengeTicks,
     new_deaths: usize,
 ) -> Result<(), db::Error> {
+    let (statement, ticks) = match ticks {
+        ChallengeTicks::Add(ticks) => (
+            "UPDATE challenges
+             SET challenge_ticks = challenge_ticks + $1, total_deaths = total_deaths + $2
+             WHERE id = $3",
+            ticks,
+        ),
+        ChallengeTicks::Set(ticks) => (
+            "UPDATE challenges
+             SET challenge_ticks = $1, total_deaths = total_deaths + $2
+             WHERE id = $3",
+            ticks,
+        ),
+    };
     txn.execute(
-        "UPDATE challenges
-         SET challenge_ticks = challenge_ticks + $1, total_deaths = total_deaths + $2
-         WHERE id = $3",
+        statement,
         &[
-            &stage_ticks.cast_signed(),
+            &ticks.cast_signed(),
             &i32::try_from(new_deaths).expect("death count fits in an integer"),
             &txn.challenge_id(),
         ],
