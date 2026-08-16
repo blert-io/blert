@@ -10,6 +10,7 @@ use crate::lifecycle::core::types::{
     ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
 use crate::metrics;
+use crate::price::PriceResolver;
 use crate::redis::Store;
 use crate::repository::DataRepository;
 
@@ -102,14 +103,21 @@ pub struct Pipeline {
     db: Arc<db::Postgres>,
     store: Arc<Store>,
     repository: DataRepository,
+    price_resolver: Arc<PriceResolver>,
 }
 
 impl Pipeline {
-    pub fn new(db: Arc<db::Postgres>, store: Arc<Store>, repository: DataRepository) -> Pipeline {
+    pub fn new(
+        db: Arc<db::Postgres>,
+        store: Arc<Store>,
+        repository: DataRepository,
+        price_resolver: Arc<PriceResolver>,
+    ) -> Pipeline {
         Pipeline {
             db,
             store,
             repository,
+            price_resolver,
         }
     }
 }
@@ -164,7 +172,14 @@ impl StageProcessor for Pipeline {
                 (ProcessingPayload::None, None)
             }
             Trigger::Stage { .. } => {
-                stage::process(&self.store, &self.repository, &txn, &request.challenge).await?
+                stage::process(
+                    &self.store,
+                    &self.repository,
+                    &txn,
+                    &self.price_resolver,
+                    &request.challenge,
+                )
+                .await?
             }
         };
         txn.commit(&payload, custom_data.as_ref()).await?;

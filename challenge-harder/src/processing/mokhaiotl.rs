@@ -15,6 +15,7 @@ use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
 use crate::merging::MergedEvents;
+use crate::price::PriceResolver;
 use crate::proto::event::attack_style::Style;
 use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
 
@@ -178,6 +179,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
     async fn on_stage_finished(
         &mut self,
         txn: &db::Transaction,
+        _price_resolver: &PriceResolver,
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,

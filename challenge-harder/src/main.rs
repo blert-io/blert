@@ -12,6 +12,7 @@ mod lifecycle;
 mod merging;
 mod metrics;
 mod players;
+mod price;
 mod processing;
 mod proto;
 mod redis;
@@ -122,16 +123,28 @@ async fn serve(config: LifecycleConfig) {
                 .expect("failed to connect to Postgres"),
         );
         tracing::info!("postgres_connected");
+
         let repository_uri =
             std::env::var("BLERT_DATA_REPOSITORY").expect("BLERT_DATA_REPOSITORY must be set");
         let repository = repository::DataRepository::from_uri(&repository_uri)
             .await
             .expect("failed to open the data repository");
+
+        let price_resolver = Arc::new(price::PriceResolver::new());
+        let p = Arc::clone(&price_resolver);
+        tokio::spawn(async move {
+            match p.refresh().await {
+                Ok(()) => tracing::info!("prices_initialized"),
+                Err(error) => tracing::warn!(error = %error, "price_initialization_failed"),
+            }
+        });
+
         coordinator = coordinator
             .with_processor(Arc::new(processing::Pipeline::new(
                 Arc::clone(&db),
                 store,
                 repository,
+                price_resolver,
             )))
             .with_session_finalizer(Arc::new(processing::PostgresSessionFinalizer::new(db)));
     }

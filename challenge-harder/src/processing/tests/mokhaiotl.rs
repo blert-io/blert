@@ -13,6 +13,7 @@ use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, PrimaryMeleeGear,
     ProcessingPayload, Stage, StageStatus, Uuid,
 };
+use crate::price::PriceResolver;
 use crate::processing::split::SplitType;
 use crate::processing::{Pipeline, ProcessingRequest, StageProcessor, db};
 use crate::proto::{ChallengeData, challenge_data, event};
@@ -61,6 +62,7 @@ async fn delve_test() {
         Arc::new(db),
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new()),
     );
 
     let info = ChallengeInfo {

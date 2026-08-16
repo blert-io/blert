@@ -13,6 +13,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::lifecycle::store::StoreError;
 use crate::metrics;
+use crate::price::PriceResolver;
 use crate::redis::Store;
 use crate::repository::DataRepository;
 
@@ -30,6 +31,7 @@ pub async fn process(
     store: &Store,
     repository: &DataRepository,
     txn: &db::Transaction,
+    price_resolver: &PriceResolver,
     challenge: &ChallengeInfo,
 ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
     let (stream, stored) = gather(store, txn, challenge).await?;
@@ -56,7 +58,16 @@ pub async fn process(
         message: format!("interpret task failed: {error}"),
     })?;
 
-    let payload = persist(txn, repository, challenge, &stored, result, &mut *processor).await?;
+    let payload = persist(
+        txn,
+        repository,
+        price_resolver,
+        challenge,
+        &stored,
+        result,
+        &mut *processor,
+    )
+    .await?;
     Ok((payload, processor.custom_data()))
 }
 
@@ -88,6 +99,7 @@ async fn gather(
 async fn persist(
     txn: &db::Transaction,
     repository: &DataRepository,
+    price_resolver: &PriceResolver,
     challenge: &ChallengeInfo,
     stored: &StoredState,
     result: Result<InterpretOutput, InterpretError>,
@@ -101,6 +113,7 @@ async fn persist(
     let challenge_ticks = processor
         .on_stage_finished(
             txn,
+            price_resolver,
             stored,
             &mut output.ctx,
             challenge.stage,
