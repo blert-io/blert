@@ -383,6 +383,7 @@ mod tests {
             async fn on_stage_finished(
                 &mut self,
                 _txn: &db::Transaction,
+                _price_resolver: &crate::price::PriceResolver,
                 _stored: &super::super::StoredState,
                 _ctx: &mut StageContext,
                 _stage: Stage,

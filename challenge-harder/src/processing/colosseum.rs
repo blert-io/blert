@@ -15,6 +15,7 @@ use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
 use crate::merging::MergedEvents;
+use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data, event};
 
 /// ID increment between consecutive levels of a handicap.
@@ -157,6 +158,7 @@ impl ChallengeProcessor for ColosseumProcessor {
     async fn on_stage_finished(
         &mut self,
         txn: &db::Transaction,
+        _price_resolver: &PriceResolver,
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,

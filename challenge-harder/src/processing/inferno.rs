@@ -14,6 +14,7 @@ use super::persist;
 use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
 use crate::merging::MergedEvents;
+use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
 
 const ROCKY_SUPPORT_NPC_ID: u32 = 7709;
@@ -190,6 +191,7 @@ impl ChallengeProcessor for InfernoProcessor {
     async fn on_stage_finished(
         &mut self,
         txn: &db::Transaction,
+        _price_resolver: &PriceResolver,
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
@@ -567,8 +569,16 @@ mod tests {
             custom_data: None,
         };
         let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(42));
+        let price_resolver = PriceResolver::new();
         let ticks = processor
-            .on_stage_finished(&txn, &stored, &mut ctx, Stage::InfernoWave25, &events)
+            .on_stage_finished(
+                &txn,
+                &price_resolver,
+                &stored,
+                &mut ctx,
+                Stage::InfernoWave25,
+                &events,
+            )
             .await
             .unwrap();
         assert_eq!(ticks, ChallengeTicks::Set(894));
@@ -612,7 +622,14 @@ mod tests {
         };
         let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(36));
         let ticks = processor
-            .on_stage_finished(&txn, &stored, &mut ctx, Stage::InfernoWave26, &events)
+            .on_stage_finished(
+                &txn,
+                &price_resolver,
+                &stored,
+                &mut ctx,
+                Stage::InfernoWave26,
+                &events,
+            )
             .await
             .unwrap();
         assert_eq!(ticks, ChallengeTicks::Add(42));

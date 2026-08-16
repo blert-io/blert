@@ -846,6 +846,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "http-body-util",
+ "hyper-rustls 0.27.9",
  "hyper-util",
  "nix",
  "prometheus",
@@ -1707,6 +1708,7 @@ dependencies = [
  "http 1.4.2",
  "hyper 1.11.0",
  "hyper-util",
+ "log",
  "rustls 0.23.43",
  "rustls-native-certs",
  "tokio",
@@ -2687,6 +2689,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06"
 dependencies = [
  "aws-lc-rs",
+ "log",
  "once_cell",
  "rustls-pki-types",
  "rustls-webpki 0.103.13",

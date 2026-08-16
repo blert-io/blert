@@ -13,6 +13,7 @@ use super::split::{ChallengeSplit, SavedSplit, SplitType, StageSplit};
 use super::stats::PlayerStatsDelta;
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::MergedEvents;
+use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, Coords, Event, challenge_data, event};
 
 /// Read and mutation access to the stage timeline during the event loop,
@@ -313,6 +314,7 @@ pub trait ChallengeProcessor: Send {
     async fn on_stage_finished(
         &mut self,
         txn: &db::Transaction,
+        price_resolver: &PriceResolver,
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
