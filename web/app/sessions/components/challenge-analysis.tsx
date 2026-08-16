@@ -231,8 +231,8 @@ function getAvailableStats(
   if (challengeType === ChallengeType.INFERNO) {
     stats.push({
       type: StatType.CHALLENGE_SPECIFIC,
-      key: 'wastPillarCollapseWave',
-      label: 'Wast Pillar Collapse Wave',
+      key: 'westPillarCollapseWave',
+      label: 'West Pillar Collapse Wave',
       unit: 'count',
     });
     stats.push({

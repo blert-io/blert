@@ -68,7 +68,7 @@ export interface InfernoChallenge extends Challenge {
 }
 
 export type InfernoChallengeStats = {
-  wastPillarCollapseWave: number | null;
+  westPillarCollapseWave: number | null;
   eastPillarCollapseWave: number | null;
   southPillarCollapseWave: number | null;
   meleerDigs: number;
