@@ -12,17 +12,18 @@ use crate::repository::DataRepository;
 
 use super::challenge_processor::ChallengeContext;
 use super::persist::{save_splits, update_player_stats};
-use super::{ChallengeInfo, StoredPlayerInfo, StoredState, db, session};
+use super::{ChallengeInfo, ProcessorConfig, StoredPlayerInfo, StoredState, db, session};
 
 /// Initializes a new challenge, returning custom processor state to persist.
 pub async fn create(
     txn: &mut db::Transaction,
     repository: &DataRepository,
+    config: ProcessorConfig,
     info: &ChallengeInfo,
 ) -> Result<Option<serde_json::Value>, ProcessingError> {
     insert_challenge(txn, info).await?;
 
-    let Some(mut processor) = super::processor_for(info, None)? else {
+    let Some(mut processor) = super::processor_for(config, info, None)? else {
         return Ok(None);
     };
     processor.on_create(txn).await?;
@@ -151,6 +152,7 @@ pub async fn update_mode(txn: &db::Transaction, mode: ChallengeMode) -> Result<(
 pub async fn finish(
     txn: &mut db::Transaction,
     repository: &DataRepository,
+    config: ProcessorConfig,
     info: &ChallengeInfo,
 ) -> Result<(), ProcessingError> {
     let stored = load_database_state(txn, info).await?;
@@ -163,7 +165,8 @@ pub async fn finish(
         return delete_empty_challenge(txn, repository, info, &stored.players, finish_time).await;
     }
 
-    let Some(mut processor) = super::processor_for(info, stored.custom_data.as_ref())? else {
+    let Some(mut processor) = super::processor_for(config, info, stored.custom_data.as_ref())?
+    else {
         tokio::try_join!(
             finalize_challenge_row(txn, info, finish_time, stored.challenge_ticks, false),
             session::update_end_time(txn, finish_time),

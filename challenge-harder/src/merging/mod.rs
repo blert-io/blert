@@ -103,6 +103,7 @@ impl MergedEvents {
     }
 
     /// Whether the timeline contains no events.
+    #[expect(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }

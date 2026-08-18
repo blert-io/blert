@@ -11,6 +11,7 @@ mod item;
 mod lifecycle;
 mod merging;
 mod metrics;
+mod npc;
 mod players;
 mod price;
 mod processing;
@@ -110,42 +111,11 @@ async fn serve(config: LifecycleConfig) {
         shutdown_rx,
     )
     .with_config(config);
+
     if processing_enabled {
-        let database_uri =
-            std::env::var("BLERT_DATABASE_URI").expect("BLERT_DATABASE_URI must be set");
-        let pool_size = std::env::var("BLERT_DB_POOL_SIZE")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(DEFAULT_DB_POOL_SIZE);
-        let db = Arc::new(
-            processing::db::Postgres::connect(&database_uri, pool_size)
-                .await
-                .expect("failed to connect to Postgres"),
-        );
-        tracing::info!("postgres_connected");
-
-        let repository_uri =
-            std::env::var("BLERT_DATA_REPOSITORY").expect("BLERT_DATA_REPOSITORY must be set");
-        let repository = repository::DataRepository::from_uri(&repository_uri)
-            .await
-            .expect("failed to open the data repository");
-
-        let price_resolver = Arc::new(price::PriceResolver::new());
-        let p = Arc::clone(&price_resolver);
-        tokio::spawn(async move {
-            match p.refresh().await {
-                Ok(()) => tracing::info!("prices_initialized"),
-                Err(error) => tracing::warn!(error = %error, "price_initialization_failed"),
-            }
-        });
-
+        let (processor, db) = configure_challenge_processor(store).await;
         coordinator = coordinator
-            .with_processor(Arc::new(processing::Pipeline::new(
-                Arc::clone(&db),
-                store,
-                repository,
-                price_resolver,
-            )))
+            .with_processor(processor)
             .with_session_finalizer(Arc::new(processing::PostgresSessionFinalizer::new(db)));
     }
     let coordinator = Arc::new(coordinator);
@@ -164,6 +134,58 @@ async fn serve(config: LifecycleConfig) {
         .with_graceful_shutdown(shut_down_on_sigterm(shutdown_tx, coordinator))
         .await
         .expect("server exited with an error");
+}
+
+async fn configure_challenge_processor(
+    store: Arc<redis::Store>,
+) -> (
+    Arc<dyn processing::StageProcessor>,
+    Arc<processing::db::Postgres>,
+) {
+    let database_uri = std::env::var("BLERT_DATABASE_URI").expect("BLERT_DATABASE_URI must be set");
+    let pool_size = std::env::var("BLERT_DB_POOL_SIZE")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(DEFAULT_DB_POOL_SIZE);
+    let db = Arc::new(
+        processing::db::Postgres::connect(&database_uri, pool_size)
+            .await
+            .expect("failed to connect to Postgres"),
+    );
+    tracing::info!("postgres_connected");
+
+    let repository_uri =
+        std::env::var("BLERT_DATA_REPOSITORY").expect("BLERT_DATA_REPOSITORY must be set");
+    let repository = repository::DataRepository::from_uri(&repository_uri)
+        .await
+        .expect("failed to open the data repository");
+
+    let price_resolver = Arc::new(price::PriceResolver::new());
+    let p = Arc::clone(&price_resolver);
+    tokio::spawn(async move {
+        match p.refresh().await {
+            Ok(()) => tracing::info!("prices_initialized"),
+            Err(error) => tracing::warn!(error = %error, "price_initialization_failed"),
+        }
+    });
+
+    let processor_config = processing::ProcessorConfig {
+        theatre: processing::TheatreConfig {
+            daily_bloat_hand_limit: std::env::var("BLERT_DAILY_BLOAT_HAND_LIMIT")
+                .ok()
+                .and_then(|limit| limit.parse().ok())
+                .unwrap_or(processing::TheatreConfig::default().daily_bloat_hand_limit),
+        },
+    };
+
+    let pipeline = processing::Pipeline::new(
+        Arc::clone(&db),
+        store,
+        repository,
+        price_resolver,
+        processor_config,
+    );
+    (Arc::new(pipeline), db)
 }
 
 async fn shut_down_on_sigterm(

@@ -18,6 +18,7 @@ use challenge_processor::ChallengeProcessor;
 use colosseum::ColosseumProcessor;
 use inferno::InfernoProcessor;
 use mokhaiotl::MokhaiotlProcessor;
+use theatre::TheatreProcessor;
 
 pub use crate::lifecycle::core::types::ChallengeInfo;
 pub use session::PostgresSessionFinalizer;
@@ -37,8 +38,10 @@ mod stage;
 mod stats;
 #[cfg(test)]
 mod tests;
+mod theatre;
 
 fn processor_for(
+    config: ProcessorConfig,
     challenge: &ChallengeInfo,
     custom_data: Option<&serde_json::Value>,
 ) -> Result<Option<Box<dyn ChallengeProcessor>>, ProcessingError> {
@@ -55,11 +58,12 @@ fn processor_for(
             challenge.clone(),
             custom_data,
         )?))),
-        // TODO(frolv): port
-        ChallengeType::Tob
-        | ChallengeType::Cox
-        | ChallengeType::Toa
-        | ChallengeType::UnknownChallenge => Ok(None),
+        ChallengeType::Tob => Ok(Some(Box::new(TheatreProcessor::new(
+            config.theatre,
+            challenge.clone(),
+            custom_data,
+        )?))),
+        ChallengeType::Cox | ChallengeType::Toa | ChallengeType::UnknownChallenge => Ok(None),
     }
 }
 
@@ -98,12 +102,33 @@ pub trait StageProcessor: Send + Sync + 'static {
     ) -> Result<ProcessingPayload, ProcessingError>;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TheatreConfig {
+    /// Soft cap on Bloat hand rows recorded per UTC day.
+    pub daily_bloat_hand_limit: i64,
+}
+
+impl Default for TheatreConfig {
+    fn default() -> Self {
+        TheatreConfig {
+            daily_bloat_hand_limit: 10_000,
+        }
+    }
+}
+
+/// Challenge processing options.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ProcessorConfig {
+    pub theatre: TheatreConfig,
+}
+
 /// Complete event processing pipeline.
 pub struct Pipeline {
     db: Arc<db::Postgres>,
     store: Arc<Store>,
     repository: DataRepository,
     price_resolver: Arc<PriceResolver>,
+    config: ProcessorConfig,
 }
 
 impl Pipeline {
@@ -112,12 +137,14 @@ impl Pipeline {
         store: Arc<Store>,
         repository: DataRepository,
         price_resolver: Arc<PriceResolver>,
+        config: ProcessorConfig,
     ) -> Pipeline {
         Pipeline {
             db,
             store,
             repository,
             price_resolver,
+            config,
         }
     }
 }
@@ -148,7 +175,8 @@ impl StageProcessor for Pipeline {
         let (payload, custom_data) = match request.trigger {
             Trigger::Create { .. } => {
                 let custom_data =
-                    challenge::create(&mut txn, &self.repository, &request.challenge).await?;
+                    challenge::create(&mut txn, &self.repository, self.config, &request.challenge)
+                        .await?;
                 (ProcessingPayload::None, custom_data)
             }
             Trigger::Recorder {
@@ -168,7 +196,8 @@ impl StageProcessor for Pipeline {
                 (ProcessingPayload::None, None)
             }
             Trigger::Finish { .. } => {
-                challenge::finish(&mut txn, &self.repository, &request.challenge).await?;
+                challenge::finish(&mut txn, &self.repository, self.config, &request.challenge)
+                    .await?;
                 (ProcessingPayload::None, None)
             }
             Trigger::Stage { .. } => {
@@ -177,6 +206,7 @@ impl StageProcessor for Pipeline {
                     &self.repository,
                     &txn,
                     &self.price_resolver,
+                    self.config,
                     &request.challenge,
                 )
                 .await?

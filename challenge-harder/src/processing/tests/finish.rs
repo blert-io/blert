@@ -12,7 +12,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::lifecycle::session::SessionFinalizer;
 use crate::processing::session::SessionStatus;
-use crate::processing::{ChallengeInfo, PostgresSessionFinalizer, challenge, db};
+use crate::processing::{ChallengeInfo, PostgresSessionFinalizer, ProcessorConfig, challenge, db};
 use crate::repository::{DataRepository, FilesystemBackend};
 
 #[tokio::test]
@@ -46,7 +46,7 @@ async fn empty_challenge_is_deleted_at_finish() {
         .start_transaction(uuid, Trigger::Create { seq: JournalSeq(1) })
         .await
         .expect("create guard should pass");
-    let custom_data = challenge::create(&mut txn, &repository, &info)
+    let custom_data = challenge::create(&mut txn, &repository, ProcessorConfig::default(), &info)
         .await
         .expect("create should succeed");
     txn.commit(&ProcessingPayload::None, custom_data.as_ref())
@@ -85,7 +85,7 @@ async fn empty_challenge_is_deleted_at_finish() {
         .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(2) })
         .await
         .expect("finish guard should pass");
-    challenge::finish(&mut txn, &repository, &info)
+    challenge::finish(&mut txn, &repository, ProcessorConfig::default(), &info)
         .await
         .expect("finish should succeed");
     txn.commit(&ProcessingPayload::None, None)
@@ -193,7 +193,7 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         .start_transaction(uuid, Trigger::Create { seq: JournalSeq(1) })
         .await
         .expect("create guard should pass");
-    let custom_data = challenge::create(&mut txn, &repository, &info)
+    let custom_data = challenge::create(&mut txn, &repository, ProcessorConfig::default(), &info)
         .await
         .expect("create should succeed");
     txn.commit(&ProcessingPayload::None, custom_data.as_ref())
@@ -253,7 +253,7 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(3) })
         .await
         .expect("finish guard should pass");
-    challenge::finish(&mut txn, &repository, &info)
+    challenge::finish(&mut txn, &repository, ProcessorConfig::default(), &info)
         .await
         .expect("finish should succeed");
     txn.commit(&ProcessingPayload::None, None)
@@ -403,9 +403,14 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         .start_transaction(newer, Trigger::Create { seq: JournalSeq(1) })
         .await
         .expect("create guard should pass");
-    let custom_data = challenge::create(&mut txn, &repository, &newer_info)
-        .await
-        .expect("create should succeed");
+    let custom_data = challenge::create(
+        &mut txn,
+        &repository,
+        ProcessorConfig::default(),
+        &newer_info,
+    )
+    .await
+    .expect("create should succeed");
     txn.commit(&ProcessingPayload::None, custom_data.as_ref())
         .await
         .expect("create should commit");
@@ -420,9 +425,14 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         .start_transaction(older, Trigger::Create { seq: JournalSeq(1) })
         .await
         .expect("create guard should pass");
-    let custom_data = challenge::create(&mut txn, &repository, &older_info)
-        .await
-        .expect("create should succeed");
+    let custom_data = challenge::create(
+        &mut txn,
+        &repository,
+        ProcessorConfig::default(),
+        &older_info,
+    )
+    .await
+    .expect("create should succeed");
     txn.commit(&ProcessingPayload::None, custom_data.as_ref())
         .await
         .expect("create should commit");

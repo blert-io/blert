@@ -24,7 +24,7 @@ use super::interpret::{InterpretError, InterpretOutput, interpret};
 use super::persist::{
     save_splits, update_challenge_row, update_player_stats, update_players, write_queryable_events,
 };
-use super::{ChallengeInfo, StoredState};
+use super::{ChallengeInfo, ProcessorConfig, StoredState};
 
 /// Processes a stage's events from its recorded streams.
 pub async fn process(
@@ -32,11 +32,13 @@ pub async fn process(
     repository: &DataRepository,
     txn: &db::Transaction,
     price_resolver: &PriceResolver,
+    config: ProcessorConfig,
     challenge: &ChallengeInfo,
 ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
     let (stream, stored) = gather(store, txn, challenge).await?;
 
-    let Some(mut processor) = super::processor_for(challenge, stored.custom_data.as_ref())? else {
+    let Some(mut processor) = super::processor_for(config, challenge, stored.custom_data.as_ref())?
+    else {
         tracing::info!(
             uuid = %challenge.uuid,
             challenge_type = ?challenge.challenge_type,
