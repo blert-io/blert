@@ -62,7 +62,7 @@ async fn delve_test() {
         Arc::new(db),
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
-        Arc::new(PriceResolver::new()),
+        Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
     );
 

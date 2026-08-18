@@ -1,7 +1,5 @@
 //! Grand Exchange item price lookups.
 
-#![expect(dead_code)]
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -48,13 +46,16 @@ struct PriceMap {
 pub struct PriceResolver {
     client: Client<HttpsConnector<HttpConnector>, Full<Bytes>>,
     endpoint: String,
+    /// Bound on a single fetch.
+    /// `None` disables fetching, using only prepopulated cached prices.
+    fetch_timeout: Option<Duration>,
     prices: Mutex<Option<PriceMap>>,
     /// Serializes refreshes to avoid concurrent fetches.
     refresh_lock: tokio::sync::Mutex<()>,
 }
 
 impl PriceResolver {
-    pub fn new() -> PriceResolver {
+    pub fn new(fetch_timeout: Option<Duration>) -> PriceResolver {
         let https = hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
             .expect("native roots")
@@ -64,49 +65,61 @@ impl PriceResolver {
         PriceResolver {
             client: Client::builder(TokioExecutor::new()).build(https),
             endpoint: OSRS_WIKI_PRICES_ENDPOINT.to_string(),
+            fetch_timeout,
             prices: Mutex::new(None),
             refresh_lock: tokio::sync::Mutex::new(()),
         }
     }
 
-    /// Fetches every item's price into the cache.
+    /// Fetches every item's price into the cache if it is stale.
+    /// The wait is bounded by the configured fetch timeout.
     pub async fn refresh(&self) -> Result<(), PriceError> {
-        let _lock = self.refresh_lock.lock().await;
-        self.fetch_and_swap().await
+        let Some(timeout) = self.fetch_timeout else {
+            return Err(PriceError::Request("fetching is disabled".to_string()));
+        };
+        let refresh = async {
+            let _lock = self.refresh_lock.lock().await;
+            // Another caller may have refreshed while this one waited.
+            if self.is_fresh() {
+                return Ok(());
+            }
+            let prices = self.fetch_all().await?;
+            *self.prices.lock().expect("price map lock") = Some(PriceMap {
+                prices,
+                fetched: Instant::now(),
+            });
+            Ok(())
+        };
+        tokio::time::timeout(timeout, refresh)
+            .await
+            .map_err(|_| PriceError::Request("timed out".to_string()))?
     }
 
-    async fn fetch_and_swap(&self) -> Result<(), PriceError> {
-        let prices = self.fetch_all().await?;
-        *self.prices.lock().expect("price map lock") = Some(PriceMap {
-            prices,
-            fetched: Instant::now(),
-        });
-        Ok(())
-    }
-
-    /// Returns the current price of an item.
+    /// Returns the current price of an item, refreshing a stale cache first.
+    /// The wait is bounded by the configured fetch timeout.
     pub async fn get_price(&self, item_id: i32) -> Result<u64, PriceError> {
         if let Some(result) = self.cached_price(item_id) {
             return result;
         }
 
-        let _lock = self.refresh_lock.lock().await;
-        // Another caller may have refreshed while this one waited.
-        if let Some(result) = self.cached_price(item_id) {
-            return result;
-        }
-
-        let has_stale = self.prices.lock().expect("price map lock").is_some();
-        if let Err(error) = self.fetch_and_swap().await {
-            if !has_stale {
-                return Err(error);
-            }
+        if self.fetch_timeout.is_some()
+            && let Err(error) = self.refresh().await
+        {
             tracing::warn!(error = %error, "price_refresh_failed");
         }
 
         let guard = self.prices.lock().expect("price map lock");
-        let map = guard.as_ref().expect("refreshed or stale map exists");
-        Self::lookup(&map.prices, item_id)
+        match guard.as_ref() {
+            Some(map) => Self::lookup(&map.prices, item_id),
+            None => Err(PriceError::MissingItem(item_id)),
+        }
+    }
+
+    fn is_fresh(&self) -> bool {
+        let guard = self.prices.lock().expect("price map lock");
+        guard
+            .as_ref()
+            .is_some_and(|map| map.fetched.elapsed() < CACHE_TTL)
     }
 
     fn cached_price(&self, item_id: i32) -> Option<Result<u64, PriceError>> {

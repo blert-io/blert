@@ -575,7 +575,7 @@ mod tests {
             custom_data: None,
         };
         let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(42));
-        let price_resolver = PriceResolver::new();
+        let price_resolver = PriceResolver::new(None);
         let ticks = processor
             .on_stage_finished(
                 &txn,
