@@ -14,7 +14,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::price::PriceResolver;
 use crate::processing::split::SplitType;
-use crate::processing::{Pipeline, ProcessingRequest, StageProcessor, db};
+use crate::processing::{Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, db};
 use crate::proto::{ChallengeData, challenge_data};
 use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
@@ -56,6 +56,7 @@ async fn wave_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new()),
+        ProcessorConfig::default(),
     );
 
     let info = ChallengeInfo {

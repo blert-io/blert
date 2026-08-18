@@ -567,7 +567,7 @@ mod tests {
             ),
         ] {
             let mut processor = MokhaiotlProcessor::new(challenge.clone(), None).unwrap();
-            let mut ctx = StageContext::new(vec!["1Ogp".to_string()]);
+            let mut ctx = StageContext::new(Stage::MokhaiotlDelve2, vec!["1Ogp".to_string()]);
             let mut events = merged_events(
                 vec![
                     npc_attack_event(
@@ -616,7 +616,7 @@ mod tests {
             finished_unix_ms: None,
         };
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
-        let mut ctx = StageContext::new(vec!["1Ogp".to_string()]);
+        let mut ctx = StageContext::new(Stage::MokhaiotlDelve2, vec!["1Ogp".to_string()]);
         let mut events = merged_events(
             vec![
                 npc_attack_event(
@@ -667,7 +667,7 @@ mod tests {
             finished_unix_ms: None,
         };
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
-        let mut ctx = StageContext::new(vec!["1Ogp".to_string()]);
+        let mut ctx = StageContext::new(Stage::MokhaiotlDelve8, vec!["1Ogp".to_string()]);
         let mut events = merged_events(
             vec![
                 mokhaiotl_larva_leak_event(78, Stage::MokhaiotlDelve8, 45389, 23),

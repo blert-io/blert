@@ -90,7 +90,7 @@ jobs:
         run: cargo fmt -p challenge-harder -- --check
 
       - name: Lint
-        run: cargo clippy -p challenge-harder -- -D warnings
+        run: cargo clippy -p challenge-harder --all-targets -- -D warnings
 
       - name: Build
         run: cargo build -p challenge-harder

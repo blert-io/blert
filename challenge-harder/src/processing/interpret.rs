@@ -64,7 +64,7 @@ pub fn interpret(
 
     resolve_party_indices(uuid, &party, &mut events);
 
-    let mut ctx = StageContext::new(party);
+    let mut ctx = StageContext::new(stage, party);
     let mut kept = Vec::with_capacity(events.len());
 
     for index in 0..events.len() {
@@ -202,7 +202,10 @@ mod tests {
     use crate::proto::event::player::EquipmentSlot;
 
     fn context() -> StageContext {
-        StageContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()])
+        StageContext::new(
+            Stage::TobMaiden,
+            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+        )
     }
 
     fn event_with_player(kind: event::Type, tick: u32, name: &str, index: u32) -> Event {

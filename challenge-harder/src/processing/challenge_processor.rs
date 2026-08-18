@@ -158,6 +158,7 @@ impl ChallengeContext {
 /// Stage-scoped state accumulated by the event loop.
 #[derive(Debug)]
 pub struct StageContext {
+    stage: Stage,
     challenge: ChallengeContext,
     npcs: BTreeMap<u64, RoomNpc>,
     /// Party indices of players who died this stage, in death order.
@@ -167,13 +168,18 @@ pub struct StageContext {
 }
 
 impl StageContext {
-    pub(super) fn new(party: Vec<String>) -> StageContext {
+    pub(super) fn new(stage: Stage, party: Vec<String>) -> StageContext {
         StageContext {
+            stage,
             challenge: ChallengeContext::new(party),
             npcs: BTreeMap::new(),
             deaths: Vec::new(),
             stage_splits: BTreeMap::new(),
         }
+    }
+
+    pub fn stage(&self) -> Stage {
+        self.stage
     }
 
     /// Returns the tracked NPC with the given room ID.
@@ -354,7 +360,10 @@ mod tests {
 
     #[test]
     fn stage_splits_must_progress_past_their_start() {
-        let mut ctx = StageContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+        let mut ctx = StageContext::new(
+            Stage::TobMaiden,
+            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+        );
         ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 0, 0, false);
         ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 32, 52, false);
         assert_eq!(ctx.stage_split(SplitType::TobEntryMaiden70s50s), None);
@@ -372,7 +381,10 @@ mod tests {
 
     #[test]
     fn stage_splits_overwrite_and_iterate_in_split_order() {
-        let mut ctx = StageContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+        let mut ctx = StageContext::new(
+            Stage::TobMaiden,
+            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+        );
         ctx.set_stage_split(SplitType::TobEntryMaiden70s, 32, 0, false);
         ctx.set_stage_split(SplitType::TobEntryMaiden, 150, 0, true);
         ctx.set_stage_split(SplitType::TobEntryMaiden, 155, 0, true);

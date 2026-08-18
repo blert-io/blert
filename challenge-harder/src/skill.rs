@@ -1,7 +1,7 @@
 //! Skill level handling.
 
 /// A skill's current and base levels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SkillLevel {
     pub current: u16,
     pub base: u16,
@@ -20,6 +20,15 @@ impl SkillLevel {
     #[cfg_attr(not(test), expect(dead_code))]
     pub fn to_raw(self) -> u32 {
         u32::from(self.current) << 16 | u32::from(self.base)
+    }
+
+    /// Returns the current level as a percentage of the base.
+    pub fn percentage(self) -> f32 {
+        if self.base == 0 {
+            0.0
+        } else {
+            f32::from(self.current) / f32::from(self.base) * 100.0
+        }
     }
 }
 

@@ -358,7 +358,7 @@ mod tests {
             finished_unix_ms: None,
         };
         let mut processor = ColosseumProcessor::new(challenge.clone(), None).unwrap();
-        let mut ctx = StageContext::new(vec!["aSaradomin".to_string()]);
+        let mut ctx = StageContext::new(Stage::ColosseumWave1, vec!["aSaradomin".to_string()]);
         let mut events = merged_events(
             vec![colosseum_handicap_choice_event(
                 0,
@@ -389,7 +389,7 @@ mod tests {
             Some(&custom_data),
         )
         .unwrap();
-        let mut ctx = StageContext::new(vec!["aSaradomin".to_string()]);
+        let mut ctx = StageContext::new(Stage::ColosseumWave2, vec!["aSaradomin".to_string()]);
         let mut events = merged_events(
             vec![colosseum_handicap_choice_event(
                 0,

@@ -14,10 +14,9 @@ use super::persist;
 use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
 use crate::merging::MergedEvents;
+use crate::npc;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
-
-const ROCKY_SUPPORT_NPC_ID: u32 = 7709;
 
 /// Ticks between the end of one wave and the start of the next.
 const WAVE_INTERVAL_TICKS: u32 = 6;
@@ -149,7 +148,7 @@ impl ChallengeProcessor for InfernoProcessor {
                 if event
                     .npc
                     .as_ref()
-                    .is_some_and(|npc| npc.id == ROCKY_SUPPORT_NPC_ID)
+                    .is_some_and(|npc| npc.id == npc::id::ROCKY_SUPPORT)
                     && let Some(pillar) = Pillar::at(event.x_coord, event.y_coord)
                 {
                     let wave = Some(stage_to_wave(event.stage()));
@@ -317,12 +316,14 @@ mod tests {
         ChallengeMode, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear, StageStatus, Uuid,
     };
     use crate::merging::fixtures::{
-        ServerTicks, inferno_wave_start_event, merged_events, npc_attack_event, npc_death_event,
+        NpcEvent, ServerTicks, inferno_wave_start_event, merged_events, npc_attack_event,
+        npc_death_event,
     };
     use crate::players::normalize_rsn;
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::{ChallengeSplit, SavedSplit};
     use crate::processing::stats::PlayerStatsDelta;
+    use crate::skill::SkillLevel;
 
     fn challenge_info(stage: Stage, status: ChallengeStatus) -> ChallengeInfo {
         ChallengeInfo {
@@ -383,7 +384,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
         let mut events = merged_events(
             vec![inferno_wave_start_event(0, Stage::InfernoWave25, 25, 852)],
             StageStatus::Started,
@@ -402,15 +403,20 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave66, vec!["715".to_string()]);
         let mut events = merged_events(
-            vec![npc_death_event(
-                31,
-                Stage::InfernoWave66,
-                (2257, 5349),
-                ROCKY_SUPPORT_NPC_ID,
-                60001,
-            )],
+            vec![npc_death_event(NpcEvent {
+                tick: 31,
+                stage: Stage::InfernoWave66,
+                coords: (2257, 5349),
+                npc_id: npc::id::ROCKY_SUPPORT,
+                room_id: 60001,
+                hitpoints: SkillLevel {
+                    current: 0,
+                    base: 255,
+                },
+                ..Default::default()
+            })],
             StageStatus::Started,
             ServerTicks::Missing,
         );
@@ -429,12 +435,12 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave43, vec!["715".to_string()]);
         let mut events = merged_events(
             vec![
                 npc_attack_event(
                     12,
-                    Stage::InfernoWave40,
+                    Stage::InfernoWave43,
                     (2272, 5347),
                     7697,
                     61001,
@@ -443,7 +449,7 @@ mod tests {
                 ),
                 npc_attack_event(
                     30,
-                    Stage::InfernoWave40,
+                    Stage::InfernoWave43,
                     (2277, 5340),
                     7699,
                     61002,
@@ -452,7 +458,7 @@ mod tests {
                 ),
                 npc_attack_event(
                     55,
-                    Stage::InfernoWave40,
+                    Stage::InfernoWave43,
                     (2274, 5347),
                     7697,
                     61001,
@@ -562,7 +568,7 @@ mod tests {
             .data,
             wave_start_tick: Some(852),
         };
-        let mut ctx = StageContext::new(vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
         let stored = StoredState {
             players: Vec::new(),
             challenge_ticks: 846,
@@ -614,7 +620,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave26, vec!["715".to_string()]);
         let stored = StoredState {
             players: Vec::new(),
             challenge_ticks: 894,
