@@ -41,6 +41,9 @@ const DEFAULT_DB_POOL_SIZE: usize = 8;
 /// Connections held in the shared Redis pool.
 const DEFAULT_REDIS_POOL_SIZE: usize = 16;
 
+/// Bound on a single fetch of GE prices.
+const PRICE_FETCH_TIMEOUT: Duration = Duration::from_secs(10);
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -160,7 +163,7 @@ async fn configure_challenge_processor(
         .await
         .expect("failed to open the data repository");
 
-    let price_resolver = Arc::new(price::PriceResolver::new());
+    let price_resolver = Arc::new(price::PriceResolver::new(Some(PRICE_FETCH_TIMEOUT)));
     let p = Arc::clone(&price_resolver);
     tokio::spawn(async move {
         match p.refresh().await {

@@ -3,6 +3,8 @@
 use crate::item::ItemDelta;
 use crate::lifecycle::core::types::{Stage, StageStatus};
 use crate::proto::event::attack_style::Style;
+use crate::proto::event::sote_maze::Maze;
+use crate::proto::event::{VerzikPhase, XarpusPhase};
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
 use crate::skill::SkillLevel;
 
@@ -268,6 +270,137 @@ pub fn nylo_split_event(event_type: event::Type, tick: u32) -> Event {
         ..Default::default()
     };
     event.set_type(event_type);
+    event
+}
+
+pub fn sote_maze_proc_event(tick: u32, maze: Maze) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobSotetseg as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobSoteMazeProc);
+    event.sote_maze = Some(event::SoteMaze {
+        maze: maze as i32,
+        ..Default::default()
+    });
+    event
+}
+
+#[derive(Clone, Copy)]
+pub enum SoteMazePath<'a> {
+    OverworldTiles(&'a [(i32, i32)]),
+    OverworldPivots(&'a [(i32, i32)]),
+    UnderworldPivots(&'a [(i32, i32)]),
+}
+
+pub fn sote_maze_path_event(tick: u32, maze: Maze, path: SoteMazePath<'_>) -> Event {
+    let coords = |points: &[(i32, i32)]| points.iter().map(|&(x, y)| Coords { x, y }).collect();
+    let mut sote_maze = event::SoteMaze {
+        maze: maze as i32,
+        ..Default::default()
+    };
+    match path {
+        SoteMazePath::OverworldTiles(tiles) => sote_maze.overworld_tiles = coords(tiles),
+        SoteMazePath::OverworldPivots(pivots) => sote_maze.overworld_pivots = coords(pivots),
+        SoteMazePath::UnderworldPivots(pivots) => sote_maze.underworld_pivots = coords(pivots),
+    }
+
+    let mut event = Event {
+        tick,
+        stage: Stage::TobSotetseg as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobSoteMazePath);
+    event.sote_maze = Some(sote_maze);
+    event
+}
+
+pub fn sote_maze_end_event(tick: u32, maze: Maze, chosen_player: Option<&str>) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobSotetseg as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobSoteMazeEnd);
+    event.sote_maze = Some(event::SoteMaze {
+        maze: maze as i32,
+        chosen_player: chosen_player.map(str::to_string),
+        ..Default::default()
+    });
+    event
+}
+
+pub fn xarpus_exhumed_event(tick: u32, spawn_tick: u32, heal_ticks: &[u32]) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobXarpus as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobXarpusExhumed);
+    event.xarpus_exhumed = Some(event::XarpusExhumed {
+        spawn_tick,
+        heal_ticks: heal_ticks.to_vec(),
+        ..Default::default()
+    });
+    event
+}
+
+pub fn xarpus_phase_event(tick: u32, phase: XarpusPhase) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobXarpus as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobXarpusPhase);
+    event.set_xarpus_phase(phase);
+    event
+}
+
+pub fn verzik_phase_event(tick: u32, phase: VerzikPhase) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobVerzik as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobVerzikPhase);
+    event.set_verzik_phase(phase);
+    event
+}
+
+pub fn verzik_bounce_event(
+    tick: u32,
+    npc_attack_tick: u32,
+    players_in_range: u32,
+    players_not_in_range: u32,
+    bounced_player: Option<&str>,
+) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobVerzik as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobVerzikBounce);
+    event.verzik_bounce = Some(event::VerzikBounce {
+        npc_attack_tick: npc_attack_tick.cast_signed(),
+        players_in_range,
+        players_not_in_range,
+        bounced_player: bounced_player.map(str::to_string),
+    });
+    event
+}
+
+pub fn verzik_attack_style_event(tick: u32, npc_attack_tick: u32, style: Style) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobVerzik as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobVerzikAttackStyle);
+    event.verzik_attack_style = Some(event::AttackStyle {
+        style: style as i32,
+        npc_attack_tick,
+    });
     event
 }
 

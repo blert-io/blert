@@ -1,5 +1,8 @@
 //! Theatre of Blood challenge processing.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -13,9 +16,14 @@ use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingEr
 use crate::merging::MergedEvents;
 use crate::npc;
 use crate::price::PriceResolver;
+use crate::proto::event::attack_style::Style as AttackStyle;
 use crate::proto::event::npc::maiden_crab::Spawn as MaidenCrabSpawn;
 use crate::proto::event::npc::nylo::Style as NyloStyle;
-use crate::proto::{ChallengeData, Coords, PlayerAttack, challenge_data, event};
+use crate::proto::event::sote_maze::Maze;
+use crate::proto::event::{VerzikPhase, XarpusPhase};
+use crate::proto::{
+    ChallengeData, ChallengeMode, Coords, NpcAttack, PlayerAttack, challenge_data, event,
+};
 use crate::skill::SkillLevel;
 
 /// Southwest corner of the Bloat room.
@@ -23,7 +31,6 @@ const BLOAT_ROOM_ORIGIN: (i32, i32) = (3288, 4440);
 
 /// In-flight state stored between stages.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct CustomData {
     maiden: Option<RoomData>,
     bloat: Option<RoomData>,
@@ -35,7 +42,6 @@ struct CustomData {
 
 /// Final state of a processed room, following the `TobRoom` proto message.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct RoomData {
     stage: Stage,
     ticks_lost: u32,
@@ -119,6 +125,17 @@ struct BloatState {
     first_down_hp_percent: Option<f32>,
 }
 
+impl Default for BloatState {
+    fn default() -> Self {
+        BloatState {
+            downs: Vec::new(),
+            hands: Vec::new(),
+            wave_number: 1,
+            first_down_hp_percent: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct NylocasStyles {
     mage: i32,
@@ -134,21 +151,116 @@ struct NylocasState {
     prev_boss_style: Option<NyloStyle>,
 }
 
-impl Default for BloatState {
+const NUM_SOTETSEG_MAZE_PIVOTS: usize = 8;
+
+/// x coordinates of each pivot row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pivots {
+    /// Full set received from the plugin.
+    Complete([u32; NUM_SOTETSEG_MAZE_PIVOTS]),
+    /// Set built up across several events.
+    Accumulated([u32; NUM_SOTETSEG_MAZE_PIVOTS]),
+    Partial([Option<u32>; NUM_SOTETSEG_MAZE_PIVOTS]),
+}
+
+impl Default for Pivots {
     fn default() -> Self {
-        BloatState {
-            downs: Vec::new(),
-            hands: Vec::new(),
-            wave_number: 1,
-            first_down_hp_percent: None,
+        Pivots::Partial([None; NUM_SOTETSEG_MAZE_PIVOTS])
+    }
+}
+
+impl Pivots {
+    fn to_vec(self) -> Vec<u32> {
+        match self {
+            Pivots::Complete(pivots) | Pivots::Accumulated(pivots) => pivots.to_vec(),
+            Pivots::Partial(_) => Vec::new(),
         }
     }
+}
+
+fn full_pivots(coords: &[Coords]) -> Option<[u32; NUM_SOTETSEG_MAZE_PIVOTS]> {
+    let mut pivots: [Coords; NUM_SOTETSEG_MAZE_PIVOTS] = coords.try_into().ok()?;
+    pivots.sort_unstable_by_key(|pivot| pivot.y);
+    Some(pivots.map(|pivot| pivot.x.cast_unsigned()))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SotetsegMaze {
+    pivots: Pivots,
+    start_tick: u32,
+    end_tick: u32,
+    chosen_player: Option<String>,
+}
+
+impl SotetsegMaze {
+    fn new(start_tick: u32) -> Self {
+        SotetsegMaze {
+            pivots: Pivots::default(),
+            start_tick,
+            end_tick: 0,
+            chosen_player: None,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct SotetsegState {
+    maze_1: Option<SotetsegMaze>,
+    maze_2: Option<SotetsegMaze>,
+}
+
+#[derive(Debug, Default)]
+struct XarpusState {
+    healing: Option<i32>,
+}
+
+fn exhumed_healing_for_scale(challenge: &ChallengeInfo) -> i32 {
+    let hmt = matches!(challenge.mode, ChallengeMode::TobHard);
+    match challenge.scale() {
+        1 => {
+            if hmt {
+                21
+            } else {
+                20
+            }
+        }
+        2 => {
+            if hmt {
+                14
+            } else {
+                16
+            }
+        }
+        3 => 12,
+        4 => 9,
+        5 => 8,
+        _ => 0,
+    }
+}
+
+const VERZIK_P1_TRANSITION_TICKS: u32 = 13;
+const VERZIK_P2_TRANSITION_TICKS: u32 = 6;
+
+#[derive(Debug, Default)]
+struct VerzikState {
+    red_spawn_ticks: Vec<u32>,
+    missing_attack_ticks: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ChinThrow {
     party_index: usize,
     weapon_id: u32,
+}
+
+/// Everything a room's finish step reads and writes.
+struct RoomFinish<'a> {
+    txn: &'a db::Transaction,
+    ctx: &'a mut StageContext,
+    events: &'a MergedEvents,
+    room: &'a mut RoomData,
+    last_tick: u32,
+    deaths: i32,
 }
 
 #[derive(Debug)]
@@ -159,6 +271,9 @@ pub struct TheatreProcessor {
     maiden: MaidenState,
     bloat: BloatState,
     nylocas: NylocasState,
+    sotetseg: SotetsegState,
+    xarpus: XarpusState,
+    verzik: VerzikState,
     chins_thrown: Vec<ChinThrow>,
 }
 
@@ -184,6 +299,9 @@ impl TheatreProcessor {
             maiden: MaidenState::default(),
             bloat: BloatState::default(),
             nylocas: NylocasState::default(),
+            sotetseg: SotetsegState::default(),
+            xarpus: XarpusState::default(),
+            verzik: VerzikState::default(),
             chins_thrown: Vec::new(),
         })
     }
@@ -260,6 +378,17 @@ impl TheatreProcessor {
 
         if let Some(style) = npc::nylocas_vasilias_style(npc.id) {
             self.update_nylocas_boss_style(style);
+        }
+
+        if npc::is_verzik_matomenos(npc.id) {
+            match self.verzik.red_spawn_ticks.last() {
+                None => {
+                    ctx.set_stage_split(SplitType::TobEntryVerzikReds, tick, 0, false);
+                    self.verzik.red_spawn_ticks.push(tick);
+                }
+                Some(&last) if last != tick => self.verzik.red_spawn_ticks.push(tick),
+                Some(_) => {}
+            }
         }
     }
 
@@ -430,52 +559,113 @@ impl TheatreProcessor {
         self.nylocas.prev_boss_style = Some(style);
     }
 
-    async fn finish_maiden(
-        &mut self,
-        txn: &db::Transaction,
-        ctx: &mut StageContext,
-        _events: &MergedEvents,
-        _room: &mut RoomData,
-        last_tick: u32,
-        deaths: i32,
-    ) -> Result<(), db::Error> {
-        if let Some(thirties) = ctx.stage_split(SplitType::TobEntryMaiden30s) {
-            ctx.set_stage_split(
+    fn maze_mut(&mut self, maze: Maze) -> Option<&mut SotetsegMaze> {
+        let slot = match maze {
+            Maze::Maze66 => &mut self.sotetseg.maze_1,
+            Maze::Maze33 => &mut self.sotetseg.maze_2,
+        };
+        if slot.is_none() {
+            tracing::warn!(
+                uuid = %self.challenge.uuid,
+                ?maze,
+                "tob_sote_maze_not_started",
+            );
+        }
+        slot.as_mut()
+    }
+
+    fn record_maze_path(&mut self, sote_maze: &event::SoteMaze) {
+        let uuid = self.challenge.uuid;
+        let kind = sote_maze.maze();
+        let Some(maze) = self.maze_mut(kind) else {
+            return;
+        };
+        let Pivots::Partial(mut partial) = maze.pivots else {
+            return;
+        };
+
+        if let Some(pivots) = full_pivots(&sote_maze.underworld_pivots)
+            .or_else(|| full_pivots(&sote_maze.overworld_pivots))
+        {
+            maze.pivots = Pivots::Complete(pivots);
+            return;
+        }
+        if !sote_maze.overworld_pivots.is_empty() {
+            tracing::warn!(
+                uuid = %uuid,
+                maze = ?kind,
+                reason = "partial_overworld_pivots",
+                pivots = ?sote_maze.overworld_pivots,
+                "tob_sote_maze_error",
+            );
+        }
+
+        for pivot in &sote_maze.underworld_pivots {
+            let row = (pivot.y % 2 == 0)
+                .then(|| usize::try_from(pivot.y / 2).ok())
+                .flatten()
+                .and_then(|row| partial.get_mut(row));
+            match row {
+                Some(Some(_)) => tracing::warn!(
+                    uuid = %uuid,
+                    maze = ?kind,
+                    reason = "duplicate_underworld_pivot",
+                    x = pivot.x,
+                    y = pivot.y,
+                    "tob_sote_maze_error",
+                ),
+                Some(row) => *row = Some(pivot.x.cast_unsigned()),
+                None => tracing::warn!(
+                    uuid = %uuid,
+                    maze = ?kind,
+                    reason = "invalid_underworld_pivot",
+                    x = pivot.x,
+                    y = pivot.y,
+                    "tob_sote_maze_error",
+                ),
+            }
+        }
+
+        maze.pivots = if partial.iter().all(Option::is_some) {
+            Pivots::Accumulated(partial.map(|row| row.expect("every row is set")))
+        } else {
+            Pivots::Partial(partial)
+        };
+    }
+
+    async fn finish_maiden(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        if let Some(thirties) = finish.ctx.stage_split(SplitType::TobEntryMaiden30s) {
+            finish.ctx.set_stage_split(
                 SplitType::TobEntryMaiden30sEnd,
-                last_tick,
+                finish.last_tick,
                 thirties.tick,
                 true,
             );
         }
-        txn.execute(
-            "UPDATE tob_challenge_stats
-             SET maiden_deaths = $1,
-                 maiden_full_leaks = $2,
-                 maiden_scuffed_spawns = $3
-             WHERE challenge_id = $4",
-            &[
-                &deaths,
-                &self.maiden.full_leaks.cast_signed(),
-                &self.maiden.scuffed_spawns,
-                &txn.challenge_id(),
-            ],
-        )
-        .await?;
+        finish
+            .txn
+            .execute(
+                "UPDATE tob_challenge_stats
+                 SET maiden_deaths = $1,
+                     maiden_full_leaks = $2,
+                     maiden_scuffed_spawns = $3
+                 WHERE challenge_id = $4",
+                &[
+                    &finish.deaths,
+                    &self.maiden.full_leaks.cast_signed(),
+                    &self.maiden.scuffed_spawns,
+                    &finish.txn.challenge_id(),
+                ],
+            )
+            .await?;
 
         Ok(())
     }
 
-    async fn finish_bloat(
-        &mut self,
-        txn: &db::Transaction,
-        _ctx: &mut StageContext,
-        events: &MergedEvents,
-        room: &mut RoomData,
-        _last_tick: u32,
-        deaths: i32,
-    ) -> Result<(), db::Error> {
-        room.bloat_down_ticks = self.bloat.downs.iter().map(|down| down.tick).collect();
+    async fn finish_bloat(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        finish.room.bloat_down_ticks = self.bloat.downs.iter().map(|down| down.tick).collect();
 
+        let txn = finish.txn;
         let save_stats = async {
             txn.execute(
                 "UPDATE tob_challenge_stats
@@ -484,7 +674,7 @@ impl TheatreProcessor {
                      bloat_first_down_hp_percent = $3
                  WHERE challenge_id = $4",
                 &[
-                    &deaths,
+                    &finish.deaths,
                     &i16::try_from(self.bloat.downs.len()).expect("downs fit in smallint"),
                     &self.bloat.first_down_hp_percent,
                     &txn.challenge_id(),
@@ -495,7 +685,7 @@ impl TheatreProcessor {
         };
 
         let save_hands = async {
-            if events.fully_queryable() {
+            if finish.events.fully_queryable() {
                 self.save_bloat_hands(txn).await
             } else {
                 Ok(())
@@ -503,32 +693,26 @@ impl TheatreProcessor {
         };
         tokio::try_join!(
             save_stats,
-            self.save_bloat_downs(txn, events.accurate_until()),
+            self.save_bloat_downs(txn, finish.events.accurate_until()),
             save_hands,
         )?;
 
         Ok(())
     }
 
-    async fn finish_nylocas(
-        &mut self,
-        txn: &db::Transaction,
-        ctx: &mut StageContext,
-        _events: &MergedEvents,
-        room: &mut RoomData,
-        last_tick: u32,
-        deaths: i32,
-    ) -> Result<(), db::Error> {
-        if let Some(boss_spawn) = ctx.stage_split(SplitType::TobEntryNyloBossSpawn) {
-            ctx.set_stage_split(
+    async fn finish_nylocas(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        if let Some(boss_spawn) = finish.ctx.stage_split(SplitType::TobEntryNyloBossSpawn) {
+            finish.ctx.set_stage_split(
                 SplitType::TobEntryNyloBoss,
-                last_tick,
+                finish.last_tick,
                 boss_spawn.tick,
                 true,
             );
         }
 
-        room.nylo_waves_stalled
+        finish
+            .room
+            .nylo_waves_stalled
             .clone_from(&self.nylocas.stalled_waves);
 
         let mut stalls = [0i32; 31];
@@ -549,34 +733,135 @@ impl TheatreProcessor {
         }
         let stalls = stalls.to_vec();
 
-        txn.execute(
-            "UPDATE tob_challenge_stats
-             SET nylocas_deaths = $1,
-                 nylocas_stalls = $2,
-                 nylocas_pre_cap_stalls = $3,
-                 nylocas_post_cap_stalls = $4,
-                 nylocas_mage_splits = $5,
-                 nylocas_ranged_splits = $6,
-                 nylocas_melee_splits = $7,
-                 nylocas_boss_mage = $8,
-                 nylocas_boss_ranged = $9,
-                 nylocas_boss_melee = $10
-             WHERE challenge_id = $11",
-            &[
-                &deaths,
-                &stalls,
-                &pre_cap_stalls,
-                &post_cap_stalls,
-                &self.nylocas.split_styles.mage,
-                &self.nylocas.split_styles.ranged,
-                &self.nylocas.split_styles.melee,
-                &self.nylocas.boss_styles.mage,
-                &self.nylocas.boss_styles.ranged,
-                &self.nylocas.boss_styles.melee,
-                &txn.challenge_id(),
-            ],
-        )
-        .await?;
+        finish
+            .txn
+            .execute(
+                "UPDATE tob_challenge_stats
+                 SET nylocas_deaths = $1,
+                     nylocas_stalls = $2,
+                     nylocas_pre_cap_stalls = $3,
+                     nylocas_post_cap_stalls = $4,
+                     nylocas_mage_splits = $5,
+                     nylocas_ranged_splits = $6,
+                     nylocas_melee_splits = $7,
+                     nylocas_boss_mage = $8,
+                     nylocas_boss_ranged = $9,
+                     nylocas_boss_melee = $10
+                 WHERE challenge_id = $11",
+                &[
+                    &finish.deaths,
+                    &stalls,
+                    &pre_cap_stalls,
+                    &post_cap_stalls,
+                    &self.nylocas.split_styles.mage,
+                    &self.nylocas.split_styles.ranged,
+                    &self.nylocas.split_styles.melee,
+                    &self.nylocas.boss_styles.mage,
+                    &self.nylocas.boss_styles.ranged,
+                    &self.nylocas.boss_styles.melee,
+                    &finish.txn.challenge_id(),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn finish_sotetseg(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        if let Some(maze) = &self.sotetseg.maze_1 {
+            finish.room.sotetseg_maze_1_pivots = maze.pivots.to_vec();
+            finish
+                .room
+                .sotetseg_maze_1_chosen
+                .clone_from(&maze.chosen_player);
+        }
+        if let Some(maze) = &self.sotetseg.maze_2 {
+            finish.room.sotetseg_maze_2_pivots = maze.pivots.to_vec();
+            finish
+                .room
+                .sotetseg_maze_2_chosen
+                .clone_from(&maze.chosen_player);
+            if maze.end_tick > 0 {
+                finish.ctx.set_stage_split(
+                    SplitType::TobEntrySotetsegP3,
+                    finish.last_tick,
+                    maze.end_tick,
+                    true,
+                );
+            }
+        }
+
+        finish
+            .txn
+            .execute(
+                "UPDATE tob_challenge_stats SET sotetseg_deaths = $1 WHERE challenge_id = $2",
+                &[&finish.deaths, &finish.txn.challenge_id()],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn finish_xarpus(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        if let Some(screech) = finish.ctx.stage_split(SplitType::TobEntryXarpusScreech) {
+            finish.ctx.set_stage_split(
+                SplitType::TobEntryXarpusP3,
+                finish.last_tick,
+                screech.tick,
+                true,
+            );
+        }
+
+        finish
+            .txn
+            .execute(
+                "UPDATE tob_challenge_stats
+                 SET xarpus_deaths = $1,
+                     xarpus_healing = $2
+                 WHERE challenge_id = $3",
+                &[
+                    &finish.deaths,
+                    &self.xarpus.healing,
+                    &finish.txn.challenge_id(),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn finish_verzik(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        if let Some(p2_end) = finish.ctx.stage_split(SplitType::TobEntryVerzikP2End) {
+            finish.ctx.set_stage_split(
+                SplitType::TobEntryVerzikP3,
+                finish.last_tick,
+                p2_end.tick + VERZIK_P2_TRANSITION_TICKS,
+                true,
+            );
+        }
+
+        let reds_count = u32::try_from(self.verzik.red_spawn_ticks.len()).expect("reds");
+        finish.room.verzik_reds_count = reds_count;
+        let reds_count = (reds_count > 0).then_some(reds_count.cast_signed());
+
+        if !self.verzik.missing_attack_ticks.is_empty() {
+            tracing::warn!(
+                uuid = %self.challenge.uuid,
+                ticks = ?self.verzik.missing_attack_ticks,
+                "challenge_events_missing_npc_attack",
+            );
+        }
+
+        finish
+            .txn
+            .execute(
+                "UPDATE tob_challenge_stats
+                 SET verzik_deaths = $1,
+                     verzik_reds_count = $2
+                 WHERE challenge_id = $3",
+                &[&finish.deaths, &reds_count, &finish.txn.challenge_id()],
+            )
+            .await?;
 
         Ok(())
     }
@@ -692,6 +977,10 @@ impl TheatreProcessor {
 
 #[async_trait]
 impl ChallengeProcessor for TheatreProcessor {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "when you handle a bunch of events its long"
+    )]
     fn process_challenge_event(
         &mut self,
         ctx: &mut StageContext,
@@ -736,6 +1025,7 @@ impl ChallengeProcessor for TheatreProcessor {
                 }
                 true
             }
+
             event::Type::TobMaidenCrabLeak => {
                 if let Some(npc) = &event.npc
                     && matches!(npc.r#type, Some(event::npc::Type::MaidenCrab(_)))
@@ -747,6 +1037,7 @@ impl ChallengeProcessor for TheatreProcessor {
                 }
                 true
             }
+
             event::Type::TobBloatDown => {
                 if let Some(down) = &event.bloat_down {
                     self.bloat.downs.push(BloatDown {
@@ -772,6 +1063,7 @@ impl ChallengeProcessor for TheatreProcessor {
                 self.capture_bloat_hands(event.tick, &event.bloat_hands);
                 true
             }
+
             event::Type::TobNyloWaveSpawn => {
                 if let Some(wave) = event.nylo_wave {
                     if wave.wave == 20 {
@@ -796,6 +1088,183 @@ impl ChallengeProcessor for TheatreProcessor {
                 ctx.set_stage_split(SplitType::TobEntryNyloBossSpawn, event.tick, 0, false);
                 true
             }
+
+            event::Type::TobSoteMazeProc => {
+                let Some(sote_maze) = &event.sote_maze else {
+                    tracing::warn!(
+                        uuid = %self.challenge.uuid,
+                        tick = event.tick,
+                        "tob_sote_maze_proc_no_maze",
+                    );
+                    return false;
+                };
+                let maze = SotetsegMaze::new(event.tick);
+                match sote_maze.maze() {
+                    Maze::Maze66 => {
+                        ctx.set_stage_split(SplitType::TobEntrySotetseg66, event.tick, 0, false);
+                        self.sotetseg.maze_1 = Some(maze);
+                    }
+                    Maze::Maze33 => {
+                        ctx.set_stage_split(SplitType::TobEntrySotetseg33, event.tick, 0, false);
+                        if let Some(maze_1) = &self.sotetseg.maze_1 {
+                            ctx.set_stage_split(
+                                SplitType::TobEntrySotetsegP2,
+                                event.tick,
+                                maze_1.end_tick,
+                                false,
+                            );
+                        }
+                        self.sotetseg.maze_2 = Some(maze);
+                    }
+                }
+                true
+            }
+            event::Type::TobSoteMazePath => {
+                // Path is two events in a trenchcoat: the visible tiles for replays,
+                // and the structured pivot events solely for the processor.
+                if let Some(sote_maze) = &event.sote_maze
+                    && sote_maze.overworld_tiles.is_empty()
+                {
+                    self.record_maze_path(sote_maze);
+                    return false;
+                }
+                true
+            }
+            event::Type::TobSoteMazeEnd => {
+                if let Some(sote_maze) = &event.sote_maze
+                    && let Some(maze) = self.maze_mut(sote_maze.maze())
+                {
+                    maze.end_tick = event.tick;
+                    if sote_maze.chosen_player.is_some() {
+                        maze.chosen_player.clone_from(&sote_maze.chosen_player);
+                    }
+                    let split = match sote_maze.maze() {
+                        Maze::Maze66 => SplitType::TobEntrySotetsegMaze1,
+                        Maze::Maze33 => SplitType::TobEntrySotetsegMaze2,
+                    };
+                    ctx.set_stage_split(split, event.tick, maze.start_tick, false);
+                }
+                false
+            }
+
+            event::Type::TobXarpusExhumed => {
+                if let Some(exhumed) = &event.xarpus_exhumed {
+                    let heals = i32::try_from(exhumed.heal_ticks.len()).expect("heals fit in i32");
+                    self.xarpus.healing = Some(
+                        self.xarpus.healing.unwrap_or(0)
+                            + exhumed_healing_for_scale(&self.challenge) * heals,
+                    );
+                }
+                true
+            }
+            event::Type::TobXarpusPhase => {
+                match event.xarpus_phase() {
+                    XarpusPhase::XarpusP1 => {}
+                    XarpusPhase::XarpusP2 => {
+                        ctx.set_stage_split(SplitType::TobEntryXarpusExhumes, event.tick, 0, false);
+                    }
+                    XarpusPhase::XarpusP3 => {
+                        ctx.set_stage_split(SplitType::TobEntryXarpusScreech, event.tick, 0, false);
+                        if let Some(exhumes) = ctx.stage_split(SplitType::TobEntryXarpusExhumes) {
+                            ctx.set_stage_split(
+                                SplitType::TobEntryXarpusP2,
+                                event.tick,
+                                exhumes.tick,
+                                false,
+                            );
+                        }
+                    }
+                }
+                true
+            }
+
+            event::Type::TobVerzikPhase => {
+                match event.verzik_phase() {
+                    VerzikPhase::VerzikIdle | VerzikPhase::VerzikP1 => {}
+                    VerzikPhase::VerzikP2 => {
+                        ctx.set_stage_split(SplitType::TobEntryVerzikP1End, event.tick, 0, false);
+                    }
+                    VerzikPhase::VerzikP3 => {
+                        ctx.set_stage_split(SplitType::TobEntryVerzikP2End, event.tick, 0, false);
+                        if let Some(p1_end) = ctx.stage_split(SplitType::TobEntryVerzikP1End) {
+                            ctx.set_stage_split(
+                                SplitType::TobEntryVerzikP2,
+                                event.tick,
+                                p1_end.tick + VERZIK_P1_TRANSITION_TICKS,
+                                false,
+                            );
+                        }
+                    }
+                }
+                true
+            }
+            event::Type::TobVerzikBounce => {
+                let Some(bounce) = &event.verzik_bounce else {
+                    return false;
+                };
+                let Ok(attack_tick) = u32::try_from(bounce.npc_attack_tick) else {
+                    return false;
+                };
+                let Some(bounced_player) = bounce.bounced_player.clone() else {
+                    // Chance event.
+                    return true;
+                };
+
+                let attack = events
+                    .events_for_tick_mut(attack_tick)
+                    .iter_mut()
+                    .filter(|e| e.r#type() == event::Type::NpcAttack)
+                    .find_map(|e| {
+                        e.npc_attack
+                            .as_mut()
+                            .filter(|attack| attack.attack() == NpcAttack::TobVerzikP2Bounce)
+                    });
+                match attack {
+                    Some(attack) => attack.target = Some(bounced_player),
+                    None => self.verzik.missing_attack_ticks.push(attack_tick),
+                }
+                true
+            }
+            event::Type::TobVerzikAttackStyle => {
+                let Some(attack_style) = event.verzik_attack_style else {
+                    return false;
+                };
+                let tick = attack_style.npc_attack_tick;
+                let attack = events
+                    .events_for_tick_mut(tick)
+                    .iter_mut()
+                    .filter(|e| e.r#type() == event::Type::NpcAttack)
+                    .find_map(|e| {
+                        e.npc_attack
+                            .as_mut()
+                            .filter(|attack| attack.attack() == NpcAttack::TobVerzikP3Auto)
+                    });
+                let Some(attack) = attack else {
+                    self.verzik.missing_attack_ticks.push(tick);
+                    return false;
+                };
+
+                let tank = match attack_style.style() {
+                    AttackStyle::Melee => {
+                        attack.set_attack(NpcAttack::TobVerzikP3Melee);
+                        attack.target.as_ref()
+                    }
+                    AttackStyle::Range => {
+                        attack.set_attack(NpcAttack::TobVerzikP3Range);
+                        None
+                    }
+                    AttackStyle::Mage => {
+                        attack.set_attack(NpcAttack::TobVerzikP3Mage);
+                        None
+                    }
+                };
+                if let Some(index) = tank.and_then(|name| ctx.party_index(name))
+                    && let Some(player) = ctx.player_mut(index)
+                {
+                    player.stats.tob_verzik_p3_melees += 1;
+                }
+                false
+            }
             _ => true,
         }
     }
@@ -812,13 +1281,29 @@ impl ChallengeProcessor for TheatreProcessor {
     async fn on_stage_finished(
         &mut self,
         txn: &db::Transaction,
-        _price_resolver: &PriceResolver,
+        price_resolver: &PriceResolver,
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
         events: &MergedEvents,
     ) -> Result<ChallengeTicks, db::Error> {
         let last_tick = events.last_tick();
+
+        let mut chin_prices: HashMap<u32, i32> = HashMap::new();
+        for chin in &self.chins_thrown {
+            if let Entry::Vacant(entry) = chin_prices.entry(chin.weapon_id) {
+                let price = price_resolver
+                    .get_price(chin.weapon_id.cast_signed())
+                    .await
+                    .map_or(0, |price| i32::try_from(price).unwrap_or(i32::MAX));
+                entry.insert(price);
+            }
+        }
+        for chin in std::mem::take(&mut self.chins_thrown) {
+            if let Some(player) = ctx.player_mut(chin.party_index) {
+                player.stats.chins_thrown_value += chin_prices[&chin.weapon_id];
+            }
+        }
 
         let deaths: Vec<String> = ctx
             .deaths()
@@ -834,19 +1319,21 @@ impl ChallengeProcessor for TheatreProcessor {
         };
         let deaths = i32::try_from(room.deaths.len()).expect("max 5 deaths");
 
+        let mut finish = RoomFinish {
+            txn,
+            ctx,
+            events,
+            room: &mut room,
+            last_tick,
+            deaths,
+        };
         match stage {
-            Stage::TobMaiden => {
-                self.finish_maiden(txn, ctx, events, &mut room, last_tick, deaths)
-                    .await?;
-            }
-            Stage::TobBloat => {
-                self.finish_bloat(txn, ctx, events, &mut room, last_tick, deaths)
-                    .await?;
-            }
-            Stage::TobNylocas => {
-                self.finish_nylocas(txn, ctx, events, &mut room, last_tick, deaths)
-                    .await?;
-            }
+            Stage::TobMaiden => self.finish_maiden(&mut finish).await?,
+            Stage::TobBloat => self.finish_bloat(&mut finish).await?,
+            Stage::TobNylocas => self.finish_nylocas(&mut finish).await?,
+            Stage::TobSotetseg => self.finish_sotetseg(&mut finish).await?,
+            Stage::TobXarpus => self.finish_xarpus(&mut finish).await?,
+            Stage::TobVerzik => self.finish_verzik(&mut finish).await?,
             _ => {}
         }
 
@@ -937,11 +1424,7 @@ mod tests {
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeType, JournalSeq, ReportedTimes, StageStatus, Uuid,
     };
-    use crate::merging::fixtures::{
-        NpcEvent, PlayerAttackEvent, ServerTicks, bloat_down_event, bloat_hands_drop_event,
-        maiden_crab_leak_event, merged_events, npc_spawn_event, npc_update_event, nylo_split_event,
-        nylo_wave_event, player_attack_event, player_death_event,
-    };
+    use crate::merging::fixtures::*;
     use crate::processing::split::{SavedSplit, StageSplit};
     use crate::processing::stats::PlayerStatsDelta;
     use crate::proto::Event;
@@ -1640,6 +2123,365 @@ mod tests {
             },
         );
         assert_eq!(processor.nylocas.prev_boss_style, Some(NyloStyle::Mage));
+    }
+
+    #[test]
+    fn sotetseg_records_mazes() {
+        let mut processor = TheatreProcessor::new(
+            TheatreConfig::default(),
+            challenge_info(Stage::TobSotetseg, ChallengeStatus::InProgress),
+            None,
+        )
+        .unwrap();
+        let mut ctx = StageContext::new(
+            Stage::TobSotetseg,
+            vec![
+                "715".to_string(),
+                "1Ogp".to_string(),
+                "WWWWWWWWWWQQ".to_string(),
+            ],
+        );
+        let mut events = merged_events(
+            vec![
+                sote_maze_proc_event(42, Maze::Maze66),
+                sote_maze_path_event(
+                    64,
+                    Maze::Maze66,
+                    SoteMazePath::UnderworldPivots(&[
+                        (4, 0),
+                        (1, 8),
+                        (4, 6),
+                        (4, 4),
+                        (2, 2),
+                        (0, 14),
+                        (3, 12),
+                        (1, 10),
+                    ]),
+                ),
+                sote_maze_end_event(64, Maze::Maze66, Some("715")),
+                sote_maze_proc_event(106, Maze::Maze33),
+                sote_maze_path_event(112, Maze::Maze33, SoteMazePath::OverworldTiles(&[(7, 0)])),
+                sote_maze_path_event(113, Maze::Maze33, SoteMazePath::OverworldTiles(&[(8, 1)])),
+                sote_maze_path_event(114, Maze::Maze33, SoteMazePath::OverworldTiles(&[(10, 2)])),
+                sote_maze_path_event(115, Maze::Maze33, SoteMazePath::OverworldTiles(&[(11, 4)])),
+                sote_maze_path_event(116, Maze::Maze33, SoteMazePath::OverworldTiles(&[(12, 6)])),
+                sote_maze_path_event(117, Maze::Maze33, SoteMazePath::OverworldTiles(&[(10, 8)])),
+                sote_maze_path_event(118, Maze::Maze33, SoteMazePath::OverworldTiles(&[(9, 10)])),
+                sote_maze_path_event(119, Maze::Maze33, SoteMazePath::OverworldTiles(&[(11, 12)])),
+                sote_maze_path_event(120, Maze::Maze33, SoteMazePath::OverworldTiles(&[(12, 14)])),
+                sote_maze_path_event(
+                    124,
+                    Maze::Maze33,
+                    SoteMazePath::OverworldPivots(&[
+                        (7, 0),
+                        (10, 2),
+                        (11, 4),
+                        (12, 6),
+                        (10, 8),
+                        (9, 10),
+                        (11, 12),
+                        (12, 14),
+                    ]),
+                ),
+                sote_maze_end_event(124, Maze::Maze33, Some("1Ogp")),
+            ],
+            StageStatus::Completed,
+            ServerTicks::Precise(169),
+        );
+
+        let kept: Vec<bool> = (0..events.len())
+            .map(|index| {
+                let mut cursor = EventCursor::new(&mut events, index);
+                processor.process_challenge_event(&mut ctx, &mut cursor)
+            })
+            .collect();
+        assert_eq!(
+            kept,
+            vec![
+                true, false, false, true, true, true, true, true, true, true, true, true, true,
+                false, false,
+            ],
+        );
+
+        assert_eq!(
+            ctx.stage_splits().collect::<Vec<_>>(),
+            vec![
+                (
+                    SplitType::TobEntrySotetseg66,
+                    StageSplit {
+                        tick: 42,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntrySotetseg33,
+                    StageSplit {
+                        tick: 106,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntrySotetsegMaze1,
+                    StageSplit {
+                        tick: 64,
+                        start: 42,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntrySotetsegMaze2,
+                    StageSplit {
+                        tick: 124,
+                        start: 106,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntrySotetsegP2,
+                    StageSplit {
+                        tick: 106,
+                        start: 64,
+                        requires_completion: false,
+                    },
+                ),
+            ],
+        );
+        assert_eq!(
+            processor.sotetseg.maze_1,
+            Some(SotetsegMaze {
+                pivots: Pivots::Complete([4, 2, 4, 4, 1, 1, 3, 0]),
+                start_tick: 42,
+                end_tick: 64,
+                chosen_player: Some("715".to_string()),
+            }),
+        );
+        assert_eq!(
+            processor.sotetseg.maze_2,
+            Some(SotetsegMaze {
+                pivots: Pivots::Complete([7, 10, 11, 12, 10, 9, 11, 12]),
+                start_tick: 106,
+                end_tick: 124,
+                chosen_player: Some("1Ogp".to_string()),
+            }),
+        );
+    }
+
+    #[test]
+    fn xarpus_records_healing_and_phases() {
+        let mut processor = TheatreProcessor::new(
+            TheatreConfig::default(),
+            challenge_info(Stage::TobXarpus, ChallengeStatus::InProgress),
+            None,
+        )
+        .unwrap();
+        let mut ctx = StageContext::new(
+            Stage::TobXarpus,
+            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+        );
+        let mut events = merged_events(
+            vec![
+                xarpus_exhumed_event(19, 8, &[]),
+                xarpus_exhumed_event(27, 16, &[19]),
+                xarpus_exhumed_event(35, 24, &[27, 28]),
+                xarpus_exhumed_event(43, 32, &[35]),
+                xarpus_exhumed_event(51, 40, &[43]),
+                xarpus_exhumed_event(59, 48, &[]),
+                xarpus_exhumed_event(67, 56, &[59]),
+                xarpus_exhumed_event(75, 64, &[67]),
+                xarpus_exhumed_event(83, 72, &[75, 76]),
+                xarpus_phase_event(92, XarpusPhase::XarpusP2),
+                xarpus_phase_event(240, XarpusPhase::XarpusP3),
+            ],
+            StageStatus::Completed,
+            ServerTicks::Precise(311),
+        );
+
+        for index in 0..events.len() {
+            let mut cursor = EventCursor::new(&mut events, index);
+            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        }
+
+        assert_eq!(
+            ctx.stage_splits().collect::<Vec<_>>(),
+            vec![
+                (
+                    SplitType::TobEntryXarpusExhumes,
+                    StageSplit {
+                        tick: 92,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntryXarpusScreech,
+                    StageSplit {
+                        tick: 240,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntryXarpusP2,
+                    StageSplit {
+                        tick: 240,
+                        start: 92,
+                        requires_completion: false,
+                    },
+                ),
+            ],
+        );
+        assert_eq!(processor.xarpus.healing, Some(144));
+    }
+
+    #[test]
+    fn verzik_records_splits_and_applies_attack_style() {
+        let mut processor = TheatreProcessor::new(
+            TheatreConfig::default(),
+            challenge_info(Stage::TobVerzik, ChallengeStatus::InProgress),
+            None,
+        )
+        .unwrap();
+        let mut ctx = StageContext::new(
+            Stage::TobVerzik,
+            vec![
+                "1Ogp".to_string(),
+                "WWWWWWWWWWQQ".to_string(),
+                "715".to_string(),
+            ],
+        );
+        let red = |tick: u32, room_id: u64, coords: (i32, i32)| {
+            npc_spawn_event(NpcEvent {
+                tick,
+                stage: Stage::TobVerzik,
+                coords,
+                npc_id: npc::id::VERZIK_MATOMENOS_REGULAR,
+                room_id,
+                hitpoints: SkillLevel {
+                    current: 150,
+                    base: 150,
+                },
+                ..Default::default()
+            })
+        };
+        let p3_auto = |tick: u32, coords: (i32, i32)| {
+            npc_attack_event(
+                tick,
+                Stage::TobVerzik,
+                coords,
+                8374,
+                39798,
+                NpcAttack::TobVerzikP3Auto,
+                Some("715"),
+            )
+        };
+        let mut events = merged_events(
+            vec![
+                verzik_phase_event(66, VerzikPhase::VerzikP2),
+                red(174, 44478, (3163, 4314)),
+                red(174, 44479, (3171, 4314)),
+                red(218, 45588, (3163, 4314)),
+                red(218, 45589, (3171, 4314)),
+                verzik_bounce_event(230, 230, 0, 3, None),
+                npc_attack_event(
+                    234,
+                    Stage::TobVerzik,
+                    (3167, 4313),
+                    8372,
+                    39798,
+                    NpcAttack::TobVerzikP2Bounce,
+                    None,
+                ),
+                verzik_bounce_event(235, 234, 2, 1, Some("WWWWWWWWWWQQ")),
+                verzik_phase_event(235, VerzikPhase::VerzikP3),
+                p3_auto(247, (3165, 4309)),
+                verzik_attack_style_event(249, 247, AttackStyle::Mage),
+                p3_auto(254, (3165, 4309)),
+                verzik_attack_style_event(257, 254, AttackStyle::Range),
+                p3_auto(348, (3165, 4309)),
+                verzik_attack_style_event(353, 348, AttackStyle::Melee),
+                p3_auto(353, (3165, 4309)),
+                verzik_attack_style_event(356, 353, AttackStyle::Range),
+            ],
+            StageStatus::Completed,
+            ServerTicks::Precise(375),
+        );
+
+        let kept: Vec<bool> = (0..events.len())
+            .map(|index| {
+                let mut cursor = EventCursor::new(&mut events, index);
+                processor.process_challenge_event(&mut ctx, &mut cursor)
+            })
+            .collect();
+        assert_eq!(
+            kept,
+            vec![
+                true, true, true, true, true, true, true, true, true, true, false, true, false,
+                true, false, true, false,
+            ],
+        );
+
+        assert_eq!(
+            ctx.stage_splits().collect::<Vec<_>>(),
+            vec![
+                (
+                    SplitType::TobEntryVerzikP1End,
+                    StageSplit {
+                        tick: 66,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntryVerzikReds,
+                    StageSplit {
+                        tick: 174,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntryVerzikP2End,
+                    StageSplit {
+                        tick: 235,
+                        start: 0,
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntryVerzikP2,
+                    StageSplit {
+                        tick: 235,
+                        start: 79,
+                        requires_completion: false,
+                    },
+                ),
+            ],
+        );
+        assert_eq!(processor.verzik.red_spawn_ticks, vec![174, 218]);
+        assert!(processor.verzik.missing_attack_ticks.is_empty());
+
+        let attack = |tick: u32| {
+            events
+                .events_for_tick(tick)
+                .iter()
+                .find_map(|e| e.npc_attack.as_ref())
+                .unwrap()
+        };
+        assert_eq!(attack(234).attack(), NpcAttack::TobVerzikP2Bounce);
+        assert_eq!(attack(234).target.as_deref(), Some("WWWWWWWWWWQQ"));
+        assert_eq!(attack(247).attack(), NpcAttack::TobVerzikP3Mage);
+        assert_eq!(attack(254).attack(), NpcAttack::TobVerzikP3Range);
+        assert_eq!(attack(348).attack(), NpcAttack::TobVerzikP3Melee);
+        assert_eq!(attack(353).attack(), NpcAttack::TobVerzikP3Range);
+        assert_eq!(
+            ctx.players()
+                .iter()
+                .map(|player| player.stats.tob_verzik_p3_melees)
+                .collect::<Vec<_>>(),
+            vec![0, 0, 1],
+        );
     }
 
     #[tokio::test]
