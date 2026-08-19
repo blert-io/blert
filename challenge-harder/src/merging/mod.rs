@@ -6,6 +6,7 @@
 // TODO(frolv): Remove once the container's full API has consumers.
 #![cfg_attr(not(test), expect(dead_code))]
 
+pub mod capture;
 mod client_events;
 #[cfg(test)]
 pub(crate) mod fixtures;
