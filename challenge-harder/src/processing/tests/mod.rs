@@ -13,6 +13,7 @@ mod finish;
 mod golden;
 mod inferno;
 mod mokhaiotl;
+mod theatre;
 
 // All fixture tests share the same database and write the same rows, so they
 // need to be serialized behind a lock.
