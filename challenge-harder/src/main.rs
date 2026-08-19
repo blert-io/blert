@@ -21,6 +21,7 @@ mod repository;
 mod shadow;
 mod skill;
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -54,6 +55,16 @@ struct Cli {
 enum Command {
     /// Runs the challenge server.
     Serve,
+    /// Merges captured stage streams, writing the results to disk.
+    Merge {
+        /// Capture files to merge.
+        #[arg(required = true)]
+        captures: Vec<PathBuf>,
+        /// Directory to which to write the results. Required for more than
+        /// one capture. Without it, prints a single capture report to stdout.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Shadow harness tooling.
     #[command(subcommand)]
     Shadow(shadow::Command),
@@ -73,6 +84,7 @@ async fn main() -> ExitCode {
             .await;
             ExitCode::SUCCESS
         }
+        Some(Command::Merge { captures, out }) => merging::capture::run(&captures, out.as_deref()),
         Some(Command::Shadow(command)) => shadow::run(command).await,
     }
 }
