@@ -71,6 +71,15 @@ impl PriceResolver {
         }
     }
 
+    /// Fills the cache with known prices.
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub fn populate(&self, prices: impl IntoIterator<Item = (i32, u64)>) {
+        *self.prices.lock().expect("price map lock") = Some(PriceMap {
+            prices: prices.into_iter().collect(),
+            fetched: Instant::now(),
+        });
+    }
+
     /// Fetches every item's price into the cache if it is stale.
     /// The wait is bounded by the configured fetch timeout.
     pub async fn refresh(&self) -> Result<(), PriceError> {

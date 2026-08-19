@@ -1,10 +1,15 @@
 //! Utilities for checking and updating golden test files.
 
 use std::fmt;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use console::{Style, style};
+use flate2::Compression;
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
 use prost_reflect::{DescriptorPool, DynamicMessage};
 use similar::{ChangeTag, TextDiff};
 
@@ -32,12 +37,12 @@ pub(super) fn assert_stage_artifacts(
 ) {
     assert_golden(
         name,
-        &format!("{name}_custom_data.json"),
+        &format!("{name}_custom_data.json.gz"),
         &serde_json::to_string_pretty(custom_data).expect("custom data serializes"),
     );
     assert_golden(
         name,
-        &format!("{name}_challenge.json"),
+        &format!("{name}_challenge.json.gz"),
         &serde_json::to_string_pretty(&proto_json("blert.ChallengeData", challenge))
             .expect("challenge data serializes"),
     );
@@ -46,7 +51,20 @@ pub(super) fn assert_stage_artifacts(
         .map(|event| proto_json("blert.Event", event).to_string())
         .collect::<Vec<_>>()
         .join("\n");
-    assert_golden(name, &format!("{name}_events.jsonl"), &events);
+    assert_golden(name, &format!("{name}_events.jsonl.gz"), &events);
+}
+
+fn read_golden(path: &Path) -> std::io::Result<String> {
+    let mut contents = String::new();
+    GzDecoder::new(File::open(path)?).read_to_string(&mut contents)?;
+    Ok(contents)
+}
+
+fn write_golden(path: &Path, contents: &str) -> std::io::Result<()> {
+    let mut encoder = GzEncoder::new(File::create(path)?, Compression::best());
+    encoder.write_all(contents.as_bytes())?;
+    encoder.finish()?;
+    Ok(())
 }
 
 /// Renders a proto message as canonical JSON.
@@ -68,11 +86,11 @@ fn assert_golden(test_name: &str, filename: &str, actual: &str) {
         && (name == test_name || name == "all")
     {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, actual).unwrap();
+        write_golden(&path, actual).unwrap();
         return;
     }
 
-    let expected = std::fs::read_to_string(&path).unwrap_or_else(|_| {
+    let expected = read_golden(&path).unwrap_or_else(|_| {
         panic!("missing golden `{test_name}`; create it with UPDATE_GOLDEN={test_name}")
     });
 
