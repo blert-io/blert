@@ -11,3 +11,9 @@
 )]
 
 include!(concat!(env!("OUT_DIR"), "/blert.rs"));
+
+impl From<(i32, i32)> for Coords {
+    fn from((x, y): (i32, i32)) -> Coords {
+        Coords { x, y }
+    }
+}

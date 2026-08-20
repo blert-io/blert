@@ -234,7 +234,7 @@ pub fn bloat_hands_drop_event(tick: u32, hands: &[(i32, i32)]) -> Event {
         ..Default::default()
     };
     event.set_type(event::Type::TobBloatHandsDrop);
-    event.bloat_hands = hands.iter().map(|&(x, y)| Coords { x, y }).collect();
+    event.bloat_hands = hands.iter().copied().map(Coords::from).collect();
     event
 }
 
@@ -295,7 +295,7 @@ pub enum SoteMazePath<'a> {
 }
 
 pub fn sote_maze_path_event(tick: u32, maze: Maze, path: SoteMazePath<'_>) -> Event {
-    let coords = |points: &[(i32, i32)]| points.iter().map(|&(x, y)| Coords { x, y }).collect();
+    let coords = |points: &[(i32, i32)]| points.iter().copied().map(Coords::from).collect();
     let mut sote_maze = event::SoteMaze {
         maze: maze as i32,
         ..Default::default()

@@ -28,6 +28,8 @@ fn main() -> Result<()> {
         );
     }
 
+    config.type_attribute(".blert.Coords", "#[derive(PartialOrd, Ord)]");
+
     // NPC kinds are stored as JSON within processor custom data.
     for ty in [
         ".blert.Event.Npc.type",
