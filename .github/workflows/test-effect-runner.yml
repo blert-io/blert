@@ -1,26 +1,26 @@
-name: Test Socket Server
+name: Test Effect Runner
 
 on:
   pull_request:
     paths:
-      - 'socket-server/**'
+      - 'effect-runner/**'
       - 'common/**'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.base.json'
       - '.npmrc'
-      - '.github/workflows/test-socket-server.yml'
+      - '.github/workflows/test-effect-runner.yml'
   push:
     branches:
       - main
     paths:
-      - 'socket-server/**'
+      - 'effect-runner/**'
       - 'common/**'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.base.json'
       - '.npmrc'
-      - '.github/workflows/test-socket-server.yml'
+      - '.github/workflows/test-effect-runner.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -45,29 +45,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build common (dependency)
+      - name: Build common
         run: npm run -w common build
 
       - name: Format check
-        run: npm run -w socket-server format
+        run: npm run -w effect-runner format
 
       - name: Lint
-        run: npm run -w socket-server lint
+        run: npm run -w effect-runner lint
 
-      - name: Type check
-        run: npm run -w socket-server typecheck
+      - name: Typecheck
+        run: npm run -w effect-runner typecheck
 
-      - name: Build socket-server
-        run: npm run -w socket-server build
+      - name: Build effect-runner
+        run: npm run -w effect-runner build
 
       - name: Run tests with coverage
-        run: npm run -w socket-server test:coverage
+        run: npm run -w effect-runner test:coverage
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v7
         if: always()
         with:
-          files: ./socket-server/coverage/lcov.info
-          flags: socket-server
+          files: ./effect-runner/coverage/lcov.info
+          flags: effect-runner
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true

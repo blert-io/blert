@@ -1,17 +1,8 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "esnext",
     "rootDir": ".",
     "outDir": "./dist/",
-    "lib": ["esnext"],
-    "types": ["node"],
-    "allowJs": false,
-    "strict": true,
-    "esModuleInterop": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "isolatedModules": true,
-    "incremental": true,
     "paths": {
       "@/*": ["./*"]
     }

@@ -121,6 +121,27 @@ services:
     working_dir: /app
     command: npm run -w blertbank dev
 
+  effect-runner:
+    image: node:26
+    depends_on:
+      - redis
+      - postgres
+    ports:
+      - '3071:3003'
+    links:
+      - redis
+      - postgres
+    volumes:
+      - .:/app
+    environment:
+      NODE_ENV: development
+      BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
+      BLERT_LOG_LEVEL: debug
+      BLERT_REDIS_URI: redis://redis:6379
+      BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
+    working_dir: /app
+    command: npm run -w effect-runner dev
+
   live-server:
     build:
       context: docker/live-server

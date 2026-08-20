@@ -50,6 +50,7 @@ RUN npm ci && npm prune --omit=dev
 # ==============================================================================
 FROM deps AS common-build
 
+COPY tsconfig.base.json ./
 COPY proto/ proto/
 COPY common/ common/
 RUN npm run -w common build
