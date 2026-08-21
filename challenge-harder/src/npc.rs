@@ -50,6 +50,10 @@ pub mod id {
     pub const NYLOCAS_HAGIOS_BIG_AGGRO_REGULAR: u32 = 8353;
     pub const NYLOCAS_HAGIOS_BIG_AGGRO_HARD: u32 = 10802;
 
+    pub const NYLOCAS_PRINKIPAS_MELEE: u32 = 10804;
+    pub const NYLOCAS_PRINKIPAS_MAGE: u32 = 10805;
+    pub const NYLOCAS_PRINKIPAS_RANGE: u32 = 10806;
+
     pub const NYLOCAS_VASILIAS_DROPPING_ENTRY: u32 = 10787;
     pub const NYLOCAS_VASILIAS_MELEE_ENTRY: u32 = 10788;
     pub const NYLOCAS_VASILIAS_MAGE_ENTRY: u32 = 10789;
@@ -128,23 +132,15 @@ pub fn is_nylocas(npc_id: u32) -> bool {
     )
 }
 
-pub fn is_verzik_p1(npc_id: u32) -> bool {
+pub fn is_nylocas_prinkipas(npc_id: u32) -> bool {
     matches!(
         npc_id,
-        id::VERZIK_P1_ENTRY
-            | id::VERZIK_P1_ENTRY_10832
-            | id::VERZIK_P1_REGULAR
-            | id::VERZIK_P1_REGULAR_8371
-            | id::VERZIK_P1_HARD
-            | id::VERZIK_P1_HARD_10849
+        id::NYLOCAS_PRINKIPAS_MELEE | id::NYLOCAS_PRINKIPAS_MAGE | id::NYLOCAS_PRINKIPAS_RANGE
     )
 }
 
-pub fn is_verzik_matomenos(npc_id: u32) -> bool {
-    matches!(
-        npc_id,
-        id::VERZIK_MATOMENOS_ENTRY | id::VERZIK_MATOMENOS_REGULAR | id::VERZIK_MATOMENOS_HARD
-    )
+pub fn is_nylocas_vasilias(npc_id: u32) -> bool {
+    nylocas_vasilias_style(npc_id).is_some()
 }
 
 pub fn nylocas_vasilias_style(npc_id: u32) -> Option<NyloStyle> {
@@ -163,4 +159,23 @@ pub fn nylocas_vasilias_style(npc_id: u32) -> Option<NyloStyle> {
         | id::NYLOCAS_VASILIAS_MAGE_HARD => Some(NyloStyle::Mage),
         _ => None,
     }
+}
+
+pub fn is_verzik_p1(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::VERZIK_P1_ENTRY
+            | id::VERZIK_P1_ENTRY_10832
+            | id::VERZIK_P1_REGULAR
+            | id::VERZIK_P1_REGULAR_8371
+            | id::VERZIK_P1_HARD
+            | id::VERZIK_P1_HARD_10849
+    )
+}
+
+pub fn is_verzik_matomenos(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::VERZIK_MATOMENOS_ENTRY | id::VERZIK_MATOMENOS_REGULAR | id::VERZIK_MATOMENOS_HARD
+    )
 }

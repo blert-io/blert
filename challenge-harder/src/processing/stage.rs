@@ -204,7 +204,7 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ServerTicks, Stage, StageStatus,
         StageUpdate, Uuid,
     };
-    use crate::proto::{ChallengeEvents, Event};
+    use crate::proto::ChallengeEvents;
 
     fn test_uuid() -> Uuid {
         "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap()
@@ -222,9 +222,13 @@ mod tests {
         let message = ChallengeEvents {
             events: ticks
                 .iter()
-                .map(|&tick| Event {
-                    tick,
-                    ..Default::default()
+                .map(|&tick| {
+                    crate::merging::fixtures::mokhaiotl_larva_leak_event(
+                        tick,
+                        Stage::MokhaiotlDelve1,
+                        40_000 + u64::from(tick),
+                        5,
+                    )
                 })
                 .collect(),
             ..Default::default()

@@ -17,7 +17,6 @@ impl SkillLevel {
     }
 
     /// Packs the skill level into its numeric representation.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub fn to_raw(self) -> u32 {
         u32::from(self.current) << 16 | u32::from(self.base)
     }

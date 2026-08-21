@@ -13,6 +13,7 @@ mod merging;
 mod metrics;
 mod npc;
 mod players;
+mod prayer;
 mod price;
 mod processing;
 mod proto;

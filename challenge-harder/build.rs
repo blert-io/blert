@@ -8,6 +8,7 @@ use std::path::Path;
 
 fn main() -> Result<()> {
     generate_item_ids()?;
+    generate_attack_definitions()?;
 
     let proto_dir = "../proto";
     println!("cargo:rerun-if-changed={proto_dir}");
@@ -49,6 +50,41 @@ fn main() -> Result<()> {
         &[proto_dir],
     )?;
     Ok(())
+}
+
+/// Generates attack metadata from the canonical JSON.
+fn generate_attack_definitions() -> Result<()> {
+    const DEFINITIONS_FILE: &str = "../proto/attack_definitions.json";
+    println!("cargo:rerun-if-changed={DEFINITIONS_FILE}");
+
+    let data = std::fs::read_to_string(DEFINITIONS_FILE)?;
+    let definitions: serde_json::Value =
+        serde_json::from_str(&data).map_err(std::io::Error::other)?;
+
+    let mut entries = Vec::new();
+    for definition in definitions.as_array().into_iter().flatten() {
+        let (Some(id), Some(cooldown)) = (
+            definition["protoId"].as_i64(),
+            definition["cooldown"].as_i64(),
+        ) else {
+            return Err(std::io::Error::other("attack definition missing fields"));
+        };
+        entries.push((id, cooldown));
+    }
+    entries.sort_by_key(|&(id, _)| id);
+
+    let mut out = String::from(
+        "// Generated from the attack definitions JSON.\n\n\
+         /// Returns an attack's cooldown in ticks.\n\
+         pub const fn cooldown(id: i32) -> Option<u32> {\n    match id {\n",
+    );
+    for (id, cooldown) in entries {
+        out.push_str(&format!("        {id} => Some({cooldown}),\n"));
+    }
+    out.push_str("        _ => None,\n    }\n}\n");
+
+    let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
+    std::fs::write(Path::new(&out_dir).join("attack_definitions.rs"), out)
 }
 
 /// Generates item ID constants from the OSRS item dump.
