@@ -661,7 +661,7 @@ async fn verify_bloat_rows(
         .expect("custom data present")
 }
 
-const NYLOCAS_UUID: &str = "51419959-6412-42b4-b068-68adf4779af7";
+const NYLOCAS_UUID: &str = "4a9f3e87-31fd-4777-9d87-c6fa12dbc669";
 
 #[tokio::test]
 async fn nylocas_test() {
@@ -708,7 +708,7 @@ async fn nylocas_test() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
-        mode: ChallengeMode::TobRegular,
+        mode: ChallengeMode::TobHard,
         party,
         party_changed: false,
         stage: Stage::TobNylocas,
@@ -747,7 +747,7 @@ async fn nylocas_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 380,
+            ticks: 444,
         },
     );
 
@@ -787,12 +787,12 @@ async fn verify_nylocas_rows(
         .await
         .expect("challenge row");
     assert_eq!(row.get::<_, i16>(0), ChallengeType::Tob as i16);
-    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TobRegular as i16);
+    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TobHard as i16);
     assert_eq!(row.get::<_, i16>(2), 3);
     assert_eq!(row.get::<_, i16>(3), Stage::TobNylocas as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 380);
-    assert_eq!(row.get::<_, i32>(6), 0);
+    assert_eq!(row.get::<_, i32>(5), 444);
+    assert_eq!(row.get::<_, i32>(6), 1);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
         UNIX_EPOCH + Duration::from_millis(CREATED_UNIX_MS),
@@ -806,17 +806,28 @@ async fn verify_nylocas_rows(
         )
         .await
         .expect("membership rows");
+
     let expected_gear = [
         PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::Oathplate,
     ];
+    let expected_deaths = [
+        Vec::<i16>::new(),
+        Vec::<i16>::new(),
+        vec![Stage::TobNylocas as i16],
+    ];
     assert_eq!(rows.len(), 3);
-    for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
+    for (orb, ((row, gear), deaths)) in rows
+        .iter()
+        .zip(expected_gear)
+        .zip(expected_deaths)
+        .enumerate()
+    {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
         assert_eq!(row.get::<_, i16>(1), i16::try_from(orb).unwrap());
         assert_eq!(row.get::<_, i16>(2), gear as i16, "{}", PARTY[orb]);
-        assert_eq!(row.get::<_, Vec<i16>>(3), Vec::<i16>::new());
+        assert_eq!(row.get::<_, Vec<i16>>(3), deaths, "{}", PARTY[orb]);
     }
 
     let row = client
@@ -831,17 +842,20 @@ async fn verify_nylocas_rows(
         .await
         .expect("stats row");
     let mut stalls = vec![0i32; 31];
-    stalls[28] = 2;
-    assert_eq!(row.get::<_, Option<i32>>(0), Some(0));
+    stalls[10] = 1;
+    stalls[20] = 1;
+    stalls[26] = 1;
+    stalls[27] = 3;
+    assert_eq!(row.get::<_, Option<i32>>(0), Some(1));
     assert_eq!(row.get::<_, Option<Vec<i32>>>(1), Some(stalls));
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(0));
-    assert_eq!(row.get::<_, Option<i32>>(3), Some(2));
-    assert_eq!(row.get::<_, Option<i32>>(4), Some(30));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(1));
+    assert_eq!(row.get::<_, Option<i32>>(3), Some(5));
+    assert_eq!(row.get::<_, Option<i32>>(4), Some(22));
     assert_eq!(row.get::<_, Option<i32>>(5), Some(30));
-    assert_eq!(row.get::<_, Option<i32>>(6), Some(26));
-    assert_eq!(row.get::<_, Option<i32>>(7), Some(3));
-    assert_eq!(row.get::<_, Option<i32>>(8), Some(3));
-    assert_eq!(row.get::<_, Option<i32>>(9), Some(2));
+    assert_eq!(row.get::<_, Option<i32>>(6), Some(34));
+    assert_eq!(row.get::<_, Option<i32>>(7), Some(4));
+    assert_eq!(row.get::<_, Option<i32>>(8), Some(4));
+    assert_eq!(row.get::<_, Option<i32>>(9), Some(3));
 
     let splits = client
         .query(
@@ -852,12 +866,12 @@ async fn verify_nylocas_rows(
         .await
         .expect("split rows");
     let expected = [
-        (SplitType::TobRegNyloRoom, 380),
-        (SplitType::TobRegNyloCap, 152),
-        (SplitType::TobRegNyloWaves, 244),
-        (SplitType::TobRegNyloCleanup, 276),
-        (SplitType::TobRegNyloBossSpawn, 292),
-        (SplitType::TobRegNyloBoss, 88),
+        (SplitType::TobHmNyloRoom, 444),
+        (SplitType::TobHmNyloCap, 164),
+        (SplitType::TobHmNyloWaves, 280),
+        (SplitType::TobHmNyloCleanup, 320),
+        (SplitType::TobHmNyloBossSpawn, 336),
+        (SplitType::TobHmNyloBoss, 108),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {
@@ -881,30 +895,34 @@ async fn verify_nylocas_rows(
         assert_eq!(pb_split_ids, split_ids, "player {player_id}");
     }
 
-    // player2 chins; player1 chally swipes during cleanup, which is allowed.
+    // player2 chins; player3 dies to the boss.
     let stats = client
         .query(
             "SELECT player_id, chins_thrown_total, chins_thrown_black, chins_thrown_maiden,
                     chins_thrown_nylocas, chins_thrown_value, chins_thrown_incorrectly_maiden,
                     chally_pokes, deaths_total
-             FROM player_stats WHERE player_id = ANY($1)",
+             FROM player_stats WHERE player_id = ANY($1) ORDER BY player_id",
             &[&player_ids],
         )
         .await
         .expect("player stats");
-    assert_eq!(stats.len(), 1);
+    assert_eq!(stats.len(), 2);
     assert_eq!(stats[0].get::<_, i32>(0), player_ids[1]);
-    assert_eq!(stats[0].get::<_, i32>(1), 8);
-    assert_eq!(stats[0].get::<_, i32>(2), 8);
+    assert_eq!(stats[0].get::<_, i32>(1), 6);
+    assert_eq!(stats[0].get::<_, i32>(2), 6);
     assert_eq!(stats[0].get::<_, i32>(3), 0);
-    assert_eq!(stats[0].get::<_, i32>(4), 8);
+    assert_eq!(stats[0].get::<_, i32>(4), 6);
     assert_eq!(
         stats[0].get::<_, i32>(5),
-        8 * i32::try_from(BLACK_CHINCHOMPA_PRICE).unwrap(),
+        6 * i32::try_from(BLACK_CHINCHOMPA_PRICE).unwrap(),
     );
     assert_eq!(stats[0].get::<_, i32>(6), 0);
     assert_eq!(stats[0].get::<_, i32>(7), 0);
     assert_eq!(stats[0].get::<_, i32>(8), 0);
+    assert_eq!(stats[1].get::<_, i32>(0), player_ids[2]);
+    assert_eq!(stats[1].get::<_, i32>(1), 0);
+    assert_eq!(stats[1].get::<_, i32>(7), 0);
+    assert_eq!(stats[1].get::<_, i32>(8), 1);
 
     // All queryable events are written.
     let rows = client
@@ -919,12 +937,13 @@ async fn verify_nylocas_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 280),
-            (event::Type::NpcSpawn as i16, 208),
-            (event::Type::NpcDeath as i16, 208),
-            (event::Type::NpcAttack as i16, 16),
-            (event::Type::PlayerSpell as i16, 7),
-            (event::Type::TobNyloWaveStall as i16, 2),
+            (event::Type::PlayerAttack as i16, 302),
+            (event::Type::NpcSpawn as i16, 213),
+            (event::Type::NpcDeath as i16, 210),
+            (event::Type::NpcAttack as i16, 32),
+            (event::Type::PlayerSpell as i16, 2),
+            (event::Type::PlayerDeath as i16, 1),
+            (event::Type::TobNyloWaveStall as i16, 6),
         ]),
     );
 
@@ -941,7 +960,7 @@ async fn verify_nylocas_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(380));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(444));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }

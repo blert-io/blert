@@ -10,14 +10,54 @@ impl TaggedEvent {
     const SYNTHETIC_CLIENT_ID: ClientId = ClientId(0);
 
     /// Tags an event with the client that recorded it.
-    pub fn new(client_id: ClientId, event: Event) -> TaggedEvent {
-        TaggedEvent(client_id, event)
+    pub fn new(client_id: ClientId, event: Event) -> Self {
+        Self(client_id, event)
     }
 
     /// Tags an event originating from the merger.
-    pub fn synthetic(event: Event) -> TaggedEvent {
-        TaggedEvent(Self::SYNTHETIC_CLIENT_ID, event)
+    pub fn synthetic(event: Event) -> Self {
+        Self(Self::SYNTHETIC_CLIENT_ID, event)
     }
+
+    /// Returns the client that recorded this event.
+    pub fn source(&self) -> ClientId {
+        self.0
+    }
+
+    pub fn split(self) -> (ClientId, Event) {
+        (self.0, self.1)
+    }
+}
+
+impl std::ops::Deref for TaggedEvent {
+    type Target = Event;
+
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
+
+impl std::ops::DerefMut for TaggedEvent {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.1
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MalformedEvent {
+    #[error("{kind:?}:{tick} is missing required payload {field:?}")]
+    MissingPayload {
+        kind: event::Type,
+        tick: u32,
+        field: &'static str,
+    },
+    #[error("{kind:?}:{tick} has out-of-domain {field:?} value {value}")]
+    OutOfDomain {
+        kind: event::Type,
+        tick: u32,
+        field: &'static str,
+        value: String,
+    },
 }
 
 /// The category of an event within the merger, determining its handling.

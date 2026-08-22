@@ -8,21 +8,53 @@
 
 pub mod capture;
 mod client_events;
+mod derivation;
+mod event;
 #[cfg(test)]
 pub(crate) mod fixtures;
+mod timeline;
+mod world;
 
 use client_events::ClientEvents;
 
-use crate::lifecycle::core::types::{ClientStageStream, Stage, StageStatus, Uuid};
+use crate::lifecycle::core::types::{
+    ChallengeMode, ChallengeType, ClientStageStream, Stage, StageStatus, Uuid,
+};
 use crate::proto::Event;
+
+/// Challenge context for a merge.
+#[derive(Debug, Clone)]
+pub struct ChallengeInfo<'a> {
+    pub uuid: Uuid,
+    pub challenge_type: ChallengeType,
+    pub mode: ChallengeMode,
+    pub party: &'a [String],
+}
+
+/// The state of an in-progress merge.
+#[derive(Debug)]
+struct MergeContext<'a> {
+    challenge: &'a ChallengeInfo<'a>,
+    stage: Stage,
+    clients: Vec<ClientEvents>,
+}
 
 /// Merges the events recorded by a stage's clients into a canonical timeline.
 /// Returns `None` if the stream contains no client data.
-pub fn merge(uuid: Uuid, stage: Stage, records: Vec<ClientStageStream>) -> Option<MergedEvents> {
-    let clients = client_events::from_stage_stream(uuid, stage, records);
+pub fn merge(
+    challenge: &ChallengeInfo<'_>,
+    stage: Stage,
+    records: Vec<ClientStageStream>,
+) -> Option<MergedEvents> {
+    let clients = client_events::from_stage_stream(challenge, stage, records);
     // TODO(frolv): port
     let base = clients.into_iter().next()?;
-    Some(MergedEvents::from_single_client(base))
+    let ctx = MergeContext {
+        challenge,
+        stage,
+        clients: vec![base],
+    };
+    Some(MergedEvents::from_single_client(ctx))
 }
 
 /// Trust and shape metadata of a merged timeline.
@@ -52,35 +84,38 @@ impl MergedEvents {
     /// Builds a timeline from a single client's stream, trusting its
     /// self-reported metadata.
     // TODO(frolv): temporary, remove
-    fn from_single_client(client: ClientEvents) -> MergedEvents {
-        let ClientEvents {
-            status,
-            accurate,
-            recorded_ticks,
-            server_ticks,
-            events,
-            ..
-        } = client;
+    fn from_single_client(mut ctx: MergeContext<'_>) -> MergedEvents {
+        let client = ctx
+            .clients
+            .first_mut()
+            .expect("there is exactly one client");
+        let timeline = std::mem::take(&mut client.timeline);
+        let max_event_tick = timeline.last_tick().unwrap_or(0);
 
-        let max_event_tick = events.last().map_or(0, |event| event.tick);
+        let events = timeline.finalize(&ctx);
 
-        let (reference, precise) = if accurate {
-            (Some(recorded_ticks), true)
-        } else if let Some(server) = server_ticks {
+        let client = ctx
+            .clients
+            .first_mut()
+            .expect("there is exactly one client");
+
+        let (reference, precise) = if client.accurate {
+            (Some(client.recorded_ticks), true)
+        } else if let Some(server) = client.server_ticks {
             (Some(server.count), server.precise)
         } else {
             (None, false)
         };
         let last_tick = reference.map_or(max_event_tick, |count| count.max(max_event_tick));
 
-        let trusted_until = if accurate { last_tick + 1 } else { 0 };
+        let trusted_until = if client.accurate { last_tick + 1 } else { 0 };
 
         MergedEvents {
             events,
             metadata: Metadata {
-                status,
+                status: client.status,
                 last_tick,
-                missing_tick_count: last_tick.saturating_sub(recorded_ticks),
+                missing_tick_count: last_tick.saturating_sub(client.recorded_ticks),
                 precise_server_tick_count: precise,
                 accurate_until: trusted_until,
                 queryable_until: trusted_until,
@@ -91,11 +126,6 @@ impl MergedEvents {
     /// Iterates over every event in tick order.
     pub fn iter(&self) -> std::slice::Iter<'_, Event> {
         self.events.iter()
-    }
-
-    /// Mutably iterates over every event in tick order.
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Event> {
-        self.events.iter_mut()
     }
 
     /// The number of events in the timeline.
@@ -190,66 +220,62 @@ impl std::ops::Index<usize> for MergedEvents {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::{ClientId, ServerTicks};
+    use crate::lifecycle::core::types::ServerTicks;
+    use crate::proto::event;
 
-    fn test_uuid() -> Uuid {
-        "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap()
+    fn nylocas_challenge() -> ChallengeInfo<'static> {
+        static PARTY: std::sync::LazyLock<Vec<String>> =
+            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+        fixtures::challenge_info(Stage::TobNylocas, ChallengeMode::TobRegular, &PARTY)
     }
 
-    fn tick_event(tick: u32, x_coord: i32) -> Event {
-        Event {
-            tick,
-            x_coord,
-            ..Default::default()
-        }
+    fn wave_event(tick: u32, wave: u32) -> Event {
+        fixtures::nylo_wave_event(event::Type::TobNyloWaveSpawn, tick, wave, 0, 12)
     }
 
-    fn client(accurate: bool, recorded_ticks: u32, events: Vec<Event>) -> ClientEvents {
-        ClientEvents {
-            client_id: ClientId(1),
-            status: StageStatus::Completed,
-            accurate,
-            recorded_ticks,
-            server_ticks: None,
-            events,
-        }
+    fn merge_one_client(accurate: bool, recorded_ticks: u32, events: Vec<Event>) -> MergedEvents {
+        let challenge = nylocas_challenge();
+        MergedEvents::from_single_client(
+            fixtures::merge_context(&challenge, Stage::TobNylocas)
+                .recording(accurate, recorded_ticks, events)
+                .build(),
+        )
     }
 
     #[test]
     fn merge_of_an_empty_stream_is_none() {
-        assert!(merge(test_uuid(), Stage::MokhaiotlDelve1, vec![]).is_none());
+        let party = vec!["1Ogp".to_string()];
+        let challenge =
+            fixtures::challenge_info(Stage::MokhaiotlDelve1, ChallengeMode::NoMode, &party);
+        assert!(merge(&challenge, Stage::MokhaiotlDelve1, vec![]).is_none());
     }
 
     #[test]
     fn events_for_tick_slices_to_a_single_tick() {
-        let merged = MergedEvents::from_single_client(client(
+        let merged = merge_one_client(
             true,
-            5,
+            20,
             vec![
-                tick_event(0, 4),
-                tick_event(2, 1),
-                tick_event(2, 3),
-                tick_event(5, 2),
+                wave_event(4, 1),
+                wave_event(8, 2),
+                wave_event(12, 3),
+                wave_event(16, 4),
             ],
-        ));
-        let coords: Vec<i32> = merged
-            .events_for_tick(2)
+        );
+        let waves: Vec<u32> = merged
+            .events_for_tick(8)
             .iter()
-            .map(|event| event.x_coord)
+            .map(|event| event.nylo_wave.unwrap().wave)
             .collect();
-        assert_eq!(coords, vec![1, 3]);
-        assert!(merged.events_for_tick(3).is_empty());
+        assert_eq!(waves, vec![2]);
         assert!(merged.events_for_tick(6).is_empty());
+        assert!(merged.events_for_tick(18).is_empty());
     }
 
     #[test]
     fn mutation_through_a_tick_slice_is_visible_in_iteration() {
-        let mut merged = MergedEvents::from_single_client(client(
-            true,
-            5,
-            vec![tick_event(1, 1), tick_event(3, 2)],
-        ));
-        for event in merged.events_for_tick_mut(3) {
+        let mut merged = merge_one_client(true, 10, vec![wave_event(4, 1), wave_event(8, 2)]);
+        for event in merged.events_for_tick_mut(8) {
             event.y_coord = 99;
         }
         let updated: Vec<i32> = merged.iter().map(|event| event.y_coord).collect();
@@ -258,16 +284,15 @@ mod tests {
 
     #[test]
     fn missing_ticks_counts_unrecorded_ticks() {
-        let accurate = MergedEvents::from_single_client(client(
-            true,
-            5,
-            vec![tick_event(0, 0), tick_event(1, 0), tick_event(3, 0)],
-        ));
+        let accurate = merge_one_client(true, 5, vec![wave_event(4, 1)]);
         assert_eq!(accurate.last_tick(), 5);
         assert_eq!(accurate.missing_tick_count(), 0);
 
-        let mut lagged = client(false, 5, vec![tick_event(0, 0), tick_event(4, 0)]);
-        lagged.server_ticks = Some(ServerTicks {
+        let challenge = nylocas_challenge();
+        let mut lagged = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(false, 5, vec![wave_event(4, 1)])
+            .build();
+        lagged.clients[0].server_ticks = Some(ServerTicks {
             count: 8,
             precise: true,
         });
@@ -278,11 +303,7 @@ mod tests {
 
     #[test]
     fn restrict_accuracy_to_only_clamps_down() {
-        let mut merged = MergedEvents::from_single_client(client(
-            true,
-            100,
-            vec![tick_event(0, 0), tick_event(100, 0)],
-        ));
+        let mut merged = merge_one_client(true, 100, vec![wave_event(4, 1), wave_event(100, 14)]);
         merged.restrict_accuracy_to(40);
         assert_eq!(merged.accurate_until(), 40);
         assert_eq!(merged.queryable_until(), 40);

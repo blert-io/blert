@@ -263,17 +263,23 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
             return (report, None);
         }
     };
-    report.capture = Some(Identity {
+    let challenge = super::ChallengeInfo {
         uuid: capture.uuid,
         challenge_type: capture.challenge_type,
         mode: capture.mode,
-        party: capture.party,
+        party: &capture.party,
+    };
+    report.capture = Some(Identity {
+        uuid: challenge.uuid,
+        challenge_type: challenge.challenge_type,
+        mode: challenge.mode,
+        party: capture.party.clone(),
         stage: capture.stage,
         attempt: capture.attempt,
     });
 
     let merged = panic::catch_unwind(AssertUnwindSafe(|| {
-        super::merge(capture.uuid, capture.stage, capture.records)
+        super::merge(&challenge, capture.stage, capture.records)
     }));
     let merged = match merged {
         Ok(Some(merged)) => merged,

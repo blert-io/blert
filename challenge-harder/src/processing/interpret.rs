@@ -1,9 +1,7 @@
 //! Stage event reconstruction and interpretation.
 
-use std::collections::BTreeMap;
-
 use crate::item::{self, ItemDelta};
-use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear, Uuid};
+use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
 use crate::merging::{self, MergedEvents};
 use crate::proto::{Event, event};
 
@@ -54,15 +52,21 @@ pub fn interpret(
 ) -> Result<InterpretOutput, InterpretError> {
     let ChallengeInfo {
         uuid,
+        challenge_type,
+        mode,
         stage,
         party,
         party_changed,
         ..
     } = challenge;
 
-    let mut events = merging::merge(uuid, stage, records).ok_or(InterpretError::NoData)?;
-
-    resolve_party_indices(uuid, &party, &mut events);
+    let merge_info = merging::ChallengeInfo {
+        uuid,
+        challenge_type,
+        mode,
+        party: party.as_slice(),
+    };
+    let mut events = merging::merge(&merge_info, stage, records).ok_or(InterpretError::NoData)?;
 
     let mut ctx = StageContext::new(stage, party);
     let mut kept = Vec::with_capacity(events.len());
@@ -90,28 +94,6 @@ pub fn interpret(
     }
 
     Ok(InterpretOutput { events, kept, ctx })
-}
-
-/// Resolves each player event's username to its party index.
-/// Events from players outside the party are marked with an out-of-range index.
-// TODO(frolv): This should be a postprocessing step in the merger.
-fn resolve_party_indices(uuid: Uuid, party: &[String], events: &mut MergedEvents) {
-    let mut unknown: BTreeMap<String, u32> = BTreeMap::new();
-    for event in events.iter_mut() {
-        let Some(player) = &mut event.player else {
-            continue;
-        };
-        if let Some(index) = party.iter().position(|name| name == &player.name) {
-            player.party_index = u32::try_from(index).expect("party index fits in a u32");
-        } else {
-            *unknown.entry(player.name.clone()).or_default() += 1;
-            player.party_index = u32::MAX;
-        }
-    }
-
-    if !unknown.is_empty() {
-        tracing::error!(%uuid, players = ?unknown, "challenge_event_unknown_players");
-    }
 }
 
 /// Handles a single event, updating state if necessary.
@@ -418,10 +400,16 @@ mod tests {
             }
         }
 
-        let marker = |tick: u32, x_coord: i32| Event {
-            tick,
-            x_coord,
-            ..Default::default()
+        let marker = |tick: u32, x_coord: i32| {
+            let room_id = 40_000 + u64::try_from(x_coord).expect("nonnegative");
+            let mut event = crate::merging::fixtures::mokhaiotl_larva_leak_event(
+                tick,
+                Stage::MokhaiotlDelve1,
+                room_id,
+                5,
+            );
+            event.x_coord = x_coord;
+            event
         };
         let message = ChallengeEvents {
             events: vec![

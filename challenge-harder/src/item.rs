@@ -41,7 +41,6 @@ impl ItemDelta {
     }
 
     /// Packs the delta into its numeric representation.
-    #[cfg_attr(not(test), expect(dead_code))]
     #[expect(clippy::cast_sign_loss)]
     pub fn to_raw(self) -> u64 {
         let (added, slot, id, quantity) = match self {

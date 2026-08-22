@@ -1,14 +1,17 @@
 //! Test helpers.
 
 use crate::item::ItemDelta;
-use crate::lifecycle::core::types::{Stage, StageStatus};
+use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
 use crate::proto::event::attack_style::Style;
 use crate::proto::event::sote_maze::Maze;
 use crate::proto::event::{VerzikPhase, XarpusPhase};
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
 use crate::skill::SkillLevel;
 
-use super::{MergedEvents, Metadata};
+use super::client_events::{ClientEvents, StageData};
+use super::event::TaggedEvent;
+use super::timeline::Timeline;
+use super::{ChallengeInfo, MergeContext, MergedEvents, Metadata};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ServerTicks {
@@ -41,7 +44,75 @@ pub fn merged_events(
     )
 }
 
-#[expect(dead_code)]
+pub(super) fn challenge_info(
+    stage: Stage,
+    mode: ChallengeMode,
+    party: &[String],
+) -> ChallengeInfo<'_> {
+    ChallengeInfo {
+        uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d"
+            .parse()
+            .expect("valid uuid"),
+        challenge_type: stage.challenge_type().expect("stage has a challenge"),
+        mode,
+        party,
+    }
+}
+
+pub(super) fn merge_context<'a>(
+    challenge: &'a ChallengeInfo<'a>,
+    stage: Stage,
+) -> MergeContextBuilder<'a> {
+    MergeContextBuilder {
+        challenge,
+        stage,
+        clients: Vec::new(),
+    }
+}
+
+pub(super) struct MergeContextBuilder<'a> {
+    challenge: &'a ChallengeInfo<'a>,
+    stage: Stage,
+    clients: Vec<ClientEvents>,
+}
+
+impl<'a> MergeContextBuilder<'a> {
+    pub(super) fn recording(
+        mut self,
+        accurate: bool,
+        recorded_ticks: u32,
+        events: Vec<Event>,
+    ) -> Self {
+        let client_id = ClientId(i64::try_from(self.clients.len() + 1).expect("few clients"));
+        let events = events
+            .into_iter()
+            .map(|event| TaggedEvent::new(client_id, event))
+            .collect();
+        self.clients.push(ClientEvents {
+            client_id,
+            metadata: None,
+            primary_player: None,
+            status: StageStatus::Completed,
+            accurate,
+            recorded_ticks,
+            server_ticks: None,
+            timeline: Timeline::build(self.challenge.party, recorded_ticks, events)
+                .expect("fixture events are well formed"),
+            stage_data: StageData::new(self.stage),
+            anomalies: Vec::new(),
+        });
+        self
+    }
+
+    pub(super) fn build(self) -> MergeContext<'a> {
+        MergeContext {
+            challenge: self.challenge,
+            stage: self.stage,
+            clients: self.clients,
+        }
+    }
+}
+
 pub fn player_update_event(
     tick: u32,
     stage: Stage,
