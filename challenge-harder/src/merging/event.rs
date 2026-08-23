@@ -43,7 +43,7 @@ impl std::ops::DerefMut for TaggedEvent {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MalformedEvent {
     #[error("{kind:?}:{tick} is missing required payload {field:?}")]
     MissingPayload {

@@ -74,6 +74,21 @@ pub mod id {
     pub const VERZIK_P1_HARD: u32 = 10848;
     pub const VERZIK_P1_HARD_10849: u32 = 10849;
 
+    pub const VERZIK_P2_ENTRY: u32 = 10833;
+    pub const VERZIK_P2_REGULAR: u32 = 8372;
+    pub const VERZIK_P2_HARD: u32 = 10850;
+
+    pub const VERZIK_P3_TRANSITION_ENTRY: u32 = 10834;
+    pub const VERZIK_P3_TRANSITION_REGULAR: u32 = 8373;
+    pub const VERZIK_P3_TRANSITION_HARD: u32 = 10851;
+
+    pub const VERZIK_P3_ENTRY: u32 = 10835;
+    pub const VERZIK_P3_ENTRY_10836: u32 = 10836;
+    pub const VERZIK_P3_REGULAR: u32 = 8374;
+    pub const VERZIK_P3_REGULAR_8375: u32 = 8375;
+    pub const VERZIK_P3_HARD: u32 = 10852;
+    pub const VERZIK_P3_HARD_10853: u32 = 10853;
+
     pub const VERZIK_MATOMENOS_ENTRY: u32 = 10845;
     pub const VERZIK_MATOMENOS_REGULAR: u32 = 8385;
     pub const VERZIK_MATOMENOS_HARD: u32 = 10862;
@@ -171,6 +186,41 @@ pub fn is_verzik_p1(npc_id: u32) -> bool {
             | id::VERZIK_P1_HARD
             | id::VERZIK_P1_HARD_10849
     )
+}
+
+pub fn is_verzik_p2(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::VERZIK_P2_ENTRY | id::VERZIK_P2_REGULAR | id::VERZIK_P2_HARD
+    )
+}
+
+pub fn is_verzik_p3_transition(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::VERZIK_P3_TRANSITION_ENTRY
+            | id::VERZIK_P3_TRANSITION_REGULAR
+            | id::VERZIK_P3_TRANSITION_HARD
+    )
+}
+
+pub fn is_verzik_p3(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::VERZIK_P3_ENTRY
+            | id::VERZIK_P3_ENTRY_10836
+            | id::VERZIK_P3_REGULAR
+            | id::VERZIK_P3_REGULAR_8375
+            | id::VERZIK_P3_HARD
+            | id::VERZIK_P3_HARD_10853
+    )
+}
+
+pub fn is_verzik(npc_id: u32) -> bool {
+    is_verzik_p1(npc_id)
+        || is_verzik_p2(npc_id)
+        || is_verzik_p3_transition(npc_id)
+        || is_verzik_p3(npc_id)
 }
 
 pub fn is_verzik_matomenos(npc_id: u32) -> bool {

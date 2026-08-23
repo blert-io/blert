@@ -37,7 +37,7 @@ fn nylocas_event(kind: event::Type, tick: u32) -> Event {
 fn nylos_alive(state: &TickState) -> u32 {
     state
         .npcs()
-        .map(|npc| {
+        .map(|(_, npc)| {
             if npc::is_nylocas(npc.id) {
                 1
             } else if npc::is_nylocas_prinkipas(npc.id) {
@@ -58,7 +58,7 @@ fn derive_nylocas_events(mode: ChallengeMode, timeline: &mut Timeline) {
         if let Some(state) = timeline.get_mut(tick) {
             let boss = state
                 .npcs()
-                .find_map(|npc| npc::is_nylocas_vasilias(npc.id).then_some(npc.position));
+                .find_map(|(_, npc)| npc::is_nylocas_vasilias(npc.id).then_some(npc.position));
             if let Some(position) = boss {
                 let mut event = nylocas_event(event::Type::TobNyloBossSpawn, tick);
                 event.x_coord = position.x;
@@ -217,22 +217,13 @@ mod tests {
     use super::*;
     use crate::lifecycle::core::types::{ChallengeMode, StageStatus};
     use crate::merging::client_events::{ClientEvents, SotePivots};
-    use crate::merging::event::TaggedEvent;
     use crate::merging::{ChallengeInfo, fixtures};
 
-    fn challenge_for(stage: Stage, mode: ChallengeMode) -> ChallengeInfo<'static> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
-        fixtures::challenge_info(stage, mode, &PARTY)
-    }
+    static PARTY: std::sync::LazyLock<Vec<String>> =
+        std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
 
-    fn timeline_of(ticks: u32, events: Vec<Event>) -> Timeline {
-        let party = vec!["1Ogp".to_string()];
-        let events = events
-            .into_iter()
-            .map(|event| TaggedEvent::new(ClientId(1), event))
-            .collect();
-        Timeline::build(&party, ticks, events).expect("fixtures")
+    fn challenge_for(stage: Stage, mode: ChallengeMode) -> ChallengeInfo<'static> {
+        fixtures::challenge_info(stage, mode, &PARTY)
     }
 
     fn client_with_pivots(id: i64, recorded_ticks: u32, pivots: Vec<SotePivots>) -> ClientEvents {
@@ -271,7 +262,8 @@ mod tests {
     #[test]
     fn all_clients_pivots_consolidate_as_one_event() {
         const TICKS: u32 = 169;
-        let mut timeline = timeline_of(
+        let mut timeline = fixtures::timeline(
+            &PARTY,
             TICKS,
             vec![
                 fixtures::sote_maze_proc_event(40, Maze::Maze66),
@@ -337,7 +329,8 @@ mod tests {
     #[test]
     fn missing_maze_end_does_not_emit_pivots() {
         const TICKS: u32 = 120;
-        let mut timeline = timeline_of(
+        let mut timeline = fixtures::timeline(
+            &PARTY,
             TICKS,
             vec![fixtures::sote_maze_proc_event(106, Maze::Maze33)],
         );
@@ -442,7 +435,8 @@ mod tests {
         events.extend(npc_updates(Stage::TobNylocas, 156, &[MELEE; 12])); // stall
         events.extend(npc_updates(Stage::TobNylocas, 160, &[MELEE; 11])); // w20
 
-        let mut timeline = timeline_of(TICKS, room_events(Stage::TobNylocas, TICKS, events));
+        let mut timeline =
+            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
 
@@ -491,7 +485,8 @@ mod tests {
             events.extend(npc_updates(Stage::TobNylocas, tick, &[MELEE; 3]));
         }
 
-        let mut timeline = timeline_of(TICKS, room_events(Stage::TobNylocas, TICKS, events));
+        let mut timeline =
+            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
 
@@ -516,7 +511,8 @@ mod tests {
             ..Default::default()
         })];
 
-        let mut timeline = timeline_of(TICKS, room_events(Stage::TobNylocas, TICKS, events));
+        let mut timeline =
+            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
 
@@ -559,7 +555,8 @@ mod tests {
             }),
         ];
 
-        let mut timeline = timeline_of(TICKS, room_events(Stage::TobVerzik, TICKS, events));
+        let mut timeline =
+            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobVerzik, TICKS, events));
         let challenge = challenge_for(Stage::TobVerzik, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobVerzik).build();
 

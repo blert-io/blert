@@ -7,6 +7,7 @@
 #![cfg_attr(not(test), expect(dead_code))]
 
 pub mod capture;
+mod client_consistency;
 mod client_events;
 mod derivation;
 mod event;
@@ -16,11 +17,23 @@ mod timeline;
 mod world;
 
 use client_events::ClientEvents;
+use event::MalformedEvent;
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientStageStream, Stage, StageStatus, Uuid,
 };
 use crate::proto::Event;
+
+/// Fatally invalid client input data.
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+enum BadData {
+    #[error(transparent)]
+    MalformedEvent(#[from] MalformedEvent),
+    #[error("tick {tick}: {message}")]
+    Inconsistent { tick: u32, message: String },
+    #[error("multiple primary players")]
+    MultiplePrimaryPlayers,
+}
 
 /// Challenge context for a merge.
 #[derive(Debug, Clone)]
