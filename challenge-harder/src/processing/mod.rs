@@ -28,6 +28,7 @@ pub mod db;
 mod challenge;
 mod challenge_processor;
 mod colosseum;
+mod effects;
 mod inferno;
 mod interpret;
 mod mokhaiotl;

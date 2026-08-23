@@ -19,12 +19,12 @@ use crate::repository::DataRepository;
 
 use super::challenge::load_database_state;
 use super::challenge_processor::ChallengeProcessor;
-use super::db;
 use super::interpret::{InterpretError, InterpretOutput, interpret};
 use super::persist::{
     save_splits, update_challenge_row, update_player_stats, update_players, write_queryable_events,
 };
 use super::{ChallengeInfo, ProcessorConfig, StoredState};
+use super::{db, effects};
 
 /// Processes a stage's events from its recorded streams.
 pub async fn process(
@@ -140,6 +140,16 @@ async fn persist(
         write_queryable_events(txn, challenge, &output, &stored.players),
         update_challenge_row(txn, challenge_ticks, output.ctx.deaths().len())
     )?;
+
+    effects::emit(
+        txn,
+        &effects::Event::StageFinished {
+            uuid: challenge.uuid,
+            stage: challenge.stage,
+            attempt: challenge.stage_attempt,
+        },
+    )
+    .await?;
 
     let queryable_until = output.events.queryable_until();
     let events = output.into_kept_events();

@@ -14,6 +14,7 @@ use crate::lifecycle::core::types::{
     ProcessingPayload, Stage, StageStatus, Uuid,
 };
 use crate::price::PriceResolver;
+use crate::processing::effects::EventKind;
 use crate::processing::split::SplitType;
 use crate::processing::{Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, db};
 use crate::proto::{ChallengeData, challenge_data, event};
@@ -25,6 +26,7 @@ const CREATED_UNIX_MS: u64 = 1_782_864_000_000;
 const UUID: &str = "a8cb035f-410a-45de-a4d3-2b0a5d8b464d";
 
 #[tokio::test]
+#[expect(clippy::too_many_lines)]
 async fn delve_test() {
     let Some(db) = db::test_database().await else {
         return;
@@ -46,6 +48,13 @@ async fn delve_test() {
         .execute(
             "DELETE FROM players WHERE normalized_username = 'player1'",
             &[],
+        )
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
         )
         .await
         .unwrap();
@@ -115,6 +124,20 @@ async fn delve_test() {
 
     let custom_data = verify_stage_rows(&client, challenge_id, player_id).await;
     verify_stage_artifacts(uuid, &repository, &custom_data).await;
+
+    let events = client
+        .query(
+            "SELECT kind, key FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox query");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].get::<_, i16>(0), EventKind::StageFinished as i16);
+    assert_eq!(
+        events[0].get::<_, String>(1),
+        format!("{uuid}:{}", Stage::MokhaiotlDelve8 as i32),
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
