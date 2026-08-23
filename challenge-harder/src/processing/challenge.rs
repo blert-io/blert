@@ -12,7 +12,7 @@ use crate::repository::DataRepository;
 
 use super::challenge_processor::ChallengeContext;
 use super::persist::{save_splits, update_player_stats};
-use super::{ChallengeInfo, ProcessorConfig, StoredPlayerInfo, StoredState, db, session};
+use super::{ChallengeInfo, ProcessorConfig, StoredPlayerInfo, StoredState, db, effects, session};
 
 /// Initializes a new challenge, returning custom processor state to persist.
 pub async fn create(
@@ -212,6 +212,8 @@ pub async fn finish(
         save_splits(txn, info, ctx.splits(times_accurate), &stored.players),
         update_player_stats(txn, ctx.players(), &stored.players),
     )?;
+
+    effects::emit(txn, &effects::Event::ChallengeFinished { uuid: info.uuid }).await?;
 
     Ok(())
 }

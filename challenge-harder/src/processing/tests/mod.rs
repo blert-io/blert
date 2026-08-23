@@ -9,6 +9,7 @@ use serde::Deserialize;
 use crate::lifecycle::core::types::{ClientStageStream, Stage, StageUpdate, Uuid};
 
 mod colosseum;
+mod effects;
 mod finish;
 mod golden;
 mod inferno;

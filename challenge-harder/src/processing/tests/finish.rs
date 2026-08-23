@@ -11,6 +11,7 @@ use crate::lifecycle::core::types::{
     Stage, StageStatus, Uuid,
 };
 use crate::lifecycle::session::SessionFinalizer;
+use crate::processing::effects::EventKind;
 use crate::processing::session::SessionStatus;
 use crate::processing::{ChallengeInfo, PostgresSessionFinalizer, ProcessorConfig, challenge, db};
 use crate::repository::{DataRepository, FilesystemBackend};
@@ -98,6 +99,17 @@ async fn empty_challenge_is_deleted_at_finish() {
         .expect("count")
         .get(0);
     assert_eq!(challenges, 0);
+
+    let effects: i64 = client
+        .query_one(
+            "SELECT COUNT(*) FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("count")
+        .get(0);
+    assert_eq!(effects, 0);
+
     let members: i64 = client
         .query_one(
             "SELECT COUNT(*) FROM challenge_players WHERE player_id = $1",
@@ -279,6 +291,20 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
     assert_eq!(row.get::<_, i32>(2), 848);
     assert_eq!(row.get::<_, Option<i32>>(3), None);
     assert!(!row.get::<_, bool>(4));
+
+    let events = client
+        .query(
+            "SELECT kind, key FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox query");
+    assert_eq!(events.len(), 1);
+    assert_eq!(
+        events[0].get::<_, i16>(0),
+        EventKind::ChallengeFinished as i16
+    );
+    assert_eq!(events[0].get::<_, String>(1), uuid.to_string());
 
     // The time is not counted as accurate and therefore not eligible for PBs.
     let splits = client
