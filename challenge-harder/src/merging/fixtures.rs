@@ -113,6 +113,18 @@ impl<'a> MergeContextBuilder<'a> {
     }
 }
 
+pub(super) fn timeline(party: &[String], recorded_ticks: u32, events: Vec<Event>) -> Timeline {
+    Timeline::build(
+        party,
+        recorded_ticks,
+        events
+            .into_iter()
+            .map(|event| TaggedEvent::new(ClientId(1), event))
+            .collect(),
+    )
+    .expect("fixture events are well formed")
+}
+
 pub fn player_update_event(
     tick: u32,
     stage: Stage,
@@ -295,6 +307,16 @@ pub fn bloat_down_event(tick: u32, coords: (i32, i32), down_number: u32, up_tick
         down_number,
         up_ticks,
     });
+    event
+}
+
+pub fn bloat_up_event(tick: u32) -> Event {
+    let mut event = Event {
+        tick,
+        stage: Stage::TobBloat as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobBloatUp);
     event
 }
 

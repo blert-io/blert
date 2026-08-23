@@ -282,6 +282,7 @@ fn extract_player_state(
     match event.r#type() {
         event::Type::PlayerUpdate => {
             state.data_source = player.data_source();
+            state.position = (event.x_coord, event.y_coord).into();
             state.equipment =
                 parse_equipment(player, last).map_err(|raw| MalformedEvent::OutOfDomain {
                     kind: event.r#type(),
@@ -531,9 +532,22 @@ pub struct TickState {
 }
 
 impl TickState {
+    pub(super) fn tick(&self) -> u32 {
+        self.tick
+    }
+
+    pub(super) fn player(&self, name: &str) -> Option<&PlayerState> {
+        self.players.get(name).and_then(Option::as_ref)
+    }
+
     /// Returns the NPCs visible on the tick.
-    pub(super) fn npcs(&self) -> impl Iterator<Item = &NpcState> {
-        self.npcs.values()
+    pub(super) fn npcs(&self) -> impl Iterator<Item = (u64, &NpcState)> {
+        self.npcs.iter().map(|(room_id, npc)| (*room_id, npc))
+    }
+
+    /// Returns the NPC with `room_id`, if visible on the tick.
+    pub(super) fn npc(&self, room_id: u64) -> Option<&NpcState> {
+        self.npcs.get(&room_id)
     }
 
     /// Returns the tick's events of `kind`.
