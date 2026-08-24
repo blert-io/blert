@@ -7,6 +7,7 @@
 #![cfg_attr(not(test), expect(dead_code))]
 
 pub mod capture;
+mod classification;
 mod client_consistency;
 mod client_events;
 mod derivation;
@@ -16,6 +17,7 @@ pub(crate) mod fixtures;
 mod timeline;
 mod world;
 
+use classification::classify_clients;
 use client_events::ClientEvents;
 use event::MalformedEvent;
 
@@ -33,6 +35,18 @@ enum BadData {
     Inconsistent { tick: u32, message: String },
     #[error("multiple primary players")]
     MultiplePrimaryPlayers,
+    #[error("invalid server tick count")]
+    InvalidServerTickCount,
+}
+
+/// A notable condition encountered while merging a stage's clients.
+#[derive(Debug, PartialEq, Eq)]
+enum MergeAlert {
+    /// Clients sent conflicting server tick counts.
+    MultipleServerTickCounts {
+        precise: bool,
+        tick_counts: Vec<u32>,
+    },
 }
 
 /// Challenge context for a merge.
@@ -59,9 +73,16 @@ pub fn merge(
     stage: Stage,
     records: Vec<ClientStageStream>,
 ) -> Option<MergedEvents> {
-    let clients = client_events::from_stage_stream(challenge, stage, records);
+    let mut clients = client_events::from_stage_stream(challenge, stage, records);
+    if clients.is_empty() {
+        return None;
+    }
+
+    let classification = classify_clients(challenge, stage, &mut clients);
+
     // TODO(frolv): port
-    let base = clients.into_iter().next()?;
+    let base = clients.swap_remove(classification.base);
+
     let ctx = MergeContext {
         challenge,
         stage,

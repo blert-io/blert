@@ -146,7 +146,7 @@ impl ClientEvents {
             tracing::warn!(uuid = %challenge.uuid, %client_id, ?stage, "client_missing_stage_metadata");
         }
 
-        Self::check_tick_counts(&mut client, challenge, stage);
+        Self::check_tick_counts(&mut client, challenge, stage)?;
 
         raw_events.sort_unstable_by_key(|event| event.tick);
 
@@ -187,7 +187,15 @@ impl ClientEvents {
         Ok(client)
     }
 
-    fn check_tick_counts(client: &mut ClientEvents, challenge: &ChallengeInfo, stage: Stage) {
+    fn check_tick_counts(
+        client: &mut ClientEvents,
+        challenge: &ChallengeInfo,
+        stage: Stage,
+    ) -> Result<(), BadData> {
+        if client.server_ticks.is_some_and(|st| st.count == 0) {
+            return Err(BadData::InvalidServerTickCount);
+        }
+
         let invalid_recorded = client.recorded_ticks > MAX_RECORDED_TICKS;
         let invalid_server = client
             .server_ticks
@@ -209,6 +217,7 @@ impl ClientEvents {
                 client.server_ticks = None;
             }
         }
+        Ok(())
     }
 
     fn validate(
@@ -492,6 +501,27 @@ mod tests {
         assert_eq!(client.server_ticks, None);
         assert!(!client.accurate);
         assert!(matches!(client.anomalies[..], [Anomaly::InvalidTickCount]));
+    }
+
+    #[test]
+    fn a_zero_server_tick_count_drops_the_client() {
+        let clients = clients_of(vec![
+            events(1, &[4, 8]),
+            ClientStageStream::End {
+                client_id: ClientId(1),
+                update: StageUpdate {
+                    stage: Stage::TobNylocas,
+                    status: StageStatus::Wiped,
+                    accurate: false,
+                    recorded_ticks: 10,
+                    server_ticks: Some(ServerTicks {
+                        count: 0,
+                        precise: true,
+                    }),
+                },
+            },
+        ]);
+        assert!(clients.is_empty());
     }
 
     #[test]
