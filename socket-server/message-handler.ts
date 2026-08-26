@@ -343,6 +343,11 @@ export default class MessageHandler {
       case ChallengeType.COLOSSEUM:
       case ChallengeType.INFERNO:
       case ChallengeType.MOKHAIOTL:
+        // TODO(frolv): jagex text change 2026-08-26 makes these fail to record.
+        // Re-enable when plugin is patched.
+        recordStartResult('blocked');
+        client.sendMessage(response);
+        return;
         if (!checkPartySize(1)) {
           return;
         }
