@@ -368,6 +368,7 @@ async function main(): Promise<void> {
   const configManager = new ConfigManager(redisClient, {
     minRuneLiteVersion: process.env.BLERT_MIN_RL_VERSION ?? null,
     allowedRevisions: validPluginRevisions,
+    disabledChallenges: new Set(),
   });
 
   const port = process.env.PORT ?? 3003;
@@ -493,7 +494,11 @@ async function main(): Promise<void> {
   const [challengeManager, playerManager] =
     await initializeRemoteChallengeManager(redisClient);
 
-  const messageHandler = new MessageHandler(challengeManager, playerManager);
+  const messageHandler = new MessageHandler(
+    challengeManager,
+    playerManager,
+    configManager,
+  );
 
   serverManager.onStatusUpdate(messageHandler.handleServerStatusUpdate);
 

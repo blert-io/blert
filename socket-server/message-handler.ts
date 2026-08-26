@@ -1,4 +1,5 @@
 import {
+  ChallengeMode,
   ChallengeType,
   ClientStatus,
   isPostgresUniqueViolation,
@@ -8,7 +9,6 @@ import {
 } from '@blert/common';
 import {
   ChallengeMap,
-  ChallengeMode,
   ChallengeModeMap,
   StageMap,
 } from '@blert/common/generated/event_pb';
@@ -25,6 +25,7 @@ import ChallengeManager, {
   ChallengeUpdate,
 } from './challenge-manager';
 import Client from './client';
+import { ConfigManager } from './config';
 import { PlayerManager, Players } from './players';
 import { Users } from './users';
 import { ServerStatus, ServerStatusUpdate } from './server-manager';
@@ -43,15 +44,18 @@ type Proto<E> = E[keyof E];
 export default class MessageHandler {
   private challengeManager: ChallengeManager;
   private playerManager: PlayerManager;
+  private configManager: ConfigManager;
 
   private allowStartingChallenges: boolean;
 
   public constructor(
     challengeManager: ChallengeManager,
     playerManager: PlayerManager,
+    configManager: ConfigManager,
   ) {
     this.challengeManager = challengeManager;
     this.playerManager = playerManager;
+    this.configManager = configManager;
     this.allowStartingChallenges = true;
   }
 
@@ -281,6 +285,7 @@ export default class MessageHandler {
     response.setRequestId(message.getRequestId());
 
     const challengeType = request.getChallenge() as ChallengeType;
+    const challengeMode = request.getMode() as ChallengeMode;
     const stage = request.getStage() as Stage;
 
     const recordingType = request.getSpectator()
@@ -292,6 +297,22 @@ export default class MessageHandler {
 
     if (!this.allowStartingChallenges) {
       recordStartResult('blocked');
+      // TODO(frolv): Use a proper error type instead of an empty ID.
+      client.sendMessage(response);
+      return;
+    }
+
+    const recordingEnabled = await this.configManager.isRecordingEnabled(
+      challengeType,
+      challengeMode,
+    );
+    if (!recordingEnabled) {
+      logger.info('challenge_start_blocked_type', {
+        challengeType,
+        challengeMode,
+      });
+      recordStartResult('blocked');
+
       // TODO(frolv): Use a proper error type instead of an empty ID.
       client.sendMessage(response);
       return;
@@ -329,25 +350,11 @@ export default class MessageHandler {
         if (!checkPartySize(1, 5)) {
           return;
         }
-        if (request.getMode() === ChallengeMode.TOB_ENTRY) {
-          logger.info('challenge_start_blocked_type', {
-            challengeType,
-            challengeMode: request.getMode(),
-          });
-          recordStartResult('blocked');
-          client.sendMessage(response);
-          return;
-        }
         break;
 
       case ChallengeType.COLOSSEUM:
       case ChallengeType.INFERNO:
       case ChallengeType.MOKHAIOTL:
-        // TODO(frolv): jagex text change 2026-08-26 makes these fail to record.
-        // Re-enable when plugin is patched.
-        recordStartResult('blocked');
-        client.sendMessage(response);
-        return;
         if (!checkPartySize(1)) {
           return;
         }
@@ -376,7 +383,7 @@ export default class MessageHandler {
       status = await this.challengeManager.startOrJoin(
         client,
         challengeType,
-        request.getMode(),
+        challengeMode,
         request.getPartyList(),
         stage,
         recordingType,
