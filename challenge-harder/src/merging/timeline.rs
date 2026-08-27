@@ -11,7 +11,7 @@ use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, Stage, e
 use crate::skill::SkillLevel;
 
 use super::MergeContext;
-use super::event::{Class, MalformedEvent, TaggedEvent, classify};
+use super::event::{Class, MalformedEvent, TaggedEvent, classify, remap_event_tick};
 
 #[derive(Debug, Clone, Default)]
 pub struct Timeline {
@@ -50,6 +50,7 @@ impl Timeline {
         };
 
         for event in events {
+            super::event::validate(&event)?;
             if !current_tick.is_empty() && event.tick != current_tick[0].tick {
                 drain(&mut current_tick)?;
             }
@@ -72,6 +73,12 @@ impl Timeline {
         self.tick_count().checked_sub(1)
     }
 
+    /// Returns the number of ticks with no recorded state.
+    pub fn missing_tick_count(&self) -> u32 {
+        let missing = self.ticks.iter().filter(|tick| tick.is_none()).count();
+        u32::try_from(missing).expect("tick count is small")
+    }
+
     /// Returns the state on `tick`.
     pub fn get(&self, tick: u32) -> Option<&TickState> {
         self.ticks.get(tick as usize)?.as_ref()
@@ -85,6 +92,24 @@ impl Timeline {
     /// Returns the full timeline as ticks.
     pub fn ticks(&self) -> &[Option<TickState>] {
         &self.ticks
+    }
+
+    /// Moves every recorded tick and its events forward by `offset` ticks,
+    /// growing the timeline by that length and leaving empty ticks at the start.
+    pub fn shift(&mut self, offset: u32) {
+        let remap = |tick: u32| tick + offset;
+        let mut shifted = vec![None; self.ticks.len() + offset as usize];
+
+        for mut state in self.ticks.drain(..).flatten() {
+            let tick = remap(state.tick);
+            state.tick = tick;
+            for event in &mut state.events {
+                remap_event_tick(event, remap);
+            }
+            shifted[tick as usize] = Some(state);
+        }
+
+        self.ticks = shifted;
     }
 
     pub fn finalize(mut self, ctx: &MergeContext) -> Vec<Event> {
@@ -1031,4 +1056,83 @@ fn attach_actions(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::merging::fixtures;
+    use crate::proto::event::attack_style::Style;
+
+    #[test]
+    fn shift_moves_ticks_and_their_events() {
+        let party = vec!["1Ogp".to_string()];
+        let events = vec![
+            TaggedEvent::new(
+                ClientId(1),
+                fixtures::player_update_event(
+                    2,
+                    Stage::TobVerzik,
+                    (3167, 4311),
+                    "1Ogp",
+                    DataSource::Primary,
+                    &[],
+                    false,
+                ),
+            ),
+            TaggedEvent::new(
+                ClientId(1),
+                fixtures::npc_update_event(fixtures::NpcEvent {
+                    tick: 2,
+                    stage: Stage::TobVerzik,
+                    coords: (3166, 4324),
+                    npc_id: 8374,
+                    room_id: 1,
+                    ..Default::default()
+                }),
+            ),
+            TaggedEvent::new(
+                ClientId(1),
+                fixtures::npc_attack_event(
+                    2,
+                    Stage::TobVerzik,
+                    (3166, 4324),
+                    8374,
+                    1,
+                    NpcAttack::TobVerzikP3Auto,
+                    Some("1Ogp"),
+                ),
+            ),
+            TaggedEvent::new(
+                ClientId(1),
+                fixtures::verzik_attack_style_event(3, 2, Style::Melee),
+            ),
+        ];
+        let mut timeline = Timeline::build(&party, 5, events).expect("events are valid");
+
+        timeline.shift(3);
+
+        assert_eq!(timeline.tick_count(), 9);
+        assert_eq!(timeline.missing_tick_count(), 7);
+        assert!(timeline.get(2).is_none());
+        assert!(timeline.get(4).is_none());
+
+        let state = timeline.get(5).expect("tick state moved up");
+        assert_eq!(state.tick(), 5);
+        let player = state.player("1Ogp").expect("player state moved with tick");
+        assert_eq!(player.position, (3167, 4311).into());
+        let npc = state.npc(1).expect("npc state moved with tick");
+        assert_eq!(npc.id, 8374);
+        assert!(npc.attack.is_some());
+
+        let state = timeline.get(6).expect("tick state moved up");
+        assert_eq!(state.tick(), 6);
+        let event = state
+            .events_of_type(event::Type::TobVerzikAttackStyle)
+            .next()
+            .expect("event retained");
+        assert_eq!(event.tick, 6);
+        let style = event.verzik_attack_style.as_ref().expect("event is valid");
+        assert_eq!(style.npc_attack_tick, 5);
+    }
 }

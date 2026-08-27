@@ -40,6 +40,7 @@ struct CustomData {
 struct WaveData {
     stage: Stage,
     ticks_lost: u32,
+    offset: u32,
     handicap: u32,
     options: Vec<u32>,
     npcs: Vec<RoomNpc>,
@@ -50,6 +51,7 @@ impl WaveData {
         challenge_data::ColosseumWave {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
+            offset: Some(self.offset),
             handicap_chosen: self.handicap,
             handicap_options: self.options.clone(),
             npcs: self.npcs.iter().map(Into::into).collect(),
@@ -171,6 +173,7 @@ impl ChallengeProcessor for ColosseumProcessor {
         self.data.waves.push(WaveData {
             stage,
             ticks_lost: events.missing_tick_count(),
+            offset: events.offset(),
             handicap: self.selected_handicap.unwrap_or(0),
             options: self.wave_handicap_options.clone(),
             npcs: ctx.npcs().cloned().collect(),
@@ -427,6 +430,7 @@ mod tests {
             WaveData {
                 stage,
                 ticks_lost: 0,
+                offset: 0,
                 handicap: 3,
                 options: vec![3, 7, 11],
                 npcs: Vec::new(),

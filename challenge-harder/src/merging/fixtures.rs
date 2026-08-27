@@ -37,6 +37,12 @@ pub fn merged_events(
             status,
             last_tick,
             missing_tick_count: last_tick.saturating_sub(recorded_ticks),
+            offset: match server_ticks {
+                ServerTicks::Precise(_) | ServerTicks::Rounded(_) => {
+                    last_tick.saturating_sub(recorded_ticks)
+                }
+                ServerTicks::Missing => 0,
+            },
             precise_server_tick_count: matches!(server_ticks, ServerTicks::Precise(_)),
             accurate_until: 0,
             queryable_until: 0,
@@ -77,6 +83,7 @@ pub(super) struct MergeContextBuilder<'a> {
 }
 
 impl<'a> MergeContextBuilder<'a> {
+    #[expect(dead_code)]
     pub(super) fn recording(
         mut self,
         accurate: bool,
@@ -100,6 +107,7 @@ impl<'a> MergeContextBuilder<'a> {
                 .expect("fixture events are well formed"),
             stage_data: StageData::new(self.stage),
             anomalies: Vec::new(),
+            consistency_issues: Vec::new(),
         });
         self
     }

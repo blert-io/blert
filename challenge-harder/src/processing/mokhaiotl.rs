@@ -33,6 +33,7 @@ struct CustomData {
 struct DelveData {
     stage: Stage,
     ticks_lost: u32,
+    offset: u32,
     npcs: Vec<RoomNpc>,
     delve: u32,
     challenge_ticks: u32,
@@ -44,6 +45,7 @@ impl DelveData {
         challenge_data::MokhaiotlDelve {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
+            offset: Some(self.offset),
             npcs: self.npcs.iter().map(Into::into).collect(),
             delve: self.delve,
             challenge_ticks: self.challenge_ticks,
@@ -192,6 +194,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
         self.data.delves.push(DelveData {
             stage,
             ticks_lost: events.missing_tick_count(),
+            offset: events.offset(),
             npcs: ctx.npcs().cloned().collect(),
             delve,
             challenge_ticks: events.last_tick(),
@@ -409,6 +412,7 @@ mod tests {
         DelveData {
             stage,
             ticks_lost: 0,
+            offset: 0,
             npcs: Vec::new(),
             delve: delve(stage, None),
             challenge_ticks: 90,

@@ -47,6 +47,7 @@ struct CustomData {
 struct RoomData {
     stage: Stage,
     ticks_lost: u32,
+    offset: u32,
     deaths: Vec<String>,
     npcs: Vec<RoomNpc>,
     bloat_down_ticks: Vec<u32>,
@@ -63,6 +64,7 @@ impl RoomData {
         challenge_data::TobRoom {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
+            offset: Some(self.offset),
             deaths: self.deaths.clone(),
             npcs: self.npcs.iter().map(Into::into).collect(),
             bloat_down_ticks: self.bloat_down_ticks.clone(),
@@ -1315,6 +1317,7 @@ impl ChallengeProcessor for TheatreProcessor {
         let mut room = RoomData {
             stage,
             ticks_lost: events.missing_tick_count(),
+            offset: events.offset(),
             deaths,
             npcs: ctx.npcs().cloned().collect(),
             ..RoomData::default()

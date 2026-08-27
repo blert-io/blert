@@ -66,7 +66,10 @@ pub fn interpret(
         mode,
         party: party.as_slice(),
     };
-    let mut events = merging::merge(&merge_info, stage, records).ok_or(InterpretError::NoData)?;
+
+    // TODO(frolv): Save report
+    let (merged, _report) = merging::merge(&merge_info, stage, records);
+    let mut events = merged.ok_or(InterpretError::NoData)?;
 
     let mut ctx = StageContext::new(stage, party);
     let mut kept = Vec::with_capacity(events.len());
@@ -74,12 +77,6 @@ pub fn interpret(
     for index in 0..events.len() {
         {
             let event = &events[index];
-            if let Some(player) = &event.player
-                && player.party_index == u32::MAX
-            {
-                // TODO(frolv): These events should be dropped by the merger.
-                continue;
-            }
             track_event(&mut ctx, event);
         }
 
@@ -295,16 +292,6 @@ mod tests {
             &event_with_player(event::Type::PlayerDeath, 25, "1Ogp", 0),
         );
         assert_eq!(ctx.deaths(), &[1, 0]);
-    }
-
-    #[test]
-    fn death_of_an_unknown_player_is_not_recorded() {
-        let mut ctx = context();
-        track_event(
-            &mut ctx,
-            &event_with_player(event::Type::PlayerDeath, 5, "TobDataEgirl", u32::MAX),
-        );
-        assert!(ctx.deaths().is_empty());
     }
 
     #[test]
