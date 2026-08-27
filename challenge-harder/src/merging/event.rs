@@ -63,8 +63,8 @@ pub enum MalformedEvent {
 /// The category of an event within the merger, determining its handling.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Class {
-    /// Legacy protocol events that are not sent by clients.
-    Deprecated,
+    /// The default, empty event type. Always invalid.
+    Unspecified,
 
     /// Event types from solo-only challenges that never have to be merged.
     /// They pass through the pipeline as-is.
@@ -88,10 +88,7 @@ pub enum Class {
 
 pub const fn classify(kind: event::Type) -> Class {
     match kind {
-        event::Type::DeprecatedChallengeStart
-        | event::Type::DeprecatedChallengeEnd
-        | event::Type::DeprecatedChallengeUpdate
-        | event::Type::DeprecatedStageUpdate => Class::Deprecated,
+        event::Type::Unspecified => Class::Unspecified,
 
         event::Type::ColosseumHandicapChoice
         | event::Type::ColosseumDoomApplied
