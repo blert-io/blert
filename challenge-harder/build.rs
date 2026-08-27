@@ -20,8 +20,8 @@ fn main() -> Result<()> {
     for ty in [
         ".blert.Challenge",
         ".blert.ChallengeMode",
+        ".blert.ChallengeUpdate.StageUpdate.Status",
         ".blert.Stage",
-        ".blert.Event.StageUpdate.Status",
     ] {
         config.type_attribute(
             ty,

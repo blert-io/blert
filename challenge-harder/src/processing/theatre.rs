@@ -12,7 +12,9 @@ use super::challenge_processor::{
 use super::db;
 use super::split::SplitType;
 use super::{StoredState, TheatreConfig};
-use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
+use crate::lifecycle::core::types::{
+    ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
+};
 use crate::merging::MergedEvents;
 use crate::npc;
 use crate::price::PriceResolver;
@@ -1341,7 +1343,7 @@ impl ChallengeProcessor for TheatreProcessor {
 
         ctx.set_stage_split(room_split(stage), last_tick, 0, true);
 
-        if events.status() == event::stage_update::Status::Completed
+        if events.status() == StageStatus::Completed
             && self.has_fully_recorded_up_to(stage)
             && let Some(next_entry) = next_stage_entry_split(stage)
         {

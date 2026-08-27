@@ -8,6 +8,7 @@ import {
   NpcAttack as NpcAttackProto,
   Stage as StageProto,
 } from './generated/event_pb';
+import { ChallengeUpdate as ChallengeUpdateProto } from './generated/server_message_pb';
 import { SplitType } from './split';
 
 type Nullable<T> = T | null;
@@ -453,10 +454,10 @@ export enum ChallengeMode {
 }
 
 export enum StageStatus {
-  ENTERED = EventProto.StageUpdate.Status.ENTERED,
-  STARTED = EventProto.StageUpdate.Status.STARTED,
-  COMPLETED = EventProto.StageUpdate.Status.COMPLETED,
-  WIPED = EventProto.StageUpdate.Status.WIPED,
+  ENTERED = ChallengeUpdateProto.StageUpdate.Status.ENTERED,
+  STARTED = ChallengeUpdateProto.StageUpdate.Status.STARTED,
+  COMPLETED = ChallengeUpdateProto.StageUpdate.Status.COMPLETED,
+  WIPED = ChallengeUpdateProto.StageUpdate.Status.WIPED,
 }
 
 export enum RoomNpcType {

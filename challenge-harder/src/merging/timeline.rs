@@ -638,7 +638,13 @@ impl TickState {
                 Class::Solo | Class::Stream | Class::AttackMapped => {
                     retained_events.push(event);
                 }
-                Class::Deprecated => unreachable!("how naive 2024 blert was"),
+                Class::Unspecified => {
+                    return Err(MalformedEvent::MissingPayload {
+                        kind: event.r#type(),
+                        tick: event.tick,
+                        field: "type",
+                    });
+                }
             }
         }
 

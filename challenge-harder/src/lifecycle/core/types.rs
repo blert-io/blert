@@ -12,7 +12,7 @@ pub use uuid::Uuid;
 pub use crate::proto::Challenge as ChallengeType;
 pub use crate::proto::ChallengeMode;
 pub use crate::proto::Stage;
-pub use crate::proto::event::stage_update::Status as StageStatus;
+pub use crate::proto::challenge_update::stage_update::Status as StageStatus;
 
 /// Milliseconds since a challenge-specific epoch.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

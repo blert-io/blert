@@ -34,15 +34,6 @@ export type Equals<A, B> = [A] extends [B]
   : false;
 
 /**
- * Event types that no longer exist in the protocol and are never processed.
- */
-type DeprecatedEventType =
-  | typeof Event.Type.DEPRECATED_CHALLENGE_START
-  | typeof Event.Type.DEPRECATED_CHALLENGE_END
-  | typeof Event.Type.DEPRECATED_CHALLENGE_UPDATE
-  | typeof Event.Type.DEPRECATED_STAGE_UPDATE;
-
-/**
  * Event types from solo-only challenges that never have to be merged, instead
  * getting forwarded through the pipeline as-is.
  */
@@ -195,7 +186,7 @@ export type AttackMappedEventType =
 type _ExhaustiveClassification = Assert<
   Equals<
     EventType,
-    | DeprecatedEventType
+    | typeof Event.Type.UNSPECIFIED
     | SoloEventType
     | DerivedEventType
     | TickStateEventType
