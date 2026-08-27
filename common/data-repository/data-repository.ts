@@ -83,6 +83,9 @@ export class DataRepository {
       room.setTicksLost(tobRoom.ticksLost);
       room.setDeathsList(tobRoom.deaths);
       room.setNpcsList(npcsToProto(tobRoom.npcs));
+      if (tobRoom.offset !== undefined) {
+        room.setOffset(tobRoom.offset);
+      }
       return room;
     };
 
@@ -153,6 +156,9 @@ export class DataRepository {
         waveData.setHandicapChosen(wave.handicap);
         waveData.setHandicapOptionsList(wave.options);
         waveData.setNpcsList(npcsToProto(wave.npcs));
+        if (wave.offset !== undefined) {
+          waveData.setOffset(wave.offset);
+        }
         return waveData;
       }),
     );
@@ -181,6 +187,9 @@ export class DataRepository {
         waveData.setTicks(wave.ticks);
         waveData.setStartTick(wave.startTick);
         waveData.setNpcsList(npcsToProto(wave.npcs));
+        if (wave.offset !== undefined) {
+          waveData.setOffset(wave.offset);
+        }
         return waveData;
       }),
     );
@@ -210,6 +219,9 @@ export class DataRepository {
         delveData.setDelve(delve.delve);
         delveData.setChallengeTicks(delve.challengeTicks);
         delveData.setLarvaeLeaked(delve.larvaeLeaked);
+        if (delve.offset !== undefined) {
+          delveData.setOffset(delve.offset);
+        }
         return delveData;
       }),
     );
@@ -380,6 +392,7 @@ export class DataRepository {
         tobRooms.maiden = {
           stage: Stage.TOB_MAIDEN,
           ticksLost: maiden.getTicksLost(),
+          offset: maiden.hasOffset() ? maiden.getOffset() : undefined,
           deaths: maiden.getDeathsList(),
           npcs: npcsFromProto(maiden.getNpcsList()),
         };
@@ -390,6 +403,7 @@ export class DataRepository {
         tobRooms.bloat = {
           stage: Stage.TOB_BLOAT,
           ticksLost: bloat.getTicksLost(),
+          offset: bloat.hasOffset() ? bloat.getOffset() : undefined,
           deaths: bloat.getDeathsList(),
           downTicks: bloat.getBloatDownTicksList(),
           npcs: npcsFromProto(bloat.getNpcsList()),
@@ -401,6 +415,7 @@ export class DataRepository {
         tobRooms.nylocas = {
           stage: Stage.TOB_NYLOCAS,
           ticksLost: nylocas.getTicksLost(),
+          offset: nylocas.hasOffset() ? nylocas.getOffset() : undefined,
           deaths: nylocas.getDeathsList(),
           stalledWaves: nylocas.getNyloWavesStalledList(),
           npcs: npcsFromProto(nylocas.getNpcsList()),
@@ -412,6 +427,7 @@ export class DataRepository {
         tobRooms.sotetseg = {
           stage: Stage.TOB_SOTETSEG,
           ticksLost: sotetseg.getTicksLost(),
+          offset: sotetseg.hasOffset() ? sotetseg.getOffset() : undefined,
           deaths: sotetseg.getDeathsList(),
           maze1Pivots: sotetseg.getSotetsegMaze1PivotsList(),
           maze2Pivots: sotetseg.getSotetsegMaze2PivotsList(),
@@ -426,6 +442,7 @@ export class DataRepository {
         tobRooms.xarpus = {
           stage: Stage.TOB_XARPUS,
           ticksLost: xarpus.getTicksLost(),
+          offset: xarpus.hasOffset() ? xarpus.getOffset() : undefined,
           deaths: xarpus.getDeathsList(),
           npcs: npcsFromProto(xarpus.getNpcsList()),
         };
@@ -436,6 +453,7 @@ export class DataRepository {
         tobRooms.verzik = {
           stage: Stage.TOB_VERZIK,
           ticksLost: verzik.getTicksLost(),
+          offset: verzik.hasOffset() ? verzik.getOffset() : undefined,
           deaths: verzik.getDeathsList(),
           redsSpawnCount: verzik.getVerzikRedsCount(),
           npcs: npcsFromProto(verzik.getNpcsList()),
@@ -485,6 +503,7 @@ export class DataRepository {
       colosseumData.waves = colo.getWavesList().map((wave) => ({
         stage: wave.getStage(),
         ticksLost: wave.getTicksLost(),
+        offset: wave.hasOffset() ? wave.getOffset() : undefined,
         handicap: wave.getHandicapChosen(),
         options: wave.getHandicapOptionsList(),
         npcs: npcsFromProto(wave.getNpcsList()),
@@ -505,6 +524,7 @@ export class DataRepository {
         stage: wave.getStage(),
         ticks: wave.getTicks(),
         ticksLost: wave.getTicksLost(),
+        offset: wave.hasOffset() ? wave.getOffset() : undefined,
         startTick: wave.getStartTick(),
         npcs: npcsFromProto(wave.getNpcsList()),
       }));
@@ -521,6 +541,7 @@ export class DataRepository {
       mokhaiotlData.delves = mokhaiotl.getDelvesList().map((delve) => ({
         stage: delve.getStage(),
         ticksLost: delve.getTicksLost(),
+        offset: delve.hasOffset() ? delve.getOffset() : undefined,
         npcs: npcsFromProto(delve.getNpcsList()),
         delve: delve.getDelve(),
         challengeTicks: delve.getChallengeTicks(),

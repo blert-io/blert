@@ -39,6 +39,7 @@ struct CustomData {
 struct WaveData {
     stage: Stage,
     ticks_lost: u32,
+    offset: u32,
     npcs: Vec<RoomNpc>,
     ticks: u32,
     start_tick: u32,
@@ -49,6 +50,7 @@ impl WaveData {
         challenge_data::InfernoWave {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
+            offset: Some(self.offset),
             npcs: self.npcs.iter().map(Into::into).collect(),
             ticks: self.ticks,
             start_tick: self.start_tick,
@@ -220,6 +222,7 @@ impl ChallengeProcessor for InfernoProcessor {
         self.data.waves.push(WaveData {
             stage,
             ticks_lost: events.missing_tick_count(),
+            offset: events.offset(),
             npcs: ctx.npcs().cloned().collect(),
             ticks: last_tick,
             start_tick,
@@ -483,6 +486,7 @@ mod tests {
         WaveData {
             stage,
             ticks_lost: 0,
+            offset: 0,
             npcs: Vec::new(),
             ticks: 61,
             start_tick: (wave - 1) * 67,
@@ -608,6 +612,7 @@ mod tests {
             vec![WaveData {
                 stage: Stage::InfernoWave25,
                 ticks_lost: 42,
+                offset: 42,
                 npcs: Vec::new(),
                 ticks: 42,
                 start_tick: 852,

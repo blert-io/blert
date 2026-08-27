@@ -218,6 +218,7 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         "delves": [{
             "stage": Stage::MokhaiotlDelve8 as i32,
             "ticksLost": 0,
+            "offset": 0,
             "npcs": [],
             "delve": 8,
             "challengeTicks": 123,

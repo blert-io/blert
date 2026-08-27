@@ -60,6 +60,127 @@ pub enum MalformedEvent {
     },
 }
 
+/// Checks that an event has the required payload for its type.
+// TODO(frolv): Replace this with an in-memory structured model.
+#[expect(clippy::too_many_lines)]
+pub(super) fn validate(event: &Event) -> Result<(), MalformedEvent> {
+    let kind = event.r#type();
+    let require = |present: bool, field: &'static str| {
+        if present {
+            Ok(())
+        } else {
+            Err(MalformedEvent::MissingPayload {
+                kind,
+                tick: event.tick,
+                field,
+            })
+        }
+    };
+
+    match kind {
+        event::Type::Unspecified => Err(MalformedEvent::MissingPayload {
+            kind,
+            tick: event.tick,
+            field: "type",
+        }),
+
+        event::Type::PlayerUpdate | event::Type::PlayerDeath => {
+            require(event.player.is_some(), "player")
+        }
+        event::Type::PlayerAttack => {
+            require(event.player.is_some(), "player")?;
+            require(event.player_attack.is_some(), "player_attack")
+        }
+        event::Type::PlayerSpell => {
+            require(event.player.is_some(), "player")?;
+            require(event.player_spell.is_some(), "player_spell")
+        }
+        event::Type::NpcSpawn
+        | event::Type::NpcUpdate
+        | event::Type::NpcDeath
+        | event::Type::TobMaidenCrabLeak => require(event.npc.is_some(), "npc"),
+        event::Type::NpcAttack => {
+            require(event.npc.is_some(), "npc")?;
+            require(event.npc_attack.is_some(), "npc_attack")
+        }
+
+        event::Type::TobMaidenBloodSplats => {
+            require(!event.maiden_blood_splats.is_empty(), "maiden_blood_splats")
+        }
+        event::Type::TobBloatHandsDrop | event::Type::TobBloatHandsSplat => {
+            require(!event.bloat_hands.is_empty(), "bloat_hands")
+        }
+        event::Type::TobBloatDown => require(event.bloat_down.is_some(), "bloat_down"),
+        event::Type::TobNyloWaveSpawn | event::Type::TobNyloWaveStall => {
+            require(event.nylo_wave.is_some(), "nylo_wave")
+        }
+        event::Type::TobSoteMazeProc
+        | event::Type::TobSoteMazeEnd
+        | event::Type::TobSoteMazePath => require(event.sote_maze.is_some(), "sote_maze"),
+        event::Type::TobXarpusPhase => require(event.xarpus_phase.is_some(), "xarpus_phase"),
+        event::Type::TobXarpusExhumed => require(event.xarpus_exhumed.is_some(), "xarpus_exhumed"),
+        event::Type::TobXarpusSplat => require(event.xarpus_splat.is_some(), "xarpus_splat"),
+        event::Type::TobVerzikPhase => require(event.verzik_phase.is_some(), "verzik_phase"),
+        event::Type::TobVerzikAttackStyle => {
+            require(event.verzik_attack_style.is_some(), "verzik_attack_style")
+        }
+        event::Type::TobVerzikBounce => require(event.verzik_bounce.is_some(), "verzik_bounce"),
+        event::Type::TobVerzikDawn => require(event.verzik_dawn.is_some(), "verzik_dawn"),
+        event::Type::TobVerzikDawnDrop => {
+            require(event.verzik_dawn_drop.is_some(), "verzik_dawn_drop")
+        }
+        event::Type::TobVerzikHeal => require(event.verzik_heal.is_some(), "verzik_heal"),
+
+        event::Type::ColosseumHandicapChoice => require(event.handicap.is_some(), "handicap"),
+        event::Type::ColosseumTotemHeal => {
+            require(event.colosseum_totem_heal.is_some(), "colosseum_totem_heal")
+        }
+        event::Type::ColosseumReentryPools => require(
+            event.colosseum_reentry_pools.is_some(),
+            "colosseum_reentry_pools",
+        ),
+        event::Type::ColosseumSolDust => {
+            require(event.colosseum_sol_dust.is_some(), "colosseum_sol_dust")
+        }
+        event::Type::ColosseumSolGrapple => require(
+            event.colosseum_sol_grapple.is_some(),
+            "colosseum_sol_grapple",
+        ),
+        event::Type::ColosseumSolPools => {
+            require(event.colosseum_sol_pools.is_some(), "colosseum_sol_pools")
+        }
+        event::Type::ColosseumSolLasers => {
+            require(event.colosseum_sol_lasers.is_some(), "colosseum_sol_lasers")
+        }
+
+        event::Type::MokhaiotlAttackStyle => require(
+            event.mokhaiotl_attack_style.is_some(),
+            "mokhaiotl_attack_style",
+        ),
+        event::Type::MokhaiotlOrb => require(event.mokhaiotl_orb.is_some(), "mokhaiotl_orb"),
+        event::Type::MokhaiotlObjects => {
+            require(event.mokhaiotl_objects.is_some(), "mokhaiotl_objects")
+        }
+        event::Type::MokhaiotlLarvaLeak => {
+            require(event.mokhaiotl_larva_leak.is_some(), "mokhaiotl_larva_leak")
+        }
+        event::Type::MokhaiotlShockwave => {
+            require(event.mokhaiotl_shockwave.is_some(), "mokhaiotl_shockwave")
+        }
+
+        event::Type::InfernoWaveStart => {
+            require(event.inferno_wave_start.is_some(), "inferno_wave_start")
+        }
+
+        event::Type::TobBloatUp
+        | event::Type::TobNyloCleanupEnd
+        | event::Type::TobNyloBossSpawn
+        | event::Type::TobVerzikRedsSpawn
+        | event::Type::TobVerzikYellows
+        | event::Type::ColosseumDoomApplied => Ok(()),
+    }
+}
+
 /// The category of an event within the merger, determining its handling.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Class {
@@ -141,4 +262,44 @@ pub const fn classify(kind: event::Type) -> Class {
         | event::Type::TobVerzikBounce
         | event::Type::TobVerzikDawn => Class::AttackMapped,
     }
+}
+
+/// Rewrites all of an event's tick references with a mapping function.
+pub(super) fn remap_event_tick(event: &mut Event, remap: impl Fn(u32) -> u32) {
+    debug_assert_ne!(classify(event.r#type()), Class::TickState);
+
+    match event.r#type() {
+        event::Type::TobXarpusExhumed => {
+            let exhumed = event.xarpus_exhumed.as_mut().expect("validated at build");
+            exhumed.spawn_tick = remap(exhumed.spawn_tick);
+            for heal_tick in &mut exhumed.heal_ticks {
+                *heal_tick = remap(*heal_tick);
+            }
+        }
+        event::Type::TobVerzikAttackStyle => {
+            let style = event
+                .verzik_attack_style
+                .as_mut()
+                .expect("validated at build");
+            style.npc_attack_tick = remap(style.npc_attack_tick);
+        }
+        event::Type::TobVerzikBounce => {
+            let bounce = event.verzik_bounce.as_mut().expect("validated at build");
+            bounce.npc_attack_tick = remap(bounce.npc_attack_tick.cast_unsigned()).cast_signed();
+        }
+        event::Type::TobVerzikDawn => {
+            let dawn = event.verzik_dawn.as_mut().expect("validated at build");
+            dawn.attack_tick = remap(dawn.attack_tick);
+        }
+        event::Type::MokhaiotlAttackStyle => {
+            let style = event
+                .mokhaiotl_attack_style
+                .as_mut()
+                .expect("validated at build");
+            style.npc_attack_tick = remap(style.npc_attack_tick);
+        }
+        _ => {}
+    }
+
+    event.tick = remap(event.tick);
 }

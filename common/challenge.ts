@@ -91,6 +91,7 @@ export type MokhaiotlChallengeStats = {
 interface StageData {
   stage: Stage;
   ticksLost: number;
+  offset?: number;
   npcs: RoomNpcMap;
 }
 

@@ -16,8 +16,8 @@ use super::{BadData, ChallengeInfo};
 pub(super) const MAX_RECORDED_TICKS: u32 = 36_000; // six hour logout timer
 
 /// A problem detected in a client's events.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) enum ConsistencyIssue {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConsistencyIssue {
     /// A player moved an impossibly large distance.
     LargeJump {
         player: String,

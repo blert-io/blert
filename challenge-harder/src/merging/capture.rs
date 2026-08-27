@@ -13,10 +13,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, StageUpdate,
-    UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, ClientStageStream, ServerTicks, Stage, StageStatus,
+    StageUpdate, UserId, Uuid,
 };
 use crate::proto::ChallengeEvents;
+
+use super::{Classification, MergeStatus};
 
 /// A stage's captured client streams.
 #[derive(Debug)]
@@ -209,6 +211,8 @@ struct Report {
     capture: Option<Identity>,
     /// Absent if the merge produced nothing.
     merge: Option<Summary>,
+    /// Every client's outcome, in client ID order.
+    clients: Vec<ClientOutcome>,
     error: Option<String>,
 }
 
@@ -234,13 +238,124 @@ struct Summary {
     precise_server_tick_count: bool,
     accurate_until: u32,
     queryable_until: u32,
-    clients: Vec<ClientOutcome>,
 }
 
 /// A client's merge outcome.
-// TODO(frolv): fill this out
 #[derive(Serialize)]
-struct ClientOutcome {}
+#[serde(rename_all = "camelCase")]
+struct ClientOutcome {
+    id: ClientId,
+    primary_player: Option<String>,
+    stage_status: StageStatus,
+    accurate: bool,
+    recorded_ticks: u32,
+    server_ticks: Option<ServerTicks>,
+    consistency_issues: Vec<ConsistencyIssue>,
+    status: &'static str,
+    classification: Option<&'static str>,
+    error: Option<String>,
+}
+
+impl From<super::ClientOutcome> for ClientOutcome {
+    fn from(outcome: super::ClientOutcome) -> ClientOutcome {
+        let (status, classification, error) = match outcome.status {
+            MergeStatus::Merged(classification) => {
+                ("MERGED", Some(classification_name(classification)), None)
+            }
+            MergeStatus::Unmerged(classification) => {
+                ("UNMERGED", Some(classification_name(classification)), None)
+            }
+            MergeStatus::Skipped(error) => ("SKIPPED", None, Some(error.to_string())),
+        };
+        ClientOutcome {
+            id: outcome.client_id,
+            primary_player: outcome.primary_player,
+            stage_status: outcome.stage_status,
+            accurate: outcome.accurate,
+            recorded_ticks: outcome.recorded_ticks,
+            server_ticks: outcome.server_ticks,
+            consistency_issues: outcome
+                .consistency_issues
+                .into_iter()
+                .map(ConsistencyIssue::from)
+                .collect(),
+            status,
+            classification,
+            error,
+        }
+    }
+}
+
+fn classification_name(classification: Classification) -> &'static str {
+    match classification {
+        Classification::Reference => "REFERENCE",
+        Classification::Matching => "MATCHING",
+        Classification::Mismatched => "MISMATCHED",
+    }
+}
+
+/// A consistency issue detected in a client's recording.
+#[derive(Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum ConsistencyIssue {
+    #[serde(rename_all = "camelCase")]
+    LargeJump {
+        player: String,
+        tick: u32,
+        last_tick: u32,
+        start_x: i32,
+        start_y: i32,
+        end_x: i32,
+        end_y: i32,
+    },
+    #[serde(rename_all = "camelCase")]
+    InvalidEventSequence { kind: i32, tick: u32 },
+    #[serde(rename_all = "camelCase")]
+    InvalidTickGap {
+        kind: i32,
+        tick: u32,
+        observed: u32,
+        min: u32,
+    },
+}
+
+impl From<super::client_consistency::ConsistencyIssue> for ConsistencyIssue {
+    fn from(issue: super::client_consistency::ConsistencyIssue) -> ConsistencyIssue {
+        use super::client_consistency::ConsistencyIssue as Issue;
+        match issue {
+            Issue::LargeJump {
+                player,
+                tick,
+                last_tick,
+                start,
+                end,
+            } => ConsistencyIssue::LargeJump {
+                player,
+                tick,
+                last_tick,
+                start_x: start.x,
+                start_y: start.y,
+                end_x: end.x,
+                end_y: end.y,
+            },
+            Issue::InvalidEventSequence { kind, tick } => ConsistencyIssue::InvalidEventSequence {
+                kind: kind as i32,
+                tick,
+            },
+            Issue::InvalidTickGap {
+                kind,
+                tick,
+                observed,
+                min,
+            } => ConsistencyIssue::InvalidTickGap {
+                kind: kind as i32,
+                tick,
+                observed,
+                min,
+            },
+        }
+    }
+}
 
 /// Loads and merges one capture, returning its report and, if the merge
 /// succeeds, the serialized events.
@@ -253,6 +368,7 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
         file,
         capture: None,
         merge: None,
+        clients: Vec::new(),
         error: None,
     };
 
@@ -281,12 +397,8 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
     let merged = panic::catch_unwind(AssertUnwindSafe(|| {
         super::merge(&challenge, capture.stage, capture.records)
     }));
-    let merged = match merged {
-        Ok(Some(merged)) => merged,
-        Ok(None) => {
-            report.error = Some("no client data".into());
-            return (report, None);
-        }
+    let (merged, merge_report) = match merged {
+        Ok((merged, merge_report)) => (merged, merge_report),
         Err(payload) => {
             report.error = Some(format!(
                 "merge panicked: {}",
@@ -296,6 +408,18 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
         }
     };
 
+    report.clients = merge_report
+        .clients
+        .into_iter()
+        .map(ClientOutcome::from)
+        .collect();
+    report.clients.sort_unstable_by_key(|outcome| outcome.id);
+
+    let Some(merged) = merged else {
+        report.error = Some("no client data".into());
+        return (report, None);
+    };
+
     report.merge = Some(Summary {
         status: merged.status(),
         last_tick: merged.last_tick(),
@@ -303,7 +427,6 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
         precise_server_tick_count: merged.has_precise_server_tick_count(),
         accurate_until: merged.accurate_until(),
         queryable_until: merged.queryable_until(),
-        clients: Vec::new(),
     });
     let events = ChallengeEvents {
         events: merged.into_events(),

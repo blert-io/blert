@@ -5,10 +5,8 @@
 
 use std::collections::BTreeMap;
 
-use crate::lifecycle::core::types::Stage;
-
+use super::MergeAlert;
 use super::client_events::ClientEvents;
-use super::{ChallengeInfo, MergeAlert};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ClientClassification {
@@ -25,7 +23,7 @@ pub(super) struct ClientClassification {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) struct ReferenceTicks {
+pub struct ReferenceTicks {
     /// The selected tick count.
     pub count: u32,
     /// How the count was chosen.
@@ -33,7 +31,7 @@ pub(super) struct ReferenceTicks {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum ReferenceMethod {
+pub enum ReferenceMethod {
     AccurateModal,
     PreciseServer,
     ImpreciseServer,
@@ -42,14 +40,10 @@ pub(super) enum ReferenceMethod {
 
 /// Classifies a stage's nonempty clients ahead of a merge.
 /// Clients claiming to be accurate while disagreeing with others are demoted.
-pub(super) fn classify_clients(
-    challenge: &ChallengeInfo,
-    stage: Stage,
-    clients: &mut [ClientEvents],
-) -> ClientClassification {
+pub(super) fn classify_clients(clients: &mut [ClientEvents]) -> ClientClassification {
     debug_assert!(!clients.is_empty());
 
-    let mut alert = demote_conflicting_accuracy(challenge, stage, clients);
+    let mut alert = demote_conflicting_accuracy(clients);
 
     let base = select_base_client(clients);
     let (matching, mismatched): (Vec<usize>, Vec<usize>) =
@@ -80,11 +74,7 @@ pub(super) fn classify_clients(
 /// Demotes clients claiming to be accurate whose tick counts disagree with the
 /// consensus of accurate clients. Without a distinct consensus, all clients
 /// are demoted.
-fn demote_conflicting_accuracy(
-    challenge: &ChallengeInfo,
-    stage: Stage,
-    clients: &mut [ClientEvents],
-) -> Option<MergeAlert> {
+fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAlert> {
     let mut counts: BTreeMap<u32, u32> = BTreeMap::new();
     for client in clients.iter().filter(|client| client.accurate) {
         *counts.entry(client.recorded_ticks).or_default() += 1;
@@ -103,9 +93,7 @@ fn demote_conflicting_accuracy(
             .filter(|client| client.accurate && client.recorded_ticks != modal_ticks)
         {
             tracing::error!(
-                uuid = %challenge.uuid,
                 %client.client_id,
-                ?stage,
                 expected_ticks = modal_ticks,
                 actual_ticks = client.recorded_ticks,
                 "merge_client_accuracy_mismatch",
@@ -115,8 +103,6 @@ fn demote_conflicting_accuracy(
         None
     } else {
         tracing::error!(
-            uuid = %challenge.uuid,
-            ?stage,
             tick_counts = ?modes,
             "merge_multiple_accurate_tick_modes",
         );
@@ -228,16 +214,9 @@ fn consensus_ticks(counts: impl IntoIterator<Item = u32>) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::{ChallengeMode, ClientId, ServerTicks, StageStatus};
+    use crate::lifecycle::core::types::{ClientId, ServerTicks, Stage, StageStatus};
     use crate::merging::client_events::StageData;
-    use crate::merging::fixtures;
     use crate::merging::timeline::Timeline;
-
-    fn maiden_challenge() -> ChallengeInfo<'static> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
-        fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY)
-    }
 
     fn client(
         id: i64,
@@ -255,6 +234,7 @@ mod tests {
             server_ticks,
             timeline: Timeline::new(),
             stage_data: StageData::new(Stage::TobMaiden),
+            consistency_issues: Vec::new(),
             anomalies: Vec::new(),
         }
     }
@@ -285,10 +265,9 @@ mod tests {
 
     #[test]
     fn accuracy_tie_demotes_every_client() {
-        let challenge = maiden_challenge();
         let mut clients = vec![accurate(1, 100), accurate(2, 99), inaccurate(3, 80, None)];
 
-        let alert = demote_conflicting_accuracy(&challenge, Stage::TobMaiden, &mut clients);
+        let alert = demote_conflicting_accuracy(&mut clients);
 
         assert_eq!(
             alert,
@@ -303,7 +282,6 @@ mod tests {
 
     #[test]
     fn single_accurate_mode_demotes_disagreeing_clients() {
-        let challenge = maiden_challenge();
         let mut clients = vec![
             accurate(1, 100),
             accurate(2, 100),
@@ -311,7 +289,7 @@ mod tests {
             inaccurate(4, 80, None),
         ];
 
-        let alert = demote_conflicting_accuracy(&challenge, Stage::TobMaiden, &mut clients);
+        let alert = demote_conflicting_accuracy(&mut clients);
 
         assert_eq!(alert, None);
         let accurate: Vec<bool> = clients.iter().map(|client| client.accurate).collect();
@@ -320,10 +298,9 @@ mod tests {
 
     #[test]
     fn no_accurate_clients_does_nothing() {
-        let challenge = maiden_challenge();
         let mut clients = vec![inaccurate(1, 100, None), inaccurate(2, 90, None)];
 
-        let alert = demote_conflicting_accuracy(&challenge, Stage::TobMaiden, &mut clients);
+        let alert = demote_conflicting_accuracy(&mut clients);
 
         assert_eq!(alert, None);
         let accurate: Vec<bool> = clients.iter().map(|client| client.accurate).collect();
@@ -459,8 +436,6 @@ mod tests {
 
     #[test]
     fn classify_picks_a_single_client_as_the_base() {
-        let challenge = maiden_challenge();
-
         let cases = [
             (
                 accurate(1, 10),
@@ -494,7 +469,7 @@ mod tests {
 
         for (client, reference_ticks) in cases {
             let mut clients = vec![client];
-            let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+            let classification = classify_clients(&mut clients);
             assert_eq!(
                 classification,
                 ClientClassification {
@@ -510,14 +485,13 @@ mod tests {
 
     #[test]
     fn classify_prefers_an_accurate_client() {
-        let challenge = maiden_challenge();
         let mut clients = vec![
             accurate(1, 10),
             accurate(2, 10),
             inaccurate(3, 9, imprecise(9)),
         ];
 
-        let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+        let classification = classify_clients(&mut clients);
 
         assert_eq!(
             classification,
@@ -536,10 +510,9 @@ mod tests {
 
     #[test]
     fn classify_breaks_base_ties_with_the_lowest_client_id() {
-        let challenge = maiden_challenge();
         let mut clients = vec![accurate(2, 10), accurate(1, 10), accurate(3, 10)];
 
-        let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+        let classification = classify_clients(&mut clients);
 
         assert_eq!(
             classification,
@@ -558,7 +531,6 @@ mod tests {
 
     #[test]
     fn classify_chooses_the_highest_tick_count_in_a_multi_modal_scenario() {
-        let challenge = maiden_challenge();
         let mut clients = vec![
             accurate(1, 100),
             accurate(2, 100),
@@ -567,7 +539,7 @@ mod tests {
             accurate(5, 99),
         ];
 
-        let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+        let classification = classify_clients(&mut clients);
 
         assert_eq!(
             classification,
@@ -591,14 +563,13 @@ mod tests {
 
     #[test]
     fn classify_selects_the_base_independently_of_the_reference_count() {
-        let challenge = maiden_challenge();
         let mut clients = vec![
             inaccurate(1, 25, precise(270)),
             inaccurate(2, 270, imprecise(270)),
         ];
         clients[1].primary_player = Some("1Ogp".to_string());
 
-        let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+        let classification = classify_clients(&mut clients);
 
         assert_eq!(
             classification,
@@ -617,11 +588,10 @@ mod tests {
 
     #[test]
     fn classify_prioritizes_a_participant() {
-        let challenge = maiden_challenge();
         let mut clients = vec![inaccurate(1, 100, None), inaccurate(2, 100, None)];
         clients[1].primary_player = Some("1Ogp".to_string());
 
-        let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+        let classification = classify_clients(&mut clients);
 
         assert_eq!(
             classification,
@@ -640,10 +610,9 @@ mod tests {
 
     #[test]
     fn classify_flags_disagreeing_server_tick_counts() {
-        let challenge = maiden_challenge();
         let mut clients = vec![inaccurate(1, 1, precise(1)), inaccurate(2, 1, precise(2))];
 
-        let classification = classify_clients(&challenge, Stage::TobMaiden, &mut clients);
+        let classification = classify_clients(&mut clients);
 
         assert_eq!(
             classification,

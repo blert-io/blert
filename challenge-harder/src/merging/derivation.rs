@@ -238,6 +238,7 @@ mod tests {
             timeline: Timeline::new(),
             stage_data: StageData::Sotetseg { pivots },
             anomalies: Vec::new(),
+            consistency_issues: Vec::new(),
         }
     }
 

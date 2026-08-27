@@ -392,11 +392,14 @@ export default function Maiden() {
   );
 
   const controlsSplits = [];
-  if (maidenData !== null && maidenData.ticksLost !== 0) {
-    controlsSplits.push({
-      tick: maidenData.ticksLost,
-      splitName: 'Recording start',
-    });
+  if (maidenData !== null) {
+    const offset = maidenData.offset ?? maidenData.ticksLost;
+    if (offset !== 0) {
+      controlsSplits.push({
+        tick: offset,
+        splitName: 'Recording start',
+      });
+    }
   }
   controlsSplits.push(...splits);
 
