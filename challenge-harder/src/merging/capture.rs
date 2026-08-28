@@ -160,7 +160,7 @@ impl RawRecord {
 /// stdout and its events are discarded.
 /// A capture that fails to load or merge is reported rather than stopping the
 /// run, returning an exit error at the end.
-pub fn run(captures: &[PathBuf], out: Option<&Path>) -> ExitCode {
+pub fn run(captures: &[PathBuf], out: Option<&Path>, trace: bool) -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
@@ -168,20 +168,26 @@ pub fn run(captures: &[PathBuf], out: Option<&Path>) -> ExitCode {
         .with_writer(io::stderr)
         .init();
 
-    if out.is_none() && captures.len() > 1 {
-        eprintln!("an output directory is required to merge more than one capture");
-        return ExitCode::FAILURE;
+    if out.is_none() {
+        if captures.len() > 1 {
+            eprintln!("an output directory is required to merge more than one capture");
+            return ExitCode::FAILURE;
+        }
+        if trace {
+            eprintln!("an output directory is required to write a merge trace");
+            return ExitCode::FAILURE;
+        }
     }
 
     let mut failed = 0;
     for path in captures {
-        let (report, events) = merge_capture(path);
+        let (report, events, tracer) = merge_capture(path, trace);
         if report.error.is_some() {
             failed += 1;
         }
 
         let written = if let Some(dir) = out {
-            write_outputs(dir, &report, events.as_deref())
+            write_outputs(dir, &report, events.as_deref(), tracer.as_ref())
         } else {
             let mut stdout = io::stdout().lock();
             serde_json::to_writer_pretty(&mut stdout, &report)
@@ -359,7 +365,7 @@ impl From<super::client_consistency::ConsistencyIssue> for ConsistencyIssue {
 
 /// Loads and merges one capture, returning its report and, if the merge
 /// succeeds, the serialized events.
-fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
+fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<super::Tracer>) {
     let file = path.file_name().map_or_else(
         || path.display().to_string(),
         |name| name.to_string_lossy().into_owned(),
@@ -376,7 +382,7 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
         Ok(capture) => capture,
         Err(e) => {
             report.error = Some(e.to_string());
-            return (report, None);
+            return (report, None, None);
         }
     };
     let challenge = super::ChallengeInfo {
@@ -394,8 +400,9 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
         attempt: capture.attempt,
     });
 
+    let mut tracer = trace.then(super::Tracer::new);
     let merged = panic::catch_unwind(AssertUnwindSafe(|| {
-        super::merge(&challenge, capture.stage, capture.records)
+        super::merge(&challenge, capture.stage, capture.records, tracer.as_mut())
     }));
     let (merged, merge_report) = match merged {
         Ok((merged, merge_report)) => (merged, merge_report),
@@ -404,7 +411,7 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
                 "merge panicked: {}",
                 panic_message(payload.as_ref())
             ));
-            return (report, None);
+            return (report, None, tracer);
         }
     };
 
@@ -417,7 +424,7 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
 
     let Some(merged) = merged else {
         report.error = Some("no client data".into());
-        return (report, None);
+        return (report, None, tracer);
     };
 
     report.merge = Some(Summary {
@@ -432,7 +439,7 @@ fn merge_capture(path: &Path) -> (Report, Option<Vec<u8>>) {
         events: merged.into_events(),
         ..Default::default()
     };
-    (report, Some(events.encode_to_vec()))
+    (report, Some(events.encode_to_vec()), tracer)
 }
 
 fn panic_message(payload: &(dyn Any + Send)) -> &str {
@@ -443,7 +450,12 @@ fn panic_message(payload: &(dyn Any + Send)) -> &str {
         .unwrap_or("unknown panic")
 }
 
-fn write_outputs(dir: &Path, report: &Report, events: Option<&[u8]>) -> io::Result<()> {
+fn write_outputs(
+    dir: &Path,
+    report: &Report,
+    events: Option<&[u8]>,
+    tracer: Option<&super::Tracer>,
+) -> io::Result<()> {
     let name = report
         .file
         .strip_suffix("_events.json")
@@ -451,6 +463,10 @@ fn write_outputs(dir: &Path, report: &Report, events: Option<&[u8]>) -> io::Resu
     fs::create_dir_all(dir)?;
     if let Some(events) = events {
         fs::write(dir.join(format!("{name}.events")), events)?;
+    }
+    if let Some(tracer) = tracer {
+        let json = serde_json::to_vec_pretty(tracer).map_err(io::Error::other)?;
+        fs::write(dir.join(format!("{name}.trace.json")), json)?;
     }
     let json = serde_json::to_vec_pretty(report).map_err(io::Error::other)?;
     fs::write(dir.join(format!("{name}.json")), json)

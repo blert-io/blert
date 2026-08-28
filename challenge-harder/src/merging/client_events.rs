@@ -55,7 +55,6 @@ pub(super) enum Anomaly {
 }
 
 #[derive(Debug)]
-#[expect(dead_code)]
 pub(super) struct Metadata {
     pub user_id: UserId,
     pub plugin_version: String,
@@ -69,6 +68,7 @@ pub(super) struct ClientEvents {
     pub metadata: Option<Metadata>,
     pub primary_player: Option<String>,
     pub status: StageStatus,
+    pub reported_accurate: bool,
     pub accurate: bool,
     pub recorded_ticks: u32,
     pub server_ticks: Option<ServerTicks>,
@@ -96,6 +96,7 @@ impl ClientEvents {
             metadata: None,
             primary_player: None,
             status: StageStatus::Started,
+            reported_accurate: false,
             accurate: false,
             recorded_ticks: 0,
             server_ticks: None,
@@ -155,6 +156,7 @@ impl ClientEvents {
                 },
                 ClientStageStream::End { update, .. } => {
                     client.status = update.status;
+                    client.reported_accurate = update.accurate;
                     client.accurate = update.accurate;
                     client.recorded_ticks = update.recorded_ticks;
                     client.server_ticks = update.server_ticks;
@@ -807,6 +809,7 @@ mod tests {
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,
+            reported_accurate: true,
             accurate: true,
             recorded_ticks: 169,
             server_ticks: None,

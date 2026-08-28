@@ -232,6 +232,7 @@ mod tests {
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,
+            reported_accurate: true,
             accurate: true,
             recorded_ticks,
             server_ticks: None,
