@@ -100,6 +100,7 @@ impl<'a> MergeContextBuilder<'a> {
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,
+            reported_accurate: accurate,
             accurate,
             recorded_ticks,
             server_ticks: None,

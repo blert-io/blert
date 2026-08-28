@@ -65,6 +65,9 @@ enum Command {
         /// one capture. Without it, prints a single capture report to stdout.
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Writes a trace of each merge alongside its report. Requires --out.
+        #[arg(long)]
+        trace: bool,
     },
     /// Shadow harness tooling.
     #[command(subcommand)]
@@ -85,7 +88,11 @@ async fn main() -> ExitCode {
             .await;
             ExitCode::SUCCESS
         }
-        Some(Command::Merge { captures, out }) => merging::capture::run(&captures, out.as_deref()),
+        Some(Command::Merge {
+            captures,
+            out,
+            trace,
+        }) => merging::capture::run(&captures, out.as_deref(), trace),
         Some(Command::Shadow(command)) => shadow::run(command).await,
     }
 }

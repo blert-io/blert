@@ -15,6 +15,7 @@ mod event;
 #[cfg(test)]
 pub(crate) mod fixtures;
 mod timeline;
+mod trace;
 mod world;
 
 use classification::classify_clients;
@@ -27,6 +28,7 @@ use crate::lifecycle::core::types::{
     Uuid,
 };
 pub use crate::merging::classification::{ReferenceMethod, ReferenceTicks};
+pub use crate::merging::trace::Tracer;
 use crate::proto::Event;
 
 /// A notable condition encountered while merging a stage's clients.
@@ -95,6 +97,21 @@ pub struct MergeReport {
     pub skipped_count: usize,
 }
 
+impl MergeReport {
+    /// Creates a report for a merge that skipped every client.
+    fn empty(clients: Vec<ClientOutcome>) -> MergeReport {
+        let skipped_count = clients.len();
+        MergeReport {
+            alerts: Vec::new(),
+            reference_ticks: None,
+            clients,
+            merged_count: 0,
+            unmerged_count: 0,
+            skipped_count,
+        }
+    }
+}
+
 /// Challenge context for a merge.
 #[derive(Debug, Clone)]
 pub struct ChallengeInfo<'a> {
@@ -131,11 +148,21 @@ pub fn merge(
     challenge: &ChallengeInfo<'_>,
     stage: Stage,
     records: Vec<ClientStageStream>,
+    mut tracer: Option<&mut Tracer>,
 ) -> (Option<MergedEvents>, MergeReport) {
     let _span = tracing::info_span!("merge", uuid = %challenge.uuid, ?stage).entered();
 
     let (mut clients, bad_data_clients) =
         client_events::from_stage_stream(challenge, stage, records);
+
+    if let Some(tracer) = tracer.as_deref_mut() {
+        for client in &clients {
+            tracer.record_input_client(client);
+        }
+        for client in &bad_data_clients {
+            tracer.record_input_client(&client.client);
+        }
+    }
 
     let mut outcomes: Vec<ClientOutcome> = Vec::new();
     for client in bad_data_clients {
@@ -146,23 +173,17 @@ pub fn merge(
     }
 
     if clients.is_empty() {
-        let skipped_count = outcomes.len();
-        return (
-            None,
-            MergeReport {
-                alerts: Vec::new(),
-                reference_ticks: None,
-                clients: outcomes,
-                merged_count: 0,
-                unmerged_count: 0,
-                skipped_count,
-            },
-        );
+        return (None, MergeReport::empty(outcomes));
     }
 
     let mut alerts = Vec::new();
 
     let classification = classify_clients(&mut clients);
+
+    if let Some(tracer) = tracer {
+        tracer.record_classification(&classification, &clients);
+    }
+
     alerts.extend(classification.alert);
 
     let ctx = MergeContext {
@@ -464,7 +485,7 @@ mod tests {
                 },
             },
         ];
-        merge(&challenge, Stage::TobNylocas, records)
+        merge(&challenge, Stage::TobNylocas, records, None)
             .0
             .expect("stage has client data")
     }
@@ -474,7 +495,7 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let challenge =
             fixtures::challenge_info(Stage::MokhaiotlDelve1, ChallengeMode::NoMode, &party);
-        let (merged, report) = merge(&challenge, Stage::MokhaiotlDelve1, vec![]);
+        let (merged, report) = merge(&challenge, Stage::MokhaiotlDelve1, vec![], None);
         assert!(merged.is_none());
         assert_eq!(
             report,
@@ -520,7 +541,7 @@ mod tests {
                 },
             },
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
         assert!(merged.is_some());
         assert_eq!(
             report.alerts,
@@ -559,7 +580,7 @@ mod tests {
                 },
             },
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
         assert!(merged.is_some());
         assert_eq!(
             report.clients,
@@ -610,7 +631,7 @@ mod tests {
                 }),
             },
         }];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
         assert!(merged.is_none());
         assert_eq!(
             report,
@@ -699,7 +720,7 @@ mod tests {
                 },
             },
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
         let merged = merged.expect("stage has client data");
         assert_eq!(merged.last_tick(), 8);
         assert_eq!(merged.missing_tick_count(), 8);

@@ -68,7 +68,7 @@ pub fn interpret(
     };
 
     // TODO(frolv): Save report
-    let (merged, _report) = merging::merge(&merge_info, stage, records);
+    let (merged, _report) = merging::merge(&merge_info, stage, records, None);
     let mut events = merged.ok_or(InterpretError::NoData)?;
 
     let mut ctx = StageContext::new(stage, party);
