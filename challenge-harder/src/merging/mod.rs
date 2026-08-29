@@ -6,6 +6,7 @@
 // TODO(frolv): Remove once the container's full API has consumers.
 #![cfg_attr(not(test), expect(dead_code))]
 
+mod alignment;
 pub mod capture;
 mod classification;
 mod client_consistency;
@@ -14,6 +15,7 @@ mod derivation;
 mod event;
 #[cfg(test)]
 pub(crate) mod fixtures;
+mod mapping;
 mod similarity;
 mod timeline;
 mod trace;
