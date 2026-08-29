@@ -5,6 +5,25 @@ use crate::proto::event::npc::nylo::Style as NyloStyle;
 pub mod id {
     pub const ROCKY_SUPPORT: u32 = 7709;
 
+    pub const MAIDEN_ENTRY: u32 = 10814;
+    pub const MAIDEN_ENTRY_10815: u32 = 10815;
+    pub const MAIDEN_ENTRY_10816: u32 = 10816;
+    pub const MAIDEN_ENTRY_10817: u32 = 10817;
+    pub const MAIDEN_ENTRY_10818: u32 = 10818;
+    pub const MAIDEN_ENTRY_10819: u32 = 10819;
+    pub const MAIDEN_REGULAR: u32 = 8360;
+    pub const MAIDEN_REGULAR_8361: u32 = 8361;
+    pub const MAIDEN_REGULAR_8362: u32 = 8362;
+    pub const MAIDEN_REGULAR_8363: u32 = 8363;
+    pub const MAIDEN_REGULAR_8364: u32 = 8364;
+    pub const MAIDEN_REGULAR_8365: u32 = 8365;
+    pub const MAIDEN_HARD: u32 = 10822;
+    pub const MAIDEN_HARD_10823: u32 = 10823;
+    pub const MAIDEN_HARD_10824: u32 = 10824;
+    pub const MAIDEN_HARD_10825: u32 = 10825;
+    pub const MAIDEN_HARD_10826: u32 = 10826;
+    pub const MAIDEN_HARD_10827: u32 = 10827;
+
     pub const MAIDEN_MATOMENOS_ENTRY: u32 = 10820;
     pub const MAIDEN_MATOMENOS_REGULAR: u32 = 8366;
     pub const MAIDEN_MATOMENOS_HARD: u32 = 10828;
@@ -67,6 +86,23 @@ pub mod id {
     pub const NYLOCAS_VASILIAS_MAGE_HARD: u32 = 10809;
     pub const NYLOCAS_VASILIAS_RANGE_HARD: u32 = 10810;
 
+    pub const SOTETSEG_IDLE_ENTRY: u32 = 10864;
+    pub const SOTETSEG_IDLE_REGULAR: u32 = 8387;
+    pub const SOTETSEG_IDLE_HARD: u32 = 10867;
+    pub const SOTETSEG_ENTRY: u32 = 10865;
+    pub const SOTETSEG_REGULAR: u32 = 8388;
+    pub const SOTETSEG_HARD: u32 = 10868;
+
+    pub const XARPUS_IDLE_ENTRY: u32 = 10766;
+    pub const XARPUS_IDLE_REGULAR: u32 = 8338;
+    pub const XARPUS_IDLE_HARD: u32 = 10770;
+    pub const XARPUS_P1_ENTRY: u32 = 10767;
+    pub const XARPUS_P1_REGULAR: u32 = 8339;
+    pub const XARPUS_P1_HARD: u32 = 10771;
+    pub const XARPUS_ENTRY: u32 = 10768;
+    pub const XARPUS_REGULAR: u32 = 8340;
+    pub const XARPUS_HARD: u32 = 10772;
+
     pub const VERZIK_P1_ENTRY: u32 = 10831;
     pub const VERZIK_P1_ENTRY_10832: u32 = 10832;
     pub const VERZIK_P1_REGULAR: u32 = 8370;
@@ -92,6 +128,30 @@ pub mod id {
     pub const VERZIK_MATOMENOS_ENTRY: u32 = 10845;
     pub const VERZIK_MATOMENOS_REGULAR: u32 = 8385;
     pub const VERZIK_MATOMENOS_HARD: u32 = 10862;
+}
+
+pub fn is_maiden(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::MAIDEN_ENTRY
+            | id::MAIDEN_ENTRY_10815
+            | id::MAIDEN_ENTRY_10816
+            | id::MAIDEN_ENTRY_10817
+            | id::MAIDEN_ENTRY_10818
+            | id::MAIDEN_ENTRY_10819
+            | id::MAIDEN_REGULAR
+            | id::MAIDEN_REGULAR_8361
+            | id::MAIDEN_REGULAR_8362
+            | id::MAIDEN_REGULAR_8363
+            | id::MAIDEN_REGULAR_8364
+            | id::MAIDEN_REGULAR_8365
+            | id::MAIDEN_HARD
+            | id::MAIDEN_HARD_10823
+            | id::MAIDEN_HARD_10824
+            | id::MAIDEN_HARD_10825
+            | id::MAIDEN_HARD_10826
+            | id::MAIDEN_HARD_10827
+    )
 }
 
 pub fn is_maiden_matomenos(npc_id: u32) -> bool {
@@ -174,6 +234,33 @@ pub fn nylocas_vasilias_style(npc_id: u32) -> Option<NyloStyle> {
         | id::NYLOCAS_VASILIAS_MAGE_HARD => Some(NyloStyle::Mage),
         _ => None,
     }
+}
+
+pub fn is_sotetseg(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::SOTETSEG_IDLE_ENTRY
+            | id::SOTETSEG_IDLE_REGULAR
+            | id::SOTETSEG_IDLE_HARD
+            | id::SOTETSEG_ENTRY
+            | id::SOTETSEG_REGULAR
+            | id::SOTETSEG_HARD
+    )
+}
+
+pub fn is_xarpus(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::XARPUS_IDLE_ENTRY
+            | id::XARPUS_IDLE_REGULAR
+            | id::XARPUS_IDLE_HARD
+            | id::XARPUS_P1_ENTRY
+            | id::XARPUS_P1_REGULAR
+            | id::XARPUS_P1_HARD
+            | id::XARPUS_ENTRY
+            | id::XARPUS_REGULAR
+            | id::XARPUS_HARD
+    )
 }
 
 pub fn is_verzik_p1(npc_id: u32) -> bool {

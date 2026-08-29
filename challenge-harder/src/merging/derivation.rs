@@ -359,17 +359,7 @@ mod tests {
     /// A room's events with a player update on every tick.
     fn room_events(stage: Stage, ticks: u32, actors: Vec<Event>) -> Vec<Event> {
         let mut events: Vec<Event> = (0..=ticks)
-            .map(|tick| {
-                fixtures::player_update_event(
-                    tick,
-                    stage,
-                    (0, 0),
-                    "1Ogp",
-                    event::player::DataSource::Primary,
-                    &[],
-                    false,
-                )
-            })
+            .map(|tick| fixtures::PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0)).build())
             .collect();
         events.extend(actors);
         events.sort_by_key(|event| event.tick);

@@ -2,6 +2,7 @@
 
 use crate::item::ItemDelta;
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
+use crate::prayer::PrayerSet;
 use crate::proto::event::attack_style::Style;
 use crate::proto::event::sote_maze::Maze;
 use crate::proto::event::{VerzikPhase, XarpusPhase};
@@ -134,34 +135,69 @@ pub(super) fn timeline(party: &[String], recorded_ticks: u32, events: Vec<Event>
     .expect("fixture events are well formed")
 }
 
-pub fn player_update_event(
+pub struct PlayerUpdateEvent<'a> {
     tick: u32,
     stage: Stage,
+    name: &'a str,
     coords: (i32, i32),
-    name: &str,
     source: event::player::DataSource,
-    equipment_deltas: &[ItemDelta],
+    equipment_deltas: &'a [ItemDelta],
     snapshot: bool,
-) -> Event {
-    let mut event = Event {
-        tick,
-        stage: stage as i32,
-        x_coord: coords.0,
-        y_coord: coords.1,
-        ..Default::default()
-    };
-    event.set_type(event::Type::PlayerUpdate);
-    event.player = Some(event::Player {
-        name: name.to_string(),
-        data_source: source as i32,
-        equipment_deltas: equipment_deltas
-            .iter()
-            .map(|delta| delta.to_raw())
-            .collect(),
-        snapshot,
-        ..Default::default()
-    });
-    event
+    prayers: Option<PrayerSet>,
+}
+
+impl<'a> PlayerUpdateEvent<'a> {
+    pub fn new(tick: u32, stage: Stage, name: &'a str, coords: (i32, i32)) -> Self {
+        Self {
+            tick,
+            stage,
+            name,
+            coords,
+            source: event::player::DataSource::Secondary,
+            equipment_deltas: &[],
+            snapshot: false,
+            prayers: None,
+        }
+    }
+
+    pub fn source(mut self, source: event::player::DataSource) -> Self {
+        self.source = source;
+        self
+    }
+
+    pub fn equipment_deltas(mut self, deltas: &'a [ItemDelta]) -> Self {
+        self.equipment_deltas = deltas;
+        self
+    }
+
+    pub fn prayers(mut self, prayers: PrayerSet) -> Self {
+        self.prayers = Some(prayers);
+        self
+    }
+
+    pub fn build(self) -> Event {
+        let mut event = Event {
+            tick: self.tick,
+            stage: self.stage as i32,
+            x_coord: self.coords.0,
+            y_coord: self.coords.1,
+            ..Default::default()
+        };
+        event.set_type(event::Type::PlayerUpdate);
+        event.player = Some(event::Player {
+            name: self.name.to_string(),
+            data_source: self.source as i32,
+            equipment_deltas: self
+                .equipment_deltas
+                .iter()
+                .map(|delta| delta.to_raw())
+                .collect(),
+            snapshot: self.snapshot,
+            active_prayers: self.prayers.map(PrayerSet::to_raw),
+            ..Default::default()
+        });
+        event
+    }
 }
 
 #[derive(Clone, Copy)]
