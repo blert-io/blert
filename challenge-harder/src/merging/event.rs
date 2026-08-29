@@ -1,7 +1,7 @@
 //! Event classification by merge policy.
 
 use crate::lifecycle::core::types::ClientId;
-use crate::proto::{Event, event};
+use crate::proto::{Event, NpcAttack, PlayerAttack, event};
 
 #[derive(Debug, Clone)]
 pub struct TaggedEvent(ClientId, Event);
@@ -261,6 +261,30 @@ pub const fn classify(kind: event::Type) -> Class {
         event::Type::TobVerzikAttackStyle
         | event::Type::TobVerzikBounce
         | event::Type::TobVerzikDawn => Class::AttackMapped,
+    }
+}
+
+// Some player and NPC attacks share the same animation and are identified by
+// which projectile is fired. However, projectiles have a shorter render
+// distance than actors, so two clients could report contradictory attacks from
+// the same actor on what is legitimately the same tick.
+
+/// Collapses a projectile-ambiguous player attack to its canonical value.
+pub(super) fn normalize_player_attack(attack: PlayerAttack) -> PlayerAttack {
+    // DAWN_AUTO/DAWN_SPEC are deliberately ignored, as there isn't a realistic
+    // case where someone would be out of render distance of the projectile.
+    match attack {
+        PlayerAttack::BlowpipeSpec => PlayerAttack::Blowpipe,
+        PlayerAttack::ZcbSpec => PlayerAttack::ZcbAuto,
+        other => other,
+    }
+}
+
+/// Collapses a projectile-ambiguous NPC attack to its canonical value.
+pub(super) fn normalize_npc_attack(attack: NpcAttack) -> NpcAttack {
+    match attack {
+        NpcAttack::TobSoteDeathBall => NpcAttack::TobSoteBall,
+        other => other,
     }
 }
 

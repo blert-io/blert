@@ -84,6 +84,11 @@ impl PrayerSet {
         self.0 & !Self::BOOK_BITS == 0
     }
 
+    /// Sets a prayer active.
+    pub const fn add(&mut self, prayer: Prayer) {
+        self.0 |= prayer.bit();
+    }
+
     /// Returns the set of overhead prayers active in this set.
     pub const fn overheads(self) -> PrayerSet {
         let book = self.0 & Self::BOOK_BITS;

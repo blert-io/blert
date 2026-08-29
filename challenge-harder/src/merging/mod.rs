@@ -14,6 +14,7 @@ mod derivation;
 mod event;
 #[cfg(test)]
 pub(crate) mod fixtures;
+mod similarity;
 mod timeline;
 mod trace;
 mod world;

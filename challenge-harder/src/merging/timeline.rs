@@ -561,6 +561,13 @@ impl TickState {
         self.tick
     }
 
+    /// Returns the players visible on the tick.
+    pub(super) fn players(&self) -> impl Iterator<Item = (&str, &PlayerState)> {
+        self.players
+            .iter()
+            .filter_map(|(name, state)| state.as_ref().map(|state| (name.as_str(), state)))
+    }
+
     pub(super) fn player(&self, name: &str) -> Option<&PlayerState> {
         self.players.get(name).and_then(Option::as_ref)
     }
@@ -1070,15 +1077,9 @@ mod tests {
         let events = vec![
             TaggedEvent::new(
                 ClientId(1),
-                fixtures::player_update_event(
-                    2,
-                    Stage::TobVerzik,
-                    (3167, 4311),
-                    "1Ogp",
-                    DataSource::Primary,
-                    &[],
-                    false,
-                ),
+                fixtures::PlayerUpdateEvent::new(2, Stage::TobVerzik, "1Ogp", (3167, 4311))
+                    .source(DataSource::Primary)
+                    .build(),
             ),
             TaggedEvent::new(
                 ClientId(1),

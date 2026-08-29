@@ -444,18 +444,6 @@ mod tests {
     use crate::merging::fixtures;
     use crate::proto::Event;
 
-    fn player_update(stage: Stage, tick: u32, name: &str, coords: (i32, i32)) -> Event {
-        fixtures::player_update_event(
-            tick,
-            stage,
-            coords,
-            name,
-            event::player::DataSource::Primary,
-            &[],
-            false,
-        )
-    }
-
     #[test]
     fn movement_permits_up_to_two_tiles_per_tick() {
         let party = vec!["1Ogp".to_string()];
@@ -463,9 +451,9 @@ mod tests {
             &party,
             3,
             vec![
-                player_update(Stage::TobMaiden, 0, "1Ogp", (3184, 4447)),
-                player_update(Stage::TobMaiden, 1, "1Ogp", (3182, 4446)),
-                player_update(Stage::TobMaiden, 2, "1Ogp", (3180, 4445)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "1Ogp", (3182, 4446)).build(),
+                fixtures::PlayerUpdateEvent::new(2, Stage::TobMaiden, "1Ogp", (3180, 4445)).build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobMaiden, &party, &timeline), vec![]);
@@ -478,8 +466,8 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobMaiden, 0, "1Ogp", (3184, 4447)),
-                player_update(Stage::TobMaiden, 1, "1Ogp", (3174, 4447)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "1Ogp", (3174, 4447)).build(),
             ],
         );
         assert_eq!(
@@ -501,9 +489,9 @@ mod tests {
             &party,
             6,
             vec![
-                player_update(Stage::TobMaiden, 0, "1Ogp", (3184, 4447)),
-                player_update(Stage::TobMaiden, 3, "1Ogp", (3178, 4447)), // valid
-                player_update(Stage::TobMaiden, 5, "1Ogp", (3184, 4447)), // invalid
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
+                fixtures::PlayerUpdateEvent::new(3, Stage::TobMaiden, "1Ogp", (3178, 4447)).build(), // valid
+                fixtures::PlayerUpdateEvent::new(5, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(), // invalid
             ],
         );
         assert_eq!(
@@ -525,7 +513,7 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobMaiden, 0, "1Ogp", (3184, 4447)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
                 fixtures::player_death_event(1, Stage::TobMaiden, (3177, 4440), "1Ogp", 0),
             ],
         );
@@ -539,10 +527,12 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobMaiden, 0, "1Ogp", (3184, 4447)),
-                player_update(Stage::TobMaiden, 0, "WWWWWWWWWWQQ", (3184, 4445)),
-                player_update(Stage::TobMaiden, 1, "1Ogp", (3183, 4446)),
-                player_update(Stage::TobMaiden, 1, "WWWWWWWWWWQQ", (3172, 4445)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "WWWWWWWWWWQQ", (3184, 4445))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "1Ogp", (3183, 4446)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "WWWWWWWWWWQQ", (3172, 4445))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -573,8 +563,8 @@ mod tests {
                 &party,
                 2,
                 vec![
-                    player_update(stage, 0, "1Ogp", start),
-                    player_update(stage, 1, "1Ogp", end),
+                    fixtures::PlayerUpdateEvent::new(0, stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(1, stage, "1Ogp", end).build(),
                 ],
             );
             assert_eq!(
@@ -607,8 +597,8 @@ mod tests {
                 &party,
                 2,
                 vec![
-                    player_update(stage, 0, "1Ogp", start),
-                    player_update(stage, 1, "1Ogp", end),
+                    fixtures::PlayerUpdateEvent::new(0, stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(1, stage, "1Ogp", end).build(),
                 ],
             );
             assert_eq!(
@@ -626,8 +616,10 @@ mod tests {
             &party,
             5,
             vec![
-                player_update(Stage::ColosseumWave12, 3, "1Ogp", (1819, 3118)),
-                player_update(Stage::ColosseumWave12, 4, "1Ogp", (1825, 3103)),
+                fixtures::PlayerUpdateEvent::new(3, Stage::ColosseumWave12, "1Ogp", (1819, 3118))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(4, Stage::ColosseumWave12, "1Ogp", (1825, 3103))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -643,8 +635,10 @@ mod tests {
             &party,
             6,
             vec![
-                player_update(Stage::ColosseumWave12, 4, "1Ogp", (1819, 3118)),
-                player_update(Stage::ColosseumWave12, 5, "1Ogp", (1825, 3103)),
+                fixtures::PlayerUpdateEvent::new(4, Stage::ColosseumWave12, "1Ogp", (1819, 3118))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(5, Stage::ColosseumWave12, "1Ogp", (1825, 3103))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -666,8 +660,10 @@ mod tests {
             &party,
             5,
             vec![
-                player_update(Stage::ColosseumWave12, 3, "1Ogp", (1819, 3118)),
-                player_update(Stage::ColosseumWave12, 4, "1Ogp", (1817, 3103)),
+                fixtures::PlayerUpdateEvent::new(3, Stage::ColosseumWave12, "1Ogp", (1819, 3118))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(4, Stage::ColosseumWave12, "1Ogp", (1817, 3103))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -691,8 +687,8 @@ mod tests {
                 &party,
                 2,
                 vec![
-                    player_update(stage, 0, "1Ogp", (1815, 3110)),
-                    player_update(stage, 1, "1Ogp", (1825, 3103)),
+                    fixtures::PlayerUpdateEvent::new(0, stage, "1Ogp", (1815, 3110)).build(),
+                    fixtures::PlayerUpdateEvent::new(1, stage, "1Ogp", (1825, 3103)).build(),
                 ],
             );
             assert_eq!(
@@ -716,8 +712,10 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobSotetseg, 0, "1Ogp", (3275, 4310)),
-                player_update(Stage::TobSotetseg, 1, "1Ogp", (3274, 4307)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobSotetseg, "1Ogp", (3274, 4307))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -733,8 +731,10 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobSotetseg, 0, "1Ogp", (3280, 4320)),
-                player_update(Stage::TobSotetseg, 1, "1Ogp", (3360, 4315)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3280, 4320))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobSotetseg, "1Ogp", (3360, 4315))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -750,8 +750,10 @@ mod tests {
             &party,
             8,
             vec![
-                player_update(Stage::TobSotetseg, 0, "1Ogp", (3360, 4315)),
-                player_update(Stage::TobSotetseg, 7, "1Ogp", (3275, 4310)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3360, 4315))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(7, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -767,8 +769,10 @@ mod tests {
             &party,
             6,
             vec![
-                player_update(Stage::TobSotetseg, 0, "1Ogp", (3275, 4310)),
-                player_update(Stage::TobSotetseg, 5, "1Ogp", (3360, 4315)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(5, Stage::TobSotetseg, "1Ogp", (3360, 4315))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -784,8 +788,10 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobSotetseg, 0, "1Ogp", (3275, 4310)),
-                player_update(Stage::TobSotetseg, 1, "1Ogp", (3300, 4350)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobSotetseg, "1Ogp", (3300, 4350))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -807,8 +813,10 @@ mod tests {
             &party,
             3,
             vec![
-                player_update(Stage::TobSotetseg, 0, "1Ogp", (3275, 4312)),
-                player_update(Stage::TobSotetseg, 2, "1Ogp", (3274, 4307)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4312))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(2, Stage::TobSotetseg, "1Ogp", (3274, 4307))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -830,8 +838,8 @@ mod tests {
             &party,
             2,
             vec![
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
             ],
         );
         assert_eq!(
@@ -865,8 +873,8 @@ mod tests {
             2,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
                 fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
             ],
         );
@@ -881,8 +889,8 @@ mod tests {
             2,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3167, 4313)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3162, 4308)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3167, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3162, 4308)).build(),
                 fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
             ],
         );
@@ -897,10 +905,12 @@ mod tests {
             3,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 0, "WWWWWWWWWWQQ", (3160, 4310)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
-                player_update(Stage::TobVerzik, 1, "WWWWWWWWWWQQ", (3160, 4310)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                    .build(),
                 fixtures::npc_update_event(fixtures::NpcEvent {
                     tick: 2,
                     stage: Stage::TobVerzik,
@@ -922,8 +932,8 @@ mod tests {
             2,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
                 fixtures::verzik_bounce_event(1, 0, 1, 0, Some("WWWWWWWWWWQQ")),
             ],
         );
@@ -947,8 +957,8 @@ mod tests {
             2,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4305)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4305)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
                 fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
             ],
         );
@@ -972,9 +982,9 @@ mod tests {
             3,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
                 fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
-                player_update(Stage::TobVerzik, 2, "1Ogp", (3168, 4303)),
+                fixtures::PlayerUpdateEvent::new(2, Stage::TobVerzik, "1Ogp", (3168, 4303)).build(),
             ],
         );
         assert_eq!(
@@ -1006,10 +1016,12 @@ mod tests {
                     NpcAttack::TobVerzikP2Bounce,
                     None,
                 ),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 0, "WWWWWWWWWWQQ", (3160, 4310)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
-                player_update(Stage::TobVerzik, 1, "WWWWWWWWWWQQ", (3160, 4310)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                    .build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -1023,8 +1035,8 @@ mod tests {
             2,
             vec![
                 verzik_p2_spawn(),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
             ],
         );
         assert_eq!(
@@ -1056,10 +1068,12 @@ mod tests {
                     NpcAttack::TobVerzikP2Bounce,
                     None,
                 ),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4313)),
-                player_update(Stage::TobVerzik, 0, "WWWWWWWWWWQQ", (3169, 4313)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4309)),
-                player_update(Stage::TobVerzik, 1, "WWWWWWWWWWQQ", (3173, 4314)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "WWWWWWWWWWQQ", (3169, 4313))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "WWWWWWWWWWQQ", (3173, 4314))
+                    .build(),
             ],
         );
         assert_eq!(
@@ -1115,8 +1129,8 @@ mod tests {
             vec![
                 verzik_p3_update(0),
                 verzik_webs_attack(0),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4312)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4308)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -1131,8 +1145,8 @@ mod tests {
             vec![
                 verzik_p3_update(0),
                 verzik_webs_attack(0),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4312)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4307)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4307)).build(),
             ],
         );
         assert_eq!(
@@ -1156,8 +1170,8 @@ mod tests {
             vec![
                 verzik_p3_update(0),
                 verzik_webs_attack(0),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3160, 4310)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4308)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3160, 4310)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
             ],
         );
         assert_eq!(
@@ -1180,8 +1194,8 @@ mod tests {
             2,
             vec![
                 verzik_p3_update(0),
-                player_update(Stage::TobVerzik, 0, "1Ogp", (3168, 4312)),
-                player_update(Stage::TobVerzik, 1, "1Ogp", (3168, 4308)),
+                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
+                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
             ],
         );
         assert_eq!(
@@ -1206,8 +1220,8 @@ mod tests {
                 verzik_p3_update(1),
                 verzik_webs_attack(1),
                 verzik_p3_update(3),
-                player_update(Stage::TobVerzik, 3, "1Ogp", (3168, 4312)),
-                player_update(Stage::TobVerzik, 4, "1Ogp", (3168, 4308)),
+                fixtures::PlayerUpdateEvent::new(3, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
+                fixtures::PlayerUpdateEvent::new(4, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -1223,8 +1237,8 @@ mod tests {
                 verzik_p3_update(0),
                 verzik_webs_attack(0),
                 verzik_p3_update(4),
-                player_update(Stage::TobVerzik, 4, "1Ogp", (3168, 4312)),
-                player_update(Stage::TobVerzik, 5, "1Ogp", (3168, 4308)),
+                fixtures::PlayerUpdateEvent::new(4, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
+                fixtures::PlayerUpdateEvent::new(5, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
             ],
         );
         assert_eq!(

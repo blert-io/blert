@@ -692,15 +692,8 @@ mod tests {
 
     #[test]
     fn a_client_with_malformed_events_is_bad_data() {
-        let mut broken = fixtures::player_update_event(
-            4,
-            Stage::TobNylocas,
-            (3296, 4249),
-            "1Ogp",
-            DataSource::Primary,
-            &[],
-            false,
-        );
+        let mut broken =
+            fixtures::PlayerUpdateEvent::new(4, Stage::TobNylocas, "1Ogp", (3296, 4249)).build();
         broken.player = None;
         let message = ChallengeEvents {
             events: vec![broken],
@@ -728,24 +721,10 @@ mod tests {
     fn consistency_issues_demote_client_accuracy() {
         let message = ChallengeEvents {
             events: vec![
-                fixtures::player_update_event(
-                    4,
-                    Stage::TobNylocas,
-                    (3296, 4249),
-                    "1Ogp",
-                    DataSource::Primary,
-                    &[],
-                    false,
-                ),
-                fixtures::player_update_event(
-                    5,
-                    Stage::TobNylocas,
-                    (3306, 4249),
-                    "1Ogp",
-                    DataSource::Primary,
-                    &[],
-                    false,
-                ),
+                fixtures::PlayerUpdateEvent::new(4, Stage::TobNylocas, "1Ogp", (3296, 4249))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(5, Stage::TobNylocas, "1Ogp", (3306, 4249))
+                    .build(),
             ],
             ..Default::default()
         };
