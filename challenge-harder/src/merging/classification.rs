@@ -22,7 +22,7 @@ pub(super) struct ClientClassification {
     pub alert: Option<MergeAlert>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceTicks {
     /// The selected tick count.
     pub count: u32,
@@ -30,7 +30,7 @@ pub struct ReferenceTicks {
     pub method: ReferenceMethod,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReferenceMethod {
     AccurateModal,
     PreciseServer,
@@ -93,7 +93,7 @@ fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAler
             .filter(|client| client.accurate && client.recorded_ticks != modal_ticks)
         {
             tracing::error!(
-                %client.client_id,
+                client_id = %client.id,
                 expected_ticks = modal_ticks,
                 actual_ticks = client.recorded_ticks,
                 "merge_client_accuracy_mismatch",
@@ -126,7 +126,7 @@ fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAler
 fn select_base_client(clients: &[ClientEvents]) -> usize {
     let accurate = (0..clients.len())
         .filter(|&i| clients[i].accurate)
-        .min_by_key(|&i| clients[i].client_id);
+        .min_by_key(|&i| clients[i].id);
     if let Some(index) = accurate {
         return index;
     }
@@ -135,8 +135,8 @@ fn select_base_client(clients: &[ClientEvents]) -> usize {
         .min_by_key(|&i| {
             (
                 std::cmp::Reverse(clients[i].recorded_ticks),
-                clients[i].primary_player.is_none(),
-                clients[i].client_id,
+                clients[i].is_spectator(),
+                clients[i].id,
             )
         })
         .expect("clients is nonempty")
@@ -225,7 +225,7 @@ mod tests {
         server_ticks: Option<ServerTicks>,
     ) -> ClientEvents {
         ClientEvents {
-            client_id: ClientId(id),
+            id: ClientId(id),
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,

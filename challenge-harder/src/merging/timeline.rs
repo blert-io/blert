@@ -251,7 +251,6 @@ pub struct PlayerState {
     pub party_index: u32,
     pub data_source: DataSource,
     pub position: Coords,
-    pub died: bool,
     pub equipment: [Option<EquippedItem>; NUM_EQUIPMENT_SLOTS],
     pub prayers: PrayerSet,
     pub attack: Option<Sourced<PlayerAttacked>>,
@@ -295,7 +294,6 @@ fn extract_player_state(
             party_index: player.party_index,
             data_source: DataSource::Secondary,
             position: (event.x_coord, event.y_coord).into(),
-            died: false,
             equipment: last.map_or([None; NUM_EQUIPMENT_SLOTS], |state| state.equipment),
             prayers: PrayerSet::empty(PrayerBook::Normal),
             attack: None,
@@ -318,7 +316,7 @@ fn extract_player_state(
             state.prayers = PrayerSet::from_raw(player.active_prayers());
             state.stats = parse_stats(player);
         }
-        event::Type::PlayerDeath => state.died = true,
+        event::Type::PlayerDeath => {} // Nothing to update; just creates state
         _ => unreachable!(),
     }
 
@@ -526,18 +524,31 @@ fn extract_npc_subtype(npc: &event::Npc) -> Option<NpcSubtype> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum GraphicsKind {
+pub(super) enum GraphicsKind {
     MaidenBloodSplats,
     SoteMazeTiles,
     VerzikYellows,
 }
 
+/// The coordinates a graphics object covers on a tick.
 #[derive(Debug, Default, Clone)]
-struct GraphicsState(BTreeMap<GraphicsKind, BTreeMap<Coords, ClientId>>);
+pub(super) struct GraphicsCoords(BTreeMap<Coords, ClientId>);
+
+impl GraphicsCoords {
+    pub(super) fn iter(&self) -> impl Iterator<Item = Sourced<Coords>> + '_ {
+        self.0.iter().map(|(coords, source)| Sourced {
+            source: *source,
+            value: *coords,
+        })
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct GraphicsState(BTreeMap<GraphicsKind, GraphicsCoords>);
 
 impl GraphicsState {
     fn extend_from(&mut self, kind: GraphicsKind, source: ClientId, coords: &[Coords]) {
-        let map = &mut *self.0.entry(kind).or_default();
+        let map = &mut self.0.entry(kind).or_default().0;
         for coord in coords {
             map.entry(*coord).or_insert(source);
         }
@@ -582,11 +593,21 @@ impl TickState {
         self.npcs.get(&room_id)
     }
 
+    /// Returns all non-state events for the tick.
+    pub(super) fn events(&self) -> impl Iterator<Item = &TaggedEvent> {
+        self.events.iter()
+    }
+
     /// Returns the tick's events of `kind`.
     pub(super) fn events_of_type(&self, kind: event::Type) -> impl Iterator<Item = &TaggedEvent> {
         self.events
             .iter()
             .filter(move |event| event.r#type() == kind)
+    }
+
+    /// Returns the graphics visible on the tick.
+    pub(super) fn graphics(&self) -> impl Iterator<Item = (&GraphicsKind, &GraphicsCoords)> {
+        self.graphics.0.iter()
     }
 
     /// Inserts a synthetically created event into the tick.
@@ -938,7 +959,7 @@ impl TickState {
                 stage: stage as i32,
                 ..Default::default()
             };
-            let coords: Vec<Coords> = coords.keys().copied().collect();
+            let coords: Vec<Coords> = coords.iter().map(|sourced| sourced.value).collect();
 
             match kind {
                 GraphicsKind::MaidenBloodSplats => {

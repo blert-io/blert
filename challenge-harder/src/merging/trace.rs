@@ -1,11 +1,17 @@
 //! Merge run tracing.
 
+use std::collections::BTreeMap;
+use std::time::Instant;
+
 use serde::Serialize;
 
 use crate::lifecycle::core::types::{ClientId, UserId};
 
+use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
 use super::classification::{ClientClassification, ReferenceMethod};
 use super::client_events::{self, ClientEvents};
+use super::mapping::{MergeMapping, TickMapping};
+use super::timeline::{GraphicsCoords, GraphicsKind, NpcState, PlayerState, Target, TickState};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -16,6 +22,7 @@ struct InputClient {
     reported_accurate: bool,
     accurate: bool,
     recorded_ticks: u32,
+    ticks: Vec<TickSummary>,
     stage_data: StageData,
 }
 
@@ -101,22 +108,368 @@ struct Classification {
     accuracy_demotions: Vec<ClientId>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerAttackSummary {
+    r#type: i32,
+    weapon_id: Option<i32>,
+    target: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerSummary {
+    username: String,
+    source: i32,
+    x: i32,
+    y: i32,
+    attack: Option<PlayerAttackSummary>,
+}
+
+impl From<(&str, &PlayerState)> for PlayerSummary {
+    fn from((username, state): (&str, &PlayerState)) -> Self {
+        Self {
+            username: username.to_string(),
+            source: state.data_source as i32,
+            x: state.position.x,
+            y: state.position.y,
+            attack: state.attack.as_ref().map(|attack| PlayerAttackSummary {
+                r#type: attack.value.kind as i32,
+                weapon_id: attack.value.weapon.as_ref().map(|weapon| weapon.id),
+                target: attack
+                    .value
+                    .target
+                    .as_ref()
+                    .and_then(|target| match &target.value {
+                        Target::Npc { room_id, .. } => Some(*room_id),
+                        Target::Player(_) => None,
+                    }),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SkillLevelSummary {
+    current: u16,
+    base: u16,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NpcAttackSummary {
+    r#type: i32,
+    target: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NpcSummary {
+    room_id: u64,
+    id: u32,
+    x: i32,
+    y: i32,
+    hitpoints: SkillLevelSummary,
+    attack: Option<NpcAttackSummary>,
+}
+
+impl From<(u64, &NpcState)> for NpcSummary {
+    fn from((room_id, state): (u64, &NpcState)) -> Self {
+        Self {
+            room_id,
+            id: state.id,
+            x: state.position.x,
+            y: state.position.y,
+            hitpoints: SkillLevelSummary {
+                current: state.hitpoints.current,
+                base: state.hitpoints.base,
+            },
+            attack: state.attack.as_ref().map(|attack| NpcAttackSummary {
+                r#type: attack.value.kind as i32,
+                target: attack
+                    .value
+                    .target
+                    .as_ref()
+                    .and_then(|target| match &target.value {
+                        Target::Player(name) => Some(name.clone()),
+                        Target::Npc { .. } => None,
+                    }),
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GraphicsSummary {
+    r#type: &'static str,
+    counts_by_source: BTreeMap<ClientId, u32>,
+}
+
+impl From<(&GraphicsKind, &GraphicsCoords)> for GraphicsSummary {
+    fn from((kind, coords): (&GraphicsKind, &GraphicsCoords)) -> Self {
+        let mut counts_by_source: BTreeMap<ClientId, u32> = BTreeMap::new();
+        for sourced in coords.iter() {
+            *counts_by_source.entry(sourced.source).or_default() += 1;
+        }
+        Self {
+            r#type: match kind {
+                GraphicsKind::MaidenBloodSplats => "TOB_MAIDEN_BLOOD_SPLATS",
+                GraphicsKind::SoteMazeTiles => "TOB_SOTE_OVERWORLD_TILES",
+                GraphicsKind::VerzikYellows => "TOB_VERZIK_YELLOWS",
+            },
+            counts_by_source,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TickSummary {
+    tick: u32,
+    players: Vec<PlayerSummary>,
+    npcs: Vec<NpcSummary>,
+    graphics: Vec<GraphicsSummary>,
+    event_counts: BTreeMap<&'static str, u32>,
+}
+
+impl From<&TickState> for TickSummary {
+    fn from(state: &TickState) -> Self {
+        let mut event_counts: BTreeMap<&'static str, u32> = BTreeMap::new();
+        for event in state.events() {
+            *event_counts
+                .entry(event.r#type().as_str_name())
+                .or_default() += 1;
+        }
+        Self {
+            tick: state.tick(),
+            players: state.players().map(PlayerSummary::from).collect(),
+            npcs: state.npcs().map(NpcSummary::from).collect(),
+            graphics: state.graphics().map(GraphicsSummary::from).collect(),
+            event_counts,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum StepClassification {
+    Reference,
+    Matching,
+    Mismatched,
+}
+
+impl From<super::Classification> for StepClassification {
+    fn from(classification: super::Classification) -> Self {
+        match classification {
+            super::Classification::Reference => Self::Reference,
+            super::Classification::Matching => Self::Matching,
+            super::Classification::Mismatched => Self::Mismatched,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum StepStatus {
+    Merged,
+    Unmerged,
+    Skipped,
+}
+
+impl From<&super::MergeStatus> for StepStatus {
+    fn from(status: &super::MergeStatus) -> Self {
+        match status {
+            super::MergeStatus::Merged(_) => Self::Merged,
+            super::MergeStatus::Unmerged(_) => Self::Unmerged,
+            super::MergeStatus::Skipped(_) => Self::Skipped,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "action",
+    rename_all = "SCREAMING_SNAKE_CASE",
+    rename_all_fields = "camelCase"
+)]
+enum StepAlignmentEntry {
+    Merge {
+        base_index: usize,
+        target_index: usize,
+        score: f64,
+    },
+    Insert {
+        target_index: usize,
+    },
+    Keep {
+        base_index: usize,
+    },
+}
+
+impl From<&AlignmentEntry> for StepAlignmentEntry {
+    fn from(entry: &AlignmentEntry) -> Self {
+        match *entry {
+            AlignmentEntry::Merge {
+                base_index,
+                target_index,
+                score,
+            } => Self::Merge {
+                base_index,
+                target_index,
+                score,
+            },
+            AlignmentEntry::Insert { target_index } => Self::Insert { target_index },
+            AlignmentEntry::Keep { base_index } => Self::Keep { base_index },
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StepAlignmentRange {
+    base_start: usize,
+    base_end: usize,
+    target_start: usize,
+    target_end: usize,
+}
+
+impl From<AlignmentRange> for StepAlignmentRange {
+    fn from(range: AlignmentRange) -> Self {
+        Self {
+            base_start: range.base_start,
+            base_end: range.base_end,
+            target_start: range.target_start,
+            target_end: range.target_end,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct StepLocalAlignment {
+    entries: Vec<StepAlignmentEntry>,
+    range: StepAlignmentRange,
+}
+
+impl From<&LocalAlignment> for StepLocalAlignment {
+    fn from(alignment: &LocalAlignment) -> Self {
+        Self {
+            entries: alignment
+                .entries
+                .iter()
+                .map(StepAlignmentEntry::from)
+                .collect(),
+            range: alignment.range.into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StepAlignment {
+    alignments: Vec<StepLocalAlignment>,
+    base_coverage: f64,
+    target_coverage: f64,
+    gap_count: usize,
+}
+
+impl From<&AlignmentResult> for StepAlignment {
+    fn from(result: &AlignmentResult) -> Self {
+        Self {
+            alignments: result
+                .alignments
+                .iter()
+                .map(StepLocalAlignment::from)
+                .collect(),
+            base_coverage: result.base_coverage,
+            target_coverage: result.target_coverage,
+            gap_count: result.gap_count,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StepMapping {
+    base: BTreeMap<usize, usize>,
+    target: BTreeMap<usize, usize>,
+    merged_tick_count: usize,
+}
+
+fn serialize_tick_mapping(mapping: &TickMapping) -> BTreeMap<usize, usize> {
+    (0..mapping.client_tick_count())
+        .filter_map(|tick| mapping.to_merged(tick).map(|merged| (tick, merged)))
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MergeStep {
+    client_id: ClientId,
+    classification: StepClassification,
+    status: StepStatus,
+    duration_ms: f64,
+    alignment: Option<StepAlignment>,
+    mapping: Option<StepMapping>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TrustedPrefixes {
+    accurate_until: u32,
+    queryable_until: u32,
+}
+
+impl From<super::trusted_prefixes::TrustedPrefixes> for TrustedPrefixes {
+    fn from(prefixes: super::trusted_prefixes::TrustedPrefixes) -> Self {
+        Self {
+            accurate_until: prefixes.accurate_until,
+            queryable_until: prefixes.queryable_until,
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Tracer {
+pub struct TraceOutput {
     input_clients: Vec<InputClient>,
     classification: Option<Classification>,
-    // TODO(frolv): port the per-step merge recordings.
+    merge_steps: Vec<MergeStep>,
+    intermediate_snapshots: Vec<Vec<TickSummary>>,
+    trusted_prefixes: Option<TrustedPrefixes>,
+}
+
+/// A merge step in progress. Either committed into the output or discarded.
+#[derive(Debug)]
+struct CurrentStep {
+    client_id: ClientId,
+    classification: StepClassification,
+    started_at: Instant,
+    alignment: Option<StepAlignment>,
+    mapping: Option<StepMapping>,
+}
+
+pub struct Tracer {
+    output: TraceOutput,
+    current_step: Option<CurrentStep>,
 }
 
 impl Tracer {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            output: TraceOutput::default(),
+            current_step: None,
+        }
+    }
+
+    pub fn output(&self) -> &TraceOutput {
+        &self.output
     }
 
     pub(super) fn record_input_client(&mut self, client: &ClientEvents) {
-        self.input_clients.push(InputClient {
-            client_id: client.client_id,
+        self.output.input_clients.push(InputClient {
+            client_id: client.id,
             primary_player: client.primary_player.clone(),
             metadata: client.metadata.as_ref().map(|metadata| ClientMetadata {
                 user_id: metadata.user_id,
@@ -126,6 +479,13 @@ impl Tracer {
             reported_accurate: client.reported_accurate,
             accurate: client.accurate,
             recorded_ticks: client.recorded_ticks + 1,
+            ticks: client
+                .timeline
+                .ticks()
+                .iter()
+                .flatten()
+                .map(TickSummary::from)
+                .collect(),
             stage_data: StageData::from(&client.stage_data),
         });
     }
@@ -136,14 +496,14 @@ impl Tracer {
         clients: &[ClientEvents],
     ) {
         let ids = |indices: &[usize]| -> Vec<ClientId> {
-            indices.iter().map(|&i| clients[i].client_id).collect()
+            indices.iter().map(|&i| clients[i].id).collect()
         };
         let accuracy_demotions = clients
             .iter()
             .filter(|c| c.reported_accurate && !c.accurate)
-            .map(|c| c.client_id)
+            .map(|c| c.id)
             .collect();
-        self.classification = Some(Classification {
+        self.output.classification = Some(Classification {
             reference_selection: ReferenceSelection {
                 count: classification.reference_ticks.count,
                 method: match classification.reference_ticks.method {
@@ -153,10 +513,75 @@ impl Tracer {
                     ReferenceMethod::RecordedTicks => ReferenceSelectionMethod::RecordedTicks,
                 },
             },
-            base_client_id: clients[classification.base].client_id,
+            base_client_id: clients[classification.base].id,
             matching_client_ids: ids(&classification.matching),
             mismatched_client_ids: ids(&classification.mismatched),
             accuracy_demotions,
         });
+    }
+
+    pub(super) fn begin_merge_step(
+        &mut self,
+        client_id: ClientId,
+        classification: super::Classification,
+    ) {
+        self.current_step = Some(CurrentStep {
+            client_id,
+            classification: classification.into(),
+            started_at: Instant::now(),
+            alignment: None,
+            mapping: None,
+        });
+    }
+
+    pub(super) fn record_alignment(&mut self, alignment: &AlignmentResult) {
+        if let Some(step) = &mut self.current_step {
+            step.alignment = Some(StepAlignment::from(alignment));
+        }
+    }
+
+    pub(super) fn record_mapping(&mut self, mapping: &MergeMapping) {
+        let Some(step) = &mut self.current_step else {
+            return;
+        };
+        let (Some(base), Some(target), Some(merged_tick_count)) = (
+            mapping.base_mapping(),
+            mapping.target_mapping(),
+            mapping.merged_tick_count(),
+        ) else {
+            return;
+        };
+        step.mapping = Some(StepMapping {
+            base: serialize_tick_mapping(base),
+            target: serialize_tick_mapping(target),
+            merged_tick_count,
+        });
+    }
+
+    /// Commits the in-progress merge step into the output with its outcome.
+    pub(super) fn end_merge_step(&mut self, status: &super::MergeStatus) {
+        if let Some(step) = self.current_step.take() {
+            self.output.merge_steps.push(MergeStep {
+                client_id: step.client_id,
+                classification: step.classification,
+                status: status.into(),
+                duration_ms: step.started_at.elapsed().as_secs_f64() * 1000.0,
+                alignment: step.alignment,
+                mapping: step.mapping,
+            });
+        }
+    }
+
+    pub(super) fn record_intermediate_snapshot(&mut self, ticks: &[Option<TickState>]) {
+        self.output
+            .intermediate_snapshots
+            .push(ticks.iter().flatten().map(TickSummary::from).collect());
+    }
+
+    pub(super) fn record_trusted_prefixes(
+        &mut self,
+        prefixes: super::trusted_prefixes::TrustedPrefixes,
+    ) {
+        self.output.trusted_prefixes = Some(prefixes.into());
     }
 }

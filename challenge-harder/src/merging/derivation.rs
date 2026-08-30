@@ -7,10 +7,10 @@ use crate::npc;
 use crate::proto::event::sote_maze::Maze;
 use crate::proto::{Coords, Event, Stage, event};
 
-use super::MergeContext;
 use super::client_events::StageData;
 use super::timeline::{TickState, Timeline};
 use super::world;
+use super::{MergeContext, MergeStatus, RegisteredClient};
 
 const FINAL_NYLO_WAVE: u32 = 31;
 const NYLO_WAVE_CYCLE: u32 = 4;
@@ -148,17 +148,20 @@ struct MazePivots {
 fn merge_sote_pivots(ctx: &MergeContext, timeline: &mut Timeline) {
     let mut by_maze: BTreeMap<Maze, MazePivots> = BTreeMap::new();
 
-    for client in &ctx.clients {
+    for RegisteredClient { client, status } in &ctx.clients {
+        if !matches!(status, MergeStatus::Merged(_)) {
+            continue;
+        }
         let StageData::Sotetseg { pivots } = &client.stage_data else {
             continue;
         };
         for report in pivots {
             let entry = by_maze.entry(report.maze).or_default();
             for &coord in &report.overworld {
-                entry.overworld.entry(coord).or_insert(client.client_id);
+                entry.overworld.entry(coord).or_insert(client.id);
             }
             for &coord in &report.underworld {
-                entry.underworld.entry(coord).or_insert(client.client_id);
+                entry.underworld.entry(coord).or_insert(client.id);
             }
         }
     }
@@ -217,7 +220,8 @@ mod tests {
     use super::*;
     use crate::lifecycle::core::types::{ChallengeMode, StageStatus};
     use crate::merging::client_events::{ClientEvents, SotePivots};
-    use crate::merging::{ChallengeInfo, fixtures};
+    use crate::merging::mapping::MergeMapping;
+    use crate::merging::{ChallengeInfo, Classification, fixtures};
 
     static PARTY: std::sync::LazyLock<Vec<String>> =
         std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
@@ -228,7 +232,7 @@ mod tests {
 
     fn client_with_pivots(id: i64, recorded_ticks: u32, pivots: Vec<SotePivots>) -> ClientEvents {
         ClientEvents {
-            client_id: ClientId(id),
+            id: ClientId(id),
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,
@@ -278,32 +282,40 @@ mod tests {
         let ctx = MergeContext {
             challenge: &challenge,
             stage: Stage::TobSotetseg,
+            mapping: MergeMapping::new(ClientId(1)),
+            contested_ticks: BTreeMap::new(),
             clients: vec![
-                client_with_pivots(
-                    1,
-                    TICKS,
-                    vec![
-                        SotePivots {
+                RegisteredClient {
+                    client: client_with_pivots(
+                        1,
+                        TICKS,
+                        vec![
+                            SotePivots {
+                                maze: Maze::Maze66,
+                                overworld: Vec::new(),
+                                underworld: vec![(2, 2).into(), (4, 0).into()],
+                            },
+                            SotePivots {
+                                maze: Maze::Maze33,
+                                overworld: vec![(11, 4).into(), (7, 0).into()],
+                                underworld: Vec::new(),
+                            },
+                        ],
+                    ),
+                    status: MergeStatus::Merged(Classification::Reference),
+                },
+                RegisteredClient {
+                    client: client_with_pivots(
+                        2,
+                        TICKS,
+                        vec![SotePivots {
                             maze: Maze::Maze66,
                             overworld: Vec::new(),
-                            underworld: vec![(2, 2).into(), (4, 0).into()],
-                        },
-                        SotePivots {
-                            maze: Maze::Maze33,
-                            overworld: vec![(11, 4).into(), (7, 0).into()],
-                            underworld: Vec::new(),
-                        },
-                    ],
-                ),
-                client_with_pivots(
-                    2,
-                    TICKS,
-                    vec![SotePivots {
-                        maze: Maze::Maze66,
-                        overworld: Vec::new(),
-                        underworld: vec![(4, 0).into(), (6, 4).into()],
-                    }],
-                ),
+                            underworld: vec![(4, 0).into(), (6, 4).into()],
+                        }],
+                    ),
+                    status: MergeStatus::Merged(Classification::Matching),
+                },
             ],
         };
 
@@ -340,20 +352,84 @@ mod tests {
         let ctx = MergeContext {
             challenge: &challenge,
             stage: Stage::TobSotetseg,
-            clients: vec![client_with_pivots(
-                1,
-                TICKS,
-                vec![SotePivots {
-                    maze: Maze::Maze33,
-                    overworld: vec![(7, 0).into()],
-                    underworld: Vec::new(),
-                }],
-            )],
+            mapping: MergeMapping::new(ClientId(1)),
+            contested_ticks: BTreeMap::new(),
+            clients: vec![RegisteredClient {
+                client: client_with_pivots(
+                    1,
+                    TICKS,
+                    vec![SotePivots {
+                        maze: Maze::Maze33,
+                        overworld: vec![(7, 0).into()],
+                        underworld: Vec::new(),
+                    }],
+                ),
+                status: MergeStatus::Merged(Classification::Reference),
+            }],
         };
 
         merge_stage_data(&ctx, &mut timeline);
 
         assert_eq!(maze_paths(&timeline), Vec::new());
+    }
+
+    #[test]
+    fn unmerged_client_pivots_are_excluded() {
+        const TICKS: u32 = 15;
+        let mut timeline = fixtures::timeline(
+            &PARTY,
+            TICKS,
+            vec![fixtures::sote_maze_end_event(
+                10,
+                Maze::Maze33,
+                Some("1Ogp"),
+            )],
+        );
+        let challenge = challenge_for(Stage::TobSotetseg, ChallengeMode::TobRegular);
+        let ctx = MergeContext {
+            challenge: &challenge,
+            stage: Stage::TobSotetseg,
+            mapping: MergeMapping::new(ClientId(1)),
+            contested_ticks: BTreeMap::new(),
+            clients: vec![
+                RegisteredClient {
+                    client: client_with_pivots(
+                        1,
+                        TICKS,
+                        vec![SotePivots {
+                            maze: Maze::Maze33,
+                            overworld: Vec::new(),
+                            underworld: vec![(2, 6).into(), (5, 0).into()],
+                        }],
+                    ),
+                    status: MergeStatus::Merged(Classification::Reference),
+                },
+                RegisteredClient {
+                    client: client_with_pivots(
+                        2,
+                        TICKS,
+                        vec![SotePivots {
+                            maze: Maze::Maze33,
+                            overworld: Vec::new(),
+                            underworld: vec![(9, 4).into(), (12, 2).into()],
+                        }],
+                    ),
+                    status: MergeStatus::Unmerged(Classification::Mismatched),
+                },
+            ],
+        };
+
+        merge_stage_data(&ctx, &mut timeline);
+
+        assert_eq!(
+            maze_paths(&timeline),
+            vec![(
+                10,
+                Maze::Maze33,
+                Vec::new(),
+                vec![(5, 0).into(), (2, 6).into()],
+            )],
+        );
     }
 
     /// A room's events with a player update on every tick.
@@ -430,7 +506,9 @@ mod tests {
         let mut timeline =
             fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, TICKS, vec![])
+            .build();
 
         derive_events(&ctx, &mut timeline);
 
@@ -480,7 +558,9 @@ mod tests {
         let mut timeline =
             fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, TICKS, vec![])
+            .build();
 
         derive_events(&ctx, &mut timeline);
 
@@ -506,7 +586,9 @@ mod tests {
         let mut timeline =
             fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, TICKS, vec![])
+            .build();
 
         derive_events(&ctx, &mut timeline);
 
@@ -550,7 +632,9 @@ mod tests {
         let mut timeline =
             fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobVerzik, TICKS, events));
         let challenge = challenge_for(Stage::TobVerzik, ChallengeMode::TobRegular);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobVerzik).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobVerzik)
+            .recording(true, TICKS, vec![])
+            .build();
 
         derive_events(&ctx, &mut timeline);
 

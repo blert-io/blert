@@ -465,7 +465,7 @@ fn write_outputs(
         fs::write(dir.join(format!("{name}.events")), events)?;
     }
     if let Some(tracer) = tracer {
-        let json = serde_json::to_vec_pretty(tracer).map_err(io::Error::other)?;
+        let json = serde_json::to_vec_pretty(tracer.output()).map_err(io::Error::other)?;
         fs::write(dir.join(format!("{name}.trace.json")), json)?;
     }
     let json = serde_json::to_vec_pretty(report).map_err(io::Error::other)?;

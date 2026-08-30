@@ -64,7 +64,7 @@ pub(super) struct Metadata {
 /// A client's recording of a stage.
 #[derive(Debug)]
 pub(super) struct ClientEvents {
-    pub client_id: ClientId,
+    pub id: ClientId,
     pub metadata: Option<Metadata>,
     pub primary_player: Option<String>,
     pub status: StageStatus,
@@ -79,6 +79,18 @@ pub(super) struct ClientEvents {
 }
 
 impl ClientEvents {
+    #[inline]
+    #[must_use]
+    pub fn is_participant(&self) -> bool {
+        self.primary_player.is_some()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn is_spectator(&self) -> bool {
+        !self.is_participant()
+    }
+
     /// Initializes events for a client from its raw stage stream.
     ///
     /// A fatally invalid stream returns the partially built client alongside
@@ -88,11 +100,11 @@ impl ClientEvents {
     fn from_client_stream(
         challenge: &ChallengeInfo,
         stage: Stage,
-        client_id: ClientId,
+        id: ClientId,
         records: Vec<ClientStageStream>,
     ) -> Result<ClientEvents, (ClientEvents, BadData)> {
         let mut client = ClientEvents {
-            client_id,
+            id,
             metadata: None,
             primary_player: None,
             status: StageStatus::Started,
@@ -121,7 +133,6 @@ impl ClientEvents {
         stage: Stage,
         records: Vec<ClientStageStream>,
     ) -> Result<(), BadData> {
-        let client_id = client.client_id;
         let mut raw_events: Vec<TaggedEvent> = Vec::new();
         let mut saw_stage_end = false;
 
@@ -144,11 +155,11 @@ impl ClientEvents {
                         message
                             .events
                             .into_iter()
-                            .map(|event| TaggedEvent::new(client_id, event)),
+                            .map(|event| TaggedEvent::new(client.id, event)),
                     ),
                     Err(error) => {
                         tracing::error!(
-                            %client_id,
+                            client_id = %client.id,
                             %error,
                             "client_events_deserialization_failed",
                         );
@@ -166,7 +177,7 @@ impl ClientEvents {
         }
         if !saw_stage_end {
             client.anomalies.push(Anomaly::MissingStageMetadata);
-            tracing::warn!(%client_id, "client_missing_stage_metadata");
+            tracing::warn!(client_id = %client.id, "client_missing_stage_metadata");
         }
 
         Self::check_tick_counts(client)?;
@@ -192,7 +203,7 @@ impl ClientEvents {
         if dropped > 0 {
             client.anomalies.push(Anomaly::EventsBeyondReportedTicks);
             tracing::warn!(
-                %client_id,
+                client_id = %client.id,
                 client.recorded_ticks,
                 dropped_event_count = dropped,
                 "client_events_beyond_reported_ticks",
@@ -219,7 +230,7 @@ impl ClientEvents {
             .is_some_and(|st| st.count > MAX_RECORDED_TICKS);
         if invalid_recorded || invalid_server {
             tracing::warn!(
-                %client.client_id,
+                client_id = %client.id,
                 client.recorded_ticks,
                 server_tick_count = client.server_ticks.map(|st| st.count),
                 "client_invalid_tick_count",
@@ -245,7 +256,7 @@ impl ClientEvents {
             .is_some_and(|st| st.precise && client.recorded_ticks == st.count);
         if client.accurate && !derived_accurate {
             tracing::warn!(
-                %client.client_id,
+                client_id = %client.id,
                 %client.recorded_ticks,
                 server_tick_count = client.server_ticks.map(|st| st.count),
                 precise = client.server_ticks.map(|st| st.precise),
@@ -342,7 +353,7 @@ fn preprocess_events(
 
     if !unknown_players.is_empty() {
         tracing::error!(
-            client_id = %client.client_id,
+            client_id = %client.id,
             players = %serde_json::to_string(&unknown_players).expect("string map serializes"),
             "client_events_unknown_players",
         );
@@ -351,7 +362,7 @@ fn preprocess_events(
 
     if primary_players.len() > 1 {
         tracing::error!(
-            client_id = %client.client_id,
+            client_id = %client.id,
             primary_players_count = primary_players.len(),
             "client_multiple_primary_players",
         );
@@ -444,12 +455,14 @@ mod tests {
             end(2, StageStatus::Wiped, 185),
         ]);
         let challenge = test_challenge(Stage::TobNylocas);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, 200, vec![])
+            .build();
         let reports: Vec<(ClientId, StageStatus, u32, usize)> = clients
             .into_iter()
             .map(|client| {
                 (
-                    client.client_id,
+                    client.id,
                     client.status,
                     client.recorded_ticks,
                     client.timeline.finalize(&ctx).len(),
@@ -487,7 +500,9 @@ mod tests {
         assert_eq!(client.server_ticks, None);
         assert_eq!(client.timeline.missing_tick_count(), 10);
         let challenge = test_challenge(Stage::TobNylocas);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, 12, vec![])
+            .build();
         assert_eq!(client.timeline.finalize(&ctx).len(), 3);
     }
 
@@ -552,7 +567,7 @@ mod tests {
         assert_eq!(bad_data_clients.len(), 1);
         let BadDataClient { client, error } = bad_data_clients.remove(0);
         assert_eq!(error, BadData::InvalidServerTickCount);
-        assert_eq!(client.client_id, ClientId(1));
+        assert_eq!(client.id, ClientId(1));
         assert_eq!(client.status, StageStatus::Wiped);
         assert_eq!(client.recorded_ticks, 10);
         assert_eq!(
@@ -584,7 +599,9 @@ mod tests {
             }),
         );
         let challenge = test_challenge(Stage::TobNylocas);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, 8, vec![])
+            .build();
         let ticks: Vec<u32> = client
             .timeline
             .finalize(&ctx)
@@ -606,7 +623,7 @@ mod tests {
                 message: "event beyond the maximum recordable tick".to_string(),
             },
         );
-        assert_eq!(client.client_id, ClientId(1));
+        assert_eq!(client.id, ClientId(1));
         assert_eq!(client.status, StageStatus::Started);
         assert_eq!(client.recorded_ticks, 0);
         assert!(matches!(
@@ -639,7 +656,9 @@ mod tests {
             end(1, StageStatus::Completed, 16),
         ]);
         let challenge = test_challenge(Stage::TobNylocas);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, 16, vec![])
+            .build();
         let order: Vec<(u32, u32)> = clients
             .remove(0)
             .timeline
@@ -680,7 +699,9 @@ mod tests {
         let client = clients.remove(0);
         assert_eq!(client.status, StageStatus::Completed);
         let challenge = test_challenge(Stage::TobNylocas);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas).build();
+        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
+            .recording(true, 12, vec![])
+            .build();
         let ticks: Vec<u32> = client
             .timeline
             .finalize(&ctx)
@@ -709,7 +730,7 @@ mod tests {
         assert_eq!(bad_data_clients.len(), 1);
         let BadDataClient { client, error } = bad_data_clients.remove(0);
         assert!(matches!(error, BadData::MalformedEvent(_)));
-        assert_eq!(client.client_id, ClientId(1));
+        assert_eq!(client.id, ClientId(1));
         assert_eq!(client.status, StageStatus::Completed);
         assert!(client.accurate);
         assert_eq!(client.recorded_ticks, 8);
@@ -784,7 +805,7 @@ mod tests {
         .collect();
 
         let mut client = ClientEvents {
-            client_id: ClientId(1),
+            id: ClientId(1),
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,
