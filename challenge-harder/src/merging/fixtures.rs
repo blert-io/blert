@@ -1,5 +1,7 @@
 //! Test helpers.
 
+use std::collections::BTreeMap;
+
 use crate::item::ItemDelta;
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
 use crate::prayer::PrayerSet;
@@ -9,10 +11,15 @@ use crate::proto::event::{VerzikPhase, XarpusPhase};
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
 use crate::skill::SkillLevel;
 
+use super::client_consistency::ConsistencyIssue;
 use super::client_events::{ClientEvents, StageData};
 use super::event::TaggedEvent;
+use super::mapping::MergeMapping;
 use super::timeline::Timeline;
-use super::{ChallengeInfo, MergeContext, MergedEvents, Metadata};
+use super::{
+    ChallengeInfo, Classification, MergeContext, MergeStatus, MergedEvents, Metadata,
+    RegisteredClient,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ServerTicks {
@@ -66,6 +73,53 @@ pub(super) fn challenge_info(
     }
 }
 
+pub(super) struct ClientBuilder {
+    id: ClientId,
+    stage: Stage,
+    recorded_ticks: u32,
+    primary_player: Option<String>,
+    consistency_issues: Vec<ConsistencyIssue>,
+}
+
+impl ClientBuilder {
+    pub(super) fn new(id: i64, stage: Stage, recorded_ticks: u32) -> Self {
+        Self {
+            id: ClientId(id),
+            stage,
+            recorded_ticks,
+            primary_player: None,
+            consistency_issues: Vec::new(),
+        }
+    }
+
+    pub(super) fn primary_player(mut self, name: &str) -> Self {
+        self.primary_player = Some(name.to_string());
+        self
+    }
+
+    pub(super) fn consistency_issue(mut self, issue: ConsistencyIssue) -> Self {
+        self.consistency_issues.push(issue);
+        self
+    }
+
+    pub(super) fn build(self) -> ClientEvents {
+        ClientEvents {
+            id: self.id,
+            metadata: None,
+            primary_player: self.primary_player,
+            status: StageStatus::Completed,
+            reported_accurate: true,
+            accurate: true,
+            recorded_ticks: self.recorded_ticks,
+            server_ticks: None,
+            timeline: Timeline::new(),
+            stage_data: StageData::new(self.stage),
+            anomalies: Vec::new(),
+            consistency_issues: self.consistency_issues,
+        }
+    }
+}
+
 pub(super) fn merge_context<'a>(
     challenge: &'a ChallengeInfo<'a>,
     stage: Stage,
@@ -84,7 +138,11 @@ pub(super) struct MergeContextBuilder<'a> {
 }
 
 impl<'a> MergeContextBuilder<'a> {
-    #[expect(dead_code)]
+    pub(super) fn client(mut self, client: ClientEvents) -> Self {
+        self.clients.push(client);
+        self
+    }
+
     pub(super) fn recording(
         mut self,
         accurate: bool,
@@ -97,7 +155,7 @@ impl<'a> MergeContextBuilder<'a> {
             .map(|event| TaggedEvent::new(client_id, event))
             .collect();
         self.clients.push(ClientEvents {
-            client_id,
+            id: client_id,
             metadata: None,
             primary_player: None,
             status: StageStatus::Completed,
@@ -115,10 +173,30 @@ impl<'a> MergeContextBuilder<'a> {
     }
 
     pub(super) fn build(self) -> MergeContext<'a> {
+        let base_client_id = self
+            .clients
+            .first()
+            .expect("merge context requires at least one client")
+            .id;
+        let clients = self
+            .clients
+            .into_iter()
+            .enumerate()
+            .map(|(index, client)| RegisteredClient {
+                client,
+                status: if index == 0 {
+                    MergeStatus::Merged(Classification::Reference)
+                } else {
+                    MergeStatus::Merged(Classification::Matching)
+                },
+            })
+            .collect();
         MergeContext {
             challenge: self.challenge,
             stage: self.stage,
-            clients: self.clients,
+            clients,
+            mapping: MergeMapping::new(base_client_id),
+            contested_ticks: BTreeMap::new(),
         }
     }
 }

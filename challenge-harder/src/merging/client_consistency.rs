@@ -37,6 +37,17 @@ pub enum ConsistencyIssue {
     },
 }
 
+impl ConsistencyIssue {
+    /// The tick on which the issue occurred.
+    pub fn tick(&self) -> u32 {
+        match self {
+            ConsistencyIssue::LargeJump { tick, .. }
+            | ConsistencyIssue::InvalidEventSequence { tick, .. }
+            | ConsistencyIssue::InvalidTickGap { tick, .. } => *tick,
+        }
+    }
+}
+
 /// Checks a client's timeline for consistency issues.
 pub(super) fn check(
     challenge: &ChallengeInfo<'_>,
@@ -96,7 +107,14 @@ impl MovementChecker<'_> {
                 let Some(player_state) = state.player(player) else {
                     continue;
                 };
-                if player_state.died {
+                if !dead[index]
+                    && state.events_of_type(event::Type::PlayerDeath).any(|event| {
+                        event
+                            .player
+                            .as_ref()
+                            .is_some_and(|dead_player| dead_player.name == *player)
+                    })
+                {
                     dead[index] = true;
                 }
 

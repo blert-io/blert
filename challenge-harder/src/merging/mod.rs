@@ -7,32 +7,41 @@
 #![cfg_attr(not(test), expect(dead_code))]
 
 mod alignment;
-pub mod capture;
 mod classification;
 mod client_consistency;
 mod client_events;
 mod derivation;
 mod event;
-#[cfg(test)]
-pub(crate) mod fixtures;
 mod mapping;
 mod similarity;
 mod timeline;
 mod trace;
+mod trusted_prefixes;
 mod world;
 
-use classification::classify_clients;
-use client_consistency::ConsistencyIssue;
-use client_events::ClientEvents;
-use event::MalformedEvent;
+pub mod capture;
+#[cfg(test)]
+pub(crate) mod fixtures;
+
+pub use classification::{ReferenceMethod, ReferenceTicks};
+pub use trace::Tracer;
+
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, ClientStageStream, ServerTicks, Stage, StageStatus,
     Uuid,
 };
-pub use crate::merging::classification::{ReferenceMethod, ReferenceTicks};
-pub use crate::merging::trace::Tracer;
 use crate::proto::Event;
+
+use alignment::TickAligner;
+use classification::{ClientClassification, classify_clients};
+use client_consistency::ConsistencyIssue;
+use client_events::ClientEvents;
+use event::MalformedEvent;
+use mapping::{Mappings, MergeMapping, TickMapping};
+use similarity::SimilarityScorer;
+use trusted_prefixes::{TimelineInfo, compute_trusted_prefixes};
 
 /// A notable condition encountered while merging a stage's clients.
 #[derive(Debug, PartialEq, Eq)]
@@ -54,7 +63,7 @@ pub enum Classification {
 }
 
 /// How a client in a merge was processed.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MergeStatus {
     Merged(Classification),
     Unmerged(Classification),
@@ -77,7 +86,7 @@ pub struct ClientOutcome {
 impl ClientOutcome {
     fn new(client: &ClientEvents, status: MergeStatus) -> ClientOutcome {
         ClientOutcome {
-            client_id: client.client_id,
+            client_id: client.id,
             primary_player: client.primary_player.clone(),
             stage_status: client.status,
             accurate: client.accurate,
@@ -86,6 +95,12 @@ impl ClientOutcome {
             consistency_issues: client.consistency_issues.clone(),
             status,
         }
+    }
+}
+
+impl From<&RegisteredClient> for ClientOutcome {
+    fn from(client: &RegisteredClient) -> ClientOutcome {
+        Self::new(&client.client, client.status.clone())
     }
 }
 
@@ -101,6 +116,32 @@ pub struct MergeReport {
 }
 
 impl MergeReport {
+    /// Creates a report detailing the results of merging `clients`.
+    fn new(
+        clients: Vec<ClientOutcome>,
+        reference_ticks: ReferenceTicks,
+        alerts: Vec<MergeAlert>,
+    ) -> MergeReport {
+        let mut merged_count = 0;
+        let mut unmerged_count = 0;
+        let mut skipped_count = 0;
+        for client in &clients {
+            match client.status {
+                MergeStatus::Merged(_) => merged_count += 1,
+                MergeStatus::Unmerged(_) => unmerged_count += 1,
+                MergeStatus::Skipped(_) => skipped_count += 1,
+            }
+        }
+        MergeReport {
+            alerts,
+            reference_ticks: Some(reference_ticks),
+            clients,
+            merged_count,
+            unmerged_count,
+            skipped_count,
+        }
+    }
+
     /// Creates a report for a merge that skipped every client.
     fn empty(clients: Vec<ClientOutcome>) -> MergeReport {
         let skipped_count = clients.len();
@@ -125,7 +166,7 @@ pub struct ChallengeInfo<'a> {
 }
 
 /// Fatally invalid client input data.
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BadData {
     #[error(transparent)]
     MalformedEvent(#[from] MalformedEvent),
@@ -135,14 +176,6 @@ pub enum BadData {
     MultiplePrimaryPlayers,
     #[error("invalid server tick count")]
     InvalidServerTickCount,
-}
-
-/// The state of an in-progress merge.
-#[derive(Debug)]
-struct MergeContext<'a> {
-    challenge: &'a ChallengeInfo<'a>,
-    stage: Stage,
-    clients: Vec<ClientEvents>,
 }
 
 /// Merges the events recorded by a stage's clients into a canonical timeline.
@@ -183,62 +216,68 @@ pub fn merge(
 
     let classification = classify_clients(&mut clients);
 
-    if let Some(tracer) = tracer {
+    if let Some(tracer) = tracer.as_deref_mut() {
         tracer.record_classification(&classification, &clients);
     }
 
+    let mut ctx = MergeContext::new(challenge, stage, clients, &classification);
+
     alerts.extend(classification.alert);
 
-    let ctx = MergeContext {
-        challenge,
-        stage,
-        clients,
-    };
+    let mut merged = MergedTimeline::new(ctx.client(classification.base));
+    if let Some(tracer) = tracer.as_deref_mut() {
+        tracer.record_intermediate_snapshot(merged.timeline.ticks());
+    }
 
-    let mut timeline = ctx.clients[classification.base].timeline.clone();
-    outcomes.push(ClientOutcome::new(
-        &ctx.clients[classification.base],
-        MergeStatus::Merged(Classification::Reference),
-    ));
-
-    // TODO(frolv): port merging of matching and mismatched clients.
     for client in classification.matching {
-        outcomes.push(ClientOutcome::new(
-            &ctx.clients[client],
-            MergeStatus::Unmerged(Classification::Matching),
-        ));
+        merged.merge_from(
+            &mut ctx,
+            client,
+            Classification::Matching,
+            tracer.as_deref_mut(),
+        );
     }
     for client in classification.mismatched {
-        outcomes.push(ClientOutcome::new(
-            &ctx.clients[client],
-            MergeStatus::Unmerged(Classification::Mismatched),
-        ));
+        merged.merge_from(
+            &mut ctx,
+            client,
+            Classification::Mismatched,
+            tracer.as_deref_mut(),
+        );
     }
 
-    let reference = &classification.reference_ticks;
+    let reference = classification.reference_ticks;
+    outcomes.extend(ctx.clients.iter().map(ClientOutcome::from));
 
-    let offset = end_align_to_reference(&mut timeline, reference, &outcomes);
+    let offset = merged.end_align_to_reference(reference, &outcomes);
     if offset > 0 {
         alerts.push(MergeAlert::TimelineOffsetApplied { offset });
     }
 
-    let last_tick = timeline.last_tick().unwrap_or(0);
-    let missing_tick_count = timeline.missing_tick_count();
-    let events = timeline.finalize(&ctx);
+    let total_ticks = merged.timeline.tick_count();
+    let last_tick = merged.timeline.last_tick().unwrap_or(0);
+    let missing_tick_count = merged.timeline.missing_tick_count();
+    let events = merged.timeline.finalize(&ctx);
 
     // TODO(frolv): port postprocessing
 
-    // TODO(frolv): port trust prefixes
-    let trusted_until = if reference.method == ReferenceMethod::AccurateModal {
-        last_tick + 1
-    } else {
-        0
-    };
+    let prefixes = compute_trusted_prefixes(
+        &ctx,
+        &TimelineInfo {
+            total_ticks,
+            offset,
+            inherited_accuracy: merged.inherited_accurate,
+            reference_method: reference.method,
+        },
+    );
+    if let Some(tracer) = tracer {
+        tracer.record_trusted_prefixes(prefixes);
+    }
 
     let events = MergedEvents::new(
         events,
         Metadata {
-            status: ctx.clients[classification.base].status,
+            status: ctx.client(classification.base).status, // TODO(frolv): derive
             last_tick,
             missing_tick_count,
             offset,
@@ -246,78 +285,196 @@ pub fn merge(
                 reference.method,
                 ReferenceMethod::AccurateModal | ReferenceMethod::PreciseServer
             ),
-            accurate_until: trusted_until,
-            queryable_until: trusted_until,
+            accurate_until: prefixes.accurate_until,
+            queryable_until: prefixes.queryable_until,
         },
     );
-
-    let mut merged_count = 0;
-    let mut unmerged_count = 0;
-    let mut skipped_count = 0;
-    for client in &outcomes {
-        match client.status {
-            MergeStatus::Merged(_) => merged_count += 1,
-            MergeStatus::Unmerged(_) => unmerged_count += 1,
-            MergeStatus::Skipped(_) => skipped_count += 1,
-        }
-    }
 
     (
         Some(events),
-        MergeReport {
-            alerts,
-            reference_ticks: Some(classification.reference_ticks),
-            clients: outcomes,
-            merged_count,
-            unmerged_count,
-            skipped_count,
-        },
+        MergeReport::new(outcomes, classification.reference_ticks, alerts),
     )
 }
 
-fn end_align_to_reference(
-    timeline: &mut timeline::Timeline,
-    reference: &ReferenceTicks,
-    outcomes: &[ClientOutcome],
-) -> u32 {
-    // If a client reported an in-game tick count, the stage has been completed,
-    // so assume that the events are offset from the end of the stage.
-    let offset = match reference.method {
-        ReferenceMethod::RecordedTicks => 0,
-        ReferenceMethod::AccurateModal
-        | ReferenceMethod::PreciseServer
-        | ReferenceMethod::ImpreciseServer => reference
-            .count
-            .saturating_sub(timeline.last_tick().unwrap_or(0)),
-    };
-    if offset == 0 {
-        return 0;
+/// A client participating in a merge.
+#[derive(Debug)]
+struct RegisteredClient {
+    client: ClientEvents,
+    status: MergeStatus,
+}
+
+/// The state of an in-progress merge.
+#[derive(Debug)]
+struct MergeContext<'a> {
+    challenge: &'a ChallengeInfo<'a>,
+    stage: Stage,
+    clients: Vec<RegisteredClient>,
+    mapping: MergeMapping,
+    /// Per-client local tick numbers at which conflicts occurred.
+    contested_ticks: BTreeMap<ClientId, BTreeSet<usize>>,
+}
+
+impl<'a> MergeContext<'a> {
+    fn new(
+        challenge: &'a ChallengeInfo<'a>,
+        stage: Stage,
+        clients: Vec<ClientEvents>,
+        classification: &ClientClassification,
+    ) -> Self {
+        let mapping = MergeMapping::new(clients[classification.base].id);
+        let mut clients: Vec<RegisteredClient> = clients
+            .into_iter()
+            .map(|c| RegisteredClient {
+                client: c,
+                status: MergeStatus::Unmerged(Classification::Mismatched),
+            })
+            .collect();
+
+        clients[classification.base].status = MergeStatus::Merged(Classification::Reference);
+        for &i in &classification.matching {
+            clients[i].status = MergeStatus::Unmerged(Classification::Matching);
+        }
+        for &i in &classification.mismatched {
+            clients[i].status = MergeStatus::Unmerged(Classification::Mismatched);
+        }
+
+        Self {
+            challenge,
+            stage,
+            clients,
+            mapping,
+            contested_ticks: BTreeMap::new(),
+        }
     }
 
-    timeline.shift(offset);
-    tracing::warn!(
-        offset,
-        reference_count = reference.count,
-        "merge_timeline_offset_applied",
-    );
+    fn client(&self, index: usize) -> &ClientEvents {
+        &self.clients[index].client
+    }
+}
 
-    // In the rare case where the base client left before stage end and the only
-    // stream that saw the end was rejected, the merged timeline will not match
-    // the reference count. End alignment will then shift the timeline even
-    // though base tick 0 may have been the true stage tick 0. Log it for
-    // traceability into whether this ever actually occurs.
-    let end_seen_by_contributor = outcomes.iter().any(|outcome| {
-        matches!(outcome.status, MergeStatus::Merged(_)) && outcome.server_ticks.is_some()
-    });
-    if !end_seen_by_contributor {
+/// An in-progress merged timeline.
+struct MergedTimeline {
+    timeline: timeline::Timeline,
+    /// Whether the merged output inherits its accuracy from an accurate base.
+    inherited_accurate: bool,
+}
+
+impl MergedTimeline {
+    /// Initializes a new merged timeline from a base client.
+    fn new(base: &ClientEvents) -> Self {
+        Self {
+            timeline: base.timeline.clone(),
+            inherited_accurate: base.accurate,
+        }
+    }
+
+    /// Attempts to merge `client` into the timeline, recording its result.
+    fn merge_from(
+        &self,
+        ctx: &mut MergeContext<'_>,
+        client: usize,
+        classification: Classification,
+        mut tracer: Option<&mut Tracer>,
+    ) {
+        let client_events = ctx.client(client);
+        if let Some(tracer) = tracer.as_deref_mut() {
+            tracer.begin_merge_step(client_events.id, classification);
+        }
+
+        let base_ticks = self.timeline.ticks();
+        let target_ticks = client_events.timeline.ticks();
+
+        let mappings = if self.inherited_accurate && client_events.accurate {
+            Mappings {
+                base: TickMapping::identity(base_ticks.len()),
+                target: TickMapping::identity(target_ticks.len()),
+                merged_tick_count: base_ticks.len(),
+            }
+        } else {
+            let scorer = SimilarityScorer::new();
+            let alignment =
+                TickAligner::new(base_ticks, target_ticks, |a, b| scorer.score(a, b)).align();
+            if let Some(tracer) = tracer.as_deref_mut() {
+                tracer.record_alignment(&alignment);
+            }
+
+            if alignment.alignments.is_empty() {
+                // The aligner found no alignable regions; nothing to merge.
+                let status = MergeStatus::Unmerged(classification);
+                if let Some(tracer) = tracer {
+                    tracer.end_merge_step(&status);
+                }
+                ctx.clients[client].status = status;
+                return;
+            }
+
+            let entries: Vec<_> = alignment
+                .alignments
+                .iter()
+                .map(|local| local.entries.clone())
+                .collect();
+            TickMapping::from_alignment(base_ticks.len(), target_ticks.len(), &entries)
+        };
+
+        ctx.mapping.begin(client_events.id, mappings);
+        if let Some(tracer) = tracer.as_deref_mut() {
+            tracer.record_mapping(&ctx.mapping);
+        }
+
+        // TODO(frolv): port consolidation
+        ctx.mapping.discard();
+
+        let status = MergeStatus::Unmerged(classification);
+        if let Some(tracer) = tracer {
+            tracer.end_merge_step(&status);
+        }
+        ctx.clients[client].status = status;
+    }
+
+    fn end_align_to_reference(
+        &mut self,
+        reference: ReferenceTicks,
+        outcomes: &[ClientOutcome],
+    ) -> u32 {
+        // If a client reported an in-game tick count, the stage has been completed,
+        // so assume that the events are offset from the end of the stage.
+        let offset = match reference.method {
+            ReferenceMethod::RecordedTicks => 0,
+            ReferenceMethod::AccurateModal
+            | ReferenceMethod::PreciseServer
+            | ReferenceMethod::ImpreciseServer => reference
+                .count
+                .saturating_sub(self.timeline.last_tick().unwrap_or(0)),
+        };
+        if offset == 0 {
+            return 0;
+        }
+
+        self.timeline.shift(offset);
         tracing::warn!(
             offset,
             reference_count = reference.count,
-            "merge_offset_no_merged_end_stream",
+            "merge_timeline_offset_applied",
         );
-    }
 
-    offset
+        // In the rare case where the base client left before stage end and the
+        // only stream that saw the end was rejected, the merged timeline will
+        // not match the reference count. End alignment will then shift the
+        // timeline even though base tick 0 may have been the true stage tick 0.
+        // Log it for traceability into whether this ever actually occurs.
+        let end_seen_by_contributor = outcomes.iter().any(|outcome| {
+            matches!(outcome.status, MergeStatus::Merged(_)) && outcome.server_ticks.is_some()
+        });
+        if !end_seen_by_contributor {
+            tracing::warn!(
+                offset,
+                reference_count = reference.count,
+                "merge_offset_no_merged_end_stream",
+            );
+        }
+
+        offset
+    }
 }
 
 /// Trust and shape metadata of a merged timeline.
@@ -657,6 +814,74 @@ mod tests {
                 merged_count: 0,
                 unmerged_count: 0,
                 skipped_count: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn two_accurate_clients_merge_as_reference_and_matching() {
+        let challenge = nylocas_challenge();
+        let payload = ChallengeEvents {
+            events: vec![wave_event(4, 1), wave_event(8, 2)],
+            ..Default::default()
+        };
+        let end = |client_id: i64| ClientStageStream::End {
+            client_id: ClientId(client_id),
+            update: StageUpdate {
+                stage: Stage::TobNylocas,
+                status: StageStatus::Completed,
+                accurate: true,
+                recorded_ticks: 90,
+                server_ticks: Some(ServerTicks {
+                    count: 90,
+                    precise: true,
+                }),
+            },
+        };
+        let records = vec![
+            ClientStageStream::Events {
+                client_id: ClientId(1),
+                events: Bytes::from(payload.encode_to_vec()),
+            },
+            ClientStageStream::Events {
+                client_id: ClientId(2),
+                events: Bytes::from(payload.encode_to_vec()),
+            },
+            end(1),
+            end(2),
+        ];
+
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+
+        assert!(merged.is_some());
+        let outcome = |client_id: i64, status: MergeStatus| ClientOutcome {
+            client_id: ClientId(client_id),
+            primary_player: None,
+            stage_status: StageStatus::Completed,
+            accurate: true,
+            recorded_ticks: 90,
+            server_ticks: Some(ServerTicks {
+                count: 90,
+                precise: true,
+            }),
+            consistency_issues: Vec::new(),
+            status,
+        };
+        assert_eq!(
+            report,
+            MergeReport {
+                alerts: Vec::new(),
+                reference_ticks: Some(ReferenceTicks {
+                    count: 90,
+                    method: ReferenceMethod::AccurateModal,
+                }),
+                clients: vec![
+                    outcome(1, MergeStatus::Merged(Classification::Reference)),
+                    outcome(2, MergeStatus::Unmerged(Classification::Matching)),
+                ],
+                merged_count: 1,
+                unmerged_count: 1, // soon
+                skipped_count: 0,
             }
         );
     }
