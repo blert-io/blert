@@ -450,7 +450,7 @@ mod tests {
 
     use super::*;
     use crate::lifecycle::core::types::Stage;
-    use crate::merging::fixtures;
+    use crate::merging::{Tick, fixtures};
 
     const STAGE: Stage = Stage::TobMaiden;
 
@@ -460,13 +460,20 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let events = ticks
             .iter()
-            .map(|&t| fixtures::PlayerUpdateEvent::new(t, STAGE, "1Ogp", (10, 20)).build())
+            .map(|&t| fixtures::PlayerUpdateEvent::new(Tick(t), STAGE, "1Ogp", (10, 20)).build())
             .collect();
         let max_tick = ticks.iter().copied().max().unwrap_or(0);
-        let timeline = fixtures::timeline(&party, max_tick + 1, events);
+        let timeline = fixtures::timeline(&party, Tick(max_tick), events);
         ticks
             .iter()
-            .map(|&t| Some(timeline.get(t).expect("tick has recorded state").clone()))
+            .map(|&t| {
+                Some(
+                    timeline
+                        .get(Tick(t))
+                        .expect("tick has recorded state")
+                        .clone(),
+                )
+            })
             .collect()
     }
 
@@ -490,8 +497,8 @@ mod tests {
     fn matrix_scorer(matrix: Vec<Vec<f64>>) -> impl Fn(&TickState, &TickState) -> f64 {
         move |a, b| {
             matrix
-                .get(a.tick() as usize)
-                .and_then(|row| row.get(b.tick() as usize))
+                .get(a.tick().0 as usize)
+                .and_then(|row| row.get(b.tick().0 as usize))
                 .copied()
                 .unwrap_or(0.0)
         }

@@ -18,7 +18,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::proto::ChallengeEvents;
 
-use super::{Classification, MergeStatus};
+use super::{Classification, MergeStatus, Tick, Ticks};
 
 /// A stage's captured client streams.
 #[derive(Debug)]
@@ -239,11 +239,11 @@ struct Identity {
 #[serde(rename_all = "camelCase")]
 struct Summary {
     status: StageStatus,
-    last_tick: u32,
+    last_tick: Tick,
     missing_tick_count: u32,
     precise_server_tick_count: bool,
-    accurate_until: u32,
-    queryable_until: u32,
+    accurate_until: Tick,
+    queryable_until: Tick,
 }
 
 /// A client's merge outcome.
@@ -254,7 +254,7 @@ struct ClientOutcome {
     primary_player: Option<String>,
     stage_status: StageStatus,
     accurate: bool,
-    recorded_ticks: u32,
+    recorded_ticks: Ticks,
     server_ticks: Option<ServerTicks>,
     consistency_issues: Vec<ConsistencyIssue>,
     status: &'static str,
@@ -278,7 +278,7 @@ impl From<super::ClientOutcome> for ClientOutcome {
             primary_player: outcome.primary_player,
             stage_status: outcome.stage_status,
             accurate: outcome.accurate,
-            recorded_ticks: outcome.recorded_ticks,
+            recorded_ticks: outcome.last_tick.duration(),
             server_ticks: outcome.server_ticks,
             consistency_issues: outcome
                 .consistency_issues
@@ -307,21 +307,21 @@ enum ConsistencyIssue {
     #[serde(rename_all = "camelCase")]
     LargeJump {
         player: String,
-        tick: u32,
-        last_tick: u32,
+        tick: Tick,
+        last_tick: Tick,
         start_x: i32,
         start_y: i32,
         end_x: i32,
         end_y: i32,
     },
     #[serde(rename_all = "camelCase")]
-    InvalidEventSequence { kind: i32, tick: u32 },
+    InvalidEventSequence { kind: i32, tick: Tick },
     #[serde(rename_all = "camelCase")]
     InvalidTickGap {
         kind: i32,
-        tick: u32,
-        observed: u32,
-        min: u32,
+        tick: Tick,
+        observed: Ticks,
+        min: Ticks,
     },
 }
 

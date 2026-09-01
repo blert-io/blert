@@ -25,8 +25,8 @@ impl From<(i32, i32)> for Coords {
 }
 
 impl PlayerAttack {
-    pub fn cooldown(self) -> u32 {
+    pub fn cooldown(self) -> crate::merging::Ticks {
         // Every constructible `PlayerAttack` has a defined cooldown.
-        definitions::cooldown(self as i32).unwrap_or(0)
+        crate::merging::Ticks(definitions::cooldown(self as i32).unwrap_or(0))
     }
 }

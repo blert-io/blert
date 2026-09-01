@@ -14,7 +14,7 @@ use super::split::SplitType;
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::MergedEvents;
+use crate::merging::{MergedEvents, Tick, Ticks};
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data, event};
 
@@ -40,7 +40,7 @@ struct CustomData {
 struct WaveData {
     stage: Stage,
     ticks_lost: u32,
-    offset: u32,
+    offset: Ticks,
     handicap: u32,
     options: Vec<u32>,
     npcs: Vec<RoomNpc>,
@@ -51,7 +51,7 @@ impl WaveData {
         challenge_data::ColosseumWave {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
-            offset: Some(self.offset),
+            offset: Some(self.offset.0),
             handicap_chosen: self.handicap,
             handicap_options: self.options.clone(),
             npcs: self.npcs.iter().map(Into::into).collect(),
@@ -167,7 +167,7 @@ impl ChallengeProcessor for ColosseumProcessor {
         events: &MergedEvents,
     ) -> Result<ChallengeTicks, db::Error> {
         let completed = events.status() == StageStatus::Completed;
-        let challenge_ticks = stored.challenge_ticks + events.last_tick();
+        let challenge_ticks = stored.challenge_ticks + events.duration();
         let index = wave_index(stage);
 
         self.data.waves.push(WaveData {
@@ -181,7 +181,7 @@ impl ChallengeProcessor for ColosseumProcessor {
 
         let split = SplitType::try_from(SplitType::ColosseumWave1 as i32 + index)
             .expect("wave splits are consecutive");
-        ctx.set_stage_split(split, events.last_tick(), 0, true);
+        ctx.set_stage_split(split, events.last_tick(), Tick(0), true);
 
         if completed
             && stage > Stage::ColosseumWave1
@@ -214,7 +214,7 @@ impl ChallengeProcessor for ColosseumProcessor {
             &[&handicaps, &txn.challenge_id()],
         )
         .await?;
-        Ok(ChallengeTicks::Add(events.last_tick()))
+        Ok(ChallengeTicks::Add(events.duration()))
     }
 
     async fn on_finish(
@@ -222,7 +222,7 @@ impl ChallengeProcessor for ColosseumProcessor {
         _txn: &db::Transaction,
         _stored: &StoredState,
         ctx: &mut ChallengeContext,
-        final_ticks: u32,
+        final_ticks: Ticks,
     ) -> Result<(), db::Error> {
         ctx.set_challenge_split(SplitType::ColosseumChallenge, final_ticks, None);
 
@@ -280,6 +280,7 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear,
         StageStatus, Uuid,
     };
+    use crate::merging::Tick;
     use crate::merging::fixtures::{ServerTicks, colosseum_handicap_choice_event, merged_events};
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::ChallengeSplit;
@@ -364,7 +365,7 @@ mod tests {
         let mut ctx = StageContext::new(Stage::ColosseumWave1, vec!["aSaradomin".to_string()]);
         let mut events = merged_events(
             vec![colosseum_handicap_choice_event(
-                0,
+                Tick(0),
                 Stage::ColosseumWave1,
                 ColosseumHandicap::Blasphemy,
                 &[
@@ -395,7 +396,7 @@ mod tests {
         let mut ctx = StageContext::new(Stage::ColosseumWave2, vec!["aSaradomin".to_string()]);
         let mut events = merged_events(
             vec![colosseum_handicap_choice_event(
-                0,
+                Tick(0),
                 Stage::ColosseumWave2,
                 ColosseumHandicap::Blasphemy,
                 &[
@@ -430,7 +431,7 @@ mod tests {
             WaveData {
                 stage,
                 ticks_lost: 0,
-                offset: 0,
+                offset: Ticks(0),
                 handicap: 3,
                 options: vec![3, 7, 11],
                 npcs: Vec::new(),
@@ -571,11 +572,11 @@ mod tests {
                     id: PlayerId(1),
                     gear: PrimaryMeleeGear::Unknown,
                 }],
-                challenge_ticks: 1743,
+                challenge_ticks: Ticks(1743),
                 custom_data: None,
             };
             processor
-                .on_finish(&txn, &stored, &mut ctx, 1743)
+                .on_finish(&txn, &stored, &mut ctx, Ticks(1743))
                 .await
                 .unwrap();
 
@@ -584,7 +585,7 @@ mod tests {
                 vec![(
                     SplitType::ColosseumChallenge,
                     ChallengeSplit {
-                        ticks: 1743,
+                        ticks: Ticks(1743),
                         accurate: None,
                     },
                 )],

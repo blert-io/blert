@@ -604,29 +604,29 @@ mod tests {
     use super::*;
     use crate::item::{self, ItemDelta};
     use crate::lifecycle::core::types::Stage;
-    use crate::merging::fixtures;
+    use crate::merging::{Tick, fixtures};
     use crate::prayer::{Prayer, PrayerBook, PrayerSet};
     use crate::proto::Event;
 
     const STAGE: Stage = Stage::TobMaiden;
 
     /// Builds the tick state a single client's events produce on `tick`.
-    fn tick_state(tick: u32, events: Vec<Event>) -> TickState {
+    fn tick_state(tick: Tick, events: Vec<Event>) -> TickState {
         let party = vec!["715".to_string(), "caps lock13".to_string()];
-        fixtures::timeline(&party, tick + 1, events)
+        fixtures::timeline(&party, tick, events)
             .get(tick)
             .expect("tick has recorded state")
             .clone()
     }
 
-    fn player_update(tick: u32, name: &str, coords: (i32, i32), equipment: &[ItemDelta]) -> Event {
+    fn player_update(tick: Tick, name: &str, coords: (i32, i32), equipment: &[ItemDelta]) -> Event {
         fixtures::PlayerUpdateEvent::new(tick, STAGE, name, coords)
             .equipment_deltas(equipment)
             .build()
     }
 
     fn npc_spawn(
-        tick: u32,
+        tick: Tick,
         room_id: u64,
         npc_id: u32,
         coords: (i32, i32),
@@ -648,7 +648,7 @@ mod tests {
     }
 
     fn player_attack(
-        tick: u32,
+        tick: Tick,
         name: &str,
         attack: PlayerAttack,
         weapon_id: u32,
@@ -675,14 +675,17 @@ mod tests {
     fn matching_overlapping_players_scores_baseline() {
         let weapon = [ItemDelta::Add(EquipmentSlot::Weapon, 100, 1)];
         let base = tick_state(
-            5,
+            Tick(5),
             vec![
-                player_update(5, "715", (10, 20), &weapon),
-                player_update(5, "caps lock13", (15, 30), &[]),
+                player_update(Tick(5), "715", (10, 20), &weapon),
+                player_update(Tick(5), "caps lock13", (15, 30), &[]),
             ],
         );
         // "caps lock13" is missing from the target and is ignored.
-        let target = tick_state(5, vec![player_update(5, "715", (10, 20), &weapon)]);
+        let target = tick_state(
+            Tick(5),
+            vec![player_update(Tick(5), "715", (10, 20), &weapon)],
+        );
 
         let weights = ScoringWeights {
             baseline_compatibility_weight: 6.0,
@@ -696,18 +699,21 @@ mod tests {
 
     #[test]
     fn no_shared_actors_scores_zero() {
-        let base = tick_state(1, vec![player_update(1, "715", (5, 5), &[])]);
-        let actorless_target = tick_state(1, vec![fixtures::bloat_up_event(1)]);
+        let base = tick_state(Tick(1), vec![player_update(Tick(1), "715", (5, 5), &[])]);
+        let actorless_target = tick_state(Tick(1), vec![fixtures::bloat_up_event(Tick(1))]);
         assert_eq!(SimilarityScorer::new().score(&base, &actorless_target), 0.0);
 
-        let disjoint_target = tick_state(1, vec![player_update(1, "caps lock13", (9, 9), &[])]);
+        let disjoint_target = tick_state(
+            Tick(1),
+            vec![player_update(Tick(1), "caps lock13", (9, 9), &[])],
+        );
         assert_eq!(SimilarityScorer::new().score(&base, &disjoint_target), 0.0);
     }
 
     #[test]
     fn differing_player_positions_are_incompatible() {
-        let base = tick_state(1, vec![player_update(1, "715", (5, 5), &[])]);
-        let target = tick_state(1, vec![player_update(1, "715", (6, 5), &[])]);
+        let base = tick_state(Tick(1), vec![player_update(Tick(1), "715", (5, 5), &[])]);
+        let target = tick_state(Tick(1), vec![player_update(Tick(1), "715", (6, 5), &[])]);
 
         assert_eq!(
             SimilarityScorer::new().score(&base, &target),
@@ -718,18 +724,18 @@ mod tests {
     #[test]
     fn differing_visible_gear_is_incompatible() {
         let base = tick_state(
-            2,
+            Tick(2),
             vec![player_update(
-                2,
+                Tick(2),
                 "715",
                 (5, 5),
                 &[ItemDelta::Add(EquipmentSlot::Head, 200, 1)],
             )],
         );
         let target = tick_state(
-            2,
+            Tick(2),
             vec![player_update(
-                2,
+                Tick(2),
                 "715",
                 (5, 5),
                 &[ItemDelta::Add(EquipmentSlot::Head, 201, 1)],
@@ -745,17 +751,17 @@ mod tests {
     #[test]
     fn matching_overlapping_npcs_scores_baseline() {
         let base = tick_state(
-            3,
+            Tick(3),
             vec![
-                player_update(3, "715", (0, 0), &[]),
-                npc_spawn(3, 1, 200, (100, 200), 500),
+                player_update(Tick(3), "715", (0, 0), &[]),
+                npc_spawn(Tick(3), 1, 200, (100, 200), 500),
             ],
         );
         let target = tick_state(
-            3,
+            Tick(3),
             vec![
-                player_update(3, "715", (0, 0), &[]),
-                npc_spawn(3, 1, 200, (100, 200), 500),
+                player_update(Tick(3), "715", (0, 0), &[]),
+                npc_spawn(Tick(3), 1, 200, (100, 200), 500),
             ],
         );
 
@@ -773,17 +779,17 @@ mod tests {
     #[test]
     fn differing_npc_positions_are_incompatible() {
         let base = tick_state(
-            4,
+            Tick(4),
             vec![
-                player_update(4, "715", (0, 0), &[]),
-                npc_spawn(4, 10, 300, (200, 300), 600),
+                player_update(Tick(4), "715", (0, 0), &[]),
+                npc_spawn(Tick(4), 10, 300, (200, 300), 600),
             ],
         );
         let target = tick_state(
-            4,
+            Tick(4),
             vec![
-                player_update(4, "715", (0, 0), &[]),
-                npc_spawn(4, 10, 300, (201, 300), 600),
+                player_update(Tick(4), "715", (0, 0), &[]),
+                npc_spawn(Tick(4), 10, 300, (201, 300), 600),
             ],
         );
 
@@ -796,17 +802,17 @@ mod tests {
     #[test]
     fn differing_npc_ids_are_incompatible() {
         let base = tick_state(
-            4,
+            Tick(4),
             vec![
-                player_update(4, "715", (0, 0), &[]),
-                npc_spawn(4, 10, 100, (200, 300), 600),
+                player_update(Tick(4), "715", (0, 0), &[]),
+                npc_spawn(Tick(4), 10, 100, (200, 300), 600),
             ],
         );
         let target = tick_state(
-            4,
+            Tick(4),
             vec![
-                player_update(4, "715", (0, 0), &[]),
-                npc_spawn(4, 10, 101, (200, 300), 600),
+                player_update(Tick(4), "715", (0, 0), &[]),
+                npc_spawn(Tick(4), 10, 101, (200, 300), 600),
             ],
         );
 
@@ -819,17 +825,17 @@ mod tests {
     #[test]
     fn matching_npc_hitpoints_score_positively() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 500),
             ],
         );
 
@@ -842,8 +848,8 @@ mod tests {
 
     #[test]
     fn slightly_differing_npc_hitpoints_score_lower_than_matching() {
-        let hurt_npc = fixtures::npc_spawn_event(fixtures::NpcEvent {
-            tick: 1,
+        let damaged_npc = fixtures::npc_spawn_event(fixtures::NpcEvent {
+            tick: Tick(1),
             stage: STAGE,
             coords: (10, 10),
             npc_id: 100,
@@ -857,18 +863,21 @@ mod tests {
         });
 
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 500),
             ],
         );
-        let target = tick_state(1, vec![player_update(1, "715", (0, 0), &[]), hurt_npc]);
+        let target = tick_state(
+            Tick(1),
+            vec![player_update(Tick(1), "715", (0, 0), &[]), damaged_npc],
+        );
         let matching_target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 500),
             ],
         );
 
@@ -886,7 +895,7 @@ mod tests {
     #[test]
     fn large_npc_hitpoint_differences_are_ignored() {
         let half_dead_npc = fixtures::npc_spawn_event(fixtures::NpcEvent {
-            tick: 1,
+            tick: Tick(1),
             stage: STAGE,
             coords: (10, 10),
             npc_id: 100,
@@ -900,13 +909,16 @@ mod tests {
         });
 
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 500),
             ],
         );
-        let target = tick_state(1, vec![player_update(1, "715", (0, 0), &[]), half_dead_npc]);
+        let target = tick_state(
+            Tick(1),
+            vec![player_update(Tick(1), "715", (0, 0), &[]), half_dead_npc],
+        );
 
         let weights = ScoringWeights {
             baseline_compatibility_weight: 6.0,
@@ -921,31 +933,31 @@ mod tests {
     #[test]
     fn matching_player_attacks_score_positively() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Scythe,
                     item::id::SCYTHE_OF_VITUR.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Scythe,
                     item::id::SCYTHE_OF_VITUR.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
 
@@ -960,31 +972,31 @@ mod tests {
     #[test]
     fn differing_player_attack_weapons_are_penalized() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Scythe,
                     item::id::SCYTHE_OF_VITUR.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Blowpipe,
                     item::id::TOXIC_BLOWPIPE.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
 
@@ -999,31 +1011,31 @@ mod tests {
     #[test]
     fn projectile_ambiguous_player_attacks_are_not_penalized() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::ZcbAuto,
                     item::id::ZARYTE_CROSSBOW.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::ZcbSpec,
                     item::id::ZARYTE_CROSSBOW.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
 
@@ -1041,33 +1053,33 @@ mod tests {
     #[test]
     fn projectile_ambiguous_attacks_with_contradictory_targets_are_penalized() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Blowpipe,
                     item::id::TOXIC_BLOWPIPE.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
-                npc_spawn(1, 6, 101, (15, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 6, 101, (15, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::BlowpipeSpec,
                     item::id::TOXIC_BLOWPIPE.cast_unsigned(),
                     Some(6),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
-                npc_spawn(1, 6, 101, (15, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 6, 101, (15, 10), 500),
             ],
         );
 
@@ -1082,31 +1094,31 @@ mod tests {
     #[test]
     fn projectile_ambiguous_attacks_with_missing_targets_are_not_penalized() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Blowpipe,
                     item::id::TOXIC_BLOWPIPE.cast_unsigned(),
                     None,
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::BlowpipeSpec,
                     item::id::TOXIC_BLOWPIPE.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
 
@@ -1124,24 +1136,24 @@ mod tests {
     #[test]
     fn one_sided_player_attacks_score_weakly_negative() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
+                player_update(Tick(1), "715", (0, 0), &[]),
                 player_attack(
-                    1,
+                    Tick(1),
                     "715",
                     PlayerAttack::Scythe,
                     item::id::SCYTHE_OF_VITUR.cast_unsigned(),
                     Some(5),
                 ),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 5, 100, (10, 10), 500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 5, 100, (10, 10), 500),
             ],
         );
 
@@ -1161,12 +1173,12 @@ mod tests {
     #[test]
     fn matching_npc_attacks_score_positively() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
                 fixtures::npc_attack_event(
-                    1,
+                    Tick(1),
                     STAGE,
                     (10, 10),
                     npc::id::MAIDEN_REGULAR,
@@ -1177,12 +1189,12 @@ mod tests {
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
                 fixtures::npc_attack_event(
-                    1,
+                    Tick(1),
                     STAGE,
                     (10, 10),
                     npc::id::MAIDEN_REGULAR,
@@ -1204,12 +1216,12 @@ mod tests {
     #[test]
     fn projectile_ambiguous_npc_attacks_are_not_penalized() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, npc::id::SOTETSEG_REGULAR, (10, 10), 4000),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, npc::id::SOTETSEG_REGULAR, (10, 10), 4000),
                 fixtures::npc_attack_event(
-                    1,
+                    Tick(1),
                     STAGE,
                     (10, 10),
                     npc::id::SOTETSEG_REGULAR,
@@ -1220,12 +1232,12 @@ mod tests {
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, npc::id::SOTETSEG_REGULAR, (10, 10), 4000),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, npc::id::SOTETSEG_REGULAR, (10, 10), 4000),
                 fixtures::npc_attack_event(
-                    1,
+                    Tick(1),
                     STAGE,
                     (10, 10),
                     npc::id::SOTETSEG_REGULAR,
@@ -1250,13 +1262,13 @@ mod tests {
     #[test]
     fn differing_npc_attack_targets_are_penalized() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                player_update(1, "caps lock13", (5, 0), &[]),
-                npc_spawn(1, 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                player_update(Tick(1), "caps lock13", (5, 0), &[]),
+                npc_spawn(Tick(1), 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
                 fixtures::npc_attack_event(
-                    1,
+                    Tick(1),
                     STAGE,
                     (10, 10),
                     npc::id::MAIDEN_REGULAR,
@@ -1267,13 +1279,13 @@ mod tests {
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                player_update(1, "caps lock13", (5, 0), &[]),
-                npc_spawn(1, 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                player_update(Tick(1), "caps lock13", (5, 0), &[]),
+                npc_spawn(Tick(1), 1, npc::id::MAIDEN_REGULAR, (10, 10), 3500),
                 fixtures::npc_attack_event(
-                    1,
+                    Tick(1),
                     STAGE,
                     (10, 10),
                     npc::id::MAIDEN_REGULAR,
@@ -1302,17 +1314,17 @@ mod tests {
         target_prayers.add(Prayer::Piety);
 
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0))
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0))
                     .prayers(base_prayers)
                     .build(),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0))
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0))
                     .prayers(target_prayers)
                     .build(),
             ],
@@ -1333,17 +1345,17 @@ mod tests {
         target_prayers.add(Prayer::ProtectFromMissiles);
 
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0))
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0))
                     .prayers(base_prayers)
                     .build(),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0))
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0))
                     .prayers(target_prayers)
                     .build(),
             ],
@@ -1364,17 +1376,17 @@ mod tests {
         target_prayers.add(Prayer::Piety);
 
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0))
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0))
                     .prayers(base_prayers)
                     .build(),
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0))
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0))
                     .prayers(target_prayers)
                     .build(),
             ],
@@ -1393,12 +1405,24 @@ mod tests {
     #[test]
     fn matching_player_deaths_score_positively() {
         let base = tick_state(
-            1,
-            vec![fixtures::player_death_event(1, STAGE, (0, 0), "715", 0)],
+            Tick(1),
+            vec![fixtures::player_death_event(
+                Tick(1),
+                STAGE,
+                (0, 0),
+                "715",
+                0,
+            )],
         );
         let target = tick_state(
-            1,
-            vec![fixtures::player_death_event(1, STAGE, (0, 0), "715", 0)],
+            Tick(1),
+            vec![fixtures::player_death_event(
+                Tick(1),
+                STAGE,
+                (0, 0),
+                "715",
+                0,
+            )],
         );
 
         let weights = ScoringWeights {
@@ -1411,12 +1435,18 @@ mod tests {
     #[test]
     fn one_sided_player_deaths_are_ignored() {
         let base = tick_state(
-            1,
-            vec![fixtures::player_death_event(1, STAGE, (0, 0), "715", 0)],
+            Tick(1),
+            vec![fixtures::player_death_event(
+                Tick(1),
+                STAGE,
+                (0, 0),
+                "715",
+                0,
+            )],
         );
         let target = tick_state(
-            1,
-            vec![fixtures::PlayerUpdateEvent::new(1, STAGE, "715", (0, 0)).build()],
+            Tick(1),
+            vec![fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0)).build()],
         );
 
         let weights = ScoringWeights {
@@ -1433,10 +1463,10 @@ mod tests {
     fn matching_npc_deaths_score_positively() {
         let dead_npc = || {
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 0),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 0),
                 fixtures::npc_death_event(fixtures::NpcEvent {
-                    tick: 1,
+                    tick: Tick(1),
                     stage: STAGE,
                     coords: (10, 10),
                     npc_id: 100,
@@ -1450,8 +1480,8 @@ mod tests {
                 }),
             ]
         };
-        let base = tick_state(1, dead_npc());
-        let target = tick_state(1, dead_npc());
+        let base = tick_state(Tick(1), dead_npc());
+        let target = tick_state(Tick(1), dead_npc());
 
         let weights = ScoringWeights {
             baseline_compatibility_weight: 0.0,
@@ -1464,12 +1494,12 @@ mod tests {
     #[test]
     fn one_sided_npc_deaths_are_ignored() {
         let base = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 0),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 0),
                 fixtures::npc_death_event(fixtures::NpcEvent {
-                    tick: 1,
+                    tick: Tick(1),
                     stage: STAGE,
                     coords: (10, 10),
                     npc_id: 100,
@@ -1484,10 +1514,10 @@ mod tests {
             ],
         );
         let target = tick_state(
-            1,
+            Tick(1),
             vec![
-                player_update(1, "715", (0, 0), &[]),
-                npc_spawn(1, 1, 100, (10, 10), 0),
+                player_update(Tick(1), "715", (0, 0), &[]),
+                npc_spawn(Tick(1), 1, 100, (10, 10), 0),
             ],
         );
 

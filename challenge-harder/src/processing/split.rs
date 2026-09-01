@@ -3,14 +3,15 @@
 //! `SplitType` is generated from `challenge_storage.proto`.
 
 use crate::lifecycle::core::types::ChallengeMode;
+use crate::merging::{Tick, Ticks};
 
 pub use crate::proto::SplitType;
 
 /// A recorded split whose timer is local to a single stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StageSplit {
-    pub tick: u32,
-    pub start: u32,
+    pub tick: Tick,
+    pub start: Tick,
     /// Marks a split lasting until the end of its stage, making accuracy
     /// contingent on stage completion.
     pub requires_completion: bool,
@@ -19,7 +20,7 @@ pub struct StageSplit {
 /// A recorded split whose timer spans the entire challenge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChallengeSplit {
-    pub ticks: u32,
+    pub ticks: Ticks,
     /// If set, overrides the default challenge accuracy computation.
     pub accurate: Option<bool>,
 }

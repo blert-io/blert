@@ -13,13 +13,13 @@ use super::db;
 use super::persist;
 use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
-use crate::merging::MergedEvents;
+use crate::merging::{MergedEvents, Tick, Ticks};
 use crate::npc;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
 
 /// Ticks between the end of one wave and the start of the next.
-const WAVE_INTERVAL_TICKS: u32 = 6;
+const WAVE_INTERVAL_TICKS: Ticks = Ticks(6);
 
 /// In-flight inferno state stored between stages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -39,10 +39,10 @@ struct CustomData {
 struct WaveData {
     stage: Stage,
     ticks_lost: u32,
-    offset: u32,
+    offset: Ticks,
     npcs: Vec<RoomNpc>,
-    ticks: u32,
-    start_tick: u32,
+    ticks: Ticks,
+    start_tick: Ticks,
 }
 
 impl WaveData {
@@ -50,10 +50,10 @@ impl WaveData {
         challenge_data::InfernoWave {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
-            offset: Some(self.offset),
+            offset: Some(self.offset.0),
             npcs: self.npcs.iter().map(Into::into).collect(),
-            ticks: self.ticks,
-            start_tick: self.start_tick,
+            ticks: self.ticks.0,
+            start_tick: self.start_tick.0,
         }
     }
 }
@@ -105,7 +105,7 @@ pub struct InfernoProcessor {
     challenge: ChallengeInfo,
     data: CustomData,
     /// Client-reported start tick for this wave.
-    wave_start_tick: Option<u32>,
+    wave_start_tick: Option<Ticks>,
 }
 
 impl InfernoProcessor {
@@ -172,7 +172,7 @@ impl ChallengeProcessor for InfernoProcessor {
             }
             event::Type::InfernoWaveStart => {
                 if let Some(wave_start) = &event.inferno_wave_start {
-                    self.wave_start_tick = Some(wave_start.overall_ticks);
+                    self.wave_start_tick = Some(Ticks(wave_start.overall_ticks));
                 }
                 false
             }
@@ -199,17 +199,16 @@ impl ChallengeProcessor for InfernoProcessor {
         events: &MergedEvents,
     ) -> Result<ChallengeTicks, db::Error> {
         let wave = stage_to_wave(stage);
-        let last_tick = events.last_tick();
 
         let (ticks, start_tick) = match self.wave_start_tick {
             Some(start) => {
                 if let Some(split) = wave_start_split(wave) {
                     ctx.set_challenge_split(split, start, None);
                 }
-                (ChallengeTicks::Set(start + last_tick), start)
+                (ChallengeTicks::Set(start + events.duration()), start)
             }
             None => (
-                ChallengeTicks::Add(last_tick + WAVE_INTERVAL_TICKS),
+                ChallengeTicks::Add(events.duration() + WAVE_INTERVAL_TICKS),
                 stored.challenge_ticks + WAVE_INTERVAL_TICKS,
             ),
         };
@@ -217,14 +216,14 @@ impl ChallengeProcessor for InfernoProcessor {
         let split =
             SplitType::try_from(SplitType::InfernoWave1Time as i32 + wave.cast_signed() - 1)
                 .expect("wave time splits are consecutive");
-        ctx.set_stage_split(split, last_tick, 0, true);
+        ctx.set_stage_split(split, events.last_tick(), Tick(0), true);
 
         self.data.waves.push(WaveData {
             stage,
             ticks_lost: events.missing_tick_count(),
             offset: events.offset(),
             npcs: ctx.npcs().cloned().collect(),
-            ticks: last_tick,
+            ticks: events.duration(),
             start_tick,
         });
 
@@ -255,7 +254,7 @@ impl ChallengeProcessor for InfernoProcessor {
         txn: &db::Transaction,
         stored: &StoredState,
         ctx: &mut ChallengeContext,
-        final_ticks: u32,
+        final_ticks: Ticks,
     ) -> Result<(), db::Error> {
         ctx.set_challenge_split(SplitType::InfernoChallenge, final_ticks, None);
         ctx.set_challenge_split(SplitType::InfernoOverall, final_ticks, None);
@@ -322,6 +321,7 @@ mod tests {
         NpcEvent, ServerTicks, inferno_wave_start_event, merged_events, npc_attack_event,
         npc_death_event,
     };
+    use crate::merging::{Tick, Ticks};
     use crate::players::normalize_rsn;
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::{ChallengeSplit, SavedSplit};
@@ -389,14 +389,19 @@ mod tests {
         .unwrap();
         let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
         let mut events = merged_events(
-            vec![inferno_wave_start_event(0, Stage::InfernoWave25, 25, 852)],
+            vec![inferno_wave_start_event(
+                Tick(0),
+                Stage::InfernoWave25,
+                25,
+                Ticks(852),
+            )],
             StageStatus::Started,
             ServerTicks::Missing,
         );
 
         let mut cursor = EventCursor::new(&mut events, 0);
         assert!(!processor.process_challenge_event(&mut ctx, &mut cursor));
-        assert_eq!(processor.wave_start_tick, Some(852));
+        assert_eq!(processor.wave_start_tick, Some(Ticks(852)));
     }
 
     #[test]
@@ -409,7 +414,7 @@ mod tests {
         let mut ctx = StageContext::new(Stage::InfernoWave66, vec!["715".to_string()]);
         let mut events = merged_events(
             vec![npc_death_event(NpcEvent {
-                tick: 31,
+                tick: Tick(31),
                 stage: Stage::InfernoWave66,
                 coords: (2257, 5349),
                 npc_id: npc::id::ROCKY_SUPPORT,
@@ -442,7 +447,7 @@ mod tests {
         let mut events = merged_events(
             vec![
                 npc_attack_event(
-                    12,
+                    Tick(12),
                     Stage::InfernoWave43,
                     (2272, 5347),
                     7697,
@@ -451,7 +456,7 @@ mod tests {
                     None,
                 ),
                 npc_attack_event(
-                    30,
+                    Tick(30),
                     Stage::InfernoWave43,
                     (2277, 5340),
                     7699,
@@ -460,7 +465,7 @@ mod tests {
                     None,
                 ),
                 npc_attack_event(
-                    55,
+                    Tick(55),
                     Stage::InfernoWave43,
                     (2274, 5347),
                     7697,
@@ -486,10 +491,10 @@ mod tests {
         WaveData {
             stage,
             ticks_lost: 0,
-            offset: 0,
+            offset: Ticks(0),
             npcs: Vec::new(),
-            ticks: 61,
-            start_tick: (wave - 1) * 67,
+            ticks: Ticks(61),
+            start_tick: Ticks((wave - 1) * 67),
         }
     }
 
@@ -570,12 +575,12 @@ mod tests {
             )
             .unwrap()
             .data,
-            wave_start_tick: Some(852),
+            wave_start_tick: Some(Ticks(852)),
         };
         let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
         let stored = StoredState {
             players: Vec::new(),
-            challenge_ticks: 846,
+            challenge_ticks: Ticks(846),
             custom_data: None,
         };
         let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(42));
@@ -591,9 +596,9 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(ticks, ChallengeTicks::Set(894));
+        assert_eq!(ticks, ChallengeTicks::Set(Ticks(894)));
         assert_eq!(
-            ctx.splits(43, true),
+            ctx.splits(Tick(43), true),
             vec![
                 SavedSplit {
                     split: SplitType::InfernoWave25Time,
@@ -612,10 +617,10 @@ mod tests {
             vec![WaveData {
                 stage: Stage::InfernoWave25,
                 ticks_lost: 42,
-                offset: 42,
+                offset: Ticks(42),
                 npcs: Vec::new(),
-                ticks: 42,
-                start_tick: 852,
+                ticks: Ticks(42),
+                start_tick: Ticks(852),
             }],
         );
 
@@ -628,7 +633,7 @@ mod tests {
         let mut ctx = StageContext::new(Stage::InfernoWave26, vec!["715".to_string()]);
         let stored = StoredState {
             players: Vec::new(),
-            challenge_ticks: 894,
+            challenge_ticks: Ticks(894),
             custom_data: None,
         };
         let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(36));
@@ -643,16 +648,16 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(ticks, ChallengeTicks::Add(42));
+        assert_eq!(ticks, ChallengeTicks::Add(Ticks(42)));
         assert_eq!(
-            ctx.splits(37, true),
+            ctx.splits(Tick(37), true),
             vec![SavedSplit {
                 split: SplitType::InfernoWave26Time,
                 ticks: 36,
                 accurate: true,
             }],
         );
-        assert_eq!(processor.data.waves[0].start_tick, 900);
+        assert_eq!(processor.data.waves[0].start_tick, Ticks(900));
     }
 
     #[tokio::test]
@@ -703,11 +708,11 @@ mod tests {
                     id: PlayerId(1),
                     gear: PrimaryMeleeGear::Unknown,
                 }],
-                challenge_ticks: 3168,
+                challenge_ticks: Ticks(3168),
                 custom_data: None,
             };
             processor
-                .on_finish(&txn, &stored, &mut ctx, 3168)
+                .on_finish(&txn, &stored, &mut ctx, Ticks(3168))
                 .await
                 .unwrap();
 
@@ -717,14 +722,14 @@ mod tests {
                     (
                         SplitType::InfernoChallenge,
                         ChallengeSplit {
-                            ticks: 3168,
+                            ticks: Ticks(3168),
                             accurate: None,
                         },
                     ),
                     (
                         SplitType::InfernoOverall,
                         ChallengeSplit {
-                            ticks: 3168,
+                            ticks: Ticks(3168),
                             accurate: None,
                         },
                     ),
@@ -824,7 +829,7 @@ mod tests {
                 id: PlayerId(player_id),
                 gear: PrimaryMeleeGear::Unknown,
             }],
-            challenge_ticks: 5940,
+            challenge_ticks: Ticks(5940),
             custom_data: None,
         };
 
@@ -836,7 +841,7 @@ mod tests {
         };
         let mut ctx = ChallengeContext::new(vec![username.clone()]);
         processor
-            .on_finish(&txn, &stored, &mut ctx, 5938)
+            .on_finish(&txn, &stored, &mut ctx, Ticks(5938))
             .await
             .unwrap();
         let row = txn
@@ -856,7 +861,7 @@ mod tests {
         };
         let mut ctx = ChallengeContext::new(vec![username]);
         processor
-            .on_finish(&txn, &stored, &mut ctx, 5940)
+            .on_finish(&txn, &stored, &mut ctx, Ticks(5940))
             .await
             .unwrap();
 

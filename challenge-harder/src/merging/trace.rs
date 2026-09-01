@@ -9,9 +9,10 @@ use crate::lifecycle::core::types::{ClientId, UserId};
 
 use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
 use super::classification::{ClientClassification, ReferenceMethod};
-use super::client_events::{self, ClientEvents};
+use super::client_events::{self, BadDataClient, ClientEvents, ReportedInfo};
 use super::mapping::{MergeMapping, TickMapping};
 use super::timeline::{GraphicsCoords, GraphicsKind, NpcState, PlayerState, Target, TickState};
+use super::{Tick, Ticks};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,7 +86,7 @@ impl From<&crate::proto::Coords> for Coords {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReferenceSelection {
-    count: u32,
+    count: Ticks,
     method: ReferenceSelectionMethod,
 }
 
@@ -227,7 +228,7 @@ impl From<(&GraphicsKind, &GraphicsCoords)> for GraphicsSummary {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TickSummary {
-    tick: u32,
+    tick: Tick,
     players: Vec<PlayerSummary>,
     npcs: Vec<NpcSummary>,
     graphics: Vec<GraphicsSummary>,
@@ -392,13 +393,15 @@ impl From<&AlignmentResult> for StepAlignment {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StepMapping {
-    base: BTreeMap<usize, usize>,
-    target: BTreeMap<usize, usize>,
-    merged_tick_count: usize,
+    base: BTreeMap<Tick, Tick>,
+    target: BTreeMap<Tick, Tick>,
+    merged_tick_count: u32,
 }
 
-fn serialize_tick_mapping(mapping: &TickMapping) -> BTreeMap<usize, usize> {
-    (0..mapping.client_tick_count())
+fn serialize_tick_mapping(mapping: &TickMapping) -> BTreeMap<Tick, Tick> {
+    mapping
+        .client_last_tick()
+        .up_to_inclusive()
         .filter_map(|tick| mapping.to_merged(tick).map(|merged| (tick, merged)))
         .collect()
 }
@@ -417,8 +420,8 @@ struct MergeStep {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TrustedPrefixes {
-    accurate_until: u32,
-    queryable_until: u32,
+    accurate_until: Tick,
+    queryable_until: Tick,
 }
 
 impl From<super::trusted_prefixes::TrustedPrefixes> for TrustedPrefixes {
@@ -468,25 +471,52 @@ impl Tracer {
     }
 
     pub(super) fn record_input_client(&mut self, client: &ClientEvents) {
+        let ticks = client
+            .timeline
+            .tick_states()
+            .iter()
+            .flatten()
+            .map(TickSummary::from)
+            .collect();
+        self.input_client(
+            &client.info,
+            client.accurate,
+            ticks,
+            StageData::from(&client.stage_data),
+        );
+    }
+
+    pub(super) fn record_bad_data_client(&mut self, client: &BadDataClient) {
+        self.input_client(
+            &client.info,
+            client.info.reported_accurate,
+            Vec::new(),
+            StageData {
+                sote_pivots: Vec::new(),
+            },
+        );
+    }
+
+    fn input_client(
+        &mut self,
+        info: &ReportedInfo,
+        accurate: bool,
+        ticks: Vec<TickSummary>,
+        stage_data: StageData,
+    ) {
         self.output.input_clients.push(InputClient {
-            client_id: client.id,
-            primary_player: client.primary_player.clone(),
-            metadata: client.metadata.as_ref().map(|metadata| ClientMetadata {
-                user_id: metadata.user_id,
-                plugin_version: metadata.plugin_version.clone(),
-                rune_lite_version: metadata.runelite_version.clone(),
+            client_id: info.id,
+            primary_player: info.primary_player.clone(),
+            metadata: info.plugin_info.as_ref().map(|plugin_info| ClientMetadata {
+                user_id: plugin_info.user_id,
+                plugin_version: plugin_info.plugin_version.clone(),
+                rune_lite_version: plugin_info.runelite_version.clone(),
             }),
-            reported_accurate: client.reported_accurate,
-            accurate: client.accurate,
-            recorded_ticks: client.recorded_ticks + 1,
-            ticks: client
-                .timeline
-                .ticks()
-                .iter()
-                .flatten()
-                .map(TickSummary::from)
-                .collect(),
-            stage_data: StageData::from(&client.stage_data),
+            reported_accurate: info.reported_accurate,
+            accurate,
+            recorded_ticks: info.last_recorded_tick.0 + 1,
+            ticks,
+            stage_data,
         });
     }
 
@@ -496,16 +526,16 @@ impl Tracer {
         clients: &[ClientEvents],
     ) {
         let ids = |indices: &[usize]| -> Vec<ClientId> {
-            indices.iter().map(|&i| clients[i].id).collect()
+            indices.iter().map(|&i| clients[i].info.id).collect()
         };
         let accuracy_demotions = clients
             .iter()
-            .filter(|c| c.reported_accurate && !c.accurate)
-            .map(|c| c.id)
+            .filter(|c| c.info.reported_accurate && !c.accurate)
+            .map(|c| c.info.id)
             .collect();
         self.output.classification = Some(Classification {
             reference_selection: ReferenceSelection {
-                count: classification.reference_ticks.count,
+                count: classification.reference_ticks.duration,
                 method: match classification.reference_ticks.method {
                     ReferenceMethod::AccurateModal => ReferenceSelectionMethod::AccurateModal,
                     ReferenceMethod::PreciseServer => ReferenceSelectionMethod::PreciseServer,
@@ -513,7 +543,7 @@ impl Tracer {
                     ReferenceMethod::RecordedTicks => ReferenceSelectionMethod::RecordedTicks,
                 },
             },
-            base_client_id: clients[classification.base].id,
+            base_client_id: clients[classification.base].info.id,
             matching_client_ids: ids(&classification.matching),
             mismatched_client_ids: ids(&classification.mismatched),
             accuracy_demotions,
@@ -544,17 +574,17 @@ impl Tracer {
         let Some(step) = &mut self.current_step else {
             return;
         };
-        let (Some(base), Some(target), Some(merged_tick_count)) = (
+        let (Some(base), Some(target), Some(merged_last_tick)) = (
             mapping.base_mapping(),
             mapping.target_mapping(),
-            mapping.merged_tick_count(),
+            mapping.merged_last_tick(),
         ) else {
             return;
         };
         step.mapping = Some(StepMapping {
             base: serialize_tick_mapping(base),
             target: serialize_tick_mapping(target),
-            merged_tick_count,
+            merged_tick_count: merged_last_tick.0 + 1,
         });
     }
 

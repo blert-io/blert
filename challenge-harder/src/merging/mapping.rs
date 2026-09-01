@@ -1,6 +1,7 @@
 //! Mappings between different clients' tick spaces in a merge.
 #![expect(dead_code)]
 
+use super::Tick;
 use super::alignment::AlignmentEntry;
 use crate::lifecycle::core::types::ClientId;
 
@@ -18,8 +19,8 @@ impl TickMapping {
     }
 
     /// Creates an identity mapping where client tick N maps to merged tick N.
-    pub fn identity(tick_count: usize) -> Self {
-        let mapping: Vec<Option<usize>> = (0..tick_count).map(Some).collect();
+    pub fn identity(last_tick: Tick) -> Self {
+        let mapping: Vec<Option<usize>> = (0..=last_tick.as_usize()).map(Some).collect();
         Self {
             forward: mapping.clone(),
             reverse: mapping,
@@ -28,10 +29,12 @@ impl TickMapping {
 
     /// Builds base and target tick mappings from a list of local alignments.
     pub fn from_alignment(
-        base_tick_count: usize,
-        target_tick_count: usize,
+        base_last_tick: Tick,
+        target_last_tick: Tick,
         alignments: &[Vec<AlignmentEntry>],
     ) -> Mappings {
+        let base_tick_count = base_last_tick.as_usize() + 1;
+        let target_tick_count = target_last_tick.as_usize() + 1;
         let mut base_to_merged = vec![None; base_tick_count];
         let mut target_to_merged = vec![None; target_tick_count];
 
@@ -63,21 +66,19 @@ impl TickMapping {
         // and `Insert` maps the target tick, increasing the merged tick count.
         for entries in alignments {
             let AlignmentEntry::Merge {
-                base_index: first_base,
-                ..
+                base_index: first, ..
             } = entries[0]
             else {
                 unreachable!("local alignment starts with a merge entry");
             };
             let AlignmentEntry::Merge {
-                base_index: last_base,
-                ..
+                base_index: last, ..
             } = entries[entries.len() - 1]
             else {
                 unreachable!("local alignment ends with a merge entry");
             };
 
-            while base_pos < first_base {
+            while base_pos < first {
                 base_to_merged[base_pos] = Some(merged_pos);
                 merged_pos += 1;
                 base_pos += 1;
@@ -103,7 +104,7 @@ impl TickMapping {
                 merged_pos += 1;
             }
 
-            base_pos = last_base + 1;
+            base_pos = last + 1;
         }
 
         while base_pos < base_tick_count {
@@ -132,41 +133,57 @@ impl TickMapping {
         }
 
         let merged_tick_count = merged_pos;
-        let mut merged_to_base = vec![None; merged_tick_count];
-        let mut merged_to_target = vec![None; merged_tick_count];
-
-        for (client_tick, merged_tick) in base_to_merged.iter().enumerate() {
-            if let Some(merged_tick) = merged_tick {
-                merged_to_base[*merged_tick] = Some(client_tick);
-            }
-        }
-        for (client_tick, merged_tick) in target_to_merged.iter().enumerate() {
-            if let Some(merged_tick) = merged_tick {
-                merged_to_target[*merged_tick] = Some(client_tick);
-            }
-        }
+        let merged_to_base = reverse_map(&base_to_merged, merged_tick_count);
+        let merged_to_target = reverse_map(&target_to_merged, merged_tick_count);
 
         Mappings {
             base: TickMapping::new(base_to_merged, merged_to_base),
             target: TickMapping::new(target_to_merged, merged_to_target),
-            merged_tick_count,
+            merged_last_tick: Tick::from_usize(
+                merged_tick_count
+                    .checked_sub(1)
+                    .expect("mapping is nonempty"),
+            ),
         }
     }
 
-    /// The number of client ticks in this mapping.
-    pub fn client_tick_count(&self) -> usize {
-        self.forward.len()
+    /// The last client tick covered by this mapping.
+    pub fn client_last_tick(&self) -> Tick {
+        Tick::from_usize(
+            self.forward
+                .len()
+                .checked_sub(1)
+                .expect("mapping is nonempty"),
+        )
     }
 
-    /// Maps a client tick index to its merged tick index.
-    pub fn to_merged(&self, client_tick: usize) -> Option<usize> {
-        self.forward.get(client_tick).copied().flatten()
+    /// Maps a client tick to its merged tick.
+    pub fn to_merged(&self, client_tick: Tick) -> Option<Tick> {
+        self.forward
+            .get(client_tick.as_usize())
+            .copied()
+            .flatten()
+            .map(Tick::from_usize)
     }
 
-    /// Maps a merged tick index to its client tick index.
-    pub fn to_client(&self, merged_tick: usize) -> Option<usize> {
-        self.reverse.get(merged_tick).copied().flatten()
+    /// Maps a merged tick to its client tick.
+    pub fn to_client(&self, merged_tick: Tick) -> Option<Tick> {
+        self.reverse
+            .get(merged_tick.as_usize())
+            .copied()
+            .flatten()
+            .map(Tick::from_usize)
     }
+}
+
+fn reverse_map(fwd: &[Option<usize>], count: usize) -> Vec<Option<usize>> {
+    let mut reverse = vec![None; count];
+    for (client_tick, merged_tick) in fwd.iter().enumerate() {
+        if let Some(merged_tick) = merged_tick {
+            reverse[*merged_tick] = Some(client_tick);
+        }
+    }
+    reverse
 }
 
 /// Tick mappings from a merge step.
@@ -174,7 +191,7 @@ impl TickMapping {
 pub(super) struct Mappings {
     pub base: TickMapping,
     pub target: TickMapping,
-    pub merged_tick_count: usize,
+    pub merged_last_tick: Tick,
 }
 
 #[derive(Debug)]
@@ -242,17 +259,17 @@ impl MergeMapping {
         self.in_flight.as_ref().map(|entry| &entry.mappings.target)
     }
 
-    /// The merged tick count of the in-flight step, if one is in progress.
-    pub fn merged_tick_count(&self) -> Option<usize> {
+    /// The last merged tick of the in-flight step, if one is in progress.
+    pub fn merged_last_tick(&self) -> Option<Tick> {
         self.in_flight
             .as_ref()
-            .map(|entry| entry.mappings.merged_tick_count)
+            .map(|entry| entry.mappings.merged_last_tick)
     }
 
     /// Resolves a tick index in the current merged space back to a specific
     /// client's original tick space, or `None` if the tick is not mapped.
-    pub fn resolve_client_tick(&self, merged_index: usize, client_id: ClientId) -> Option<usize> {
-        let mut current = merged_index;
+    pub fn resolve_client_tick(&self, merged: Tick, client_id: ClientId) -> Option<Tick> {
+        let mut current = merged;
 
         if let Some(entry) = &self.in_flight {
             if entry.target_client_id == client_id {
@@ -298,18 +315,18 @@ mod tests {
 
     #[test]
     fn identity_maps_every_tick_to_itself() {
-        let mapping = TickMapping::identity(5);
-        for i in 0..5 {
-            assert_eq!(mapping.to_merged(i), Some(i));
-            assert_eq!(mapping.to_client(i), Some(i));
+        let mapping = TickMapping::identity(Tick(4));
+        for tick in Tick(4).up_to_inclusive() {
+            assert_eq!(mapping.to_merged(tick), Some(tick));
+            assert_eq!(mapping.to_client(tick), Some(tick));
         }
     }
 
     #[test]
     fn identity_returns_none_for_out_of_range_ticks() {
-        let mapping = TickMapping::identity(3);
-        assert_eq!(mapping.to_merged(3), None);
-        assert_eq!(mapping.to_client(3), None);
+        let mapping = TickMapping::identity(Tick(2));
+        assert_eq!(mapping.to_merged(Tick(3)), None);
+        assert_eq!(mapping.to_client(Tick(3)), None);
     }
 
     #[test]
@@ -325,29 +342,29 @@ mod tests {
             merge(4, 5),
         ]];
 
-        let result = TickMapping::from_alignment(5, 6, &alignments);
-        assert_eq!(result.merged_tick_count, 6);
+        let result = TickMapping::from_alignment(Tick(4), Tick(5), &alignments);
+        assert_eq!(result.merged_last_tick, Tick(5));
 
-        assert_eq!(result.base.to_merged(0), Some(0));
-        assert_eq!(result.base.to_merged(1), Some(1));
-        assert_eq!(result.base.to_merged(2), Some(3));
-        assert_eq!(result.base.to_merged(3), Some(4));
-        assert_eq!(result.base.to_merged(4), Some(5));
-        assert_eq!(result.base.to_merged(5), None);
+        assert_eq!(result.base.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.base.to_merged(Tick(1)), Some(Tick(1)));
+        assert_eq!(result.base.to_merged(Tick(2)), Some(Tick(3)));
+        assert_eq!(result.base.to_merged(Tick(3)), Some(Tick(4)));
+        assert_eq!(result.base.to_merged(Tick(4)), Some(Tick(5)));
+        assert_eq!(result.base.to_merged(Tick(5)), None);
 
-        assert_eq!(result.target.to_merged(0), Some(0));
-        assert_eq!(result.target.to_merged(1), Some(1));
-        assert_eq!(result.target.to_merged(2), Some(2));
-        assert_eq!(result.target.to_merged(3), Some(3));
-        assert_eq!(result.target.to_merged(4), Some(4));
-        assert_eq!(result.target.to_merged(5), Some(5));
+        assert_eq!(result.target.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.target.to_merged(Tick(1)), Some(Tick(1)));
+        assert_eq!(result.target.to_merged(Tick(2)), Some(Tick(2)));
+        assert_eq!(result.target.to_merged(Tick(3)), Some(Tick(3)));
+        assert_eq!(result.target.to_merged(Tick(4)), Some(Tick(4)));
+        assert_eq!(result.target.to_merged(Tick(5)), Some(Tick(5)));
 
-        assert_eq!(result.base.to_client(0), Some(0));
-        assert_eq!(result.base.to_client(1), Some(1));
-        assert_eq!(result.base.to_client(2), None);
-        assert_eq!(result.base.to_client(3), Some(2));
-        assert_eq!(result.base.to_client(4), Some(3));
-        assert_eq!(result.base.to_client(5), Some(4));
+        assert_eq!(result.base.to_client(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.base.to_client(Tick(1)), Some(Tick(1)));
+        assert_eq!(result.base.to_client(Tick(2)), None);
+        assert_eq!(result.base.to_client(Tick(3)), Some(Tick(2)));
+        assert_eq!(result.base.to_client(Tick(4)), Some(Tick(3)));
+        assert_eq!(result.base.to_client(Tick(5)), Some(Tick(4)));
     }
 
     #[test]
@@ -356,19 +373,19 @@ mod tests {
         // target: 0,_,1,2
         let alignments = vec![vec![merge(0, 0), keep(1), merge(2, 1), merge(3, 2)]];
 
-        let result = TickMapping::from_alignment(4, 3, &alignments);
-        assert_eq!(result.merged_tick_count, 4);
+        let result = TickMapping::from_alignment(Tick(3), Tick(2), &alignments);
+        assert_eq!(result.merged_last_tick, Tick(3));
 
-        assert_eq!(result.base.to_merged(0), Some(0));
-        assert_eq!(result.base.to_merged(1), Some(1));
-        assert_eq!(result.base.to_merged(2), Some(2));
-        assert_eq!(result.base.to_merged(3), Some(3));
+        assert_eq!(result.base.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.base.to_merged(Tick(1)), Some(Tick(1)));
+        assert_eq!(result.base.to_merged(Tick(2)), Some(Tick(2)));
+        assert_eq!(result.base.to_merged(Tick(3)), Some(Tick(3)));
 
-        assert_eq!(result.target.to_merged(0), Some(0));
-        assert_eq!(result.target.to_merged(1), Some(2));
-        assert_eq!(result.target.to_merged(2), Some(3));
+        assert_eq!(result.target.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.target.to_merged(Tick(1)), Some(Tick(2)));
+        assert_eq!(result.target.to_merged(Tick(2)), Some(Tick(3)));
 
-        assert_eq!(result.target.to_client(1), None);
+        assert_eq!(result.target.to_client(Tick(1)), None);
     }
 
     #[test]
@@ -377,18 +394,18 @@ mod tests {
         // target: _,_,0,1,_,_
         let alignments = vec![vec![merge(2, 0), merge(3, 1)]];
 
-        let result = TickMapping::from_alignment(6, 2, &alignments);
-        assert_eq!(result.merged_tick_count, 6);
+        let result = TickMapping::from_alignment(Tick(5), Tick(1), &alignments);
+        assert_eq!(result.merged_last_tick, Tick(5));
 
-        assert_eq!(result.base.to_merged(0), Some(0));
-        assert_eq!(result.base.to_merged(1), Some(1));
-        assert_eq!(result.base.to_merged(2), Some(2));
-        assert_eq!(result.base.to_merged(3), Some(3));
-        assert_eq!(result.base.to_merged(4), Some(4));
-        assert_eq!(result.base.to_merged(5), Some(5));
+        assert_eq!(result.base.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.base.to_merged(Tick(1)), Some(Tick(1)));
+        assert_eq!(result.base.to_merged(Tick(2)), Some(Tick(2)));
+        assert_eq!(result.base.to_merged(Tick(3)), Some(Tick(3)));
+        assert_eq!(result.base.to_merged(Tick(4)), Some(Tick(4)));
+        assert_eq!(result.base.to_merged(Tick(5)), Some(Tick(5)));
 
-        assert_eq!(result.target.to_merged(0), Some(2));
-        assert_eq!(result.target.to_merged(1), Some(3));
+        assert_eq!(result.target.to_merged(Tick(0)), Some(Tick(2)));
+        assert_eq!(result.target.to_merged(Tick(1)), Some(Tick(3)));
     }
 
     #[test]
@@ -397,21 +414,21 @@ mod tests {
         // target: 0,1,2,3,_,_,_,_
         let alignments = vec![vec![merge(0, 2), merge(1, 3)]];
 
-        let result = TickMapping::from_alignment(6, 4, &alignments);
-        assert_eq!(result.merged_tick_count, 8);
+        let result = TickMapping::from_alignment(Tick(5), Tick(3), &alignments);
+        assert_eq!(result.merged_last_tick, Tick(7));
 
-        assert_eq!(result.target.to_merged(0), Some(0));
-        assert_eq!(result.target.to_merged(1), Some(1));
-        assert_eq!(result.target.to_merged(2), Some(2));
-        assert_eq!(result.target.to_merged(3), Some(3));
-        assert_eq!(result.base.to_merged(0), Some(2));
-        assert_eq!(result.base.to_merged(1), Some(3));
-        assert_eq!(result.base.to_merged(5), Some(7));
+        assert_eq!(result.target.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.target.to_merged(Tick(1)), Some(Tick(1)));
+        assert_eq!(result.target.to_merged(Tick(2)), Some(Tick(2)));
+        assert_eq!(result.target.to_merged(Tick(3)), Some(Tick(3)));
+        assert_eq!(result.base.to_merged(Tick(0)), Some(Tick(2)));
+        assert_eq!(result.base.to_merged(Tick(1)), Some(Tick(3)));
+        assert_eq!(result.base.to_merged(Tick(5)), Some(Tick(7)));
 
-        assert_eq!(result.base.to_client(0), None);
-        assert_eq!(result.base.to_client(1), None);
-        assert_eq!(result.target.to_client(0), Some(0));
-        assert_eq!(result.target.to_client(1), Some(1));
+        assert_eq!(result.base.to_client(Tick(0)), None);
+        assert_eq!(result.base.to_client(Tick(1)), None);
+        assert_eq!(result.target.to_client(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.target.to_client(Tick(1)), Some(Tick(1)));
     }
 
     #[test]
@@ -420,30 +437,30 @@ mod tests {
         // target: _,_,_,_,0,1,2,3
         let alignments = vec![vec![merge(4, 0), merge(5, 1)]];
 
-        let result = TickMapping::from_alignment(6, 4, &alignments);
-        assert_eq!(result.merged_tick_count, 8);
+        let result = TickMapping::from_alignment(Tick(5), Tick(3), &alignments);
+        assert_eq!(result.merged_last_tick, Tick(7));
 
-        assert_eq!(result.base.to_merged(0), Some(0));
-        assert_eq!(result.base.to_merged(5), Some(5));
-        assert_eq!(result.target.to_merged(0), Some(4));
-        assert_eq!(result.target.to_merged(1), Some(5));
-        assert_eq!(result.target.to_merged(2), Some(6));
-        assert_eq!(result.target.to_merged(3), Some(7));
+        assert_eq!(result.base.to_merged(Tick(0)), Some(Tick(0)));
+        assert_eq!(result.base.to_merged(Tick(5)), Some(Tick(5)));
+        assert_eq!(result.target.to_merged(Tick(0)), Some(Tick(4)));
+        assert_eq!(result.target.to_merged(Tick(1)), Some(Tick(5)));
+        assert_eq!(result.target.to_merged(Tick(2)), Some(Tick(6)));
+        assert_eq!(result.target.to_merged(Tick(3)), Some(Tick(7)));
 
-        assert_eq!(result.base.to_client(6), None);
-        assert_eq!(result.base.to_client(7), None);
-        assert_eq!(result.target.to_client(6), Some(2));
-        assert_eq!(result.target.to_client(7), Some(3));
+        assert_eq!(result.base.to_client(Tick(6)), None);
+        assert_eq!(result.base.to_client(Tick(7)), None);
+        assert_eq!(result.target.to_client(Tick(6)), Some(Tick(2)));
+        assert_eq!(result.target.to_client(Tick(7)), Some(Tick(3)));
     }
 
     #[test]
-    fn from_alignment_exposes_client_tick_count() {
+    fn from_alignment_exposes_client_duration() {
         let alignments = vec![vec![merge(0, 0), merge(1, 1)]];
 
-        let result = TickMapping::from_alignment(6, 3, &alignments);
+        let result = TickMapping::from_alignment(Tick(6), Tick(3), &alignments);
 
-        assert_eq!(result.base.client_tick_count(), 6);
-        assert_eq!(result.target.client_tick_count(), 3);
+        assert_eq!(result.base.client_last_tick(), Tick(6));
+        assert_eq!(result.target.client_last_tick(), Tick(3));
     }
 
     // The MergeMapping tests simulate a three-client merge: A (base),
@@ -463,9 +480,9 @@ mod tests {
 
     fn build_step1_mappings() -> Mappings {
         Mappings {
-            base: TickMapping::identity(5),
-            target: TickMapping::identity(5),
-            merged_tick_count: 5,
+            base: TickMapping::identity(Tick(4)),
+            target: TickMapping::identity(Tick(4)),
+            merged_last_tick: Tick(4),
         }
     }
 
@@ -477,7 +494,7 @@ mod tests {
             merge(2, 3),
             merge(3, 4),
         ]];
-        TickMapping::from_alignment(5, 5, &alignments)
+        TickMapping::from_alignment(Tick(4), Tick(4), &alignments)
     }
 
     #[test]
@@ -490,9 +507,9 @@ mod tests {
         mm.begin(CLIENT_C, build_step2_mappings());
         mm.commit();
 
-        assert_eq!(mm.resolve_client_tick(0, CLIENT_A), Some(0));
-        assert_eq!(mm.resolve_client_tick(3, CLIENT_A), Some(2));
-        assert_eq!(mm.resolve_client_tick(5, CLIENT_A), Some(4));
+        assert_eq!(mm.resolve_client_tick(Tick(0), CLIENT_A), Some(Tick(0)));
+        assert_eq!(mm.resolve_client_tick(Tick(3), CLIENT_A), Some(Tick(2)));
+        assert_eq!(mm.resolve_client_tick(Tick(5), CLIENT_A), Some(Tick(4)));
     }
 
     #[test]
@@ -505,9 +522,9 @@ mod tests {
         mm.begin(CLIENT_C, build_step2_mappings());
         mm.commit();
 
-        assert_eq!(mm.resolve_client_tick(0, CLIENT_B), Some(0));
-        assert_eq!(mm.resolve_client_tick(3, CLIENT_B), Some(2));
-        assert_eq!(mm.resolve_client_tick(5, CLIENT_B), Some(4));
+        assert_eq!(mm.resolve_client_tick(Tick(0), CLIENT_B), Some(Tick(0)));
+        assert_eq!(mm.resolve_client_tick(Tick(3), CLIENT_B), Some(Tick(2)));
+        assert_eq!(mm.resolve_client_tick(Tick(5), CLIENT_B), Some(Tick(4)));
     }
 
     #[test]
@@ -520,8 +537,8 @@ mod tests {
         mm.begin(CLIENT_C, build_step2_mappings());
         mm.commit();
 
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_C), Some(2));
-        assert_eq!(mm.resolve_client_tick(0, CLIENT_C), Some(0));
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_C), Some(Tick(2)));
+        assert_eq!(mm.resolve_client_tick(Tick(0), CLIENT_C), Some(Tick(0)));
     }
 
     #[test]
@@ -530,7 +547,7 @@ mod tests {
         mm.begin(CLIENT_B, build_step1_mappings());
         mm.commit();
 
-        assert_eq!(mm.resolve_client_tick(0, ClientId(999)), None);
+        assert_eq!(mm.resolve_client_tick(Tick(0), ClientId(999)), None);
     }
 
     #[test]
@@ -541,9 +558,9 @@ mod tests {
         mm.commit();
 
         // Tick 2 was inserted from C; it has no mapping in the other clients.
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_A), None);
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_B), None);
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_C), Some(2));
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_A), None);
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_B), None);
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_C), Some(Tick(2)));
     }
 
     #[test]
@@ -552,8 +569,8 @@ mod tests {
 
         mm.begin(CLIENT_B, build_step1_mappings());
 
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_B), Some(2));
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_A), Some(2));
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_B), Some(Tick(2)));
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_A), Some(Tick(2)));
     }
 
     #[test]
@@ -563,8 +580,8 @@ mod tests {
         mm.begin(CLIENT_B, build_step1_mappings());
         mm.discard();
 
-        assert_eq!(mm.resolve_client_tick(0, CLIENT_B), None);
-        assert_eq!(mm.resolve_client_tick(0, CLIENT_A), Some(0));
+        assert_eq!(mm.resolve_client_tick(Tick(0), CLIENT_B), None);
+        assert_eq!(mm.resolve_client_tick(Tick(0), CLIENT_A), Some(Tick(0)));
     }
 
     #[test]
@@ -576,10 +593,10 @@ mod tests {
 
         mm.begin(CLIENT_C, build_step2_mappings());
 
-        assert_eq!(mm.resolve_client_tick(4, CLIENT_B), Some(3));
+        assert_eq!(mm.resolve_client_tick(Tick(4), CLIENT_B), Some(Tick(3)));
         // Tick 2 was inserted from C; it has no mapping in the other clients.
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_A), None);
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_B), None);
-        assert_eq!(mm.resolve_client_tick(2, CLIENT_C), Some(2));
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_A), None);
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_B), None);
+        assert_eq!(mm.resolve_client_tick(Tick(2), CLIENT_C), Some(Tick(2)));
     }
 }

@@ -9,6 +9,7 @@ use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
     ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
+use crate::merging::Ticks;
 use crate::metrics;
 use crate::price::PriceResolver;
 use crate::redis::Store;
@@ -82,7 +83,7 @@ pub struct StoredState {
     /// Party members in order.
     pub players: Vec<StoredPlayerInfo>,
     /// Tick count so far.
-    pub challenge_ticks: u32,
+    pub challenge_ticks: Ticks,
     /// Type-specific processor state persisted across runs.
     pub custom_data: Option<serde_json::Value>,
 }
