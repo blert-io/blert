@@ -2,7 +2,7 @@
 
 use crate::item::{self, ItemDelta};
 use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
-use crate::merging::{self, MergedEvents};
+use crate::merging::{self, MergedEvents, Tick};
 use crate::proto::{Event, event};
 
 use super::ChallengeInfo;
@@ -87,7 +87,7 @@ pub fn interpret(
     }
 
     if party_changed {
-        events.restrict_accuracy_to(0);
+        events.restrict_accuracy_to(Tick(0));
     }
 
     Ok(InterpretOutput { events, kept, ctx })
@@ -177,6 +177,7 @@ mod tests {
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage,
     };
+    use crate::merging::Ticks;
     use crate::proto::ChallengeEvents;
     use crate::proto::event::player::EquipmentSlot;
 
@@ -361,7 +362,7 @@ mod tests {
                 _stage: Stage,
                 events: &MergedEvents,
             ) -> Result<ChallengeTicks, db::Error> {
-                Ok(ChallengeTicks::Add(events.last_tick()))
+                Ok(ChallengeTicks::Add(events.duration()))
             }
 
             async fn on_finish(
@@ -369,7 +370,7 @@ mod tests {
                 _txn: &db::Transaction,
                 _stored: &super::super::StoredState,
                 _ctx: &mut ChallengeContext,
-                _final_ticks: u32,
+                _final_ticks: Ticks,
             ) -> Result<(), db::Error> {
                 Ok(())
             }
@@ -390,7 +391,7 @@ mod tests {
         let marker = |tick: u32, x_coord: i32| {
             let room_id = 40_000 + u64::try_from(x_coord).expect("nonnegative");
             let mut event = crate::merging::fixtures::mokhaiotl_larva_leak_event(
-                tick,
+                crate::merging::Tick(tick),
                 Stage::MokhaiotlDelve1,
                 room_id,
                 5,

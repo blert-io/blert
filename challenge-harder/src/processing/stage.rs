@@ -184,7 +184,7 @@ async fn persist(
         stage = ?challenge.stage,
         total_events,
         queryable_events,
-        queryable_until,
+        %queryable_until,
         "challenge_stage_events_saved",
     );
     metrics::record_queryable_events(challenge.stage, queryable_events);
@@ -196,7 +196,7 @@ fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingP
     match result {
         Ok(output) => ProcessingPayload::Stage {
             status: output.events.status(),
-            ticks: output.events.last_tick(),
+            ticks: output.events.duration().0,
         },
         // TODO(frolv): Handle errors.
         Err(InterpretError::NoData) => ProcessingPayload::None,
@@ -214,6 +214,7 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ServerTicks, Stage, StageStatus,
         StageUpdate, Uuid,
     };
+    use crate::merging::Tick;
     use crate::proto::ChallengeEvents;
 
     fn test_uuid() -> Uuid {
@@ -234,7 +235,7 @@ mod tests {
                 .iter()
                 .map(|&tick| {
                     crate::merging::fixtures::mokhaiotl_larva_leak_event(
-                        tick,
+                        crate::merging::Tick(tick),
                         Stage::MokhaiotlDelve1,
                         40_000 + u64::from(tick),
                         5,
@@ -295,13 +296,13 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(result.events.status(), StageStatus::Completed);
-        assert_eq!(result.events.last_tick(), 200);
+        assert_eq!(result.events.last_tick(), Tick(200));
     }
 
     #[test]
     fn client_without_a_report_processes_from_its_events() {
         let result = run_interpret(vec![events(1, &[0, 1, 4])]).unwrap();
         assert_eq!(result.events.status(), StageStatus::Started);
-        assert_eq!(result.events.last_tick(), 4);
+        assert_eq!(result.events.last_tick(), Tick(4));
     }
 }

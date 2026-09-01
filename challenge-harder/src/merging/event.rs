@@ -3,6 +3,8 @@
 use crate::lifecycle::core::types::ClientId;
 use crate::proto::{Event, NpcAttack, PlayerAttack, event};
 
+use super::Tick;
+
 #[derive(Debug, Clone)]
 pub struct TaggedEvent(ClientId, Event);
 
@@ -48,13 +50,13 @@ pub enum MalformedEvent {
     #[error("{kind:?}:{tick} is missing required payload {field:?}")]
     MissingPayload {
         kind: event::Type,
-        tick: u32,
+        tick: Tick,
         field: &'static str,
     },
     #[error("{kind:?}:{tick} has out-of-domain {field:?} value {value}")]
     OutOfDomain {
         kind: event::Type,
-        tick: u32,
+        tick: Tick,
         field: &'static str,
         value: String,
     },
@@ -71,7 +73,7 @@ pub(super) fn validate(event: &Event) -> Result<(), MalformedEvent> {
         } else {
             Err(MalformedEvent::MissingPayload {
                 kind,
-                tick: event.tick,
+                tick: Tick(event.tick),
                 field,
             })
         }
@@ -80,7 +82,7 @@ pub(super) fn validate(event: &Event) -> Result<(), MalformedEvent> {
     match kind {
         event::Type::Unspecified => Err(MalformedEvent::MissingPayload {
             kind,
-            tick: event.tick,
+            tick: Tick(event.tick),
             field: "type",
         }),
 
@@ -289,15 +291,18 @@ pub(super) fn normalize_npc_attack(attack: NpcAttack) -> NpcAttack {
 }
 
 /// Rewrites all of an event's tick references with a mapping function.
-pub(super) fn remap_event_tick(event: &mut Event, remap: impl Fn(u32) -> u32) {
+pub(super) fn remap_event_tick(event: &mut Event, remap: impl Fn(Tick) -> Tick) {
     debug_assert_ne!(classify(event.r#type()), Class::TickState);
+
+    // TODO(frolv): eventually unpack proto events...
+    let t = |tick: u32| remap(Tick(tick)).0;
 
     match event.r#type() {
         event::Type::TobXarpusExhumed => {
             let exhumed = event.xarpus_exhumed.as_mut().expect("validated at build");
-            exhumed.spawn_tick = remap(exhumed.spawn_tick);
+            exhumed.spawn_tick = t(exhumed.spawn_tick);
             for heal_tick in &mut exhumed.heal_ticks {
-                *heal_tick = remap(*heal_tick);
+                *heal_tick = t(*heal_tick);
             }
         }
         event::Type::TobVerzikAttackStyle => {
@@ -305,25 +310,27 @@ pub(super) fn remap_event_tick(event: &mut Event, remap: impl Fn(u32) -> u32) {
                 .verzik_attack_style
                 .as_mut()
                 .expect("validated at build");
-            style.npc_attack_tick = remap(style.npc_attack_tick);
+            style.npc_attack_tick = t(style.npc_attack_tick);
         }
         event::Type::TobVerzikBounce => {
             let bounce = event.verzik_bounce.as_mut().expect("validated at build");
-            bounce.npc_attack_tick = remap(bounce.npc_attack_tick.cast_unsigned()).cast_signed();
+            // signed for hysterical reasons
+            let remapped = t(bounce.npc_attack_tick.cast_unsigned());
+            bounce.npc_attack_tick = remapped.cast_signed();
         }
         event::Type::TobVerzikDawn => {
             let dawn = event.verzik_dawn.as_mut().expect("validated at build");
-            dawn.attack_tick = remap(dawn.attack_tick);
+            dawn.attack_tick = t(dawn.attack_tick);
         }
         event::Type::MokhaiotlAttackStyle => {
             let style = event
                 .mokhaiotl_attack_style
                 .as_mut()
                 .expect("validated at build");
-            style.npc_attack_tick = remap(style.npc_attack_tick);
+            style.npc_attack_tick = t(style.npc_attack_tick);
         }
         _ => {}
     }
 
-    event.tick = remap(event.tick);
+    event.tick = t(event.tick);
 }

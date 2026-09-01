@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
+use crate::merging::Tick;
 use crate::proto::{Event, event};
 use crate::skill::SkillLevel;
 
@@ -352,7 +353,7 @@ pub(super) async fn update_challenge_row(
     txn.execute(
         statement,
         &[
-            &ticks.cast_signed(),
+            &ticks.0.cast_signed(),
             &i32::try_from(new_deaths).expect("death count fits in an integer"),
             &txn.challenge_id(),
         ],
@@ -386,14 +387,14 @@ pub(super) async fn write_queryable_events(
     players: &[StoredPlayerInfo],
 ) -> Result<usize, db::Error> {
     let queryable_until = output.events.queryable_until();
-    if queryable_until == 0 {
+    if queryable_until == Tick(0) {
         return Ok(0);
     }
 
     let mut rows = Vec::new();
     for &index in &output.kept {
         let event = &output.events[index];
-        if event.tick < queryable_until
+        if Tick(event.tick) < queryable_until
             && let Some(row) = to_queryable_event(event, &output.ctx, players)
         {
             rows.push(row);

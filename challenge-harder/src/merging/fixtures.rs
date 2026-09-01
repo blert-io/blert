@@ -12,13 +12,13 @@ use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
 use crate::skill::SkillLevel;
 
 use super::client_consistency::ConsistencyIssue;
-use super::client_events::{ClientEvents, StageData};
+use super::client_events::{ClientEvents, ReportedInfo, StageData};
 use super::event::TaggedEvent;
 use super::mapping::MergeMapping;
 use super::timeline::Timeline;
 use super::{
     ChallengeInfo, Classification, MergeContext, MergeStatus, MergedEvents, Metadata,
-    RegisteredClient,
+    RegisteredClient, Tick, Ticks,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -43,17 +43,17 @@ pub fn merged_events(
         events,
         Metadata {
             status,
-            last_tick,
+            last_tick: Tick(last_tick),
             missing_tick_count: last_tick.saturating_sub(recorded_ticks),
             offset: match server_ticks {
                 ServerTicks::Precise(_) | ServerTicks::Rounded(_) => {
-                    last_tick.saturating_sub(recorded_ticks)
+                    Ticks(last_tick.saturating_sub(recorded_ticks))
                 }
-                ServerTicks::Missing => 0,
+                ServerTicks::Missing => Ticks(0),
             },
             precise_server_tick_count: matches!(server_ticks, ServerTicks::Precise(_)),
-            accurate_until: 0,
-            queryable_until: 0,
+            accurate_until: Tick(0),
+            queryable_until: Tick(0),
         },
     )
 }
@@ -76,17 +76,17 @@ pub(super) fn challenge_info(
 pub(super) struct ClientBuilder {
     id: ClientId,
     stage: Stage,
-    recorded_ticks: u32,
+    last_recorded_tick: Tick,
     primary_player: Option<String>,
     consistency_issues: Vec<ConsistencyIssue>,
 }
 
 impl ClientBuilder {
-    pub(super) fn new(id: i64, stage: Stage, recorded_ticks: u32) -> Self {
+    pub(super) fn new(id: i64, stage: Stage, last_recorded_tick: Tick) -> Self {
         Self {
             id: ClientId(id),
             stage,
-            recorded_ticks,
+            last_recorded_tick,
             primary_player: None,
             consistency_issues: Vec::new(),
         }
@@ -104,15 +104,18 @@ impl ClientBuilder {
 
     pub(super) fn build(self) -> ClientEvents {
         ClientEvents {
-            id: self.id,
-            metadata: None,
-            primary_player: self.primary_player,
-            status: StageStatus::Completed,
-            reported_accurate: true,
+            info: ReportedInfo {
+                id: self.id,
+                plugin_info: None,
+                primary_player: self.primary_player,
+                status: StageStatus::Completed,
+                reported_accurate: true,
+                last_recorded_tick: self.last_recorded_tick,
+                server_ticks: None,
+            },
+            timeline: Timeline::build(&[], self.last_recorded_tick, Vec::new())
+                .expect("an empty recording is well formed"),
             accurate: true,
-            recorded_ticks: self.recorded_ticks,
-            server_ticks: None,
-            timeline: Timeline::new(),
             stage_data: StageData::new(self.stage),
             anomalies: Vec::new(),
             consistency_issues: self.consistency_issues,
@@ -146,7 +149,7 @@ impl<'a> MergeContextBuilder<'a> {
     pub(super) fn recording(
         mut self,
         accurate: bool,
-        recorded_ticks: u32,
+        last_recorded_tick: Tick,
         events: Vec<Event>,
     ) -> Self {
         let client_id = ClientId(i64::try_from(self.clients.len() + 1).expect("few clients"));
@@ -155,16 +158,18 @@ impl<'a> MergeContextBuilder<'a> {
             .map(|event| TaggedEvent::new(client_id, event))
             .collect();
         self.clients.push(ClientEvents {
-            id: client_id,
-            metadata: None,
-            primary_player: None,
-            status: StageStatus::Completed,
-            reported_accurate: accurate,
-            accurate,
-            recorded_ticks,
-            server_ticks: None,
-            timeline: Timeline::build(self.challenge.party, recorded_ticks, events)
+            info: ReportedInfo {
+                id: client_id,
+                plugin_info: None,
+                primary_player: None,
+                status: StageStatus::Completed,
+                reported_accurate: accurate,
+                last_recorded_tick,
+                server_ticks: None,
+            },
+            timeline: Timeline::build(self.challenge.party, last_recorded_tick, events)
                 .expect("fixture events are well formed"),
+            accurate,
             stage_data: StageData::new(self.stage),
             anomalies: Vec::new(),
             consistency_issues: Vec::new(),
@@ -177,6 +182,7 @@ impl<'a> MergeContextBuilder<'a> {
             .clients
             .first()
             .expect("merge context requires at least one client")
+            .info
             .id;
         let clients = self
             .clients
@@ -201,10 +207,10 @@ impl<'a> MergeContextBuilder<'a> {
     }
 }
 
-pub(super) fn timeline(party: &[String], recorded_ticks: u32, events: Vec<Event>) -> Timeline {
+pub(super) fn timeline(party: &[String], last_recorded_tick: Tick, events: Vec<Event>) -> Timeline {
     Timeline::build(
         party,
-        recorded_ticks,
+        last_recorded_tick,
         events
             .into_iter()
             .map(|event| TaggedEvent::new(ClientId(1), event))
@@ -214,7 +220,7 @@ pub(super) fn timeline(party: &[String], recorded_ticks: u32, events: Vec<Event>
 }
 
 pub struct PlayerUpdateEvent<'a> {
-    tick: u32,
+    tick: Tick,
     stage: Stage,
     name: &'a str,
     coords: (i32, i32),
@@ -225,7 +231,7 @@ pub struct PlayerUpdateEvent<'a> {
 }
 
 impl<'a> PlayerUpdateEvent<'a> {
-    pub fn new(tick: u32, stage: Stage, name: &'a str, coords: (i32, i32)) -> Self {
+    pub fn new(tick: Tick, stage: Stage, name: &'a str, coords: (i32, i32)) -> Self {
         Self {
             tick,
             stage,
@@ -255,7 +261,7 @@ impl<'a> PlayerUpdateEvent<'a> {
 
     pub fn build(self) -> Event {
         let mut event = Event {
-            tick: self.tick,
+            tick: self.tick.0,
             stage: self.stage as i32,
             x_coord: self.coords.0,
             y_coord: self.coords.1,
@@ -280,7 +286,7 @@ impl<'a> PlayerUpdateEvent<'a> {
 
 #[derive(Clone, Copy)]
 pub struct PlayerAttackEvent<'a> {
-    pub tick: u32,
+    pub tick: Tick,
     pub stage: Stage,
     pub coords: (i32, i32),
     pub name: &'a str,
@@ -293,7 +299,7 @@ pub struct PlayerAttackEvent<'a> {
 
 pub fn player_attack_event(options: PlayerAttackEvent<'_>) -> Event {
     let mut event = Event {
-        tick: options.tick,
+        tick: options.tick.0,
         stage: options.stage as i32,
         x_coord: options.coords.0,
         y_coord: options.coords.1,
@@ -319,14 +325,14 @@ pub fn player_attack_event(options: PlayerAttackEvent<'_>) -> Event {
 }
 
 pub fn player_death_event(
-    tick: u32,
+    tick: Tick,
     stage: Stage,
     coords: (i32, i32),
     name: &str,
     party_index: u32,
 ) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: stage as i32,
         x_coord: coords.0,
         y_coord: coords.1,
@@ -343,7 +349,7 @@ pub fn player_death_event(
 
 #[derive(Clone, Copy, Default)]
 pub struct NpcEvent {
-    pub tick: u32,
+    pub tick: Tick,
     pub stage: Stage,
     pub coords: (i32, i32),
     pub npc_id: u32,
@@ -355,7 +361,7 @@ pub struct NpcEvent {
 
 fn npc_event(event_type: event::Type, options: NpcEvent) -> Event {
     let mut event = Event {
-        tick: options.tick,
+        tick: options.tick.0,
         stage: options.stage as i32,
         x_coord: options.coords.0,
         y_coord: options.coords.1,
@@ -385,7 +391,7 @@ pub fn npc_death_event(options: NpcEvent) -> Event {
 }
 
 pub fn npc_attack_event(
-    tick: u32,
+    tick: Tick,
     stage: Stage,
     coords: (i32, i32),
     npc_id: u32,
@@ -394,7 +400,7 @@ pub fn npc_attack_event(
     target: Option<&str>,
 ) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: stage as i32,
         x_coord: coords.0,
         y_coord: coords.1,
@@ -417,9 +423,14 @@ pub fn maiden_crab_leak_event(options: NpcEvent) -> Event {
     npc_event(event::Type::TobMaidenCrabLeak, options)
 }
 
-pub fn bloat_down_event(tick: u32, coords: (i32, i32), down_number: u32, up_ticks: u32) -> Event {
+pub fn bloat_down_event(
+    tick: Tick,
+    coords: (i32, i32),
+    down_number: u32,
+    up_ticks: Ticks,
+) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobBloat as i32,
         x_coord: coords.0,
         y_coord: coords.1,
@@ -428,14 +439,14 @@ pub fn bloat_down_event(tick: u32, coords: (i32, i32), down_number: u32, up_tick
     event.set_type(event::Type::TobBloatDown);
     event.bloat_down = Some(event::BloatDown {
         down_number,
-        up_ticks,
+        up_ticks: up_ticks.0,
     });
     event
 }
 
-pub fn bloat_up_event(tick: u32) -> Event {
+pub fn bloat_up_event(tick: Tick) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobBloat as i32,
         ..Default::default()
     };
@@ -443,9 +454,9 @@ pub fn bloat_up_event(tick: u32) -> Event {
     event
 }
 
-pub fn bloat_hands_drop_event(tick: u32, hands: &[(i32, i32)]) -> Event {
+pub fn bloat_hands_drop_event(tick: Tick, hands: &[(i32, i32)]) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobBloat as i32,
         ..Default::default()
     };
@@ -456,7 +467,7 @@ pub fn bloat_hands_drop_event(tick: u32, hands: &[(i32, i32)]) -> Event {
 
 pub fn nylo_wave_event(
     event_type: event::Type,
-    tick: u32,
+    tick: Tick,
     wave: u32,
     nylos_alive: u32,
     room_cap: u32,
@@ -466,7 +477,7 @@ pub fn nylo_wave_event(
         event::Type::TobNyloWaveSpawn | event::Type::TobNyloWaveStall
     ));
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
@@ -479,9 +490,9 @@ pub fn nylo_wave_event(
     event
 }
 
-pub fn nylo_split_event(event_type: event::Type, tick: u32) -> Event {
+pub fn nylo_split_event(event_type: event::Type, tick: Tick) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
@@ -489,9 +500,9 @@ pub fn nylo_split_event(event_type: event::Type, tick: u32) -> Event {
     event
 }
 
-pub fn sote_maze_proc_event(tick: u32, maze: Maze) -> Event {
+pub fn sote_maze_proc_event(tick: Tick, maze: Maze) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
@@ -510,7 +521,7 @@ pub enum SoteMazePath<'a> {
     UnderworldPivots(&'a [(i32, i32)]),
 }
 
-pub fn sote_maze_path_event(tick: u32, maze: Maze, path: SoteMazePath<'_>) -> Event {
+pub fn sote_maze_path_event(tick: Tick, maze: Maze, path: SoteMazePath<'_>) -> Event {
     let coords = |points: &[(i32, i32)]| points.iter().copied().map(Coords::from).collect();
     let mut sote_maze = event::SoteMaze {
         maze: maze as i32,
@@ -523,7 +534,7 @@ pub fn sote_maze_path_event(tick: u32, maze: Maze, path: SoteMazePath<'_>) -> Ev
     }
 
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
@@ -532,9 +543,9 @@ pub fn sote_maze_path_event(tick: u32, maze: Maze, path: SoteMazePath<'_>) -> Ev
     event
 }
 
-pub fn sote_maze_end_event(tick: u32, maze: Maze, chosen_player: Option<&str>) -> Event {
+pub fn sote_maze_end_event(tick: Tick, maze: Maze, chosen_player: Option<&str>) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
@@ -547,24 +558,24 @@ pub fn sote_maze_end_event(tick: u32, maze: Maze, chosen_player: Option<&str>) -
     event
 }
 
-pub fn xarpus_exhumed_event(tick: u32, spawn_tick: u32, heal_ticks: &[u32]) -> Event {
+pub fn xarpus_exhumed_event(tick: Tick, spawn_tick: Tick, heal_ticks: &[Tick]) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobXarpus as i32,
         ..Default::default()
     };
     event.set_type(event::Type::TobXarpusExhumed);
     event.xarpus_exhumed = Some(event::XarpusExhumed {
-        spawn_tick,
-        heal_ticks: heal_ticks.to_vec(),
+        spawn_tick: spawn_tick.0,
+        heal_ticks: heal_ticks.iter().map(|t| t.0).collect(),
         ..Default::default()
     });
     event
 }
 
-pub fn xarpus_phase_event(tick: u32, phase: XarpusPhase) -> Event {
+pub fn xarpus_phase_event(tick: Tick, phase: XarpusPhase) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobXarpus as i32,
         ..Default::default()
     };
@@ -573,9 +584,9 @@ pub fn xarpus_phase_event(tick: u32, phase: XarpusPhase) -> Event {
     event
 }
 
-pub fn verzik_phase_event(tick: u32, phase: VerzikPhase) -> Event {
+pub fn verzik_phase_event(tick: Tick, phase: VerzikPhase) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
@@ -585,20 +596,20 @@ pub fn verzik_phase_event(tick: u32, phase: VerzikPhase) -> Event {
 }
 
 pub fn verzik_bounce_event(
-    tick: u32,
-    npc_attack_tick: u32,
+    tick: Tick,
+    npc_attack_tick: Tick,
     players_in_range: u32,
     players_not_in_range: u32,
     bounced_player: Option<&str>,
 ) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     event.set_type(event::Type::TobVerzikBounce);
     event.verzik_bounce = Some(event::VerzikBounce {
-        npc_attack_tick: npc_attack_tick.cast_signed(),
+        npc_attack_tick: npc_attack_tick.0.cast_signed(),
         players_in_range,
         players_not_in_range,
         bounced_player: bounced_player.map(str::to_string),
@@ -606,47 +617,47 @@ pub fn verzik_bounce_event(
     event
 }
 
-pub fn verzik_attack_style_event(tick: u32, npc_attack_tick: u32, style: Style) -> Event {
+pub fn verzik_attack_style_event(tick: Tick, npc_attack_tick: Tick, style: Style) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     event.set_type(event::Type::TobVerzikAttackStyle);
     event.verzik_attack_style = Some(event::AttackStyle {
         style: style as i32,
-        npc_attack_tick,
+        npc_attack_tick: npc_attack_tick.0,
     });
     event
 }
 
 pub fn mokhaiotl_attack_style_event(
-    tick: u32,
+    tick: Tick,
     stage: Stage,
     style: Style,
-    npc_attack_tick: u32,
+    npc_attack_tick: Tick,
 ) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: stage as i32,
         ..Default::default()
     };
     event.set_type(event::Type::MokhaiotlAttackStyle);
     event.mokhaiotl_attack_style = Some(event::AttackStyle {
         style: style as i32,
-        npc_attack_tick,
+        npc_attack_tick: npc_attack_tick.0,
     });
     event
 }
 
 pub fn mokhaiotl_larva_leak_event(
-    tick: u32,
+    tick: Tick,
     stage: Stage,
     room_id: u64,
     heal_amount: u32,
 ) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: stage as i32,
         ..Default::default()
     };
@@ -659,13 +670,13 @@ pub fn mokhaiotl_larva_leak_event(
 }
 
 pub fn colosseum_handicap_choice_event(
-    tick: u32,
+    tick: Tick,
     stage: Stage,
     handicap: event::ColosseumHandicap,
     options: &[event::ColosseumHandicap],
 ) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: stage as i32,
         ..Default::default()
     };
@@ -675,16 +686,21 @@ pub fn colosseum_handicap_choice_event(
     event
 }
 
-pub fn inferno_wave_start_event(tick: u32, stage: Stage, wave: u32, overall_ticks: u32) -> Event {
+pub fn inferno_wave_start_event(
+    tick: Tick,
+    stage: Stage,
+    wave: u32,
+    overall_ticks: Ticks,
+) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: stage as i32,
         ..Default::default()
     };
     event.set_type(event::Type::InfernoWaveStart);
     event.inferno_wave_start = Some(event::InfernoWaveStart {
         wave,
-        overall_ticks,
+        overall_ticks: overall_ticks.0,
     });
     event
 }

@@ -10,10 +10,10 @@ use crate::proto::{Coords, Event, Stage, event};
 use super::client_events::StageData;
 use super::timeline::{TickState, Timeline};
 use super::world;
-use super::{MergeContext, MergeStatus, RegisteredClient};
+use super::{MergeContext, MergeStatus, RegisteredClient, Tick, Ticks};
 
 const FINAL_NYLO_WAVE: u32 = 31;
-const NYLO_WAVE_CYCLE: u32 = 4;
+const NYLO_WAVE_CYCLE: Ticks = Ticks(4);
 
 /// Recomputes a stage's derived events from its merged timeline.
 pub(super) fn derive_events(ctx: &MergeContext, timeline: &mut Timeline) {
@@ -24,9 +24,9 @@ pub(super) fn derive_events(ctx: &MergeContext, timeline: &mut Timeline) {
     }
 }
 
-fn nylocas_event(kind: event::Type, tick: u32) -> Event {
+fn nylocas_event(kind: event::Type, tick: Tick) -> Event {
     let mut event = Event {
-        tick,
+        tick: tick.0,
         stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
@@ -54,7 +54,7 @@ fn derive_nylocas_events(mode: ChallengeMode, timeline: &mut Timeline) {
     let mut room_cap = 0;
     let mut next_stall_tick = None;
 
-    for tick in 0..timeline.tick_count() {
+    for tick in timeline.last_tick().up_to_inclusive() {
         if let Some(state) = timeline.get_mut(tick) {
             let boss = state
                 .npcs()
@@ -107,7 +107,7 @@ fn derive_nylocas_events(mode: ChallengeMode, timeline: &mut Timeline) {
 
 // TODO(frolv): kill this useless event
 fn derive_verzik_events(timeline: &mut Timeline) {
-    for tick in 0..timeline.tick_count() {
+    for tick in timeline.last_tick().up_to_inclusive() {
         let Some(state) = timeline.get_mut(tick) else {
             continue;
         };
@@ -119,7 +119,7 @@ fn derive_verzik_events(timeline: &mut Timeline) {
 
         if reds_spawned {
             let mut event = Event {
-                tick,
+                tick: tick.0,
                 stage: Stage::TobVerzik as i32,
                 ..Default::default()
             };
@@ -158,10 +158,10 @@ fn merge_sote_pivots(ctx: &MergeContext, timeline: &mut Timeline) {
         for report in pivots {
             let entry = by_maze.entry(report.maze).or_default();
             for &coord in &report.overworld {
-                entry.overworld.entry(coord).or_insert(client.id);
+                entry.overworld.entry(coord).or_insert(client.info.id);
             }
             for &coord in &report.underworld {
-                entry.underworld.entry(coord).or_insert(client.id);
+                entry.underworld.entry(coord).or_insert(client.info.id);
             }
         }
     }
@@ -170,17 +170,11 @@ fn merge_sote_pivots(ctx: &MergeContext, timeline: &mut Timeline) {
         return;
     }
 
-    let mut end_ticks: BTreeMap<Maze, u32> = BTreeMap::new();
-    for (tick, state) in timeline.ticks().iter().enumerate() {
-        let Some(state) = state else {
-            continue;
-        };
+    let mut end_ticks: BTreeMap<Maze, Tick> = BTreeMap::new();
+    for state in timeline.tick_states().iter().flatten() {
         for event in state.events_of_type(event::Type::TobSoteMazeEnd) {
             if let Some(maze) = &event.sote_maze {
-                end_ticks.insert(
-                    maze.maze(),
-                    u32::try_from(tick).expect("tick count is small"),
-                );
+                end_ticks.insert(maze.maze(), state.tick());
             }
         }
     }
@@ -194,7 +188,7 @@ fn merge_sote_pivots(ctx: &MergeContext, timeline: &mut Timeline) {
         };
 
         let mut event = Event {
-            tick,
+            tick: tick.0,
             stage: ctx.stage as i32,
             ..Default::default()
         };
@@ -219,7 +213,7 @@ fn sort_pivots(pivots: BTreeMap<Coords, ClientId>) -> Vec<Coords> {
 mod tests {
     use super::*;
     use crate::lifecycle::core::types::{ChallengeMode, StageStatus};
-    use crate::merging::client_events::{ClientEvents, SotePivots};
+    use crate::merging::client_events::{ClientEvents, ReportedInfo, SotePivots};
     use crate::merging::mapping::MergeMapping;
     use crate::merging::{ChallengeInfo, Classification, fixtures};
 
@@ -230,17 +224,24 @@ mod tests {
         fixtures::challenge_info(stage, mode, &PARTY)
     }
 
-    fn client_with_pivots(id: i64, recorded_ticks: u32, pivots: Vec<SotePivots>) -> ClientEvents {
+    fn client_with_pivots(
+        id: i64,
+        last_recorded_tick: Tick,
+        pivots: Vec<SotePivots>,
+    ) -> ClientEvents {
         ClientEvents {
-            id: ClientId(id),
-            metadata: None,
-            primary_player: None,
-            status: StageStatus::Completed,
-            reported_accurate: true,
+            info: ReportedInfo {
+                id: ClientId(id),
+                plugin_info: None,
+                primary_player: None,
+                status: StageStatus::Completed,
+                reported_accurate: true,
+                last_recorded_tick,
+                server_ticks: None,
+            },
+            timeline: Timeline::build(&[], last_recorded_tick, Vec::new())
+                .expect("an empty recording is well formed"),
             accurate: true,
-            recorded_ticks,
-            server_ticks: None,
-            timeline: Timeline::new(),
             stage_data: StageData::Sotetseg { pivots },
             anomalies: Vec::new(),
             consistency_issues: Vec::new(),
@@ -249,7 +250,7 @@ mod tests {
 
     fn maze_paths(timeline: &Timeline) -> Vec<(u32, Maze, Vec<Coords>, Vec<Coords>)> {
         timeline
-            .ticks()
+            .tick_states()
             .iter()
             .flatten()
             .flat_map(|state| state.events_of_type(event::Type::TobSoteMazePath))
@@ -267,15 +268,15 @@ mod tests {
 
     #[test]
     fn all_clients_pivots_consolidate_as_one_event() {
-        const TICKS: u32 = 169;
+        const LAST_TICK: Tick = Tick(169);
         let mut timeline = fixtures::timeline(
             &PARTY,
-            TICKS,
+            LAST_TICK,
             vec![
-                fixtures::sote_maze_proc_event(40, Maze::Maze66),
-                fixtures::sote_maze_end_event(64, Maze::Maze66, Some("1Ogp")),
-                fixtures::sote_maze_proc_event(106, Maze::Maze33),
-                fixtures::sote_maze_end_event(124, Maze::Maze33, Some("1Ogp")),
+                fixtures::sote_maze_proc_event(Tick(40), Maze::Maze66),
+                fixtures::sote_maze_end_event(Tick(64), Maze::Maze66, Some("1Ogp")),
+                fixtures::sote_maze_proc_event(Tick(106), Maze::Maze33),
+                fixtures::sote_maze_end_event(Tick(124), Maze::Maze33, Some("1Ogp")),
             ],
         );
         let challenge = challenge_for(Stage::TobSotetseg, ChallengeMode::TobRegular);
@@ -288,7 +289,7 @@ mod tests {
                 RegisteredClient {
                     client: client_with_pivots(
                         1,
-                        TICKS,
+                        LAST_TICK,
                         vec![
                             SotePivots {
                                 maze: Maze::Maze66,
@@ -307,7 +308,7 @@ mod tests {
                 RegisteredClient {
                     client: client_with_pivots(
                         2,
-                        TICKS,
+                        LAST_TICK,
                         vec![SotePivots {
                             maze: Maze::Maze66,
                             overworld: Vec::new(),
@@ -342,11 +343,11 @@ mod tests {
 
     #[test]
     fn missing_maze_end_does_not_emit_pivots() {
-        const TICKS: u32 = 120;
+        const LAST_TICK: Tick = Tick(120);
         let mut timeline = fixtures::timeline(
             &PARTY,
-            TICKS,
-            vec![fixtures::sote_maze_proc_event(106, Maze::Maze33)],
+            LAST_TICK,
+            vec![fixtures::sote_maze_proc_event(Tick(106), Maze::Maze33)],
         );
         let challenge = challenge_for(Stage::TobSotetseg, ChallengeMode::TobRegular);
         let ctx = MergeContext {
@@ -357,7 +358,7 @@ mod tests {
             clients: vec![RegisteredClient {
                 client: client_with_pivots(
                     1,
-                    TICKS,
+                    LAST_TICK,
                     vec![SotePivots {
                         maze: Maze::Maze33,
                         overworld: vec![(7, 0).into()],
@@ -375,12 +376,12 @@ mod tests {
 
     #[test]
     fn unmerged_client_pivots_are_excluded() {
-        const TICKS: u32 = 15;
+        const LAST_TICK: Tick = Tick(15);
         let mut timeline = fixtures::timeline(
             &PARTY,
-            TICKS,
+            LAST_TICK,
             vec![fixtures::sote_maze_end_event(
-                10,
+                Tick(10),
                 Maze::Maze33,
                 Some("1Ogp"),
             )],
@@ -395,7 +396,7 @@ mod tests {
                 RegisteredClient {
                     client: client_with_pivots(
                         1,
-                        TICKS,
+                        LAST_TICK,
                         vec![SotePivots {
                             maze: Maze::Maze33,
                             overworld: Vec::new(),
@@ -407,7 +408,7 @@ mod tests {
                 RegisteredClient {
                     client: client_with_pivots(
                         2,
-                        TICKS,
+                        LAST_TICK,
                         vec![SotePivots {
                             maze: Maze::Maze33,
                             overworld: Vec::new(),
@@ -433,8 +434,9 @@ mod tests {
     }
 
     /// A room's events with a player update on every tick.
-    fn room_events(stage: Stage, ticks: u32, actors: Vec<Event>) -> Vec<Event> {
-        let mut events: Vec<Event> = (0..=ticks)
+    fn room_events(stage: Stage, last_tick: Tick, actors: Vec<Event>) -> Vec<Event> {
+        let mut events: Vec<Event> = last_tick
+            .up_to_inclusive()
             .map(|tick| fixtures::PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0)).build())
             .collect();
         events.extend(actors);
@@ -442,7 +444,7 @@ mod tests {
         events
     }
 
-    fn npc_updates(stage: Stage, tick: u32, ids: &[u32]) -> Vec<Event> {
+    fn npc_updates(stage: Stage, tick: Tick, ids: &[u32]) -> Vec<Event> {
         ids.iter()
             .zip(36000u64..)
             .map(|(&npc_id, room_id)| {
@@ -461,7 +463,7 @@ mod tests {
         timeline: &Timeline,
     ) -> Vec<(u32, event::Type, Option<event::NyloWave>, Coords)> {
         timeline
-            .ticks()
+            .tick_states()
             .iter()
             .flatten()
             .flat_map(|state| {
@@ -488,26 +490,29 @@ mod tests {
 
     #[test]
     fn wave_stalls_are_emitted_every_cycle_while_above_cap() {
-        const TICKS: u32 = 163;
+        const LAST_TICK: Tick = Tick(163);
         const ROOM_CAP: u32 = 12;
 
         let mut events = vec![fixtures::nylo_wave_event(
             event::Type::TobNyloWaveSpawn,
-            140,
+            Tick(140),
             19,
             ROOM_CAP,
             ROOM_CAP,
         )];
-        events.extend(npc_updates(Stage::TobNylocas, 148, &[MELEE; 13])); // nat
-        events.extend(npc_updates(Stage::TobNylocas, 152, &[MELEE; 12])); // stall
-        events.extend(npc_updates(Stage::TobNylocas, 156, &[MELEE; 12])); // stall
-        events.extend(npc_updates(Stage::TobNylocas, 160, &[MELEE; 11])); // w20
+        events.extend(npc_updates(Stage::TobNylocas, Tick(148), &[MELEE; 13])); // nat
+        events.extend(npc_updates(Stage::TobNylocas, Tick(152), &[MELEE; 12])); // stall
+        events.extend(npc_updates(Stage::TobNylocas, Tick(156), &[MELEE; 12])); // stall
+        events.extend(npc_updates(Stage::TobNylocas, Tick(160), &[MELEE; 11])); // w20
 
-        let mut timeline =
-            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
+        let mut timeline = fixtures::timeline(
+            &PARTY,
+            LAST_TICK,
+            room_events(Stage::TobNylocas, LAST_TICK, events),
+        );
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, TICKS, vec![])
+            .recording(true, LAST_TICK, vec![])
             .build();
 
         derive_events(&ctx, &mut timeline);
@@ -541,25 +546,28 @@ mod tests {
 
     #[test]
     fn cleanup_end_is_emitted_once_all_nylos_are_dead() {
-        const TICKS: u32 = 300;
+        const LAST_TICK: Tick = Tick(300);
         const ROOM_CAP: u32 = 24;
 
         let mut events = vec![fixtures::nylo_wave_event(
             event::Type::TobNyloWaveSpawn,
-            252,
+            Tick(252),
             FINAL_NYLO_WAVE,
             3,
             ROOM_CAP,
         )];
-        for tick in 252..=280 {
+        for tick in Tick(252).through(Tick(280)) {
             events.extend(npc_updates(Stage::TobNylocas, tick, &[MELEE; 3]));
         }
 
-        let mut timeline =
-            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
+        let mut timeline = fixtures::timeline(
+            &PARTY,
+            LAST_TICK,
+            room_events(Stage::TobNylocas, LAST_TICK, events),
+        );
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, TICKS, vec![])
+            .recording(true, LAST_TICK, vec![])
             .build();
 
         derive_events(&ctx, &mut timeline);
@@ -572,10 +580,10 @@ mod tests {
 
     #[test]
     fn boss_spawn_is_emitted_on_spawn_tick() {
-        const TICKS: u32 = 30;
+        const LAST_TICK: Tick = Tick(30);
 
         let events = vec![fixtures::npc_update_event(fixtures::NpcEvent {
-            tick: 12,
+            tick: Tick(12),
             stage: Stage::TobNylocas,
             coords: (3294, 4247),
             npc_id: npc::id::NYLOCAS_VASILIAS_DROPPING_REGULAR,
@@ -583,11 +591,14 @@ mod tests {
             ..Default::default()
         })];
 
-        let mut timeline =
-            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobNylocas, TICKS, events));
+        let mut timeline = fixtures::timeline(
+            &PARTY,
+            LAST_TICK,
+            room_events(Stage::TobNylocas, LAST_TICK, events),
+        );
         let challenge = challenge_for(Stage::TobNylocas, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, TICKS, vec![])
+            .recording(true, LAST_TICK, vec![])
             .build();
 
         derive_events(&ctx, &mut timeline);
@@ -600,11 +611,11 @@ mod tests {
 
     #[test]
     fn reds_spawn_is_emitted_only_for_the_first_reds() {
-        const TICKS: u32 = 260;
+        const LAST_TICK: Tick = Tick(260);
 
         let events = vec![
             fixtures::npc_spawn_event(fixtures::NpcEvent {
-                tick: 0,
+                tick: Tick(0),
                 stage: Stage::TobVerzik,
                 coords: (3167, 4318),
                 npc_id: npc::id::VERZIK_P1_REGULAR,
@@ -612,7 +623,7 @@ mod tests {
                 ..Default::default()
             }),
             fixtures::npc_spawn_event(fixtures::NpcEvent {
-                tick: 172,
+                tick: Tick(172),
                 stage: Stage::TobVerzik,
                 coords: (3170, 4320),
                 npc_id: npc::id::VERZIK_MATOMENOS_REGULAR,
@@ -620,7 +631,7 @@ mod tests {
                 ..Default::default()
             }),
             fixtures::npc_spawn_event(fixtures::NpcEvent {
-                tick: 216,
+                tick: Tick(216),
                 stage: Stage::TobVerzik,
                 coords: (3172, 4322),
                 npc_id: npc::id::VERZIK_MATOMENOS_REGULAR,
@@ -629,18 +640,21 @@ mod tests {
             }),
         ];
 
-        let mut timeline =
-            fixtures::timeline(&PARTY, TICKS, room_events(Stage::TobVerzik, TICKS, events));
+        let mut timeline = fixtures::timeline(
+            &PARTY,
+            LAST_TICK,
+            room_events(Stage::TobVerzik, LAST_TICK, events),
+        );
         let challenge = challenge_for(Stage::TobVerzik, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobVerzik)
-            .recording(true, TICKS, vec![])
+            .recording(true, LAST_TICK, vec![])
             .build();
 
         derive_events(&ctx, &mut timeline);
 
         assert_eq!(
             timeline
-                .ticks()
+                .tick_states()
                 .iter()
                 .flatten()
                 .flat_map(|state| state.events_of_type(event::Type::TobVerzikRedsSpawn))

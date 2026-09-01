@@ -9,11 +9,12 @@ use crate::npc;
 use crate::proto::{Coords, NpcAttack, Stage, event};
 
 use super::event::MalformedEvent;
+use super::tick::{Tick, Ticks};
 use super::timeline::{TickState, Timeline};
 use super::world;
 use super::{BadData, ChallengeInfo};
 
-pub(super) const MAX_RECORDED_TICKS: u32 = 36_000; // six hour logout timer
+pub(super) const MAX_RECORDED_TICK: Tick = Tick(36_000); // six hour logout timer
 
 /// A problem detected in a client's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,25 +22,25 @@ pub enum ConsistencyIssue {
     /// A player moved an impossibly large distance.
     LargeJump {
         player: String,
-        tick: u32,
-        last_tick: u32,
+        tick: Tick,
+        last_tick: Tick,
         start: Coords,
         end: Coords,
     },
     /// Events arrived in an order inconsistent with the mechanics of a fight.
-    InvalidEventSequence { kind: event::Type, tick: u32 },
+    InvalidEventSequence { kind: event::Type, tick: Tick },
     /// Consecutive events occurred closer than the game allows.
     InvalidTickGap {
         kind: event::Type,
-        tick: u32,
-        observed: u32,
-        min: u32,
+        tick: Tick,
+        observed: Ticks,
+        min: Ticks,
     },
 }
 
 impl ConsistencyIssue {
     /// The tick on which the issue occurred.
-    pub fn tick(&self) -> u32 {
+    pub fn tick(&self) -> Tick {
         match self {
             ConsistencyIssue::LargeJump { tick, .. }
             | ConsistencyIssue::InvalidEventSequence { tick, .. }
@@ -97,10 +98,10 @@ struct MovementChecker<'a> {
 impl MovementChecker<'_> {
     fn check(&self) -> Vec<ConsistencyIssue> {
         let mut issues = Vec::new();
-        let mut last_seen: Vec<Option<(u32, Coords)>> = vec![None; self.party.len()];
+        let mut last_seen: Vec<Option<(Tick, Coords)>> = vec![None; self.party.len()];
         let mut dead = vec![false; self.party.len()];
 
-        for state in self.timeline.ticks().iter().flatten() {
+        for state in self.timeline.tick_states().iter().flatten() {
             let tick = state.tick();
 
             for (index, player) in self.party.iter().enumerate() {
@@ -119,9 +120,9 @@ impl MovementChecker<'_> {
                 }
 
                 if let Some((last_tick, last_position)) = last_seen[index] {
-                    let delta_ticks = tick - last_tick;
+                    let delta = tick - last_tick;
                     // Players can move at most 2 tiles per tick.
-                    let max_distance = 2 * delta_ticks;
+                    let max_distance = 2 * delta.0;
                     let jumped = !dead[index]
                         && world::chebyshev(last_position, player_state.position) > max_distance
                         && !self.is_special_teleport(
@@ -129,7 +130,7 @@ impl MovementChecker<'_> {
                             player,
                             last_position,
                             player_state.position,
-                            delta_ticks,
+                            delta,
                         );
                     if jumped {
                         issues.push(ConsistencyIssue::LargeJump {
@@ -149,15 +150,15 @@ impl MovementChecker<'_> {
         issues
     }
 
-    /// Checks if `player` moving between `last` and `current` over `delta_ticks`
+    /// Checks if `player` moving between `last` and `current` over `delta` ticks
     /// is explainable by a boss mechanic or teleport.
     fn is_special_teleport(
         &self,
-        tick: u32,
+        tick: Tick,
         player: &str,
         last: Coords,
         current: Coords,
-        delta_ticks: u32,
+        delta: Ticks,
     ) -> bool {
         if world::is_in_death_area(self.stage, current) {
             return true;
@@ -169,14 +170,12 @@ impl MovementChecker<'_> {
                 // remain on their original tile, then are teleported to the
                 // fight start tile when the cutscene ends.
                 self.stage == Stage::ColosseumWave12
-                    && tick < 5
+                    && tick < Tick(5)
                     && current == world::COLOSSEUM_BOSS_START_TILE
             }
             Some(ChallengeType::Tob) => match self.stage {
-                Stage::TobSotetseg => Self::check_sotetseg_teleport(last, current, delta_ticks),
-                Stage::TobVerzik => {
-                    self.check_verzik_teleport(tick, player, last, current, delta_ticks)
-                }
+                Stage::TobSotetseg => Self::check_sotetseg_teleport(last, current, delta),
+                Stage::TobVerzik => self.check_verzik_teleport(tick, player, last, current, delta),
                 // Maiden, Bloat, Nylocas, and Xarpus have no special teleports.
                 _ => false,
             },
@@ -191,7 +190,7 @@ impl MovementChecker<'_> {
         }
     }
 
-    fn check_sotetseg_teleport(last: Coords, current: Coords, delta_ticks: u32) -> bool {
+    fn check_sotetseg_teleport(last: Coords, current: Coords, delta: Ticks) -> bool {
         // Maze teleports between the overworld and underworld.
         if world::SOTETSEG_UNDERWORLD_AREA.contains(current)
             && world::SOTETSEG_ROOM_AREA.contains(last)
@@ -206,20 +205,20 @@ impl MovementChecker<'_> {
 
         // The only other teleport is from anywhere in the room to the start
         // of the maze when it procs, which is a one-tick movement.
-        delta_ticks == 1
+        delta == 1
             && world::SOTETSEG_ROOM_AREA.contains(last)
             && current == world::SOTETSEG_OVERWORLD_MAZE_START_TILE
     }
 
     fn check_verzik_teleport(
         &self,
-        tick: u32,
+        tick: Tick,
         player: &str,
         last: Coords,
         current: Coords,
-        delta_ticks: u32,
+        delta: Ticks,
     ) -> bool {
-        if delta_ticks != 1 {
+        if delta != 1 {
             return false;
         }
 
@@ -227,7 +226,7 @@ impl MovementChecker<'_> {
         // a phase transition.
         let verzik = self
             .timeline
-            .get(tick - 1)
+            .get(tick.pred())
             .and_then(|state| state.npcs().find(|(_, npc)| npc::is_verzik(npc.id)));
         let Some((verzik_room_id, verzik)) = verzik else {
             return false;
@@ -247,7 +246,7 @@ impl MovementChecker<'_> {
     fn check_for_p2_bounce(
         &self,
         verzik_room_id: u64,
-        tick: u32,
+        tick: Tick,
         player: &str,
         last: Coords,
         current: Coords,
@@ -259,9 +258,9 @@ impl MovementChecker<'_> {
             return false;
         }
 
-        let potential_bounce_tick = tick - 1;
+        let potential_bounce_tick = tick.pred();
 
-        for t in potential_bounce_tick..=tick + 5 {
+        for t in potential_bounce_tick.through(tick + Ticks(5)) {
             let Some(bounce) = self
                 .timeline
                 .get(t)
@@ -271,7 +270,7 @@ impl MovementChecker<'_> {
                 continue;
             };
 
-            let attack_tick = u32::try_from(bounce.npc_attack_tick).ok();
+            let attack_tick = u32::try_from(bounce.npc_attack_tick).ok().map(Tick);
             let valid_tick =
                 attack_tick == Some(potential_bounce_tick) || attack_tick == Some(tick);
             if valid_tick && bounce.bounced_player.as_deref() == Some(player) {
@@ -294,11 +293,11 @@ impl MovementChecker<'_> {
         // made a bounce-like movement and allow it if so.
         let is_at_p3_transition = self
             .timeline
-            .get(tick + 1)
+            .get(tick.succ())
             .and_then(|state| state.npc(verzik_room_id))
             .is_some_and(|npc| npc::is_verzik_p3_transition(npc.id));
 
-        let has_bounce = |t: u32| {
+        let has_bounce = |t: Tick| {
             has_npc_attack(
                 self.timeline.get(t),
                 npc::is_verzik_p2,
@@ -336,10 +335,10 @@ impl MovementChecker<'_> {
         player_was_bounced && bounce_like_movements == 1
     }
 
-    fn check_for_p3_webs_push(&self, tick: u32, last: Coords, current: Coords) -> bool {
+    fn check_for_p3_webs_push(&self, tick: Tick, last: Coords, current: Coords) -> bool {
         // When webs starts, players under Verzik are pushed directly outside
         // of her area.
-        let is_webs = (tick.saturating_sub(3)..=tick).any(|t| {
+        let is_webs = (tick - Ticks(3)).through(tick).any(|t| {
             has_npc_attack(
                 self.timeline.get(t),
                 npc::is_verzik_p3,
@@ -357,7 +356,7 @@ fn check_bloat(timeline: &Timeline) -> Result<Vec<ConsistencyIssue>, BadData> {
     let mut issues = Vec::new();
     let mut is_down = false;
 
-    for state in timeline.ticks().iter().flatten() {
+    for state in timeline.tick_states().iter().flatten() {
         let down = state
             .events_of_type(event::Type::TobBloatDown)
             .next()
@@ -402,9 +401,9 @@ fn check_nylocas(
 ) -> Result<Vec<ConsistencyIssue>, BadData> {
     let mut issues = Vec::new();
     let mut last_wave = 0;
-    let mut last_spawn_tick = 0;
+    let mut last_spawn_tick = Tick(0);
 
-    for state in timeline.ticks().iter().flatten() {
+    for state in timeline.tick_states().iter().flatten() {
         let Some(spawn) = state.events_of_type(event::Type::TobNyloWaveSpawn).next() else {
             continue;
         };
@@ -467,11 +466,14 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            3,
+            Tick(3),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "1Ogp", (3182, 4446)).build(),
-                fixtures::PlayerUpdateEvent::new(2, Stage::TobMaiden, "1Ogp", (3180, 4445)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (3184, 4447))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobMaiden, "1Ogp", (3182, 4446))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(2), Stage::TobMaiden, "1Ogp", (3180, 4445))
+                    .build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobMaiden, &party, &timeline), vec![]);
@@ -482,18 +484,20 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "1Ogp", (3174, 4447)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (3184, 4447))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobMaiden, "1Ogp", (3174, 4447))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobMaiden, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3184, 4447).into(),
                 end: (3174, 4447).into(),
             }],
@@ -505,19 +509,24 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            6,
+            Tick(6),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
-                fixtures::PlayerUpdateEvent::new(3, Stage::TobMaiden, "1Ogp", (3178, 4447)).build(), // valid
-                fixtures::PlayerUpdateEvent::new(5, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(), // invalid
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (3184, 4447))
+                    .build(),
+                // valid
+                fixtures::PlayerUpdateEvent::new(Tick(3), Stage::TobMaiden, "1Ogp", (3178, 4447))
+                    .build(),
+                // invalid
+                fixtures::PlayerUpdateEvent::new(Tick(5), Stage::TobMaiden, "1Ogp", (3184, 4447))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobMaiden, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 5,
-                last_tick: 3,
+                tick: Tick(5),
+                last_tick: Tick(3),
                 start: (3178, 4447).into(),
                 end: (3184, 4447).into(),
             }],
@@ -529,10 +538,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
-                fixtures::player_death_event(1, Stage::TobMaiden, (3177, 4440), "1Ogp", 0),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (3184, 4447))
+                    .build(),
+                fixtures::player_death_event(Tick(1), Stage::TobMaiden, (3177, 4440), "1Ogp", 0),
             ],
         );
         assert_eq!(check_movement(Stage::TobMaiden, &party, &timeline), vec![]);
@@ -543,22 +553,34 @@ mod tests {
         let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "1Ogp", (3184, 4447)).build(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobMaiden, "WWWWWWWWWWQQ", (3184, 4445))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (3184, 4447))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "1Ogp", (3183, 4446)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobMaiden, "WWWWWWWWWWQQ", (3172, 4445))
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(0),
+                    Stage::TobMaiden,
+                    "WWWWWWWWWWQQ",
+                    (3184, 4445),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobMaiden, "1Ogp", (3183, 4446))
                     .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(1),
+                    Stage::TobMaiden,
+                    "WWWWWWWWWWQQ",
+                    (3172, 4445),
+                )
+                .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobMaiden, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "WWWWWWWWWWQQ".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3184, 4445).into(),
                 end: (3172, 4445).into(),
             }],
@@ -579,18 +601,18 @@ mod tests {
             let end = (start.0 + 10, start.1);
             let timeline = fixtures::timeline(
                 &party,
-                2,
+                Tick(2),
                 vec![
-                    fixtures::PlayerUpdateEvent::new(0, stage, "1Ogp", start).build(),
-                    fixtures::PlayerUpdateEvent::new(1, stage, "1Ogp", end).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(1), stage, "1Ogp", end).build(),
                 ],
             );
             assert_eq!(
                 check_movement(stage, &party, &timeline),
                 vec![ConsistencyIssue::LargeJump {
                     player: "1Ogp".to_string(),
-                    tick: 1,
-                    last_tick: 0,
+                    tick: Tick(1),
+                    last_tick: Tick(0),
                     start: start.into(),
                     end: end.into(),
                 }],
@@ -613,10 +635,10 @@ mod tests {
         for (stage, start, end) in cases {
             let timeline = fixtures::timeline(
                 &party,
-                2,
+                Tick(2),
                 vec![
-                    fixtures::PlayerUpdateEvent::new(0, stage, "1Ogp", start).build(),
-                    fixtures::PlayerUpdateEvent::new(1, stage, "1Ogp", end).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(1), stage, "1Ogp", end).build(),
                 ],
             );
             assert_eq!(
@@ -632,12 +654,22 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            5,
+            Tick(5),
             vec![
-                fixtures::PlayerUpdateEvent::new(3, Stage::ColosseumWave12, "1Ogp", (1819, 3118))
-                    .build(),
-                fixtures::PlayerUpdateEvent::new(4, Stage::ColosseumWave12, "1Ogp", (1825, 3103))
-                    .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(3),
+                    Stage::ColosseumWave12,
+                    "1Ogp",
+                    (1819, 3118),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(4),
+                    Stage::ColosseumWave12,
+                    "1Ogp",
+                    (1825, 3103),
+                )
+                .build(),
             ],
         );
         assert_eq!(
@@ -651,20 +683,30 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            6,
+            Tick(6),
             vec![
-                fixtures::PlayerUpdateEvent::new(4, Stage::ColosseumWave12, "1Ogp", (1819, 3118))
-                    .build(),
-                fixtures::PlayerUpdateEvent::new(5, Stage::ColosseumWave12, "1Ogp", (1825, 3103))
-                    .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(4),
+                    Stage::ColosseumWave12,
+                    "1Ogp",
+                    (1819, 3118),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(5),
+                    Stage::ColosseumWave12,
+                    "1Ogp",
+                    (1825, 3103),
+                )
+                .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::ColosseumWave12, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 5,
-                last_tick: 4,
+                tick: Tick(5),
+                last_tick: Tick(4),
                 start: (1819, 3118).into(),
                 end: (1825, 3103).into(),
             }],
@@ -676,20 +718,30 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            5,
+            Tick(5),
             vec![
-                fixtures::PlayerUpdateEvent::new(3, Stage::ColosseumWave12, "1Ogp", (1819, 3118))
-                    .build(),
-                fixtures::PlayerUpdateEvent::new(4, Stage::ColosseumWave12, "1Ogp", (1817, 3103))
-                    .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(3),
+                    Stage::ColosseumWave12,
+                    "1Ogp",
+                    (1819, 3118),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(4),
+                    Stage::ColosseumWave12,
+                    "1Ogp",
+                    (1817, 3103),
+                )
+                .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::ColosseumWave12, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 4,
-                last_tick: 3,
+                tick: Tick(4),
+                last_tick: Tick(3),
                 start: (1819, 3118).into(),
                 end: (1817, 3103).into(),
             }],
@@ -703,18 +755,18 @@ mod tests {
             let stage = Stage::try_from(value).expect("colosseum wave stages are contiguous");
             let timeline = fixtures::timeline(
                 &party,
-                2,
+                Tick(2),
                 vec![
-                    fixtures::PlayerUpdateEvent::new(0, stage, "1Ogp", (1815, 3110)).build(),
-                    fixtures::PlayerUpdateEvent::new(1, stage, "1Ogp", (1825, 3103)).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", (1815, 3110)).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(1), stage, "1Ogp", (1825, 3103)).build(),
                 ],
             );
             assert_eq!(
                 check_movement(stage, &party, &timeline),
                 vec![ConsistencyIssue::LargeJump {
                     player: "1Ogp".to_string(),
-                    tick: 1,
-                    last_tick: 0,
+                    tick: Tick(1),
+                    last_tick: Tick(0),
                     start: (1815, 3110).into(),
                     end: (1825, 3103).into(),
                 }],
@@ -728,11 +780,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobSotetseg, "1Ogp", (3275, 4310))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobSotetseg, "1Ogp", (3274, 4307))
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobSotetseg, "1Ogp", (3274, 4307))
                     .build(),
             ],
         );
@@ -747,11 +799,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3280, 4320))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobSotetseg, "1Ogp", (3280, 4320))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobSotetseg, "1Ogp", (3360, 4315))
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobSotetseg, "1Ogp", (3360, 4315))
                     .build(),
             ],
         );
@@ -766,11 +818,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            8,
+            Tick(8),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3360, 4315))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobSotetseg, "1Ogp", (3360, 4315))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(7, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                fixtures::PlayerUpdateEvent::new(Tick(7), Stage::TobSotetseg, "1Ogp", (3275, 4310))
                     .build(),
             ],
         );
@@ -785,11 +837,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            6,
+            Tick(6),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobSotetseg, "1Ogp", (3275, 4310))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(5, Stage::TobSotetseg, "1Ogp", (3360, 4315))
+                fixtures::PlayerUpdateEvent::new(Tick(5), Stage::TobSotetseg, "1Ogp", (3360, 4315))
                     .build(),
             ],
         );
@@ -804,11 +856,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4310))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobSotetseg, "1Ogp", (3275, 4310))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobSotetseg, "1Ogp", (3300, 4350))
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobSotetseg, "1Ogp", (3300, 4350))
                     .build(),
             ],
         );
@@ -816,8 +868,8 @@ mod tests {
             check_movement(Stage::TobSotetseg, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3275, 4310).into(),
                 end: (3300, 4350).into(),
             }],
@@ -829,11 +881,11 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            3,
+            Tick(3),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobSotetseg, "1Ogp", (3275, 4312))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobSotetseg, "1Ogp", (3275, 4312))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(2, Stage::TobSotetseg, "1Ogp", (3274, 4307))
+                fixtures::PlayerUpdateEvent::new(Tick(2), Stage::TobSotetseg, "1Ogp", (3274, 4307))
                     .build(),
             ],
         );
@@ -841,8 +893,8 @@ mod tests {
             check_movement(Stage::TobSotetseg, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 2,
-                last_tick: 0,
+                tick: Tick(2),
+                last_tick: Tick(0),
                 start: (3275, 4312).into(),
                 end: (3274, 4307).into(),
             }],
@@ -854,18 +906,20 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3168, 4313).into(),
                 end: (3168, 4309).into(),
             }],
@@ -874,7 +928,7 @@ mod tests {
 
     fn verzik_p2_spawn() -> Event {
         fixtures::npc_spawn_event(fixtures::NpcEvent {
-            tick: 0,
+            tick: Tick(0),
             stage: Stage::TobVerzik,
             coords: (3167, 4313),
             npc_id: npc::id::VERZIK_P2_REGULAR,
@@ -888,12 +942,14 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
-                fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
+                    .build(),
+                fixtures::verzik_bounce_event(Tick(1), Tick(0), 1, 0, Some("1Ogp")),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -904,12 +960,14 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3167, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3162, 4308)).build(),
-                fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3167, 4313))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3162, 4308))
+                    .build(),
+                fixtures::verzik_bounce_event(Tick(1), Tick(0), 1, 0, Some("1Ogp")),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -920,17 +978,29 @@ mod tests {
         let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            3,
+            Tick(3),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(0),
+                    Stage::TobVerzik,
+                    "WWWWWWWWWWQQ",
+                    (3160, 4310),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
                     .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(1),
+                    Stage::TobVerzik,
+                    "WWWWWWWWWWQQ",
+                    (3160, 4310),
+                )
+                .build(),
                 fixtures::npc_update_event(fixtures::NpcEvent {
-                    tick: 2,
+                    tick: Tick(2),
                     stage: Stage::TobVerzik,
                     coords: (3167, 4313),
                     npc_id: npc::id::VERZIK_P3_TRANSITION_REGULAR,
@@ -947,20 +1017,22 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
-                fixtures::verzik_bounce_event(1, 0, 1, 0, Some("WWWWWWWWWWQQ")),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
+                    .build(),
+                fixtures::verzik_bounce_event(Tick(1), Tick(0), 1, 0, Some("WWWWWWWWWWQQ")),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3168, 4313).into(),
                 end: (3168, 4309).into(),
             }],
@@ -972,20 +1044,22 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4305)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
-                fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4305))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
+                    .build(),
+                fixtures::verzik_bounce_event(Tick(1), Tick(0), 1, 0, Some("1Ogp")),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3168, 4305).into(),
                 end: (3168, 4309).into(),
             }],
@@ -997,20 +1071,22 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            3,
+            Tick(3),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::verzik_bounce_event(1, 0, 1, 0, Some("1Ogp")),
-                fixtures::PlayerUpdateEvent::new(2, Stage::TobVerzik, "1Ogp", (3168, 4303)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::verzik_bounce_event(Tick(1), Tick(0), 1, 0, Some("1Ogp")),
+                fixtures::PlayerUpdateEvent::new(Tick(2), Stage::TobVerzik, "1Ogp", (3168, 4303))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 2,
-                last_tick: 0,
+                tick: Tick(2),
+                last_tick: Tick(0),
                 start: (3168, 4313).into(),
                 end: (3168, 4303).into(),
             }],
@@ -1022,11 +1098,11 @@ mod tests {
         let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
                 fixtures::npc_attack_event(
-                    0,
+                    Tick(0),
                     Stage::TobVerzik,
                     (3168, 4314),
                     npc::id::VERZIK_P2_REGULAR,
@@ -1034,12 +1110,24 @@ mod tests {
                     NpcAttack::TobVerzikP2Bounce,
                     None,
                 ),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "WWWWWWWWWWQQ", (3160, 4310))
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(0),
+                    Stage::TobVerzik,
+                    "WWWWWWWWWWQQ",
+                    (3160, 4310),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
                     .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(1),
+                    Stage::TobVerzik,
+                    "WWWWWWWWWWQQ",
+                    (3160, 4310),
+                )
+                .build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -1050,19 +1138,21 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3168, 4313).into(),
                 end: (3168, 4309).into(),
             }],
@@ -1074,11 +1164,11 @@ mod tests {
         let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
                 verzik_p2_spawn(),
                 fixtures::npc_attack_event(
-                    0,
+                    Tick(0),
                     Stage::TobVerzik,
                     (3168, 4314),
                     npc::id::VERZIK_P2_REGULAR,
@@ -1086,12 +1176,24 @@ mod tests {
                     NpcAttack::TobVerzikP2Bounce,
                     None,
                 ),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4313)).build(),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "WWWWWWWWWWQQ", (3169, 4313))
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4313))
                     .build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4309)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "WWWWWWWWWWQQ", (3173, 4314))
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(0),
+                    Stage::TobVerzik,
+                    "WWWWWWWWWWQQ",
+                    (3169, 4313),
+                )
+                .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4309))
                     .build(),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(1),
+                    Stage::TobVerzik,
+                    "WWWWWWWWWWQQ",
+                    (3173, 4314),
+                )
+                .build(),
             ],
         );
         assert_eq!(
@@ -1099,15 +1201,15 @@ mod tests {
             vec![
                 ConsistencyIssue::LargeJump {
                     player: "1Ogp".to_string(),
-                    tick: 1,
-                    last_tick: 0,
+                    tick: Tick(1),
+                    last_tick: Tick(0),
                     start: (3168, 4313).into(),
                     end: (3168, 4309).into(),
                 },
                 ConsistencyIssue::LargeJump {
                     player: "WWWWWWWWWWQQ".to_string(),
-                    tick: 1,
-                    last_tick: 0,
+                    tick: Tick(1),
+                    last_tick: Tick(0),
                     start: (3169, 4313).into(),
                     end: (3173, 4314).into(),
                 },
@@ -1115,7 +1217,7 @@ mod tests {
         );
     }
 
-    fn verzik_p3_update(tick: u32) -> Event {
+    fn verzik_p3_update(tick: Tick) -> Event {
         fixtures::npc_update_event(fixtures::NpcEvent {
             tick,
             stage: Stage::TobVerzik,
@@ -1126,7 +1228,7 @@ mod tests {
         })
     }
 
-    fn verzik_webs_attack(tick: u32) -> Event {
+    fn verzik_webs_attack(tick: Tick) -> Event {
         fixtures::npc_attack_event(
             tick,
             Stage::TobVerzik,
@@ -1143,12 +1245,14 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                verzik_p3_update(0),
-                verzik_webs_attack(0),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
+                verzik_p3_update(Tick(0)),
+                verzik_webs_attack(Tick(0)),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4312))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4308))
+                    .build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -1159,20 +1263,22 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                verzik_p3_update(0),
-                verzik_webs_attack(0),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4307)).build(),
+                verzik_p3_update(Tick(0)),
+                verzik_webs_attack(Tick(0)),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4312))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4307))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3168, 4312).into(),
                 end: (3168, 4307).into(),
             }],
@@ -1184,20 +1290,22 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                verzik_p3_update(0),
-                verzik_webs_attack(0),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3160, 4310)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
+                verzik_p3_update(Tick(0)),
+                verzik_webs_attack(Tick(0)),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3160, 4310))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4308))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3160, 4310).into(),
                 end: (3168, 4308).into(),
             }],
@@ -1209,19 +1317,21 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            2,
+            Tick(2),
             vec![
-                verzik_p3_update(0),
-                fixtures::PlayerUpdateEvent::new(0, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
-                fixtures::PlayerUpdateEvent::new(1, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
+                verzik_p3_update(Tick(0)),
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobVerzik, "1Ogp", (3168, 4312))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), Stage::TobVerzik, "1Ogp", (3168, 4308))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 1,
-                last_tick: 0,
+                tick: Tick(1),
+                last_tick: Tick(0),
                 start: (3168, 4312).into(),
                 end: (3168, 4308).into(),
             }],
@@ -1233,13 +1343,15 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            5,
+            Tick(5),
             vec![
-                verzik_p3_update(1),
-                verzik_webs_attack(1),
-                verzik_p3_update(3),
-                fixtures::PlayerUpdateEvent::new(3, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
-                fixtures::PlayerUpdateEvent::new(4, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
+                verzik_p3_update(Tick(1)),
+                verzik_webs_attack(Tick(1)),
+                verzik_p3_update(Tick(3)),
+                fixtures::PlayerUpdateEvent::new(Tick(3), Stage::TobVerzik, "1Ogp", (3168, 4312))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(4), Stage::TobVerzik, "1Ogp", (3168, 4308))
+                    .build(),
             ],
         );
         assert_eq!(check_movement(Stage::TobVerzik, &party, &timeline), vec![]);
@@ -1250,21 +1362,23 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let timeline = fixtures::timeline(
             &party,
-            6,
+            Tick(6),
             vec![
-                verzik_p3_update(0),
-                verzik_webs_attack(0),
-                verzik_p3_update(4),
-                fixtures::PlayerUpdateEvent::new(4, Stage::TobVerzik, "1Ogp", (3168, 4312)).build(),
-                fixtures::PlayerUpdateEvent::new(5, Stage::TobVerzik, "1Ogp", (3168, 4308)).build(),
+                verzik_p3_update(Tick(0)),
+                verzik_webs_attack(Tick(0)),
+                verzik_p3_update(Tick(4)),
+                fixtures::PlayerUpdateEvent::new(Tick(4), Stage::TobVerzik, "1Ogp", (3168, 4312))
+                    .build(),
+                fixtures::PlayerUpdateEvent::new(Tick(5), Stage::TobVerzik, "1Ogp", (3168, 4308))
+                    .build(),
             ],
         );
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
                 player: "1Ogp".to_string(),
-                tick: 5,
-                last_tick: 4,
+                tick: Tick(5),
+                last_tick: Tick(4),
                 start: (3168, 4312).into(),
                 end: (3168, 4308).into(),
             }],
@@ -1275,12 +1389,12 @@ mod tests {
     fn bloat_permits_normal_cycle() {
         let timeline = fixtures::timeline(
             &[],
-            150,
+            Tick(150),
             vec![
-                fixtures::bloat_down_event(41, (3299, 4440), 1, 41),
-                fixtures::bloat_up_event(73),
-                fixtures::bloat_down_event(107, (3291, 4451), 2, 34),
-                fixtures::bloat_up_event(139),
+                fixtures::bloat_down_event(Tick(41), (3299, 4440), 1, Ticks(41)),
+                fixtures::bloat_up_event(Tick(73)),
+                fixtures::bloat_down_event(Tick(107), (3291, 4451), 2, Ticks(34)),
+                fixtures::bloat_up_event(Tick(139)),
             ],
         );
         assert_eq!(check_bloat(&timeline), Ok(vec![]));
@@ -1290,29 +1404,29 @@ mod tests {
     fn bloat_flags_consecutive_downs() {
         let timeline = fixtures::timeline(
             &[],
-            110,
+            Tick(110),
             vec![
-                fixtures::bloat_down_event(41, (3299, 4440), 1, 41),
-                fixtures::bloat_down_event(107, (3291, 4451), 2, 34),
+                fixtures::bloat_down_event(Tick(41), (3299, 4440), 1, Ticks(41)),
+                fixtures::bloat_down_event(Tick(107), (3291, 4451), 2, Ticks(34)),
             ],
         );
         assert_eq!(
             check_bloat(&timeline),
             Ok(vec![ConsistencyIssue::InvalidEventSequence {
                 kind: event::Type::TobBloatDown,
-                tick: 107,
+                tick: Tick(107),
             }]),
         );
     }
 
     #[test]
     fn bloat_flags_up_without_a_down() {
-        let timeline = fixtures::timeline(&[], 80, vec![fixtures::bloat_up_event(73)]);
+        let timeline = fixtures::timeline(&[], Tick(80), vec![fixtures::bloat_up_event(Tick(73))]);
         assert_eq!(
             check_bloat(&timeline),
             Ok(vec![ConsistencyIssue::InvalidEventSequence {
                 kind: event::Type::TobBloatUp,
-                tick: 73,
+                tick: Tick(73),
             }]),
         );
     }
@@ -1321,20 +1435,20 @@ mod tests {
     fn bloat_returns_bad_data_for_down_and_up_on_one_tick() {
         let timeline = fixtures::timeline(
             &[],
-            80,
+            Tick(80),
             vec![
-                fixtures::bloat_down_event(41, (3299, 4440), 1, 41),
-                fixtures::bloat_up_event(41),
-                fixtures::bloat_up_event(73),
+                fixtures::bloat_down_event(Tick(41), (3299, 4440), 1, Ticks(41)),
+                fixtures::bloat_up_event(Tick(41)),
+                fixtures::bloat_up_event(Tick(73)),
             ],
         );
         assert!(matches!(
             check_bloat(&timeline),
-            Err(BadData::Inconsistent { tick: 41, .. }),
+            Err(BadData::Inconsistent { tick: Tick(41), .. }),
         ));
     }
 
-    fn nylo_wave_spawn(tick: u32, wave: u32) -> Event {
+    fn nylo_wave_spawn(tick: Tick, wave: u32) -> Event {
         fixtures::nylo_wave_event(event::Type::TobNyloWaveSpawn, tick, wave, 3, 12)
     }
 
@@ -1342,11 +1456,11 @@ mod tests {
     fn nylo_permits_wave_spawns_at_natural_pace() {
         let timeline = fixtures::timeline(
             &[],
-            12,
+            Tick(12),
             vec![
-                nylo_wave_spawn(4, 1),
-                nylo_wave_spawn(8, 2),
-                nylo_wave_spawn(12, 3),
+                nylo_wave_spawn(Tick(4), 1),
+                nylo_wave_spawn(Tick(8), 2),
+                nylo_wave_spawn(Tick(12), 3),
             ],
         );
         assert_eq!(
@@ -1357,37 +1471,46 @@ mod tests {
 
     #[test]
     fn nylo_flags_wave_spawning_too_soon() {
-        let timeline =
-            fixtures::timeline(&[], 6, vec![nylo_wave_spawn(4, 1), nylo_wave_spawn(6, 2)]);
+        let timeline = fixtures::timeline(
+            &[],
+            Tick(6),
+            vec![nylo_wave_spawn(Tick(4), 1), nylo_wave_spawn(Tick(6), 2)],
+        );
         assert_eq!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
             Ok(vec![ConsistencyIssue::InvalidTickGap {
                 kind: event::Type::TobNyloWaveSpawn,
-                tick: 6,
-                observed: 2,
-                min: 4,
+                tick: Tick(6),
+                observed: Ticks(2),
+                min: Ticks(4),
             }]),
         );
     }
 
     #[test]
     fn nylo_checks_missed_wave_events_against_cumulative_natural_stall() {
-        let timeline =
-            fixtures::timeline(&[], 22, vec![nylo_wave_spawn(4, 1), nylo_wave_spawn(20, 5)]);
+        let timeline = fixtures::timeline(
+            &[],
+            Tick(22),
+            vec![nylo_wave_spawn(Tick(4), 1), nylo_wave_spawn(Tick(20), 5)],
+        );
         assert_eq!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
             Ok(vec![]),
         );
 
-        let timeline =
-            fixtures::timeline(&[], 22, vec![nylo_wave_spawn(4, 1), nylo_wave_spawn(19, 5)]);
+        let timeline = fixtures::timeline(
+            &[],
+            Tick(22),
+            vec![nylo_wave_spawn(Tick(4), 1), nylo_wave_spawn(Tick(19), 5)],
+        );
         assert_eq!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
             Ok(vec![ConsistencyIssue::InvalidTickGap {
                 kind: event::Type::TobNyloWaveSpawn,
-                tick: 19,
-                observed: 15,
-                min: 16,
+                tick: Tick(19),
+                observed: Ticks(15),
+                min: Ticks(16),
             }]),
         );
     }
@@ -1396,66 +1519,72 @@ mod tests {
     fn nylo_accounts_for_hmt_prince_waves() {
         let timeline = fixtures::timeline(
             &[],
-            20,
-            vec![nylo_wave_spawn(0, 10), nylo_wave_spawn(16, 11)],
+            Tick(20),
+            vec![nylo_wave_spawn(Tick(0), 10), nylo_wave_spawn(Tick(16), 11)],
         );
         assert_eq!(check_nylocas(ChallengeMode::TobHard, &timeline), Ok(vec![]));
 
         let timeline = fixtures::timeline(
             &[],
-            15,
-            vec![nylo_wave_spawn(0, 10), nylo_wave_spawn(10, 11)],
+            Tick(15),
+            vec![nylo_wave_spawn(Tick(0), 10), nylo_wave_spawn(Tick(10), 11)],
         );
         assert_eq!(
             check_nylocas(ChallengeMode::TobHard, &timeline),
             Ok(vec![ConsistencyIssue::InvalidTickGap {
                 kind: event::Type::TobNyloWaveSpawn,
-                tick: 10,
-                observed: 10,
-                min: 16,
+                tick: Tick(10),
+                observed: Ticks(10),
+                min: Ticks(16),
             }]),
         );
     }
 
     #[test]
     fn nylo_returns_bad_data_for_out_of_order_waves() {
-        let timeline =
-            fixtures::timeline(&[], 10, vec![nylo_wave_spawn(0, 3), nylo_wave_spawn(4, 1)]);
+        let timeline = fixtures::timeline(
+            &[],
+            Tick(10),
+            vec![nylo_wave_spawn(Tick(0), 3), nylo_wave_spawn(Tick(4), 1)],
+        );
         assert!(matches!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
-            Err(BadData::Inconsistent { tick: 4, .. }),
+            Err(BadData::Inconsistent { tick: Tick(4), .. }),
         ));
     }
 
     #[test]
     fn nylo_returns_bad_data_for_duplicate_waves() {
-        let timeline =
-            fixtures::timeline(&[], 10, vec![nylo_wave_spawn(4, 1), nylo_wave_spawn(8, 1)]);
+        let timeline = fixtures::timeline(
+            &[],
+            Tick(10),
+            vec![nylo_wave_spawn(Tick(4), 1), nylo_wave_spawn(Tick(8), 1)],
+        );
         assert!(matches!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
-            Err(BadData::Inconsistent { tick: 8, .. }),
+            Err(BadData::Inconsistent { tick: Tick(8), .. }),
         ));
     }
 
     #[test]
     fn nylo_returns_bad_data_for_invalid_waves() {
-        let timeline = fixtures::timeline(&[], 3, vec![nylo_wave_spawn(0, 32)]);
+        let timeline = fixtures::timeline(&[], Tick(3), vec![nylo_wave_spawn(Tick(0), 32)]);
         assert_eq!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
             Err(BadData::MalformedEvent(MalformedEvent::OutOfDomain {
                 kind: event::Type::TobNyloWaveSpawn,
-                tick: 0,
+                tick: Tick(0),
                 field: "nylo_wave.wave",
                 value: "32".to_string(),
             })),
         );
 
-        let timeline = fixtures::timeline(&[], 3, vec![nylo_wave_spawn(0, 0)]);
+        let timeline = fixtures::timeline(&[], Tick(3), vec![nylo_wave_spawn(Tick(0), 0)]);
         assert_eq!(
             check_nylocas(ChallengeMode::TobRegular, &timeline),
             Err(BadData::MalformedEvent(MalformedEvent::OutOfDomain {
                 kind: event::Type::TobNyloWaveSpawn,
-                tick: 0,
+                tick: Tick(0),
                 field: "nylo_wave.wave",
                 value: "0".to_string(),
             })),

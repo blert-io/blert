@@ -6,6 +6,7 @@ use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeTypeExt, PlayerId, PrimaryMeleeGear, ProcessingError,
     RecordingType, Stage, UserId,
 };
+use crate::merging::Ticks;
 use crate::metrics;
 use crate::players::normalize_rsn;
 use crate::repository::DataRepository;
@@ -160,7 +161,7 @@ pub async fn finish(
         .finished_unix_ms
         .map(|ms| UNIX_EPOCH + Duration::from_millis(ms))
         .ok_or_else(|| db::Error::InvalidData("invalid finish without an end time".into()))?;
-    if stored.challenge_ticks == 0 {
+    if stored.challenge_ticks.is_zero() {
         tracing::info!(uuid = %info.uuid, "challenge_finished_no_data");
         return delete_empty_challenge(txn, repository, info, &stored.players, finish_time).await;
     }
@@ -177,16 +178,16 @@ pub async fn finish(
     let recorded_ticks = processor.final_challenge_ticks(stored.challenge_ticks);
     let mut final_ticks = recorded_ticks;
     if let Some(times) = info.reported_times
-        && times.challenge != recorded_ticks
+        && Ticks(times.challenge) != recorded_ticks
     {
         tracing::warn!(
             uuid = %info.uuid,
-            recorded_ticks,
+            %recorded_ticks,
             reported_ticks = times.challenge,
             "challenge_time_mismatch",
         );
         metrics::record_reported_time_mismatch();
-        final_ticks = times.challenge;
+        final_ticks = Ticks(times.challenge);
     }
 
     // Correct the challenge ticks based on the server report. Any ticks
@@ -249,7 +250,7 @@ async fn finalize_challenge_row(
     txn: &db::Transaction,
     info: &ChallengeInfo,
     finish_time: SystemTime,
-    final_ticks: u32,
+    final_ticks: Ticks,
     full_recording: bool,
 ) -> Result<(), db::Error> {
     txn.execute(
@@ -259,7 +260,7 @@ async fn finalize_challenge_row(
          WHERE id = $6",
         &[
             &(info.status as i16),
-            &final_ticks.cast_signed(),
+            &final_ticks.0.cast_signed(),
             &info
                 .reported_times
                 .and_then(|times| times.overall)
@@ -313,7 +314,7 @@ pub(super) async fn load_database_state(
                 &[&txn.challenge_id()],
             )
             .await?;
-        Ok(row.get::<_, i32>(0).cast_unsigned())
+        Ok(Ticks(row.get::<_, i32>(0).cast_unsigned()))
     };
     let (players, challenge_ticks) = tokio::try_join!(players, challenge_ticks)?;
 

@@ -10,28 +10,23 @@ use crate::proto::event::player::{DataSource, EquipmentSlot};
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, Stage, event};
 use crate::skill::SkillLevel;
 
-use super::MergeContext;
 use super::event::{Class, MalformedEvent, TaggedEvent, classify, remap_event_tick};
+use super::{MergeContext, Tick, Ticks};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Timeline {
-    ticks: Vec<Option<TickState>>,
+    tick_states: Vec<Option<TickState>>,
 }
 
 impl Timeline {
-    /// Creates an empty timeline.
-    pub fn new() -> Self {
-        Self { ticks: Vec::new() }
-    }
-
     /// Initializes a timeline from a chronological list of events,
     /// preprocessed with sources and indices.
     pub(super) fn build(
         party: &[String],
-        recorded_ticks: u32,
+        last_recorded_tick: Tick,
         events: Vec<TaggedEvent>,
     ) -> Result<Self, MalformedEvent> {
-        let mut ticks = vec![None; (recorded_ticks as usize) + 1];
+        let mut ticks = vec![None; (last_recorded_tick.0 as usize) + 1];
 
         let mut last_player_updates = vec![None; party.len()];
         let mut current_tick: Vec<TaggedEvent> = Vec::with_capacity(events.len());
@@ -39,7 +34,7 @@ impl Timeline {
         let mut drain = |curr: &mut Vec<TaggedEvent>| -> Result<(), MalformedEvent> {
             let t = curr[0].tick;
             let state = TickState::from_events(
-                t,
+                Tick(t),
                 party,
                 &ticks[..t as usize],
                 &mut last_player_updates,
@@ -60,63 +55,67 @@ impl Timeline {
             drain(&mut current_tick)?;
         }
 
-        Ok(Self { ticks })
+        Ok(Self { tick_states: ticks })
     }
 
     /// Returns the number of ticks in the timeline.
-    pub fn tick_count(&self) -> u32 {
-        u32::try_from(self.ticks.len()).expect("tick count is small")
+    pub fn len(&self) -> usize {
+        self.tick_states.len()
     }
 
-    /// Returns the final recorded tick, or `None` for a timeline with no ticks.
-    pub fn last_tick(&self) -> Option<u32> {
-        self.tick_count().checked_sub(1)
+    /// Returns the final recorded tick.
+    pub fn last_tick(&self) -> Tick {
+        Tick::from_usize(self.tick_states.len() - 1)
     }
 
     /// Returns the number of ticks with no recorded state.
     pub fn missing_tick_count(&self) -> u32 {
-        let missing = self.ticks.iter().filter(|tick| tick.is_none()).count();
+        let missing = self
+            .tick_states
+            .iter()
+            .filter(|tick| tick.is_none())
+            .count();
         u32::try_from(missing).expect("tick count is small")
     }
 
     /// Returns the state on `tick`.
-    pub fn get(&self, tick: u32) -> Option<&TickState> {
-        self.ticks.get(tick as usize)?.as_ref()
+    pub fn get(&self, tick: Tick) -> Option<&TickState> {
+        self.tick_states.get(tick.0 as usize)?.as_ref()
     }
 
     /// Returns a mutable reference the state on `tick`.
-    pub fn get_mut(&mut self, tick: u32) -> Option<&mut TickState> {
-        self.ticks.get_mut(tick as usize)?.as_mut()
+    pub fn get_mut(&mut self, tick: Tick) -> Option<&mut TickState> {
+        self.tick_states.get_mut(tick.0 as usize)?.as_mut()
     }
 
     /// Returns the full timeline as ticks.
-    pub fn ticks(&self) -> &[Option<TickState>] {
-        &self.ticks
+    pub fn tick_states(&self) -> &[Option<TickState>] {
+        &self.tick_states
     }
 
     /// Moves every recorded tick and its events forward by `offset` ticks,
     /// growing the timeline by that length and leaving empty ticks at the start.
-    pub fn shift(&mut self, offset: u32) {
-        let remap = |tick: u32| tick + offset;
-        let mut shifted = vec![None; self.ticks.len() + offset as usize];
+    pub fn shift(&mut self, offset: Ticks) {
+        let remap = |tick: Tick| tick + offset;
+        let mut shifted = vec![None; self.tick_states.len() + offset.0 as usize];
 
-        for mut state in self.ticks.drain(..).flatten() {
+        for mut state in self.tick_states.drain(..).flatten() {
             let tick = remap(state.tick);
             state.tick = tick;
             for event in &mut state.events {
                 remap_event_tick(event, remap);
             }
-            shifted[tick as usize] = Some(state);
+            shifted[tick.0 as usize] = Some(state);
         }
 
-        self.ticks = shifted;
+        self.tick_states = shifted;
     }
 
     pub fn finalize(mut self, ctx: &MergeContext) -> Vec<Event> {
         self.resynchronize(ctx.stage);
         super::derivation::derive_events(ctx, &mut self);
         super::derivation::merge_stage_data(ctx, &mut self);
-        self.ticks
+        self.tick_states
             .into_iter()
             .flatten()
             .flat_map(TickState::into_events)
@@ -126,7 +125,7 @@ impl Timeline {
     /// Rebuilds the timeline's canonical events from its consolidated state.
     fn resynchronize(&mut self, stage: Stage) {
         let mut ctx = ResyncContext::for_stage(stage);
-        for tick in self.ticks.iter_mut().flatten() {
+        for tick in self.tick_states.iter_mut().flatten() {
             tick.resynchronize(stage, &mut ctx);
         }
     }
@@ -256,14 +255,14 @@ pub struct PlayerState {
     pub attack: Option<Sourced<PlayerAttacked>>,
     pub spell: Option<Sourced<PlayerCast>>,
     pub stats: Option<PlayerStats>,
-    pub off_cooldown_tick: u32,
+    pub off_cooldown_tick: Tick,
 }
 
 fn expect_player(event: &Event) -> Result<&event::Player, MalformedEvent> {
     let Some(player) = &event.player else {
         return Err(MalformedEvent::MissingPayload {
             kind: event.r#type(),
-            tick: event.tick,
+            tick: Tick(event.tick),
             field: "player",
         });
     };
@@ -274,12 +273,12 @@ fn extract_player_state(
     event: &TaggedEvent,
     players: &mut BTreeMap<String, Option<PlayerState>>,
     history: &[Option<TickState>],
-    last_players: &mut [Option<u32>],
+    last_players: &mut [Option<Tick>],
 ) -> Result<(), MalformedEvent> {
     let player = expect_player(event)?;
 
     let last = last_players[player.party_index as usize].and_then(|tick| {
-        history.get(tick as usize).and_then(|state| {
+        history.get(tick.0 as usize).and_then(|state| {
             state
                 .as_ref()
                 .and_then(|state| state.players.get(&player.name).and_then(Option::as_ref))
@@ -299,7 +298,7 @@ fn extract_player_state(
             attack: None,
             spell: None,
             stats: None,
-            off_cooldown_tick: 0,
+            off_cooldown_tick: Tick(0),
         });
 
     match event.r#type() {
@@ -309,7 +308,7 @@ fn extract_player_state(
             state.equipment =
                 parse_equipment(player, last).map_err(|raw| MalformedEvent::OutOfDomain {
                     kind: event.r#type(),
-                    tick: event.tick,
+                    tick: Tick(event.tick),
                     field: "player.equipment_deltas",
                     value: raw.to_string(),
                 })?;
@@ -320,7 +319,7 @@ fn extract_player_state(
         _ => unreachable!(),
     }
 
-    last_players[player.party_index as usize] = Some(event.tick);
+    last_players[player.party_index as usize] = Some(Tick(event.tick));
     Ok(())
 }
 
@@ -477,7 +476,7 @@ fn expect_npc(event: &Event) -> Result<&event::Npc, MalformedEvent> {
     let Some(npc) = &event.npc else {
         return Err(MalformedEvent::MissingPayload {
             kind: event.r#type(),
-            tick: event.tick,
+            tick: Tick(event.tick),
             field: "npc",
         });
     };
@@ -557,7 +556,7 @@ impl GraphicsState {
 
 #[derive(Debug, Clone)]
 pub struct TickState {
-    tick: u32,
+    tick: Tick,
     events: Vec<TaggedEvent>,
     /// Players visible on the tick.
     players: BTreeMap<String, Option<PlayerState>>,
@@ -568,7 +567,7 @@ pub struct TickState {
 }
 
 impl TickState {
-    pub(super) fn tick(&self) -> u32 {
+    pub(super) fn tick(&self) -> Tick {
         self.tick
     }
 
@@ -616,10 +615,10 @@ impl TickState {
     }
 
     fn from_events(
-        tick: u32,
+        tick: Tick,
         party: &[String],
         history: &[Option<TickState>],
-        last_players: &mut [Option<u32>],
+        last_players: &mut [Option<Tick>],
         events: impl IntoIterator<Item = TaggedEvent>,
     ) -> Result<Self, MalformedEvent> {
         let mut players = party
@@ -657,7 +656,7 @@ impl TickState {
                     let Some(maze) = &event.sote_maze else {
                         return Err(MalformedEvent::MissingPayload {
                             kind: event.r#type(),
-                            tick: event.tick,
+                            tick: Tick(event.tick),
                             field: "sote_maze",
                         });
                     };
@@ -694,7 +693,7 @@ impl TickState {
                 Class::Unspecified => {
                     return Err(MalformedEvent::MissingPayload {
                         kind: event.r#type(),
-                        tick: event.tick,
+                        tick: Tick(event.tick),
                         field: "type",
                     });
                 }
@@ -767,15 +766,13 @@ impl TickState {
             } else {
                 ctx.previous_players
                     .get(name.as_str())
-                    .map_or(0, |p| p.off_cooldown_tick)
+                    .map_or(Tick(0), |p| p.off_cooldown_tick)
             };
         }
     }
 
     #[expect(clippy::similar_names)]
     fn create_player_state_events(&mut self, stage: Stage, ctx: &ResyncContext) {
-        let tick = self.tick;
-
         for (name, state) in &self.players {
             if ctx.dead_players.contains(name.as_str()) {
                 continue;
@@ -787,7 +784,7 @@ impl TickState {
 
             let base = |kind: event::Type| {
                 let mut event = Event {
-                    tick,
+                    tick: self.tick.0,
                     stage: stage as i32,
                     x_coord: state.position.x,
                     y_coord: state.position.y,
@@ -809,7 +806,7 @@ impl TickState {
             // Recreated equipment is always a delta instead of a snapshot as
             // it's built from internally consistent state.
             player.equipment_deltas = create_equipment_deltas(state, previous);
-            player.off_cooldown_tick = state.off_cooldown_tick;
+            player.off_cooldown_tick = state.off_cooldown_tick.0;
             if let Some(stats) = &state.stats {
                 player.hitpoints = Some(stats.hitpoints.to_raw());
                 player.prayer = Some(stats.prayer.to_raw());
@@ -883,6 +880,7 @@ impl TickState {
             .filter(|event| event.r#type() == event::Type::NpcSpawn)
             .map(|event| event.npc.as_ref().expect("validated at build").room_id)
             .collect::<HashSet<_>>();
+        let tick = self.tick.0;
 
         for (&room_id, state) in &self.npcs {
             if ctx.dead_npcs.contains(&room_id) {
@@ -892,7 +890,7 @@ impl TickState {
             // Update and spawn events are mutually exclusive.
             if !spawned.contains(&room_id) {
                 let mut event = Event {
-                    tick: self.tick,
+                    tick,
                     stage: stage as i32,
                     x_coord: state.position.x,
                     y_coord: state.position.y,
@@ -921,7 +919,7 @@ impl TickState {
 
             if let Some(attack) = &state.attack {
                 let mut event = Event {
-                    tick: self.tick,
+                    tick,
                     stage: stage as i32,
                     x_coord: state.position.x,
                     y_coord: state.position.y,
@@ -955,7 +953,7 @@ impl TickState {
     fn create_graphics_events(&mut self, stage: Stage, ctx: &ResyncContext) {
         for (kind, coords) in &self.graphics.0 {
             let mut event = Event {
-                tick: self.tick,
+                tick: self.tick.0,
                 stage: stage as i32,
                 ..Default::default()
             };
@@ -1008,7 +1006,7 @@ fn attach_actions(
                 let Some(attack) = &event.npc_attack else {
                     return Err(MalformedEvent::MissingPayload {
                         kind: event.r#type(),
-                        tick: event.tick,
+                        tick: Tick(event.tick),
                         field: "npc_attack",
                     });
                 };
@@ -1031,7 +1029,7 @@ fn attach_actions(
                 let Some(attack) = &event.player_attack else {
                     return Err(MalformedEvent::MissingPayload {
                         kind: event.r#type(),
-                        tick: event.tick,
+                        tick: Tick(event.tick),
                         field: "player_attack",
                     });
                 };
@@ -1053,7 +1051,7 @@ fn attach_actions(
                 let Some(spell) = event.player_spell else {
                     return Err(MalformedEvent::MissingPayload {
                         kind: event.r#type(),
-                        tick: event.tick,
+                        tick: Tick(event.tick),
                         field: "player_spell",
                     });
                 };
@@ -1090,6 +1088,7 @@ fn attach_actions(
 mod tests {
     use super::*;
     use crate::merging::fixtures;
+    use crate::merging::{Tick, Ticks};
     use crate::proto::event::attack_style::Style;
 
     #[test]
@@ -1098,14 +1097,14 @@ mod tests {
         let events = vec![
             TaggedEvent::new(
                 ClientId(1),
-                fixtures::PlayerUpdateEvent::new(2, Stage::TobVerzik, "1Ogp", (3167, 4311))
+                fixtures::PlayerUpdateEvent::new(Tick(2), Stage::TobVerzik, "1Ogp", (3167, 4311))
                     .source(DataSource::Primary)
                     .build(),
             ),
             TaggedEvent::new(
                 ClientId(1),
                 fixtures::npc_update_event(fixtures::NpcEvent {
-                    tick: 2,
+                    tick: Tick(2),
                     stage: Stage::TobVerzik,
                     coords: (3166, 4324),
                     npc_id: 8374,
@@ -1116,7 +1115,7 @@ mod tests {
             TaggedEvent::new(
                 ClientId(1),
                 fixtures::npc_attack_event(
-                    2,
+                    Tick(2),
                     Stage::TobVerzik,
                     (3166, 4324),
                     8374,
@@ -1127,28 +1126,28 @@ mod tests {
             ),
             TaggedEvent::new(
                 ClientId(1),
-                fixtures::verzik_attack_style_event(3, 2, Style::Melee),
+                fixtures::verzik_attack_style_event(Tick(3), Tick(2), Style::Melee),
             ),
         ];
-        let mut timeline = Timeline::build(&party, 5, events).expect("events are valid");
+        let mut timeline = Timeline::build(&party, Tick(5), events).expect("events are valid");
 
-        timeline.shift(3);
+        timeline.shift(Ticks(3));
 
-        assert_eq!(timeline.tick_count(), 9);
+        assert_eq!(timeline.last_tick(), Tick(8));
         assert_eq!(timeline.missing_tick_count(), 7);
-        assert!(timeline.get(2).is_none());
-        assert!(timeline.get(4).is_none());
+        assert!(timeline.get(Tick(2)).is_none());
+        assert!(timeline.get(Tick(4)).is_none());
 
-        let state = timeline.get(5).expect("tick state moved up");
-        assert_eq!(state.tick(), 5);
+        let state = timeline.get(Tick(5)).expect("tick state moved up");
+        assert_eq!(state.tick(), Tick(5));
         let player = state.player("1Ogp").expect("player state moved with tick");
         assert_eq!(player.position, (3167, 4311).into());
         let npc = state.npc(1).expect("npc state moved with tick");
         assert_eq!(npc.id, 8374);
         assert!(npc.attack.is_some());
 
-        let state = timeline.get(6).expect("tick state moved up");
-        assert_eq!(state.tick(), 6);
+        let state = timeline.get(Tick(6)).expect("tick state moved up");
+        assert_eq!(state.tick(), Tick(6));
         let event = state
             .events_of_type(event::Type::TobVerzikAttackStyle)
             .next()

@@ -15,7 +15,7 @@ use super::{StoredState, TheatreConfig};
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::MergedEvents;
+use crate::merging::{MergedEvents, Tick, Ticks};
 use crate::npc;
 use crate::price::PriceResolver;
 use crate::proto::event::attack_style::Style as AttackStyle;
@@ -47,10 +47,10 @@ struct CustomData {
 struct RoomData {
     stage: Stage,
     ticks_lost: u32,
-    offset: u32,
+    offset: Ticks,
     deaths: Vec<String>,
     npcs: Vec<RoomNpc>,
-    bloat_down_ticks: Vec<u32>,
+    bloat_down_ticks: Vec<Tick>,
     nylo_waves_stalled: Vec<u32>,
     sotetseg_maze_1_pivots: Vec<u32>,
     sotetseg_maze_2_pivots: Vec<u32>,
@@ -64,10 +64,10 @@ impl RoomData {
         challenge_data::TobRoom {
             stage: self.stage as i32,
             ticks_lost: self.ticks_lost,
-            offset: Some(self.offset),
+            offset: Some(self.offset.0),
             deaths: self.deaths.clone(),
             npcs: self.npcs.iter().map(Into::into).collect(),
-            bloat_down_ticks: self.bloat_down_ticks.clone(),
+            bloat_down_ticks: self.bloat_down_ticks.iter().map(|t| t.0).collect(),
             nylo_waves_stalled: self.nylo_waves_stalled.clone(),
             sotetseg_maze_1_pivots: self.sotetseg_maze_1_pivots.clone(),
             sotetseg_maze_2_pivots: self.sotetseg_maze_2_pivots.clone(),
@@ -109,8 +109,8 @@ struct MaidenState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BloatDown {
     down_number: u32,
-    tick: u32,
-    walk_ticks: u32,
+    tick: Tick,
+    walk_ticks: Ticks,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -191,17 +191,17 @@ fn full_pivots(coords: &[Coords]) -> Option<[u32; NUM_SOTETSEG_MAZE_PIVOTS]> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SotetsegMaze {
     pivots: Pivots,
-    start_tick: u32,
-    end_tick: u32,
+    start_tick: Tick,
+    end_tick: Tick,
     chosen_player: Option<String>,
 }
 
 impl SotetsegMaze {
-    fn new(start_tick: u32) -> Self {
+    fn new(start_tick: Tick) -> Self {
         SotetsegMaze {
             pivots: Pivots::default(),
             start_tick,
-            end_tick: 0,
+            end_tick: Tick(0),
             chosen_player: None,
         }
     }
@@ -242,13 +242,13 @@ fn exhumed_healing_for_scale(challenge: &ChallengeInfo) -> i32 {
     }
 }
 
-const VERZIK_P1_TRANSITION_TICKS: u32 = 13;
-const VERZIK_P2_TRANSITION_TICKS: u32 = 6;
+const VERZIK_P1_TRANSITION_TICKS: Ticks = Ticks(13);
+const VERZIK_P2_TRANSITION_TICKS: Ticks = Ticks(6);
 
 #[derive(Debug, Default)]
 struct VerzikState {
-    red_spawn_ticks: Vec<u32>,
-    missing_attack_ticks: Vec<u32>,
+    red_spawn_ticks: Vec<Tick>,
+    missing_attack_ticks: Vec<Tick>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,7 +263,7 @@ struct RoomFinish<'a> {
     ctx: &'a mut StageContext,
     events: &'a MergedEvents,
     room: &'a mut RoomData,
-    last_tick: u32,
+    last_tick: Tick,
     deaths: i32,
 }
 
@@ -333,15 +333,15 @@ impl TheatreProcessor {
         }
     }
 
-    fn process_npc_spawn(&mut self, ctx: &mut StageContext, tick: u32, npc: &event::Npc) {
+    fn process_npc_spawn(&mut self, ctx: &mut StageContext, tick: Tick, npc: &event::Npc) {
         match &npc.r#type {
             Some(event::npc::Type::MaidenCrab(crab)) => {
                 match crab.spawn() {
                     MaidenCrabSpawn::Seventies => {
-                        ctx.set_stage_split(SplitType::TobEntryMaiden70s, tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryMaiden70s, tick, Tick(0), false);
                     }
                     MaidenCrabSpawn::Fifties => {
-                        ctx.set_stage_split(SplitType::TobEntryMaiden50s, tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryMaiden50s, tick, Tick(0), false);
                         if let Some(seventies) = ctx.stage_split(SplitType::TobEntryMaiden70s) {
                             ctx.set_stage_split(
                                 SplitType::TobEntryMaiden70s50s,
@@ -352,7 +352,7 @@ impl TheatreProcessor {
                         }
                     }
                     MaidenCrabSpawn::Thirties => {
-                        ctx.set_stage_split(SplitType::TobEntryMaiden30s, tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryMaiden30s, tick, Tick(0), false);
                         if let Some(fifties) = ctx.stage_split(SplitType::TobEntryMaiden50s) {
                             ctx.set_stage_split(
                                 SplitType::TobEntryMaiden50s30s,
@@ -387,7 +387,7 @@ impl TheatreProcessor {
         if npc::is_verzik_matomenos(npc.id) {
             match self.verzik.red_spawn_ticks.last() {
                 None => {
-                    ctx.set_stage_split(SplitType::TobEntryVerzikReds, tick, 0, false);
+                    ctx.set_stage_split(SplitType::TobEntryVerzikReds, tick, Tick(0), false);
                     self.verzik.red_spawn_ticks.push(tick);
                 }
                 Some(&last) if last != tick => self.verzik.red_spawn_ticks.push(tick),
@@ -396,7 +396,7 @@ impl TheatreProcessor {
         }
     }
 
-    fn process_npc_update(&mut self, ctx: &mut StageContext, _tick: u32, npc: &event::Npc) {
+    fn process_npc_update(&mut self, ctx: &mut StageContext, _tick: Tick, npc: &event::Npc) {
         if ctx.stage() == Stage::TobNylocas
             && let Some(style) = npc::nylocas_vasilias_style(npc.id)
         {
@@ -510,7 +510,7 @@ impl TheatreProcessor {
         }
     }
 
-    fn capture_bloat_hands(&mut self, tick: u32, hands: &[Coords]) {
+    fn capture_bloat_hands(&mut self, tick: Tick, hands: &[Coords]) {
         #![allow(clippy::cast_possible_truncation, reason = "16x16")]
         let mut hands_by_chunk: [Vec<i16>; 4] = [const { Vec::new() }; 4];
 
@@ -520,7 +520,7 @@ impl TheatreProcessor {
 
             if !(0..16).contains(&x) || !(0..16).contains(&y) {
                 tracing::warn!(
-                    tick,
+                    %tick,
                     x = hand.x,
                     y = hand.y,
                     "tob_bloat_hand_invalid_coordinates",
@@ -785,7 +785,7 @@ impl TheatreProcessor {
                 .room
                 .sotetseg_maze_2_chosen
                 .clone_from(&maze.chosen_player);
-            if maze.end_tick > 0 {
+            if maze.end_tick > Tick(0) {
                 finish.ctx.set_stage_split(
                     SplitType::TobEntrySotetsegP3,
                     finish.last_tick,
@@ -873,7 +873,7 @@ impl TheatreProcessor {
     async fn save_bloat_downs(
         &self,
         txn: &db::Transaction,
-        accurate_until: u32,
+        accurate_until: Tick,
     ) -> Result<(), db::Error> {
         if self.bloat.downs.is_empty() {
             return Ok(());
@@ -886,8 +886,8 @@ impl TheatreProcessor {
         for down in &self.bloat.downs {
             down_numbers
                 .push(i16::try_from(down.down_number).expect("down number fits in smallint"));
-            down_ticks.push(down.tick.cast_signed());
-            walk_ticks.push(i16::try_from(down.walk_ticks).expect("walk ticks fit in smallint"));
+            down_ticks.push(down.tick.0.cast_signed());
+            walk_ticks.push(i16::try_from(down.walk_ticks.0).expect("walk ticks fit in smallint"));
             accurate.push(down.tick < accurate_until);
         }
 
@@ -991,6 +991,8 @@ impl ChallengeProcessor for TheatreProcessor {
         events: &mut EventCursor<'_>,
     ) -> bool {
         let event = events.current();
+        let tick = Tick(event.tick);
+
         match event.r#type() {
             event::Type::PlayerDeath => {
                 if let Some(player) = &event.player
@@ -1019,13 +1021,13 @@ impl ChallengeProcessor for TheatreProcessor {
             }
             event::Type::NpcSpawn => {
                 if let Some(npc) = &event.npc {
-                    self.process_npc_spawn(ctx, event.tick, npc);
+                    self.process_npc_spawn(ctx, tick, npc);
                 }
                 true
             }
             event::Type::NpcUpdate => {
                 if let Some(npc) = &event.npc {
-                    self.process_npc_update(ctx, event.tick, npc);
+                    self.process_npc_update(ctx, tick, npc);
                 }
                 true
             }
@@ -1046,12 +1048,12 @@ impl ChallengeProcessor for TheatreProcessor {
                 if let Some(down) = &event.bloat_down {
                     self.bloat.downs.push(BloatDown {
                         down_number: down.down_number,
-                        tick: event.tick,
-                        walk_ticks: down.up_ticks.saturating_sub(1),
+                        tick,
+                        walk_ticks: Ticks(down.up_ticks.saturating_sub(1)),
                     });
 
                     if down.down_number == 1 {
-                        let bloat = events.events_for_tick(event.tick).iter().find(|e| {
+                        let bloat = events.events_for_tick(tick).iter().find(|e| {
                             e.r#type() == event::Type::NpcUpdate
                                 && e.npc.as_ref().is_some_and(|npc| npc::is_bloat(npc.id))
                         });
@@ -1064,16 +1066,16 @@ impl ChallengeProcessor for TheatreProcessor {
                 true
             }
             event::Type::TobBloatHandsDrop => {
-                self.capture_bloat_hands(event.tick, &event.bloat_hands);
+                self.capture_bloat_hands(tick, &event.bloat_hands);
                 true
             }
 
             event::Type::TobNyloWaveSpawn => {
                 if let Some(wave) = event.nylo_wave {
                     if wave.wave == 20 {
-                        ctx.set_stage_split(SplitType::TobEntryNyloCap, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryNyloCap, tick, Tick(0), false);
                     } else if wave.wave == 31 {
-                        ctx.set_stage_split(SplitType::TobEntryNyloWaves, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryNyloWaves, tick, Tick(0), false);
                     }
                 }
                 true
@@ -1085,11 +1087,11 @@ impl ChallengeProcessor for TheatreProcessor {
                 true
             }
             event::Type::TobNyloCleanupEnd => {
-                ctx.set_stage_split(SplitType::TobEntryNyloCleanup, event.tick, 0, false);
+                ctx.set_stage_split(SplitType::TobEntryNyloCleanup, tick, Tick(0), false);
                 true
             }
             event::Type::TobNyloBossSpawn => {
-                ctx.set_stage_split(SplitType::TobEntryNyloBossSpawn, event.tick, 0, false);
+                ctx.set_stage_split(SplitType::TobEntryNyloBossSpawn, tick, Tick(0), false);
                 true
             }
 
@@ -1097,23 +1099,23 @@ impl ChallengeProcessor for TheatreProcessor {
                 let Some(sote_maze) = &event.sote_maze else {
                     tracing::warn!(
                         uuid = %self.challenge.uuid,
-                        tick = event.tick,
+                        %tick,
                         "tob_sote_maze_proc_no_maze",
                     );
                     return false;
                 };
-                let maze = SotetsegMaze::new(event.tick);
+                let maze = SotetsegMaze::new(tick);
                 match sote_maze.maze() {
                     Maze::Maze66 => {
-                        ctx.set_stage_split(SplitType::TobEntrySotetseg66, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntrySotetseg66, tick, Tick(0), false);
                         self.sotetseg.maze_1 = Some(maze);
                     }
                     Maze::Maze33 => {
-                        ctx.set_stage_split(SplitType::TobEntrySotetseg33, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntrySotetseg33, tick, Tick(0), false);
                         if let Some(maze_1) = &self.sotetseg.maze_1 {
                             ctx.set_stage_split(
                                 SplitType::TobEntrySotetsegP2,
-                                event.tick,
+                                tick,
                                 maze_1.end_tick,
                                 false,
                             );
@@ -1138,7 +1140,7 @@ impl ChallengeProcessor for TheatreProcessor {
                 if let Some(sote_maze) = &event.sote_maze
                     && let Some(maze) = self.maze_mut(sote_maze.maze())
                 {
-                    maze.end_tick = event.tick;
+                    maze.end_tick = tick;
                     if sote_maze.chosen_player.is_some() {
                         maze.chosen_player.clone_from(&sote_maze.chosen_player);
                     }
@@ -1146,7 +1148,7 @@ impl ChallengeProcessor for TheatreProcessor {
                         Maze::Maze66 => SplitType::TobEntrySotetsegMaze1,
                         Maze::Maze33 => SplitType::TobEntrySotetsegMaze2,
                     };
-                    ctx.set_stage_split(split, event.tick, maze.start_tick, false);
+                    ctx.set_stage_split(split, tick, maze.start_tick, false);
                 }
                 false
             }
@@ -1165,14 +1167,14 @@ impl ChallengeProcessor for TheatreProcessor {
                 match event.xarpus_phase() {
                     XarpusPhase::XarpusP1 => {}
                     XarpusPhase::XarpusP2 => {
-                        ctx.set_stage_split(SplitType::TobEntryXarpusExhumes, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryXarpusExhumes, tick, Tick(0), false);
                     }
                     XarpusPhase::XarpusP3 => {
-                        ctx.set_stage_split(SplitType::TobEntryXarpusScreech, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryXarpusScreech, tick, Tick(0), false);
                         if let Some(exhumes) = ctx.stage_split(SplitType::TobEntryXarpusExhumes) {
                             ctx.set_stage_split(
                                 SplitType::TobEntryXarpusP2,
-                                event.tick,
+                                tick,
                                 exhumes.tick,
                                 false,
                             );
@@ -1186,14 +1188,14 @@ impl ChallengeProcessor for TheatreProcessor {
                 match event.verzik_phase() {
                     VerzikPhase::VerzikIdle | VerzikPhase::VerzikP1 => {}
                     VerzikPhase::VerzikP2 => {
-                        ctx.set_stage_split(SplitType::TobEntryVerzikP1End, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryVerzikP1End, tick, Tick(0), false);
                     }
                     VerzikPhase::VerzikP3 => {
-                        ctx.set_stage_split(SplitType::TobEntryVerzikP2End, event.tick, 0, false);
+                        ctx.set_stage_split(SplitType::TobEntryVerzikP2End, tick, Tick(0), false);
                         if let Some(p1_end) = ctx.stage_split(SplitType::TobEntryVerzikP1End) {
                             ctx.set_stage_split(
                                 SplitType::TobEntryVerzikP2,
-                                event.tick,
+                                tick,
                                 p1_end.tick + VERZIK_P1_TRANSITION_TICKS,
                                 false,
                             );
@@ -1206,7 +1208,7 @@ impl ChallengeProcessor for TheatreProcessor {
                 let Some(bounce) = &event.verzik_bounce else {
                     return false;
                 };
-                let Ok(attack_tick) = u32::try_from(bounce.npc_attack_tick) else {
+                let Ok(attack_tick) = u32::try_from(bounce.npc_attack_tick).map(Tick) else {
                     return false;
                 };
                 let Some(bounced_player) = bounce.bounced_player.clone() else {
@@ -1233,7 +1235,7 @@ impl ChallengeProcessor for TheatreProcessor {
                 let Some(attack_style) = event.verzik_attack_style else {
                     return false;
                 };
-                let tick = attack_style.npc_attack_tick;
+                let tick = Tick(attack_style.npc_attack_tick);
                 let attack = events
                     .events_for_tick_mut(tick)
                     .iter_mut()
@@ -1344,7 +1346,7 @@ impl ChallengeProcessor for TheatreProcessor {
 
         *self.room_mut(stage) = Some(room);
 
-        ctx.set_stage_split(room_split(stage), last_tick, 0, true);
+        ctx.set_stage_split(room_split(stage), last_tick, Tick(0), true);
 
         if events.status() == StageStatus::Completed
             && self.has_fully_recorded_up_to(stage)
@@ -1352,12 +1354,12 @@ impl ChallengeProcessor for TheatreProcessor {
         {
             ctx.set_challenge_split(
                 next_entry,
-                stored.challenge_ticks + last_tick,
+                stored.challenge_ticks + last_tick.duration(),
                 Some(!self.challenge.party_changed && events.has_precise_server_tick_count()),
             );
         }
 
-        Ok(ChallengeTicks::Add(last_tick))
+        Ok(ChallengeTicks::Add(last_tick.duration()))
     }
 
     async fn on_finish(
@@ -1365,7 +1367,7 @@ impl ChallengeProcessor for TheatreProcessor {
         _txn: &db::Transaction,
         _stored: &StoredState,
         ctx: &mut ChallengeContext,
-        final_ticks: u32,
+        final_ticks: Ticks,
     ) -> Result<(), db::Error> {
         ctx.set_challenge_split(SplitType::TobEntryChallenge, final_ticks, None);
         if let Some(overall) = self
@@ -1373,7 +1375,7 @@ impl ChallengeProcessor for TheatreProcessor {
             .reported_times
             .and_then(|times| times.overall)
         {
-            ctx.set_challenge_split(SplitType::TobEntryOverall, overall, None);
+            ctx.set_challenge_split(SplitType::TobEntryOverall, Ticks(overall), None);
         }
 
         for index in 0..self.challenge.party.len() {
@@ -1430,6 +1432,7 @@ mod tests {
         ChallengeMode, ChallengeType, JournalSeq, ReportedTimes, StageStatus, Uuid,
     };
     use crate::merging::fixtures::*;
+    use crate::merging::{Tick, Ticks};
     use crate::processing::split::{SavedSplit, StageSplit};
     use crate::processing::stats::PlayerStatsDelta;
     use crate::proto::Event;
@@ -1503,7 +1506,7 @@ mod tests {
         })
     }
 
-    fn crab_spawn(tick: u32, room_id: u64, coords: (i32, i32), kind: event::npc::Type) -> Event {
+    fn crab_spawn(tick: Tick, room_id: u64, coords: (i32, i32), kind: event::npc::Type) -> Event {
         npc_spawn_event(NpcEvent {
             tick,
             stage: Stage::TobMaiden,
@@ -1520,7 +1523,7 @@ mod tests {
     }
 
     fn crab_leak(
-        tick: u32,
+        tick: Tick,
         room_id: u64,
         coords: (i32, i32),
         current: u16,
@@ -1553,7 +1556,7 @@ mod tests {
         let mut events = merged_events(
             vec![
                 crab_spawn(
-                    56,
+                    Tick(56),
                     45952,
                     (3185, 4454),
                     maiden_crab(
@@ -1563,20 +1566,20 @@ mod tests {
                     ),
                 ),
                 crab_spawn(
-                    56,
+                    Tick(56),
                     45954,
                     (3173, 4456),
                     maiden_crab(MaidenCrabSpawn::Seventies, MaidenCrabPosition::N1, false),
                 ),
                 crab_leak(
-                    62,
+                    Tick(62),
                     45954,
                     (3167, 4450),
                     75,
                     maiden_crab(MaidenCrabSpawn::Seventies, MaidenCrabPosition::N1, false),
                 ),
                 crab_leak(
-                    108,
+                    Tick(108),
                     45952,
                     (3168, 4444),
                     3,
@@ -1587,32 +1590,32 @@ mod tests {
                     ),
                 ),
                 crab_spawn(
-                    108,
+                    Tick(108),
                     47648,
                     (3173, 4456),
                     maiden_crab(MaidenCrabSpawn::Fifties, MaidenCrabPosition::N1, true),
                 ),
                 crab_leak(
-                    114,
+                    Tick(114),
                     47648,
                     (3167, 4450),
                     17,
                     maiden_crab(MaidenCrabSpawn::Fifties, MaidenCrabPosition::N1, true),
                 ),
                 crab_spawn(
-                    173,
+                    Tick(173),
                     49452,
                     (3181, 4436),
                     maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S3, false),
                 ),
                 crab_leak(
-                    179,
+                    Tick(179),
                     49452,
                     (3167, 4450),
                     15,
                     maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S3, false),
                 ),
-                player_death_event(231, Stage::TobMaiden, (3167, 4450), "WWWWWWWWWWQQ", 1),
+                player_death_event(Tick(231), Stage::TobMaiden, (3167, 4450), "WWWWWWWWWWQQ", 1),
             ],
             StageStatus::Started,
             ServerTicks::Missing,
@@ -1629,40 +1632,40 @@ mod tests {
                 (
                     SplitType::TobEntryMaiden70s,
                     StageSplit {
-                        tick: 56,
-                        start: 0,
+                        tick: Tick(56),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryMaiden50s,
                     StageSplit {
-                        tick: 108,
-                        start: 0,
+                        tick: Tick(108),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryMaiden30s,
                     StageSplit {
-                        tick: 173,
-                        start: 0,
+                        tick: Tick(173),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryMaiden70s50s,
                     StageSplit {
-                        tick: 108,
-                        start: 56,
+                        tick: Tick(108),
+                        start: Tick(56),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryMaiden50s30s,
                     StageSplit {
-                        tick: 173,
-                        start: 108,
+                        tick: Tick(173),
+                        start: Tick(108),
                         requires_completion: false,
                     },
                 ),
@@ -1710,7 +1713,7 @@ mod tests {
         let mut events = merged_events(
             vec![
                 player_attack_event(PlayerAttackEvent {
-                    tick: 21,
+                    tick: Tick(21),
                     stage: Stage::TobMaiden,
                     coords: (3167, 4450),
                     name: "1Ogp",
@@ -1721,7 +1724,7 @@ mod tests {
                     target: maiden,
                 }),
                 player_attack_event(PlayerAttackEvent {
-                    tick: 71,
+                    tick: Tick(71),
                     stage: Stage::TobMaiden,
                     coords: (3170, 4439),
                     name: "WWWWWWWWWWQQ",
@@ -1732,7 +1735,7 @@ mod tests {
                     target: crab,
                 }),
                 player_attack_event(PlayerAttackEvent {
-                    tick: 74,
+                    tick: Tick(74),
                     stage: Stage::TobMaiden,
                     coords: (3168, 4439),
                     name: "WWWWWWWWWWQQ",
@@ -1743,7 +1746,7 @@ mod tests {
                     target: crab,
                 }),
                 player_attack_event(PlayerAttackEvent {
-                    tick: 80,
+                    tick: Tick(80),
                     stage: Stage::TobMaiden,
                     coords: (3166, 4441),
                     name: "WWWWWWWWWWQQ",
@@ -1754,7 +1757,7 @@ mod tests {
                     target: crab,
                 }),
                 player_attack_event(PlayerAttackEvent {
-                    tick: 92,
+                    tick: Tick(92),
                     stage: Stage::TobMaiden,
                     coords: (3167, 4450),
                     name: "1Ogp",
@@ -1819,7 +1822,7 @@ mod tests {
         let mut events = merged_events(
             vec![
                 npc_update_event(NpcEvent {
-                    tick: 41,
+                    tick: Tick(41),
                     stage: Stage::TobBloat,
                     coords: (3291, 4440),
                     npc_id: npc::id::BLOAT_REGULAR,
@@ -1830,9 +1833,9 @@ mod tests {
                     },
                     ..Default::default()
                 }),
-                bloat_down_event(41, (3291, 4440), 1, 42),
+                bloat_down_event(Tick(41), (3291, 4440), 1, Ticks(42)),
                 bloat_hands_drop_event(
-                    74,
+                    Tick(74),
                     &[
                         (3302, 4449),
                         (3299, 4453),
@@ -1853,7 +1856,7 @@ mod tests {
                     ],
                 ),
                 bloat_hands_drop_event(
-                    78,
+                    Tick(78),
                     &[
                         (3299, 4448),
                         (3301, 4453),
@@ -1873,9 +1876,9 @@ mod tests {
                         (3300, 4444),
                     ],
                 ),
-                player_death_event(93, Stage::TobBloat, (3292, 4447), "1Ogp", 0),
+                player_death_event(Tick(93), Stage::TobBloat, (3292, 4447), "1Ogp", 0),
                 npc_update_event(NpcEvent {
-                    tick: 109,
+                    tick: Tick(109),
                     stage: Stage::TobBloat,
                     coords: (3299, 4440),
                     npc_id: npc::id::BLOAT_REGULAR,
@@ -1886,7 +1889,7 @@ mod tests {
                     },
                     ..Default::default()
                 }),
-                bloat_down_event(109, (3299, 4440), 2, 35),
+                bloat_down_event(Tick(109), (3299, 4440), 2, Ticks(35)),
             ],
             StageStatus::Started,
             ServerTicks::Missing,
@@ -1902,13 +1905,13 @@ mod tests {
             vec![
                 BloatDown {
                     down_number: 1,
-                    tick: 41,
-                    walk_ticks: 41,
+                    tick: Tick(41),
+                    walk_ticks: Ticks(41),
                 },
                 BloatDown {
                     down_number: 2,
-                    tick: 109,
-                    walk_ticks: 34,
+                    tick: Tick(109),
+                    walk_ticks: Ticks(34),
                 },
             ],
         );
@@ -1975,7 +1978,7 @@ mod tests {
     }
 
     fn nylo_split_spawn(
-        tick: u32,
+        tick: Tick,
         room_id: u64,
         coords: (i32, i32),
         npc_id: u32,
@@ -2003,7 +2006,7 @@ mod tests {
         })
     }
 
-    fn nylo_boss_update(tick: u32, npc_id: u32, current: u16) -> Event {
+    fn nylo_boss_update(tick: Tick, npc_id: u32, current: u16) -> Event {
         npc_update_event(NpcEvent {
             tick,
             stage: Stage::TobNylocas,
@@ -2032,19 +2035,19 @@ mod tests {
         );
         let mut events = merged_events(
             vec![
-                nylo_split_spawn(26, 53938, (3295, 4237), 8342, 5, NyloStyle::Melee),
-                nylo_split_spawn(31, 54068, (3287, 4248), 8343, 5, NyloStyle::Range),
-                nylo_split_spawn(51, 54374, (3296, 4239), 8344, 7, NyloStyle::Mage),
-                nylo_wave_event(event::Type::TobNyloWaveSpawn, 152, 20, 12, 24),
-                nylo_wave_event(event::Type::TobNyloWaveStall, 232, 29, 28, 24),
-                nylo_wave_event(event::Type::TobNyloWaveStall, 236, 29, 28, 24),
-                nylo_wave_event(event::Type::TobNyloWaveStall, 240, 29, 25, 24),
-                nylo_wave_event(event::Type::TobNyloWaveSpawn, 244, 30, 23, 24),
-                nylo_wave_event(event::Type::TobNyloWaveSpawn, 248, 31, 26, 24),
-                nylo_split_event(event::Type::TobNyloCleanupEnd, 273),
-                nylo_split_event(event::Type::TobNyloBossSpawn, 292),
+                nylo_split_spawn(Tick(26), 53938, (3295, 4237), 8342, 5, NyloStyle::Melee),
+                nylo_split_spawn(Tick(31), 54068, (3287, 4248), 8343, 5, NyloStyle::Range),
+                nylo_split_spawn(Tick(51), 54374, (3296, 4239), 8344, 7, NyloStyle::Mage),
+                nylo_wave_event(event::Type::TobNyloWaveSpawn, Tick(152), 20, 12, 24),
+                nylo_wave_event(event::Type::TobNyloWaveStall, Tick(232), 29, 28, 24),
+                nylo_wave_event(event::Type::TobNyloWaveStall, Tick(236), 29, 28, 24),
+                nylo_wave_event(event::Type::TobNyloWaveStall, Tick(240), 29, 25, 24),
+                nylo_wave_event(event::Type::TobNyloWaveSpawn, Tick(244), 30, 23, 24),
+                nylo_wave_event(event::Type::TobNyloWaveSpawn, Tick(248), 31, 26, 24),
+                nylo_split_event(event::Type::TobNyloCleanupEnd, Tick(273)),
+                nylo_split_event(event::Type::TobNyloBossSpawn, Tick(292)),
                 npc_spawn_event(NpcEvent {
-                    tick: 292,
+                    tick: Tick(292),
                     stage: Stage::TobNylocas,
                     coords: (3294, 4247),
                     npc_id: npc::id::NYLOCAS_VASILIAS_DROPPING_REGULAR,
@@ -2055,14 +2058,14 @@ mod tests {
                     },
                     ..Default::default()
                 }),
-                nylo_boss_update(293, npc::id::NYLOCAS_VASILIAS_DROPPING_REGULAR, 2187),
-                nylo_boss_update(294, npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR, 2187),
-                nylo_boss_update(303, npc::id::NYLOCAS_VASILIAS_MAGE_REGULAR, 1801),
-                nylo_boss_update(313, npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR, 1686),
-                nylo_boss_update(323, npc::id::NYLOCAS_VASILIAS_RANGE_REGULAR, 1346),
-                nylo_boss_update(333, npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR, 1008),
-                nylo_boss_update(343, npc::id::NYLOCAS_VASILIAS_RANGE_REGULAR, 321),
-                nylo_boss_update(353, npc::id::NYLOCAS_VASILIAS_MAGE_REGULAR, 43),
+                nylo_boss_update(Tick(293), npc::id::NYLOCAS_VASILIAS_DROPPING_REGULAR, 2187),
+                nylo_boss_update(Tick(294), npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR, 2187),
+                nylo_boss_update(Tick(303), npc::id::NYLOCAS_VASILIAS_MAGE_REGULAR, 1801),
+                nylo_boss_update(Tick(313), npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR, 1686),
+                nylo_boss_update(Tick(323), npc::id::NYLOCAS_VASILIAS_RANGE_REGULAR, 1346),
+                nylo_boss_update(Tick(333), npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR, 1008),
+                nylo_boss_update(Tick(343), npc::id::NYLOCAS_VASILIAS_RANGE_REGULAR, 321),
+                nylo_boss_update(Tick(353), npc::id::NYLOCAS_VASILIAS_MAGE_REGULAR, 43),
             ],
             StageStatus::Completed,
             ServerTicks::Precise(362),
@@ -2079,32 +2082,32 @@ mod tests {
                 (
                     SplitType::TobEntryNyloCap,
                     StageSplit {
-                        tick: 152,
-                        start: 0,
+                        tick: Tick(152),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryNyloWaves,
                     StageSplit {
-                        tick: 248,
-                        start: 0,
+                        tick: Tick(248),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryNyloCleanup,
                     StageSplit {
-                        tick: 273,
-                        start: 0,
+                        tick: Tick(273),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryNyloBossSpawn,
                     StageSplit {
-                        tick: 292,
-                        start: 0,
+                        tick: Tick(292),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
@@ -2148,9 +2151,9 @@ mod tests {
         );
         let mut events = merged_events(
             vec![
-                sote_maze_proc_event(42, Maze::Maze66),
+                sote_maze_proc_event(Tick(42), Maze::Maze66),
                 sote_maze_path_event(
-                    64,
+                    Tick(64),
                     Maze::Maze66,
                     SoteMazePath::UnderworldPivots(&[
                         (4, 0),
@@ -2163,19 +2166,55 @@ mod tests {
                         (1, 10),
                     ]),
                 ),
-                sote_maze_end_event(64, Maze::Maze66, Some("715")),
-                sote_maze_proc_event(106, Maze::Maze33),
-                sote_maze_path_event(112, Maze::Maze33, SoteMazePath::OverworldTiles(&[(7, 0)])),
-                sote_maze_path_event(113, Maze::Maze33, SoteMazePath::OverworldTiles(&[(8, 1)])),
-                sote_maze_path_event(114, Maze::Maze33, SoteMazePath::OverworldTiles(&[(10, 2)])),
-                sote_maze_path_event(115, Maze::Maze33, SoteMazePath::OverworldTiles(&[(11, 4)])),
-                sote_maze_path_event(116, Maze::Maze33, SoteMazePath::OverworldTiles(&[(12, 6)])),
-                sote_maze_path_event(117, Maze::Maze33, SoteMazePath::OverworldTiles(&[(10, 8)])),
-                sote_maze_path_event(118, Maze::Maze33, SoteMazePath::OverworldTiles(&[(9, 10)])),
-                sote_maze_path_event(119, Maze::Maze33, SoteMazePath::OverworldTiles(&[(11, 12)])),
-                sote_maze_path_event(120, Maze::Maze33, SoteMazePath::OverworldTiles(&[(12, 14)])),
+                sote_maze_end_event(Tick(64), Maze::Maze66, Some("715")),
+                sote_maze_proc_event(Tick(106), Maze::Maze33),
                 sote_maze_path_event(
-                    124,
+                    Tick(112),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(7, 0)]),
+                ),
+                sote_maze_path_event(
+                    Tick(113),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(8, 1)]),
+                ),
+                sote_maze_path_event(
+                    Tick(114),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(10, 2)]),
+                ),
+                sote_maze_path_event(
+                    Tick(115),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(11, 4)]),
+                ),
+                sote_maze_path_event(
+                    Tick(116),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(12, 6)]),
+                ),
+                sote_maze_path_event(
+                    Tick(117),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(10, 8)]),
+                ),
+                sote_maze_path_event(
+                    Tick(118),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(9, 10)]),
+                ),
+                sote_maze_path_event(
+                    Tick(119),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(11, 12)]),
+                ),
+                sote_maze_path_event(
+                    Tick(120),
+                    Maze::Maze33,
+                    SoteMazePath::OverworldTiles(&[(12, 14)]),
+                ),
+                sote_maze_path_event(
+                    Tick(124),
                     Maze::Maze33,
                     SoteMazePath::OverworldPivots(&[
                         (7, 0),
@@ -2188,7 +2227,7 @@ mod tests {
                         (12, 14),
                     ]),
                 ),
-                sote_maze_end_event(124, Maze::Maze33, Some("1Ogp")),
+                sote_maze_end_event(Tick(124), Maze::Maze33, Some("1Ogp")),
             ],
             StageStatus::Completed,
             ServerTicks::Precise(169),
@@ -2214,40 +2253,40 @@ mod tests {
                 (
                     SplitType::TobEntrySotetseg66,
                     StageSplit {
-                        tick: 42,
-                        start: 0,
+                        tick: Tick(42),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntrySotetseg33,
                     StageSplit {
-                        tick: 106,
-                        start: 0,
+                        tick: Tick(106),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntrySotetsegMaze1,
                     StageSplit {
-                        tick: 64,
-                        start: 42,
+                        tick: Tick(64),
+                        start: Tick(42),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntrySotetsegMaze2,
                     StageSplit {
-                        tick: 124,
-                        start: 106,
+                        tick: Tick(124),
+                        start: Tick(106),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntrySotetsegP2,
                     StageSplit {
-                        tick: 106,
-                        start: 64,
+                        tick: Tick(106),
+                        start: Tick(64),
                         requires_completion: false,
                     },
                 ),
@@ -2257,8 +2296,8 @@ mod tests {
             processor.sotetseg.maze_1,
             Some(SotetsegMaze {
                 pivots: Pivots::Complete([4, 2, 4, 4, 1, 1, 3, 0]),
-                start_tick: 42,
-                end_tick: 64,
+                start_tick: Tick(42),
+                end_tick: Tick(64),
                 chosen_player: Some("715".to_string()),
             }),
         );
@@ -2266,8 +2305,8 @@ mod tests {
             processor.sotetseg.maze_2,
             Some(SotetsegMaze {
                 pivots: Pivots::Complete([7, 10, 11, 12, 10, 9, 11, 12]),
-                start_tick: 106,
-                end_tick: 124,
+                start_tick: Tick(106),
+                end_tick: Tick(124),
                 chosen_player: Some("1Ogp".to_string()),
             }),
         );
@@ -2287,17 +2326,17 @@ mod tests {
         );
         let mut events = merged_events(
             vec![
-                xarpus_exhumed_event(19, 8, &[]),
-                xarpus_exhumed_event(27, 16, &[19]),
-                xarpus_exhumed_event(35, 24, &[27, 28]),
-                xarpus_exhumed_event(43, 32, &[35]),
-                xarpus_exhumed_event(51, 40, &[43]),
-                xarpus_exhumed_event(59, 48, &[]),
-                xarpus_exhumed_event(67, 56, &[59]),
-                xarpus_exhumed_event(75, 64, &[67]),
-                xarpus_exhumed_event(83, 72, &[75, 76]),
-                xarpus_phase_event(92, XarpusPhase::XarpusP2),
-                xarpus_phase_event(240, XarpusPhase::XarpusP3),
+                xarpus_exhumed_event(Tick(19), Tick(8), &[]),
+                xarpus_exhumed_event(Tick(27), Tick(16), &[Tick(19)]),
+                xarpus_exhumed_event(Tick(35), Tick(24), &[Tick(27), Tick(28)]),
+                xarpus_exhumed_event(Tick(43), Tick(32), &[Tick(35)]),
+                xarpus_exhumed_event(Tick(51), Tick(40), &[Tick(43)]),
+                xarpus_exhumed_event(Tick(59), Tick(48), &[]),
+                xarpus_exhumed_event(Tick(67), Tick(56), &[Tick(59)]),
+                xarpus_exhumed_event(Tick(75), Tick(64), &[Tick(67)]),
+                xarpus_exhumed_event(Tick(83), Tick(72), &[Tick(75), Tick(76)]),
+                xarpus_phase_event(Tick(92), XarpusPhase::XarpusP2),
+                xarpus_phase_event(Tick(240), XarpusPhase::XarpusP3),
             ],
             StageStatus::Completed,
             ServerTicks::Precise(311),
@@ -2314,24 +2353,24 @@ mod tests {
                 (
                     SplitType::TobEntryXarpusExhumes,
                     StageSplit {
-                        tick: 92,
-                        start: 0,
+                        tick: Tick(92),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryXarpusScreech,
                     StageSplit {
-                        tick: 240,
-                        start: 0,
+                        tick: Tick(240),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryXarpusP2,
                     StageSplit {
-                        tick: 240,
-                        start: 92,
+                        tick: Tick(240),
+                        start: Tick(92),
                         requires_completion: false,
                     },
                 ),
@@ -2356,7 +2395,7 @@ mod tests {
                 "715".to_string(),
             ],
         );
-        let red = |tick: u32, room_id: u64, coords: (i32, i32)| {
+        let red = |tick: Tick, room_id: u64, coords: (i32, i32)| {
             npc_spawn_event(NpcEvent {
                 tick,
                 stage: Stage::TobVerzik,
@@ -2370,7 +2409,7 @@ mod tests {
                 ..Default::default()
             })
         };
-        let p3_auto = |tick: u32, coords: (i32, i32)| {
+        let p3_auto = |tick: Tick, coords: (i32, i32)| {
             npc_attack_event(
                 tick,
                 Stage::TobVerzik,
@@ -2383,14 +2422,14 @@ mod tests {
         };
         let mut events = merged_events(
             vec![
-                verzik_phase_event(66, VerzikPhase::VerzikP2),
-                red(174, 44478, (3163, 4314)),
-                red(174, 44479, (3171, 4314)),
-                red(218, 45588, (3163, 4314)),
-                red(218, 45589, (3171, 4314)),
-                verzik_bounce_event(230, 230, 0, 3, None),
+                verzik_phase_event(Tick(66), VerzikPhase::VerzikP2),
+                red(Tick(174), 44478, (3163, 4314)),
+                red(Tick(174), 44479, (3171, 4314)),
+                red(Tick(218), 45588, (3163, 4314)),
+                red(Tick(218), 45589, (3171, 4314)),
+                verzik_bounce_event(Tick(230), Tick(230), 0, 3, None),
                 npc_attack_event(
-                    234,
+                    Tick(234),
                     Stage::TobVerzik,
                     (3167, 4313),
                     8372,
@@ -2398,16 +2437,16 @@ mod tests {
                     NpcAttack::TobVerzikP2Bounce,
                     None,
                 ),
-                verzik_bounce_event(235, 234, 2, 1, Some("WWWWWWWWWWQQ")),
-                verzik_phase_event(235, VerzikPhase::VerzikP3),
-                p3_auto(247, (3165, 4309)),
-                verzik_attack_style_event(249, 247, AttackStyle::Mage),
-                p3_auto(254, (3165, 4309)),
-                verzik_attack_style_event(257, 254, AttackStyle::Range),
-                p3_auto(348, (3165, 4309)),
-                verzik_attack_style_event(353, 348, AttackStyle::Melee),
-                p3_auto(353, (3165, 4309)),
-                verzik_attack_style_event(356, 353, AttackStyle::Range),
+                verzik_bounce_event(Tick(235), Tick(234), 2, 1, Some("WWWWWWWWWWQQ")),
+                verzik_phase_event(Tick(235), VerzikPhase::VerzikP3),
+                p3_auto(Tick(247), (3165, 4309)),
+                verzik_attack_style_event(Tick(249), Tick(247), AttackStyle::Mage),
+                p3_auto(Tick(254), (3165, 4309)),
+                verzik_attack_style_event(Tick(257), Tick(254), AttackStyle::Range),
+                p3_auto(Tick(348), (3165, 4309)),
+                verzik_attack_style_event(Tick(353), Tick(348), AttackStyle::Melee),
+                p3_auto(Tick(353), (3165, 4309)),
+                verzik_attack_style_event(Tick(356), Tick(353), AttackStyle::Range),
             ],
             StageStatus::Completed,
             ServerTicks::Precise(375),
@@ -2433,53 +2472,53 @@ mod tests {
                 (
                     SplitType::TobEntryVerzikP1End,
                     StageSplit {
-                        tick: 66,
-                        start: 0,
+                        tick: Tick(66),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryVerzikReds,
                     StageSplit {
-                        tick: 174,
-                        start: 0,
+                        tick: Tick(174),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryVerzikP2End,
                     StageSplit {
-                        tick: 235,
-                        start: 0,
+                        tick: Tick(235),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryVerzikP2,
                     StageSplit {
-                        tick: 235,
-                        start: 79,
+                        tick: Tick(235),
+                        start: Tick(79),
                         requires_completion: false,
                     },
                 ),
             ],
         );
-        assert_eq!(processor.verzik.red_spawn_ticks, vec![174, 218]);
+        assert_eq!(processor.verzik.red_spawn_ticks, vec![Tick(174), Tick(218)]);
         assert!(processor.verzik.missing_attack_ticks.is_empty());
 
-        let attack = |tick: u32| {
+        let attack = |tick: Tick| {
             events
                 .events_for_tick(tick)
                 .iter()
                 .find_map(|e| e.npc_attack.as_ref())
                 .unwrap()
         };
-        assert_eq!(attack(234).attack(), NpcAttack::TobVerzikP2Bounce);
-        assert_eq!(attack(234).target.as_deref(), Some("WWWWWWWWWWQQ"));
-        assert_eq!(attack(247).attack(), NpcAttack::TobVerzikP3Mage);
-        assert_eq!(attack(254).attack(), NpcAttack::TobVerzikP3Range);
-        assert_eq!(attack(348).attack(), NpcAttack::TobVerzikP3Melee);
-        assert_eq!(attack(353).attack(), NpcAttack::TobVerzikP3Range);
+        assert_eq!(attack(Tick(234)).attack(), NpcAttack::TobVerzikP2Bounce);
+        assert_eq!(attack(Tick(234)).target.as_deref(), Some("WWWWWWWWWWQQ"));
+        assert_eq!(attack(Tick(247)).attack(), NpcAttack::TobVerzikP3Mage);
+        assert_eq!(attack(Tick(254)).attack(), NpcAttack::TobVerzikP3Range);
+        assert_eq!(attack(Tick(348)).attack(), NpcAttack::TobVerzikP3Melee);
+        assert_eq!(attack(Tick(353)).attack(), NpcAttack::TobVerzikP3Range);
         assert_eq!(
             ctx.players()
                 .iter()
@@ -2500,7 +2539,7 @@ mod tests {
             .unwrap();
         let stored = StoredState {
             players: Vec::new(),
-            challenge_ticks: 2109,
+            challenge_ticks: Ticks(2109),
             custom_data: None,
         };
 
@@ -2512,7 +2551,7 @@ mod tests {
         let mut processor = TheatreProcessor::new(TheatreConfig::default(), info, None).unwrap();
         let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
         processor
-            .on_finish(&txn, &stored, &mut ctx, 2109)
+            .on_finish(&txn, &stored, &mut ctx, Ticks(2109))
             .await
             .unwrap();
         assert_eq!(
@@ -2543,7 +2582,7 @@ mod tests {
         .unwrap();
         let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
         processor
-            .on_finish(&txn, &stored, &mut ctx, 1121)
+            .on_finish(&txn, &stored, &mut ctx, Ticks(1121))
             .await
             .unwrap();
         assert_eq!(

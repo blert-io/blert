@@ -3,6 +3,8 @@
 use crate::lifecycle::core::types::ChallengeMode;
 use crate::proto::{Coords, Stage};
 
+use super::Ticks;
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Area {
     pub x: i32,
@@ -101,9 +103,38 @@ pub(super) fn is_in_death_area(stage: Stage, coords: Coords) -> bool {
     death_areas(stage).iter().any(|area| area.contains(coords))
 }
 
-const NATURAL_STALLS: [u32; 31] = [
-    4, 4, 4, 4, 16, 4, 12, 4, 12, 8, 8, 8, 8, 8, 8, 4, 12, 8, 12, 16, 8, 12, 8, 8, 8, 4, 8, 4, 4,
-    4, 0,
+const NATURAL_STALLS: [Ticks; 31] = [
+    Ticks(4),
+    Ticks(4),
+    Ticks(4),
+    Ticks(4),
+    Ticks(16),
+    Ticks(4),
+    Ticks(12),
+    Ticks(4),
+    Ticks(12),
+    Ticks(8),
+    Ticks(8),
+    Ticks(8),
+    Ticks(8),
+    Ticks(8),
+    Ticks(8),
+    Ticks(4),
+    Ticks(12),
+    Ticks(8),
+    Ticks(12),
+    Ticks(16),
+    Ticks(8),
+    Ticks(12),
+    Ticks(8),
+    Ticks(8),
+    Ticks(8),
+    Ticks(4),
+    Ticks(8),
+    Ticks(4),
+    Ticks(4),
+    Ticks(4),
+    Ticks(0),
 ];
 
 fn is_prince_wave(wave: u32) -> bool {
@@ -111,9 +142,9 @@ fn is_prince_wave(wave: u32) -> bool {
 }
 
 /// Returns the natural stall duration for a given Nylocas wave.
-pub(super) fn natural_stall_for_wave(mode: ChallengeMode, wave: u32) -> u32 {
+pub(super) fn natural_stall_for_wave(mode: ChallengeMode, wave: u32) -> Ticks {
     if mode == ChallengeMode::TobHard && is_prince_wave(wave) {
-        return 16;
+        return Ticks(16);
     }
     NATURAL_STALLS
         .get(wave as usize - 1)
@@ -123,7 +154,7 @@ pub(super) fn natural_stall_for_wave(mode: ChallengeMode, wave: u32) -> u32 {
 
 /// Returns the sum of the natural stall durations of the Nylocas waves in
 /// `[last_wave, wave)`.
-pub(super) fn sum_natural_stalls(mode: ChallengeMode, last_wave: u32, wave: u32) -> u32 {
+pub(super) fn sum_natural_stalls(mode: ChallengeMode, last_wave: u32, wave: u32) -> Ticks {
     (last_wave..wave)
         .map(|w| natural_stall_for_wave(mode, w))
         .sum()

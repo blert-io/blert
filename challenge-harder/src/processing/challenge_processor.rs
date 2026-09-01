@@ -12,7 +12,7 @@ use super::db;
 use super::split::{ChallengeSplit, SavedSplit, SplitType, StageSplit};
 use super::stats::PlayerStatsDelta;
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
-use crate::merging::MergedEvents;
+use crate::merging::{MergedEvents, Tick, Ticks};
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, Coords, Event, challenge_data, event};
 
@@ -34,12 +34,12 @@ impl<'a> EventCursor<'a> {
     }
 
     /// Returns all events occurring on `tick`.
-    pub fn events_for_tick(&self, tick: u32) -> &[Event] {
+    pub fn events_for_tick(&self, tick: Tick) -> &[Event] {
         self.events.events_for_tick(tick)
     }
 
     /// Returns all events occurring on `tick`, mutably.
-    pub fn events_for_tick_mut(&mut self, tick: u32) -> &mut [Event] {
+    pub fn events_for_tick_mut(&mut self, tick: Tick) -> &mut [Event] {
         self.events.events_for_tick_mut(tick)
     }
 }
@@ -126,8 +126,8 @@ impl ChallengeContext {
     }
 
     /// Records a split whose timer spans the entire challenge.
-    pub fn set_challenge_split(&mut self, split: SplitType, ticks: u32, accurate: Option<bool>) {
-        if ticks > 0 {
+    pub fn set_challenge_split(&mut self, split: SplitType, ticks: Ticks, accurate: Option<bool>) {
+        if ticks.is_nonzero() {
             self.challenge_splits
                 .insert(split, ChallengeSplit { ticks, accurate });
         }
@@ -148,7 +148,7 @@ impl ChallengeContext {
             .iter()
             .map(|(&split, entry)| SavedSplit {
                 split,
-                ticks: entry.ticks,
+                ticks: entry.ticks.0,
                 accurate: entry.accurate.unwrap_or(default_accuracy),
             })
             .collect()
@@ -231,7 +231,7 @@ impl StageContext {
     }
 
     /// Records a split whose timer spans the entire challenge.
-    pub fn set_challenge_split(&mut self, split: SplitType, ticks: u32, accurate: Option<bool>) {
+    pub fn set_challenge_split(&mut self, split: SplitType, ticks: Ticks, accurate: Option<bool>) {
         self.challenge.set_challenge_split(split, ticks, accurate);
     }
 
@@ -245,8 +245,8 @@ impl StageContext {
     pub fn set_stage_split(
         &mut self,
         split: SplitType,
-        tick: u32,
-        start: u32,
+        tick: Tick,
+        start: Tick,
         requires_completion: bool,
     ) {
         if tick > start {
@@ -277,13 +277,13 @@ impl StageContext {
     /// Stage splits are accurate when they fall within the timeline's accurate
     /// prefix. Challenge splits recorded following a stage are inaccurate
     /// unless overridden.
-    pub(super) fn splits(&self, accurate_until: u32, completed: bool) -> Vec<SavedSplit> {
+    pub(super) fn splits(&self, accurate_until: Tick, completed: bool) -> Vec<SavedSplit> {
         let mut splits: Vec<SavedSplit> = self
             .stage_splits
             .iter()
             .map(|(&split, entry)| SavedSplit {
                 split,
-                ticks: entry.tick - entry.start,
+                ticks: (entry.tick - entry.start).0,
                 accurate: entry.tick < accurate_until && (!entry.requires_completion || completed),
             })
             .collect();
@@ -296,9 +296,9 @@ impl StageContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChallengeTicks {
     /// Adds the stage's ticks to the total.
-    Add(u32),
+    Add(Ticks),
     /// Replaces the stored total.
-    Set(u32),
+    Set(Ticks),
 }
 
 /// Type-specific challenge processing behavior.
@@ -333,7 +333,7 @@ pub trait ChallengeProcessor: Send {
         txn: &db::Transaction,
         stored: &StoredState,
         ctx: &mut ChallengeContext,
-        final_ticks: u32,
+        final_ticks: Ticks,
     ) -> Result<(), db::Error>;
 
     /// Returns custom state to persist across the challenge processing runs.
@@ -345,7 +345,7 @@ pub trait ChallengeProcessor: Send {
     /// Returns the challenge's official final tick count given its total ticks
     /// across all stages. Overridden where a challenge continues past its last
     /// counted stage.
-    fn final_challenge_ticks(&self, total: u32) -> u32 {
+    fn final_challenge_ticks(&self, total: Ticks) -> Ticks {
         total
     }
 
@@ -364,16 +364,16 @@ mod tests {
             Stage::TobMaiden,
             vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
         );
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 0, 0, false);
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 32, 52, false);
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, Tick(0), Tick(0), false);
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, Tick(32), Tick(52), false);
         assert_eq!(ctx.stage_split(SplitType::TobEntryMaiden70s50s), None);
 
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, 52, 32, false);
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, Tick(52), Tick(32), false);
         assert_eq!(
             ctx.stage_split(SplitType::TobEntryMaiden70s50s),
             Some(StageSplit {
-                tick: 52,
-                start: 32,
+                tick: Tick(52),
+                start: Tick(32),
                 requires_completion: false,
             }),
         );
@@ -385,25 +385,25 @@ mod tests {
             Stage::TobMaiden,
             vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
         );
-        ctx.set_stage_split(SplitType::TobEntryMaiden70s, 32, 0, false);
-        ctx.set_stage_split(SplitType::TobEntryMaiden, 150, 0, true);
-        ctx.set_stage_split(SplitType::TobEntryMaiden, 155, 0, true);
+        ctx.set_stage_split(SplitType::TobEntryMaiden70s, Tick(32), Tick(0), false);
+        ctx.set_stage_split(SplitType::TobEntryMaiden, Tick(150), Tick(0), true);
+        ctx.set_stage_split(SplitType::TobEntryMaiden, Tick(155), Tick(0), true);
         assert_eq!(
             ctx.stage_splits().collect::<Vec<_>>(),
             vec![
                 (
                     SplitType::TobEntryMaiden,
                     StageSplit {
-                        tick: 155,
-                        start: 0,
+                        tick: Tick(155),
+                        start: Tick(0),
                         requires_completion: true,
                     },
                 ),
                 (
                     SplitType::TobEntryMaiden70s,
                     StageSplit {
-                        tick: 32,
-                        start: 0,
+                        tick: Tick(32),
+                        start: Tick(0),
                         requires_completion: false,
                     },
                 ),
@@ -414,25 +414,25 @@ mod tests {
     #[test]
     fn challenge_splits_need_nonzero_ticks_and_iterate_in_split_order() {
         let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
-        ctx.set_challenge_split(SplitType::TobEntryChallenge, 0, None);
+        ctx.set_challenge_split(SplitType::TobEntryChallenge, Ticks(0), None);
         assert_eq!(ctx.challenge_splits().count(), 0);
 
-        ctx.set_challenge_split(SplitType::TobEntryNyloStart, 280, Some(true));
-        ctx.set_challenge_split(SplitType::TobEntryChallenge, 1534, None);
+        ctx.set_challenge_split(SplitType::TobEntryNyloStart, Ticks(280), Some(true));
+        ctx.set_challenge_split(SplitType::TobEntryChallenge, Ticks(1534), None);
         assert_eq!(
             ctx.challenge_splits().collect::<Vec<_>>(),
             vec![
                 (
                     SplitType::TobEntryChallenge,
                     ChallengeSplit {
-                        ticks: 1534,
+                        ticks: Ticks(1534),
                         accurate: None,
                     },
                 ),
                 (
                     SplitType::TobEntryNyloStart,
                     ChallengeSplit {
-                        ticks: 280,
+                        ticks: Ticks(280),
                         accurate: Some(true),
                     },
                 ),

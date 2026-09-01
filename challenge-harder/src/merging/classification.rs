@@ -5,8 +5,8 @@
 
 use std::collections::BTreeMap;
 
-use super::MergeAlert;
 use super::client_events::ClientEvents;
+use super::{MergeAlert, Ticks};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ClientClassification {
@@ -24,9 +24,9 @@ pub(super) struct ClientClassification {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceTicks {
-    /// The selected tick count.
-    pub count: u32,
-    /// How the count was chosen.
+    /// The selected duration.
+    pub duration: Ticks,
+    /// How the duration was chosen.
     pub method: ReferenceMethod,
 }
 
@@ -48,12 +48,13 @@ pub(super) fn classify_clients(clients: &mut [ClientEvents]) -> ClientClassifica
     let base = select_base_client(clients);
     let (matching, mismatched): (Vec<usize>, Vec<usize>) =
         (0..clients.len()).filter(|&i| i != base).partition(|&i| {
-            clients[i].accurate && clients[i].recorded_ticks == clients[base].recorded_ticks
+            clients[i].accurate
+                && clients[i].info.last_recorded_tick == clients[base].info.last_recorded_tick
         });
 
     let ticks = if clients[base].accurate {
         ReferenceTicks {
-            count: clients[base].recorded_ticks,
+            duration: clients[base].info.last_recorded_tick.duration(),
             method: ReferenceMethod::AccurateModal,
         }
     } else {
@@ -75,27 +76,28 @@ pub(super) fn classify_clients(clients: &mut [ClientEvents]) -> ClientClassifica
 /// consensus of accurate clients. Without a distinct consensus, all clients
 /// are demoted.
 fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAlert> {
-    let mut counts: BTreeMap<u32, u32> = BTreeMap::new();
+    let mut counts: BTreeMap<Ticks, u32> = BTreeMap::new();
     for client in clients.iter().filter(|client| client.accurate) {
-        *counts.entry(client.recorded_ticks).or_default() += 1;
+        *counts
+            .entry(client.info.last_recorded_tick.duration())
+            .or_default() += 1;
     }
     let max_count = counts.values().copied().max()?;
 
-    let modes: Vec<u32> = counts
+    let modes: Vec<Ticks> = counts
         .iter()
         .filter(|&(_, &count)| count == max_count)
-        .map(|(&ticks, _)| ticks)
+        .map(|(&duration, _)| duration)
         .collect();
 
-    if let [modal_ticks] = modes[..] {
-        for client in clients
-            .iter_mut()
-            .filter(|client| client.accurate && client.recorded_ticks != modal_ticks)
-        {
+    if let [modal_duration] = modes[..] {
+        for client in clients.iter_mut().filter(|client| {
+            client.accurate && client.info.last_recorded_tick.duration() != modal_duration
+        }) {
             tracing::error!(
-                client_id = %client.id,
-                expected_ticks = modal_ticks,
-                actual_ticks = client.recorded_ticks,
+                client_id = %client.info.id,
+                expected_ticks = %modal_duration,
+                actual_ticks = %client.info.last_recorded_tick.duration(),
                 "merge_client_accuracy_mismatch",
             );
             client.accurate = false;
@@ -126,7 +128,7 @@ fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAler
 fn select_base_client(clients: &[ClientEvents]) -> usize {
     let accurate = (0..clients.len())
         .filter(|&i| clients[i].accurate)
-        .min_by_key(|&i| clients[i].id);
+        .min_by_key(|&i| clients[i].info.id);
     if let Some(index) = accurate {
         return index;
     }
@@ -134,9 +136,9 @@ fn select_base_client(clients: &[ClientEvents]) -> usize {
     (0..clients.len())
         .min_by_key(|&i| {
             (
-                std::cmp::Reverse(clients[i].recorded_ticks),
+                std::cmp::Reverse(clients[i].info.last_recorded_tick),
                 clients[i].is_spectator(),
-                clients[i].id,
+                clients[i].info.id,
             )
         })
         .expect("clients is nonempty")
@@ -150,58 +152,59 @@ fn select_base_client(clients: &[ClientEvents]) -> usize {
 ///
 /// Without any server tick count, the longest recording is used.
 fn select_reference_ticks(clients: &[ClientEvents]) -> (ReferenceTicks, Option<MergeAlert>) {
-    let precise_counts: Vec<u32> = clients
+    let precise_durations: Vec<Ticks> = clients
         .iter()
-        .filter_map(|client| client.server_ticks.filter(|st| st.precise))
-        .map(|st| st.count)
+        .filter_map(|client| client.info.server_ticks.filter(|st| st.precise))
+        .map(|st| Ticks(st.count))
         .collect();
-    let has_precise = !precise_counts.is_empty();
-    let server_counts: Vec<u32> = if has_precise {
-        precise_counts
+    let has_precise = !precise_durations.is_empty();
+    let server_durations: Vec<Ticks> = if has_precise {
+        precise_durations
     } else {
         clients
             .iter()
-            .filter_map(|client| client.server_ticks)
-            .map(|st| st.count)
+            .filter_map(|client| client.info.server_ticks)
+            .map(|st| Ticks(st.count))
             .collect()
     };
 
-    if let Some(count) = consensus_ticks(server_counts.iter().copied()) {
-        let mut server_tick_counts = server_counts;
-        server_tick_counts.sort_unstable();
-        server_tick_counts.dedup();
+    if let Some(duration) = consensus_ticks(server_durations.iter().copied()) {
+        let mut reported_durations = server_durations;
+        reported_durations.sort_unstable();
+        reported_durations.dedup();
         let alert =
-            (server_tick_counts.len() > 1).then_some(MergeAlert::MultipleServerTickCounts {
+            (reported_durations.len() > 1).then_some(MergeAlert::MultipleServerTickCounts {
                 precise: has_precise,
-                tick_counts: server_tick_counts,
+                tick_counts: reported_durations,
             });
         let method = if has_precise {
             ReferenceMethod::PreciseServer
         } else {
             ReferenceMethod::ImpreciseServer
         };
-        return (ReferenceTicks { count, method }, alert);
+        return (ReferenceTicks { duration, method }, alert);
     }
 
     (
         ReferenceTicks {
-            count: clients
+            duration: clients
                 .iter()
-                .map(|client| client.recorded_ticks)
+                .map(|client| client.info.last_recorded_tick)
                 .max()
-                .expect("clients is nonempty"),
+                .expect("clients is nonempty")
+                .duration(),
             method: ReferenceMethod::RecordedTicks,
         },
         None,
     )
 }
 
-/// Returns the modal count in `counts` with ties broken toward the largest,
-/// or `None` if `counts` is empty.
-fn consensus_ticks(counts: impl IntoIterator<Item = u32>) -> Option<u32> {
-    let mut frequency: BTreeMap<u32, u32> = BTreeMap::new();
-    for count in counts {
-        *frequency.entry(count).or_default() += 1;
+/// Returns the modal duration in `durations` with ties broken toward the
+/// largest, or `None` if `durations` is empty.
+fn consensus_ticks(durations: impl IntoIterator<Item = Ticks>) -> Option<Ticks> {
+    let mut frequency: BTreeMap<Ticks, u32> = BTreeMap::new();
+    for duration in durations {
+        *frequency.entry(duration).or_default() += 1;
     }
     let max_frequency = frequency.values().copied().max()?;
     frequency
@@ -215,7 +218,8 @@ fn consensus_ticks(counts: impl IntoIterator<Item = u32>) -> Option<u32> {
 mod tests {
     use super::*;
     use crate::lifecycle::core::types::{ClientId, ServerTicks, Stage, StageStatus};
-    use crate::merging::client_events::StageData;
+    use crate::merging::Tick;
+    use crate::merging::client_events::{ReportedInfo, StageData};
     use crate::merging::timeline::Timeline;
 
     fn client(
@@ -224,16 +228,20 @@ mod tests {
         recorded_ticks: u32,
         server_ticks: Option<ServerTicks>,
     ) -> ClientEvents {
+        let last_recorded_tick = Tick(recorded_ticks);
         ClientEvents {
-            id: ClientId(id),
-            metadata: None,
-            primary_player: None,
-            status: StageStatus::Completed,
-            reported_accurate: accurate,
+            info: ReportedInfo {
+                id: ClientId(id),
+                plugin_info: None,
+                primary_player: None,
+                status: StageStatus::Completed,
+                reported_accurate: accurate,
+                last_recorded_tick,
+                server_ticks,
+            },
+            timeline: Timeline::build(&[], last_recorded_tick, Vec::new())
+                .expect("an empty recording is well formed"),
             accurate,
-            recorded_ticks,
-            server_ticks,
-            timeline: Timeline::new(),
             stage_data: StageData::new(Stage::TobMaiden),
             consistency_issues: Vec::new(),
             anomalies: Vec::new(),
@@ -274,7 +282,7 @@ mod tests {
             alert,
             Some(MergeAlert::MultipleServerTickCounts {
                 precise: true,
-                tick_counts: vec![99, 100],
+                tick_counts: vec![Ticks(99), Ticks(100)],
             }),
         );
         let accurate: Vec<bool> = clients.iter().map(|client| client.accurate).collect();
@@ -320,12 +328,12 @@ mod tests {
             select_reference_ticks(&clients),
             (
                 ReferenceTicks {
-                    count: 12,
+                    duration: Ticks(12),
                     method: ReferenceMethod::PreciseServer,
                 },
                 Some(MergeAlert::MultipleServerTickCounts {
                     precise: true,
-                    tick_counts: vec![10, 12],
+                    tick_counts: vec![Ticks(10), Ticks(12)],
                 }),
             ),
         );
@@ -342,7 +350,7 @@ mod tests {
             select_reference_ticks(&clients),
             (
                 ReferenceTicks {
-                    count: 500,
+                    duration: Ticks(500),
                     method: ReferenceMethod::PreciseServer,
                 },
                 None,
@@ -361,12 +369,12 @@ mod tests {
             select_reference_ticks(&clients),
             (
                 ReferenceTicks {
-                    count: 12,
+                    duration: Ticks(12),
                     method: ReferenceMethod::ImpreciseServer,
                 },
                 Some(MergeAlert::MultipleServerTickCounts {
                     precise: false,
-                    tick_counts: vec![10, 12],
+                    tick_counts: vec![Ticks(10), Ticks(12)],
                 }),
             ),
         );
@@ -380,7 +388,7 @@ mod tests {
             select_reference_ticks(&clients),
             (
                 ReferenceTicks {
-                    count: 11,
+                    duration: Ticks(11),
                     method: ReferenceMethod::RecordedTicks,
                 },
                 None,
@@ -400,12 +408,12 @@ mod tests {
             select_reference_ticks(&clients),
             (
                 ReferenceTicks {
-                    count: 90,
+                    duration: Ticks(90),
                     method: ReferenceMethod::ImpreciseServer,
                 },
                 Some(MergeAlert::MultipleServerTickCounts {
                     precise: false,
-                    tick_counts: vec![90, 95],
+                    tick_counts: vec![Ticks(90), Ticks(95)],
                 }),
             ),
         );
@@ -424,12 +432,12 @@ mod tests {
             select_reference_ticks(&clients),
             (
                 ReferenceTicks {
-                    count: 11,
+                    duration: Ticks(11),
                     method: ReferenceMethod::ImpreciseServer,
                 },
                 Some(MergeAlert::MultipleServerTickCounts {
                     precise: false,
-                    tick_counts: vec![9, 11],
+                    tick_counts: vec![Ticks(9), Ticks(11)],
                 }),
             ),
         );
@@ -441,28 +449,28 @@ mod tests {
             (
                 accurate(1, 10),
                 ReferenceTicks {
-                    count: 10,
+                    duration: Ticks(10),
                     method: ReferenceMethod::AccurateModal,
                 },
             ),
             (
                 inaccurate(1, 10, precise(10)),
                 ReferenceTicks {
-                    count: 10,
+                    duration: Ticks(10),
                     method: ReferenceMethod::PreciseServer,
                 },
             ),
             (
                 inaccurate(1, 10, imprecise(10)),
                 ReferenceTicks {
-                    count: 10,
+                    duration: Ticks(10),
                     method: ReferenceMethod::ImpreciseServer,
                 },
             ),
             (
                 inaccurate(1, 10, None),
                 ReferenceTicks {
-                    count: 10,
+                    duration: Ticks(10),
                     method: ReferenceMethod::RecordedTicks,
                 },
             ),
@@ -501,7 +509,7 @@ mod tests {
                 matching: vec![1],
                 mismatched: vec![2],
                 reference_ticks: ReferenceTicks {
-                    count: 10,
+                    duration: Ticks(10),
                     method: ReferenceMethod::AccurateModal,
                 },
                 alert: None,
@@ -522,7 +530,7 @@ mod tests {
                 matching: vec![0, 2],
                 mismatched: vec![],
                 reference_ticks: ReferenceTicks {
-                    count: 10,
+                    duration: Ticks(10),
                     method: ReferenceMethod::AccurateModal,
                 },
                 alert: None,
@@ -549,12 +557,12 @@ mod tests {
                 matching: vec![],
                 mismatched: vec![0, 1, 3, 4],
                 reference_ticks: ReferenceTicks {
-                    count: 101,
+                    duration: Ticks(101),
                     method: ReferenceMethod::PreciseServer,
                 },
                 alert: Some(MergeAlert::MultipleServerTickCounts {
                     precise: true,
-                    tick_counts: vec![100, 101],
+                    tick_counts: vec![Ticks(100), Ticks(101)],
                 }),
             },
         );
@@ -568,7 +576,7 @@ mod tests {
             inaccurate(1, 25, precise(270)),
             inaccurate(2, 270, imprecise(270)),
         ];
-        clients[1].primary_player = Some("1Ogp".to_string());
+        clients[1].info.primary_player = Some("1Ogp".to_string());
 
         let classification = classify_clients(&mut clients);
 
@@ -579,7 +587,7 @@ mod tests {
                 matching: vec![],
                 mismatched: vec![0],
                 reference_ticks: ReferenceTicks {
-                    count: 270,
+                    duration: Ticks(270),
                     method: ReferenceMethod::PreciseServer,
                 },
                 alert: None,
@@ -590,7 +598,7 @@ mod tests {
     #[test]
     fn classify_prioritizes_a_participant() {
         let mut clients = vec![inaccurate(1, 100, None), inaccurate(2, 100, None)];
-        clients[1].primary_player = Some("1Ogp".to_string());
+        clients[1].info.primary_player = Some("1Ogp".to_string());
 
         let classification = classify_clients(&mut clients);
 
@@ -601,7 +609,7 @@ mod tests {
                 matching: vec![],
                 mismatched: vec![0],
                 reference_ticks: ReferenceTicks {
-                    count: 100,
+                    duration: Ticks(100),
                     method: ReferenceMethod::RecordedTicks,
                 },
                 alert: None,
@@ -622,12 +630,12 @@ mod tests {
                 matching: vec![],
                 mismatched: vec![1],
                 reference_ticks: ReferenceTicks {
-                    count: 2,
+                    duration: Ticks(2),
                     method: ReferenceMethod::PreciseServer,
                 },
                 alert: Some(MergeAlert::MultipleServerTickCounts {
                     precise: true,
-                    tick_counts: vec![1, 2],
+                    tick_counts: vec![Ticks(1), Ticks(2)],
                 }),
             },
         );

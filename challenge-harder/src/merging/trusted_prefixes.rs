@@ -7,14 +7,14 @@ use crate::lifecycle::core::types::ClientId;
 use super::classification::ReferenceMethod;
 use super::client_consistency::ConsistencyIssue;
 use super::mapping::MergeMapping;
-use super::{MergeContext, MergeStatus, RegisteredClient};
+use super::{MergeContext, MergeStatus, RegisteredClient, Tick, Ticks};
 
 #[derive(Debug)]
 pub(super) struct TimelineInfo {
-    /// Length of the final merged timeline.
-    pub total_ticks: u32,
+    /// Final tick of the merged timeline.
+    pub last_tick: Tick,
     /// Leading offset applied by end alignment.
-    pub offset: u32,
+    pub offset: Ticks,
     /// Whether the merged output inherited accuracy from an accurate base.
     pub inherited_accuracy: bool,
     /// How the stage's reference tick count was selected.
@@ -26,19 +26,19 @@ pub(super) struct TimelineInfo {
 pub(super) struct TrustedPrefixes {
     /// The exclusive tick at which the merged timeline can no longer be
     /// trusted to match the true server tick count.
-    pub accurate_until: u32,
+    pub accurate_until: Tick,
     /// The exclusive tick at which the merged event stream can no longer be
     /// trusted for strict analysis.
-    pub queryable_until: u32,
+    pub queryable_until: Tick,
 }
 
 #[derive(Debug)]
 struct Contributor {
     id: ClientId,
     /// Earliest local tick on which the client detected a consistency issue.
-    first_issue_tick: Option<u32>,
+    first_issue_tick: Option<Tick>,
     // Note: always `None` because there are no current game corrections.
-    first_correction_tick: Option<u32>,
+    first_correction_tick: Option<Tick>,
     participant: bool,
 }
 
@@ -72,7 +72,7 @@ fn collect_contributors(ctx: &MergeContext) -> Vec<Contributor> {
             continue;
         }
         contributors.push(Contributor {
-            id: client.id,
+            id: client.info.id,
             first_issue_tick: client
                 .consistency_issues
                 .iter()
@@ -87,10 +87,10 @@ fn collect_contributors(ctx: &MergeContext) -> Vec<Contributor> {
 
 /// Resolves what the contributors corroborate on a single tick.
 fn support_at_tick(
-    merged_tick: usize,
+    merged_tick: Tick,
     contributors: &[Contributor],
     mapping: &MergeMapping,
-    contested_clients: &BTreeMap<ClientId, BTreeSet<usize>>,
+    contested_clients: &BTreeMap<ClientId, BTreeSet<Tick>>,
 ) -> TickSupport {
     let mut contiguous_count = 0;
     let mut clean_count = 0;
@@ -109,7 +109,6 @@ fn support_at_tick(
             contested = true;
         }
 
-        let local_tick = u32::try_from(local_tick).expect("tick count is small");
         if contributor
             .first_issue_tick
             .is_none_or(|tick| tick > local_tick)
@@ -139,7 +138,7 @@ fn support_at_tick(
 pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) -> TrustedPrefixes {
     let contributors = collect_contributors(ctx);
 
-    let mut accurate_until = info.inherited_accuracy.then_some(info.total_ticks);
+    let mut accurate_until = info.inherited_accuracy.then_some(info.last_tick.succ());
     let mut queryable_until = None;
 
     // A precise server count whose length the timeline matches exactly proves
@@ -147,11 +146,11 @@ pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) 
     let known_to_start_at_zero =
         info.offset == 0 && matches!(info.reference_method, ReferenceMethod::PreciseServer);
 
-    for m in 0..info.total_ticks {
-        let support = if m >= info.offset {
-            let mapping_tick = usize::try_from(m - info.offset).expect("u32 fits in usize");
+    let offset_tick = Tick::at(info.offset);
+    for m in info.last_tick.up_to_inclusive() {
+        let support = if m >= offset_tick {
             support_at_tick(
-                mapping_tick,
+                m - info.offset,
                 &contributors,
                 &ctx.mapping,
                 &ctx.contested_ticks,
@@ -184,8 +183,8 @@ pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) 
     }
 
     TrustedPrefixes {
-        accurate_until: accurate_until.unwrap_or(info.total_ticks),
-        queryable_until: queryable_until.unwrap_or(info.total_ticks),
+        accurate_until: accurate_until.unwrap_or(info.last_tick.succ()),
+        queryable_until: queryable_until.unwrap_or(info.last_tick.succ()),
     }
 }
 
@@ -206,14 +205,12 @@ mod tests {
 
     fn commit_mapping_step(
         ctx: &mut MergeContext,
+        timeline_last_tick: Tick,
         client_id: ClientId,
-        present_until: u32,
-        total_ticks: u32,
+        client_last_tick: Tick,
     ) {
-        let present_until = usize::try_from(present_until).expect("ticks fit in usize");
-        let total_ticks = usize::try_from(total_ticks).expect("ticks fit in usize");
         let entries = vec![
-            (0..present_until)
+            (0..=client_last_tick.as_usize())
                 .map(|index| AlignmentEntry::Merge {
                     base_index: index,
                     target_index: index,
@@ -223,123 +220,123 @@ mod tests {
         ];
         ctx.mapping.begin(
             client_id,
-            TickMapping::from_alignment(total_ticks, present_until, &entries),
+            TickMapping::from_alignment(timeline_last_tick, client_last_tick, &entries),
         );
         ctx.mapping.commit();
     }
 
     #[test]
     fn inherited_accuracy_spans_the_full_timeline_ignoring_coverage() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[1])
                     .build(),
             )
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), 5, TICKS);
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), Tick(5));
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: true,
                     reference_method: ReferenceMethod::AccurateModal,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 10,
-                queryable_until: 10,
+                accurate_until: Tick(10),
+                queryable_until: Tick(10),
             },
         );
     }
 
     #[test]
     fn two_clients_viewing_the_full_timeline_promote_it() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[1])
                     .build(),
             )
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), TICKS, TICKS);
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 10,
-                queryable_until: 10,
+                accurate_until: Tick(10),
+                queryable_until: Tick(10),
             },
         );
     }
 
     #[test]
     fn accuracy_ends_where_there_are_fewer_than_two_clients() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[1])
                     .build(),
             )
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), 4, TICKS);
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), Tick(3));
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 4,
-                queryable_until: 4,
+                accurate_until: Tick(4),
+                queryable_until: Tick(4),
             },
         );
     }
 
     #[test]
     fn a_single_client_timeline_cannot_be_promoted() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
@@ -349,192 +346,194 @@ mod tests {
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 0,
-                queryable_until: 0,
+                accurate_until: Tick(0),
+                queryable_until: Tick(0),
             },
         );
     }
 
     #[test]
     fn spectators_cannot_promote_a_timeline_without_server_ticks() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
-            .client(fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS).build())
-            .client(fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS).build())
+            .client(fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK).build())
+            .client(fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK).build())
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), TICKS, TICKS);
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 0,
-                queryable_until: 0,
+                accurate_until: Tick(0),
+                queryable_until: Tick(0),
             },
         );
     }
 
     #[test]
     fn spectators_can_promote_a_timeline_with_a_precise_server_count_and_zero_offset() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
-            .client(fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS).build())
-            .client(fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS).build())
+            .client(fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK).build())
+            .client(fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK).build())
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), TICKS, TICKS);
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
 
-        let info = |method: ReferenceMethod, offset: u32| TimelineInfo {
-            total_ticks: TICKS,
+        let info = |method: ReferenceMethod, offset: Ticks| TimelineInfo {
+            last_tick: LAST_TICK,
             offset,
             inherited_accuracy: false,
             reference_method: method,
         };
 
         assert_eq!(
-            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::PreciseServer, 0)),
+            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::PreciseServer, Ticks(0))),
             TrustedPrefixes {
-                accurate_until: 10,
-                queryable_until: 10,
+                accurate_until: Tick(10),
+                queryable_until: Tick(10),
             },
         );
 
         assert_eq!(
-            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::ImpreciseServer, 0)),
+            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::ImpreciseServer, Ticks(0))),
             TrustedPrefixes {
-                accurate_until: 0,
-                queryable_until: 0,
+                accurate_until: Tick(0),
+                queryable_until: Tick(0),
             },
         );
 
         assert_eq!(
-            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::PreciseServer, 1)),
+            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::PreciseServer, Ticks(1))),
             TrustedPrefixes {
-                accurate_until: 0,
-                queryable_until: 0,
+                accurate_until: Tick(0),
+                queryable_until: Tick(0),
             },
         );
     }
 
     #[test]
     fn accuracy_ends_at_a_client_consistency_issue() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[1])
                     .consistency_issue(ConsistencyIssue::LargeJump {
                         player: PARTY[1].clone(),
-                        tick: 4,
-                        last_tick: 3,
+                        tick: Tick(4),
+                        last_tick: Tick(3),
                         start: (3168, 4436).into(),
                         end: (3184, 4450).into(),
                     })
                     .build(),
             )
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), TICKS, TICKS);
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 4,
-                queryable_until: 4,
+                accurate_until: Tick(4),
+                queryable_until: Tick(4),
             },
         );
     }
 
     #[test]
     fn queryable_ends_at_a_contested_tick() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
             .build();
-        ctx.contested_ticks.insert(ClientId(1), BTreeSet::from([6]));
+        ctx.contested_ticks
+            .insert(ClientId(1), BTreeSet::from([Tick(6)]));
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: true,
                     reference_method: ReferenceMethod::AccurateModal,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 10,
-                queryable_until: 6,
+                accurate_until: Tick(10),
+                queryable_until: Tick(6),
             },
         );
     }
 
     #[test]
     fn queryable_ends_at_a_contested_tick_before_coverage_loss() {
-        const TICKS: u32 = 10;
+        const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[0])
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, TICKS)
+                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[1])
                     .build(),
             )
             .build();
-        commit_mapping_step(&mut ctx, ClientId(2), 7, TICKS);
-        ctx.contested_ticks.insert(ClientId(1), BTreeSet::from([3]));
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), Tick(6));
+        ctx.contested_ticks
+            .insert(ClientId(1), BTreeSet::from([Tick(3)]));
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
                 &TimelineInfo {
-                    total_ticks: TICKS,
-                    offset: 0,
+                    last_tick: LAST_TICK,
+                    offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
                 },
             ),
             TrustedPrefixes {
-                accurate_until: 7,
-                queryable_until: 3,
+                accurate_until: Tick(7),
+                queryable_until: Tick(3),
             },
         );
     }
