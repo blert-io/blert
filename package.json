@@ -37,6 +37,6 @@
     "google-protobuf": "^4.0.2",
     "node-addon-api": "^8.9.2",
     "ts-protoc-gen": "^0.15.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   }
 }

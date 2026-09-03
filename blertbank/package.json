@@ -28,9 +28,9 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "@types/supertest": "^7.2.1",
-    "jest": "^30.4.2",
+    "jest": "^30.5.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.12",
     "tsc-alias": "^1.9.2",
