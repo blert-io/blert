@@ -27,7 +27,7 @@
     "eslint": "^10.9.1",
     "patch-package": "^8.0.1",
     "prettier": "^3.9.6",
-    "protoc": "35.1.0",
+    "protoc": "36.0.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "~8.67.0"
   },
