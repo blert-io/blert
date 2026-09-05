@@ -14,6 +14,7 @@ use super::client_events::{self, BadDataClient, ClientEvents, ReportedInfo};
 use super::consolidator::Disagreement;
 use super::event::IdentityKey;
 use super::mapping::{MergeMapping, TickMapping};
+use super::merge_consistency;
 use super::timeline::{GraphicsCoords, GraphicsKind, NpcState, PlayerState, Target, TickState};
 use super::{Tick, Ticks};
 
@@ -897,6 +898,214 @@ impl From<&super::consolidator::ReconciliationCounters> for ReconciliationCounte
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct StepRejection {
+    reason: RejectionReason,
+    issues: Vec<MergeConsistencyIssue>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum RejectionReason {
+    PostMergeConsistency,
+}
+
+impl From<&super::RejectionReason> for StepRejection {
+    fn from(reason: &super::RejectionReason) -> Self {
+        match reason {
+            super::RejectionReason::PostMergeConsistency(issues) => Self {
+                reason: RejectionReason::PostMergeConsistency,
+                issues: issues.iter().map(MergeConsistencyIssue::from).collect(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "SCREAMING_SNAKE_CASE",
+    rename_all_fields = "camelCase"
+)]
+enum MergeConsistencyIssue {
+    DuplicatePlayerDeath {
+        player: String,
+        ticks: Vec<Tick>,
+    },
+    DuplicateNpcSpawn {
+        room_id: u64,
+        occurrences: Vec<NpcOccurrence>,
+    },
+    DuplicateNpcDeath {
+        room_id: u64,
+        occurrences: Vec<NpcOccurrence>,
+    },
+    DuplicateStreamEvent {
+        event_type: &'static str,
+        identity_key: String,
+        ticks: Vec<Tick>,
+    },
+    WeaponCooldownViolation {
+        player: String,
+        previous: PlayerAttackOccurrence,
+        current: PlayerAttackOccurrence,
+        cooldown: Ticks,
+    },
+    DeathBeforeSpawn {
+        room_id: u64,
+        death_tick: Tick,
+        spawn_tick: Option<Tick>,
+    },
+    PhaseOutOfOrder {
+        previous: PhaseOccurrence,
+        current: PhaseOccurrence,
+    },
+    AttackTargetMissing {
+        tick: Tick,
+        attacker: Actor,
+        target: Actor,
+    },
+    ExclusiveEventViolation {
+        exclusive_types: (&'static str, &'static str),
+        tick: Tick,
+    },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NpcOccurrence {
+    tick: Tick,
+    npc_id: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerAttackOccurrence {
+    tick: Tick,
+    r#type: i32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PhaseOccurrence {
+    event_type: &'static str,
+    identity_key: String,
+    tick: Tick,
+}
+
+impl From<&merge_consistency::NpcOccurrence> for NpcOccurrence {
+    fn from(occurrence: &merge_consistency::NpcOccurrence) -> Self {
+        Self {
+            tick: occurrence.tick,
+            npc_id: occurrence.npc_id,
+        }
+    }
+}
+
+impl From<&merge_consistency::PlayerAttackOccurrence> for PlayerAttackOccurrence {
+    fn from(occurrence: &merge_consistency::PlayerAttackOccurrence) -> Self {
+        Self {
+            tick: occurrence.tick,
+            r#type: occurrence.kind as i32,
+        }
+    }
+}
+
+impl From<&merge_consistency::PhaseOccurrence> for PhaseOccurrence {
+    fn from(occurrence: &merge_consistency::PhaseOccurrence) -> Self {
+        Self {
+            event_type: occurrence.kind.as_str_name(),
+            identity_key: occurrence.identity_key.clone(),
+            tick: occurrence.tick,
+        }
+    }
+}
+
+impl From<&merge_consistency::ActorId> for Actor {
+    fn from(actor: &merge_consistency::ActorId) -> Self {
+        match actor {
+            merge_consistency::ActorId::Npc(room_id) => Self::Npc(*room_id),
+            merge_consistency::ActorId::Player(name) => Self::Player(name.clone()),
+        }
+    }
+}
+
+impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
+    fn from(issue: &merge_consistency::MergeConsistencyIssue) -> Self {
+        use merge_consistency::MergeConsistencyIssue as Issue;
+        match issue {
+            Issue::DuplicatePlayerDeath { player, ticks } => Self::DuplicatePlayerDeath {
+                player: player.clone(),
+                ticks: ticks.clone(),
+            },
+            Issue::DuplicateNpcSpawn {
+                room_id,
+                occurrences,
+            } => Self::DuplicateNpcSpawn {
+                room_id: *room_id,
+                occurrences: occurrences.iter().map(NpcOccurrence::from).collect(),
+            },
+            Issue::DuplicateNpcDeath {
+                room_id,
+                occurrences,
+            } => Self::DuplicateNpcDeath {
+                room_id: *room_id,
+                occurrences: occurrences.iter().map(NpcOccurrence::from).collect(),
+            },
+            Issue::DuplicateStreamEvent {
+                kind,
+                identity_key,
+                ticks,
+            } => Self::DuplicateStreamEvent {
+                event_type: kind.as_str_name(),
+                identity_key: identity_key.clone(),
+                ticks: ticks.clone(),
+            },
+            Issue::WeaponCooldownViolation {
+                player,
+                previous,
+                current,
+                cooldown,
+            } => Self::WeaponCooldownViolation {
+                player: player.clone(),
+                previous: previous.into(),
+                current: current.into(),
+                cooldown: *cooldown,
+            },
+            Issue::DeathBeforeSpawn {
+                room_id,
+                death_tick,
+                spawn_tick,
+            } => Self::DeathBeforeSpawn {
+                room_id: *room_id,
+                death_tick: *death_tick,
+                spawn_tick: *spawn_tick,
+            },
+            Issue::PhaseOutOfOrder { previous, current } => Self::PhaseOutOfOrder {
+                previous: previous.into(),
+                current: current.into(),
+            },
+            Issue::AttackTargetMissing {
+                tick,
+                attacker,
+                target,
+            } => Self::AttackTargetMissing {
+                tick: *tick,
+                attacker: attacker.into(),
+                target: target.into(),
+            },
+            Issue::ExclusiveEventViolation {
+                exclusive_types: (a, b),
+                tick,
+            } => Self::ExclusiveEventViolation {
+                exclusive_types: (a.as_str_name(), b.as_str_name()),
+                tick: *tick,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct MergeStep {
     client_id: ClientId,
     classification: StepClassification,
@@ -908,6 +1117,7 @@ struct MergeStep {
     reconciliation: Option<ReconciliationTrace>,
     quality_flags: Vec<QualityFlag>,
     counters: ReconciliationCounters,
+    rejection: Option<StepRejection>,
 }
 
 #[derive(Debug, Serialize)]
@@ -948,6 +1158,7 @@ struct CurrentStep {
     reconciliation: Option<ReconciliationTrace>,
     quality_flags: Vec<QualityFlag>,
     counters: ReconciliationCounters,
+    rejection: Option<StepRejection>,
 }
 
 pub struct Tracer {
@@ -1062,6 +1273,7 @@ impl Tracer {
             reconciliation: None,
             quality_flags: Vec::new(),
             counters: ReconciliationCounters::default(),
+            rejection: None,
         });
     }
 
@@ -1196,6 +1408,13 @@ impl Tracer {
         }
     }
 
+    #[expect(dead_code)]
+    pub(super) fn record_step_rejection(&mut self, reason: &super::RejectionReason) {
+        if let Some(step) = &mut self.current_step {
+            step.rejection = Some(reason.into());
+        }
+    }
+
     /// Commits the in-progress merge step into the output with its outcome.
     pub(super) fn end_merge_step(&mut self, status: &super::MergeStatus) {
         if let Some(step) = self.current_step.take() {
@@ -1210,6 +1429,7 @@ impl Tracer {
                 reconciliation: step.reconciliation,
                 quality_flags: step.quality_flags,
                 counters: step.counters,
+                rejection: step.rejection,
             });
         }
     }

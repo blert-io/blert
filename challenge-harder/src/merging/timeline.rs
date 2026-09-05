@@ -1,5 +1,4 @@
 //! A timeline of recorded game state and events.
-#![expect(dead_code)]
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -63,11 +62,6 @@ impl Timeline {
         }
 
         Ok(Self { tick_states: ticks })
-    }
-
-    /// Returns the number of ticks in the timeline.
-    pub fn len(&self) -> usize {
-        self.tick_states.len()
     }
 
     /// Returns the final recorded tick.
@@ -247,12 +241,18 @@ pub(super) enum Actor<'a> {
     Npc(u64),
 }
 
-impl<'a> From<&'a Sourced<Target>> for Actor<'a> {
-    fn from(target: &'a Sourced<Target>) -> Self {
-        match &target.value {
+impl<'a> From<&'a Target> for Actor<'a> {
+    fn from(target: &'a Target) -> Self {
+        match &target {
             Target::Player(name) => Actor::Player(name),
             Target::Npc { room_id, .. } => Actor::Npc(*room_id),
         }
+    }
+}
+
+impl<'a> From<&'a Sourced<Target>> for Actor<'a> {
+    fn from(target: &'a Sourced<Target>) -> Self {
+        Actor::from(&target.value)
     }
 }
 

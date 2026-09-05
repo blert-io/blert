@@ -14,6 +14,7 @@ mod consolidator;
 mod derivation;
 mod event;
 mod mapping;
+mod merge_consistency;
 mod similarity;
 mod tick;
 mod timeline;
@@ -43,6 +44,7 @@ use client_consistency::ConsistencyIssue;
 use client_events::{BadDataClient, ClientEvents};
 use event::MalformedEvent;
 use mapping::{Mappings, MergeMapping, TickMapping};
+use merge_consistency::MergeConsistencyIssue;
 use similarity::SimilarityScorer;
 use trusted_prefixes::{TimelineInfo, compute_trusted_prefixes};
 
@@ -71,6 +73,14 @@ pub enum MergeStatus {
     Merged(Classification),
     Unmerged(Classification),
     Skipped(BadData),
+}
+
+/// Why a merge step was rejected.
+#[expect(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RejectionReason {
+    /// The merged timeline violated a game invariant.
+    PostMergeConsistency(Vec<MergeConsistencyIssue>),
 }
 
 /// The result of a client within a merge run.
