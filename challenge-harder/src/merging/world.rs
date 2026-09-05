@@ -35,6 +35,12 @@ pub(super) fn chebyshev(a: Coords, b: Coords) -> u32 {
     a.x.abs_diff(b.x).max(a.y.abs_diff(b.y))
 }
 
+pub(super) fn euclidean(a: Coords, b: Coords) -> f64 {
+    let dx = f64::from(a.x - b.x);
+    let dy = f64::from(a.y - b.y);
+    dx.hypot(dy)
+}
+
 /// Tile to which players are teleported at the start of Sotetseg's maze.
 pub(super) const SOTETSEG_OVERWORLD_MAZE_START_TILE: Coords = Coords { x: 3274, y: 4307 };
 pub(super) const SOTETSEG_ROOM_AREA: Area = Area::new(Coords { x: 3271, y: 4304 }, 17, 30);

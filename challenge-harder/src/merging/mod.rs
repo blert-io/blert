@@ -10,6 +10,7 @@ mod alignment;
 mod classification;
 mod client_consistency;
 mod client_events;
+mod consolidator;
 mod derivation;
 mod event;
 mod mapping;
@@ -362,6 +363,14 @@ impl<'a> MergeContext<'a> {
 
     fn client(&self, index: usize) -> &ClientEvents {
         &self.clients[index].client
+    }
+
+    /// Returns the primary player of the client with `id`, if it has one.
+    fn primary_player(&self, id: ClientId) -> Option<&str> {
+        self.clients
+            .iter()
+            .find(|c| c.client.info.id == id)
+            .and_then(|c| c.client.info.primary_player.as_deref())
     }
 }
 

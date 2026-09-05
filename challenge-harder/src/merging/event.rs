@@ -1,9 +1,9 @@
 //! Event classification by merge policy.
 
-use crate::lifecycle::core::types::ClientId;
-use crate::proto::{Event, NpcAttack, PlayerAttack, event};
+use crate::lifecycle::core::types::{ChallengeType, ClientId};
+use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
 
-use super::Tick;
+use super::{Tick, Ticks};
 
 #[derive(Debug, Clone)]
 pub struct TaggedEvent(ClientId, Event);
@@ -266,6 +266,177 @@ pub const fn classify(kind: event::Type) -> Class {
     }
 }
 
+/// How a stream event's occurrences are matched between clients.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct StreamConfig {
+    /// Maximum tick gap within which two events are considered the same.
+    /// If `None`, the event is unique within the stage.
+    pub temporal_window: Option<Ticks>,
+    /// The tick gap between two paired occurrences above which the pair is
+    /// flagged, or `None` to disable the signal.
+    pub large_gap_threshold: Option<Ticks>,
+}
+
+impl StreamConfig {
+    const fn new(temporal_window: Option<Ticks>, large_gap_threshold: Option<Ticks>) -> Self {
+        Self {
+            temporal_window,
+            large_gap_threshold,
+        }
+    }
+}
+
+/// Tick window within which two deaths for a player are treated as one event in
+/// a challenge with respawns. Must be configured below the minimum time for a
+/// player to run back to the boss and die again so two genuine deaths are not
+/// deduped.
+const PLAYER_DEATH_RESPAWN_WINDOW: Ticks = Ticks(15);
+
+/// Returns how a stream event type is matched between clients, or `None` for
+/// non stream events.
+pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Option<StreamConfig> {
+    if classify(kind) != Class::Stream {
+        return None;
+    }
+
+    #[allow(clippy::match_same_arms)]
+    let config = match kind {
+        event::Type::PlayerDeath => StreamConfig::new(
+            match challenge {
+                ChallengeType::Cox => Some(PLAYER_DEATH_RESPAWN_WINDOW),
+                ChallengeType::Tob
+                | ChallengeType::Toa
+                | ChallengeType::Mokhaiotl
+                | ChallengeType::Colosseum
+                | ChallengeType::Inferno
+                | ChallengeType::UnknownChallenge => None,
+            },
+            Some(Ticks(20)),
+        ),
+
+        event::Type::NpcDeath => StreamConfig::new(Some(Ticks(8)), Some(Ticks(5))),
+
+        // NPCs with the same room ID only spawn once and a "spawn" event is a
+        // render distance artifact.
+        event::Type::NpcSpawn => StreamConfig::new(None, None),
+
+        event::Type::TobMaidenCrabLeak => StreamConfig::new(None, Some(Ticks(10))),
+
+        event::Type::TobBloatDown | event::Type::TobBloatUp => {
+            StreamConfig::new(Some(Ticks(32)), Some(Ticks(16)))
+        }
+
+        event::Type::TobBloatHandsDrop | event::Type::TobBloatHandsSplat => {
+            StreamConfig::new(Some(Ticks(5)), None)
+        }
+
+        event::Type::TobNyloWaveSpawn => StreamConfig::new(None, Some(Ticks(10))),
+        event::Type::TobSoteMazeProc => StreamConfig::new(None, Some(Ticks(20))),
+        event::Type::TobSoteMazeEnd => StreamConfig::new(None, Some(Ticks(10))),
+        event::Type::TobXarpusPhase => StreamConfig::new(None, Some(Ticks(10))),
+        event::Type::TobXarpusExhumed => StreamConfig::new(Some(Ticks(16)), Some(Ticks(10))),
+
+        // Xarpus splats are permanent; the same coord across the fight always
+        // refers to the same splat regardless of when each client first saw it.
+        event::Type::TobXarpusSplat => StreamConfig::new(None, None),
+
+        event::Type::TobVerzikPhase => StreamConfig::new(None, None),
+
+        // Dawn drops repeat every 4 ticks with alternating dropped values.
+        event::Type::TobVerzikDawnDrop => StreamConfig::new(Some(Ticks(3)), None),
+
+        event::Type::TobVerzikHeal => StreamConfig::new(Some(Ticks(30)), Some(Ticks(10))),
+        _ => unreachable!("every stream event type has a config"),
+    };
+
+    Some(config)
+}
+
+/// Unique identity for an occurrence of a stream event.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) enum IdentityKey<'a> {
+    /// Distinguished by time alone.
+    Singleton,
+    Name(&'a str),
+    Number(u64),
+    Coords(Coords),
+    /// A sorted set of coordinates.
+    CoordsSet(Vec<Coords>),
+}
+
+impl std::fmt::Display for IdentityKey<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Singleton => Ok(()),
+            Self::Name(name) => f.write_str(name),
+            Self::Number(number) => write!(f, "{number}"),
+            Self::Coords(coords) => write!(f, "{},{}", coords.x, coords.y),
+            Self::CoordsSet(coords) => {
+                for (i, c) in coords.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str("|")?;
+                    }
+                    write!(f, "{},{}", c.x, c.y)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Returns the identity of a stream event.
+pub(super) fn identity_key(event: &Event) -> IdentityKey<'_> {
+    debug_assert_eq!(classify(event.r#type()), Class::Stream);
+
+    match event.r#type() {
+        event::Type::PlayerDeath => {
+            IdentityKey::Name(&event.player.as_ref().expect("validated at build").name)
+        }
+        event::Type::NpcSpawn | event::Type::NpcDeath | event::Type::TobMaidenCrabLeak => {
+            IdentityKey::Number(event.npc.as_ref().expect("validated at build").room_id)
+        }
+        event::Type::TobBloatDown | event::Type::TobBloatUp => IdentityKey::Singleton,
+        event::Type::TobBloatHandsDrop | event::Type::TobBloatHandsSplat => {
+            let mut hands = event.bloat_hands.clone();
+            hands.sort_unstable();
+            IdentityKey::CoordsSet(hands)
+        }
+        event::Type::TobNyloWaveSpawn => IdentityKey::Number(u64::from(
+            event.nylo_wave.as_ref().expect("validated at build").wave,
+        )),
+        event::Type::TobSoteMazeProc | event::Type::TobSoteMazeEnd => {
+            let maze = event.sote_maze.as_ref().expect("validated at build").maze;
+            IdentityKey::Number(u64::from(maze.cast_unsigned()))
+        }
+        event::Type::TobXarpusPhase => {
+            let phase = event.xarpus_phase.expect("validated at build");
+            IdentityKey::Number(u64::from(phase.cast_unsigned()))
+        }
+        event::Type::TobXarpusExhumed | event::Type::TobXarpusSplat => {
+            IdentityKey::Coords((event.x_coord, event.y_coord).into())
+        }
+        event::Type::TobVerzikPhase => {
+            let phase = event.verzik_phase.expect("validated at build");
+            IdentityKey::Number(u64::from(phase.cast_unsigned()))
+        }
+        event::Type::TobVerzikDawnDrop => IdentityKey::Number(u64::from(
+            event
+                .verzik_dawn_drop
+                .as_ref()
+                .expect("validated at build")
+                .dropped,
+        )),
+        event::Type::TobVerzikHeal => IdentityKey::Name(
+            &event
+                .verzik_heal
+                .as_ref()
+                .expect("validated at build")
+                .player,
+        ),
+        _ => unreachable!("non stream event"),
+    }
+}
+
 // Some player and NPC attacks share the same animation and are identified by
 // which projectile is fired. However, projectiles have a shorter render
 // distance than actors, so two clients could report contradictory attacks from
@@ -291,11 +462,11 @@ pub(super) fn normalize_npc_attack(attack: NpcAttack) -> NpcAttack {
 }
 
 /// Rewrites all of an event's tick references with a mapping function.
-pub(super) fn remap_event_tick(event: &mut Event, remap: impl Fn(Tick) -> Tick) {
+pub(super) fn remap_event_tick(event: &mut Event, mut remap: impl FnMut(Tick) -> Tick) {
     debug_assert_ne!(classify(event.r#type()), Class::TickState);
 
     // TODO(frolv): eventually unpack proto events...
-    let t = |tick: u32| remap(Tick(tick)).0;
+    let mut t = |tick: u32| remap(Tick(tick)).0;
 
     match event.r#type() {
         event::Type::TobXarpusExhumed => {
