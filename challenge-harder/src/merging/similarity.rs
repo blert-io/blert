@@ -8,7 +8,7 @@ use crate::proto::{NpcAttack, PlayerAttack, event};
 use crate::skill::SkillLevel;
 
 use super::event::{normalize_npc_attack, normalize_player_attack};
-use super::timeline::{Sourced, Target, TickState};
+use super::timeline::{Actor, Sourced, Target, TickState};
 
 const VISIBLE_EQUIPMENT_SLOTS: [EquipmentSlot; 9] = [
     EquipmentSlot::Head,
@@ -408,21 +408,6 @@ fn normalize_hitpoints(hitpoints: SkillLevel) -> f64 {
 
     let current = hitpoints.current.min(base);
     f64::from(current) / f64::from(base)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Actor<'a> {
-    Player(&'a str),
-    Npc(u64),
-}
-
-impl<'a> From<&'a Sourced<Target>> for Actor<'a> {
-    fn from(target: &'a Sourced<Target>) -> Self {
-        match &target.value {
-            Target::Player(name) => Actor::Player(name),
-            Target::Npc { room_id, .. } => Actor::Npc(*room_id),
-        }
-    }
 }
 
 /// An attack recorded on a tick.

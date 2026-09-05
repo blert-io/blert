@@ -8,7 +8,7 @@ use crate::prayer::PrayerSet;
 use crate::proto::event::attack_style::Style;
 use crate::proto::event::sote_maze::Maze;
 use crate::proto::event::{VerzikPhase, XarpusPhase};
-use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
+use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, event};
 use crate::skill::SkillLevel;
 
 use super::client_consistency::ConsistencyIssue;
@@ -224,6 +224,7 @@ pub struct PlayerUpdateEvent<'a> {
     stage: Stage,
     name: &'a str,
     coords: (i32, i32),
+    party_index: u32,
     source: event::player::DataSource,
     equipment_deltas: &'a [ItemDelta],
     snapshot: bool,
@@ -237,11 +238,17 @@ impl<'a> PlayerUpdateEvent<'a> {
             stage,
             name,
             coords,
+            party_index: 0,
             source: event::player::DataSource::Secondary,
             equipment_deltas: &[],
             snapshot: false,
             prayers: None,
         }
+    }
+
+    pub fn party_index(mut self, party_index: u32) -> Self {
+        self.party_index = party_index;
+        self
     }
 
     pub fn source(mut self, source: event::player::DataSource) -> Self {
@@ -270,6 +277,7 @@ impl<'a> PlayerUpdateEvent<'a> {
         event.set_type(event::Type::PlayerUpdate);
         event.player = Some(event::Player {
             name: self.name.to_string(),
+            party_index: self.party_index,
             data_source: self.source as i32,
             equipment_deltas: self
                 .equipment_deltas
@@ -320,6 +328,33 @@ pub fn player_attack_event(options: PlayerAttackEvent<'_>) -> Event {
         }),
         target: options.target,
         distance_to_target: options.distance_to_target,
+    });
+    event
+}
+
+pub fn player_spell_event(
+    tick: Tick,
+    stage: Stage,
+    coords: (i32, i32),
+    name: &str,
+    spell: PlayerSpell,
+    target: Option<event::spell::Target>,
+) -> Event {
+    let mut event = Event {
+        tick: tick.0,
+        stage: stage as i32,
+        x_coord: coords.0,
+        y_coord: coords.1,
+        ..Default::default()
+    };
+    event.set_type(event::Type::PlayerSpell);
+    event.player = Some(event::Player {
+        name: name.to_string(),
+        ..Default::default()
+    });
+    event.player_spell = Some(event::Spell {
+        r#type: spell as i32,
+        target,
     });
     event
 }
@@ -421,6 +456,17 @@ pub fn npc_attack_event(
 
 pub fn maiden_crab_leak_event(options: NpcEvent) -> Event {
     npc_event(event::Type::TobMaidenCrabLeak, options)
+}
+
+pub fn maiden_blood_splats_event(tick: Tick, coords: &[(i32, i32)]) -> Event {
+    let mut event = Event {
+        tick: tick.0,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobMaidenBloodSplats);
+    event.maiden_blood_splats = coords.iter().copied().map(Coords::from).collect();
+    event
 }
 
 pub fn bloat_down_event(

@@ -19,6 +19,13 @@ pub struct Timeline {
 }
 
 impl Timeline {
+    /// Creates a timeline without any recorded state up through `last_tick`.
+    pub(super) fn empty(last_tick: Tick) -> Self {
+        Self {
+            tick_states: vec![None; last_tick.as_usize() + 1],
+        }
+    }
+
     /// Initializes a timeline from a chronological list of events,
     /// preprocessed with sources and indices.
     pub(super) fn build(
@@ -86,6 +93,13 @@ impl Timeline {
     /// Returns a mutable reference the state on `tick`.
     pub fn get_mut(&mut self, tick: Tick) -> Option<&mut TickState> {
         self.tick_states.get_mut(tick.0 as usize)?.as_mut()
+    }
+
+    /// Sets the state on `tick` to `state`, replacing any existing state.
+    pub fn set(&mut self, tick: Tick, mut state: TickState) {
+        let slot = &mut self.tick_states[tick.as_usize()];
+        state.tick = tick;
+        *slot = Some(state);
     }
 
     /// Returns the full timeline as ticks.
@@ -211,10 +225,35 @@ pub struct EquippedItem {
 }
 
 /// The target of an action.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Npc { id: u32, room_id: u64 },
     Player(String),
+}
+
+impl Target {
+    pub fn same_actor(&self, other: &Target) -> bool {
+        match (self, other) {
+            (Target::Npc { room_id: a, .. }, Target::Npc { room_id: b, .. }) => a == b,
+            (Target::Player(a), Target::Player(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Actor<'a> {
+    Player(&'a str),
+    Npc(u64),
+}
+
+impl<'a> From<&'a Sourced<Target>> for Actor<'a> {
+    fn from(target: &'a Sourced<Target>) -> Self {
+        match &target.value {
+            Target::Player(name) => Actor::Player(name),
+            Target::Npc { room_id, .. } => Actor::Npc(*room_id),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -611,7 +650,85 @@ impl TickState {
 
     /// Inserts a synthetically created event into the tick.
     pub(super) fn add_synthetic_event(&mut self, event: Event) {
-        self.events.push(TaggedEvent::synthetic(event));
+        self.add_events([TaggedEvent::synthetic(event)]);
+    }
+
+    /// Inserts events into the tick.
+    pub(super) fn add_events(&mut self, events: impl IntoIterator<Item = TaggedEvent>) {
+        self.events.extend(events);
+    }
+
+    /// Removes and returns the events that satisfy `pred`.
+    pub(super) fn extract_events(
+        &mut self,
+        pred: impl Fn(&TaggedEvent) -> bool,
+    ) -> Vec<TaggedEvent> {
+        self.events.extract_if(.., |event| pred(event)).collect()
+    }
+
+    /// Merges state from `other` into this tick.
+    ///
+    /// State that is visible in `other` but not in this tick is added.
+    /// If state exists in both, data source priority is used to determine
+    /// which view to keep.
+    ///
+    /// Actions are ignored since they aren't really "state".
+    /// [`set_player_attack`] and friends handle them.
+    pub(super) fn merge_from(&mut self, other: &TickState) {
+        for (name, other_state) in other.players() {
+            match self.players.get_mut(name) {
+                Some(Some(state)) => {
+                    if state.data_source == DataSource::Secondary
+                        && other_state.data_source == DataSource::Primary
+                    {
+                        let mut replaced = other_state.clone();
+                        replaced.attack = state.attack.take();
+                        replaced.spell = state.spell.take();
+                        *state = replaced;
+                    }
+                }
+                Some(slot) => *slot = Some(other_state.clone()),
+                None => {
+                    self.players
+                        .insert(name.to_string(), Some(other_state.clone()));
+                }
+            }
+        }
+
+        // NPCs have no primary/secondary state, so NPCs that appear in both
+        // keep the base view.
+        for (room_id, npc) in other.npcs() {
+            self.npcs.entry(room_id).or_insert_with(|| npc.clone());
+        }
+
+        for (kind, coords) in other.graphics() {
+            let map = &mut self.graphics.0.entry(kind.clone()).or_default().0;
+            for (coord, source) in &coords.0 {
+                map.entry(*coord).or_insert(*source);
+            }
+        }
+    }
+
+    pub(super) fn set_player_attack(
+        &mut self,
+        name: &str,
+        attack: Option<Sourced<PlayerAttacked>>,
+    ) {
+        if let Some(Some(player)) = self.players.get_mut(name) {
+            player.attack = attack;
+        }
+    }
+
+    pub(super) fn set_player_spell(&mut self, name: &str, spell: Option<Sourced<PlayerCast>>) {
+        if let Some(Some(player)) = self.players.get_mut(name) {
+            player.spell = spell;
+        }
+    }
+
+    pub(super) fn set_npc_attack(&mut self, room_id: u64, attack: Option<Sourced<NpcAttacked>>) {
+        if let Some(npc) = self.npcs.get_mut(&room_id) {
+            npc.attack = attack;
+        }
     }
 
     fn from_events(
@@ -1155,5 +1272,295 @@ mod tests {
         assert_eq!(event.tick, 6);
         let style = event.verzik_attack_style.as_ref().expect("event is valid");
         assert_eq!(style.npc_attack_tick, 5);
+    }
+
+    fn single_tick(client_id: i64, party: &[String], events: Vec<Event>) -> Timeline {
+        Timeline::build(
+            party,
+            Tick(0),
+            events
+                .into_iter()
+                .map(|event| TaggedEvent::new(ClientId(client_id), event))
+                .collect(),
+        )
+        .expect("fixture events are well formed")
+    }
+
+    #[test]
+    fn merge_player_replaces_secondary_with_primary() {
+        let party = vec!["1Ogp".to_string()];
+        let mut base = single_tick(
+            1,
+            &party,
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (5, 7)).build(),
+                fixtures::player_attack_event(fixtures::PlayerAttackEvent {
+                    tick: Tick(0),
+                    stage: Stage::TobMaiden,
+                    coords: (5, 7),
+                    name: "1Ogp",
+                    party_index: None,
+                    attack: PlayerAttack::Scythe,
+                    weapon_id: 22325,
+                    distance_to_target: 1,
+                    target: None,
+                }),
+            ],
+        );
+        let target = single_tick(
+            2,
+            &party,
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (5, 7))
+                    .source(DataSource::Primary)
+                    .build(),
+            ],
+        );
+
+        base.get_mut(Tick(0))
+            .expect("recorded")
+            .merge_from(target.get(Tick(0)).expect("recorded"));
+
+        let player = base
+            .get(Tick(0))
+            .expect("recorded")
+            .player("1Ogp")
+            .expect("player is visible");
+        assert_eq!(player.source, ClientId(2));
+        assert_eq!(player.data_source, DataSource::Primary);
+        assert_eq!(player.position, (5, 7).into());
+        let attack = player.attack.as_ref().expect("base's attack is kept");
+        assert_eq!(attack.source, ClientId(1));
+        assert_eq!(attack.value.kind, PlayerAttack::Scythe);
+        assert!(player.spell.is_none());
+    }
+
+    #[test]
+    fn merge_player_keeps_base_when_both_are_secondary() {
+        let party = vec!["1Ogp".to_string()];
+        let mut base = single_tick(
+            1,
+            &party,
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (9, 9)).build(),
+            ],
+        );
+        let target = single_tick(
+            2,
+            &party,
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (9, 9)).build(),
+            ],
+        );
+
+        base.get_mut(Tick(0))
+            .expect("recorded")
+            .merge_from(target.get(Tick(0)).expect("recorded"));
+
+        let player = base
+            .get(Tick(0))
+            .expect("recorded")
+            .player("1Ogp")
+            .expect("player is visible");
+        assert_eq!(player.source, ClientId(1));
+    }
+
+    #[test]
+    fn merge_npc_adds_missing_from_base() {
+        let party = vec!["1Ogp".to_string()];
+        let mut base = single_tick(
+            1,
+            &party,
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(0), Stage::TobMaiden, "1Ogp", (1, 2)).build(),
+            ],
+        );
+        let target = single_tick(
+            2,
+            &party,
+            vec![fixtures::npc_spawn_event(fixtures::NpcEvent {
+                tick: Tick(0),
+                stage: Stage::TobMaiden,
+                coords: (10, 20),
+                npc_id: 8360,
+                room_id: 1,
+                hitpoints: SkillLevel {
+                    current: 500,
+                    base: 500,
+                },
+                ..Default::default()
+            })],
+        );
+
+        base.get_mut(Tick(0))
+            .expect("recorded")
+            .merge_from(target.get(Tick(0)).expect("recorded"));
+
+        let npc = base
+            .get(Tick(0))
+            .expect("recorded")
+            .npc(1)
+            .expect("npc is visible");
+        assert_eq!(npc.source, ClientId(2));
+        assert_eq!(npc.id, 8360);
+        assert_eq!(npc.position, (10, 20).into());
+        assert_eq!(
+            npc.hitpoints,
+            SkillLevel {
+                current: 500,
+                base: 500,
+            }
+        );
+    }
+
+    #[test]
+    fn merge_npc_keeps_existing_base() {
+        let party = vec!["1Ogp".to_string()];
+        let mut base = single_tick(
+            1,
+            &party,
+            vec![
+                fixtures::npc_spawn_event(fixtures::NpcEvent {
+                    tick: Tick(0),
+                    stage: Stage::TobMaiden,
+                    coords: (10, 20),
+                    npc_id: 8360,
+                    room_id: 1,
+                    hitpoints: SkillLevel {
+                        current: 500,
+                        base: 1000,
+                    },
+                    prayers: Some(0b001),
+                    ..Default::default()
+                }),
+                fixtures::npc_attack_event(
+                    Tick(0),
+                    Stage::TobMaiden,
+                    (10, 20),
+                    8360,
+                    1,
+                    NpcAttack::TobMaidenAuto,
+                    Some("1Ogp"),
+                ),
+            ],
+        );
+        let target = single_tick(
+            2,
+            &party,
+            vec![fixtures::npc_update_event(fixtures::NpcEvent {
+                tick: Tick(0),
+                stage: Stage::TobMaiden,
+                coords: (10, 20),
+                npc_id: 8360,
+                room_id: 1,
+                hitpoints: SkillLevel {
+                    current: 480,
+                    base: 1000,
+                },
+                prayers: Some(0b001),
+                ..Default::default()
+            })],
+        );
+
+        base.get_mut(Tick(0))
+            .expect("recorded")
+            .merge_from(target.get(Tick(0)).expect("recorded"));
+
+        let npc = base
+            .get(Tick(0))
+            .expect("recorded")
+            .npc(1)
+            .expect("npc is visible");
+        assert_eq!(npc.source, ClientId(1));
+        assert_eq!(
+            npc.hitpoints,
+            SkillLevel {
+                current: 500,
+                base: 1000,
+            }
+        );
+        assert_eq!(npc.prayers.to_raw(), 0b001);
+        let attack = npc.attack.as_ref().expect("base's attack is kept");
+        assert_eq!(attack.source, ClientId(1));
+        assert_eq!(attack.value.kind, NpcAttack::TobMaidenAuto);
+    }
+
+    #[test]
+    fn merge_graphics_unions_from_both_sides() {
+        let party = vec!["1Ogp".to_string()];
+        let mut base = single_tick(
+            1,
+            &party,
+            vec![fixtures::maiden_blood_splats_event(Tick(0), &[(1, 1)])],
+        );
+        let target = single_tick(
+            2,
+            &party,
+            vec![fixtures::maiden_blood_splats_event(Tick(0), &[(2, 2)])],
+        );
+
+        base.get_mut(Tick(0))
+            .expect("recorded")
+            .merge_from(target.get(Tick(0)).expect("recorded"));
+
+        let graphics: Vec<(GraphicsKind, Vec<(Coords, ClientId)>)> = base
+            .get(Tick(0))
+            .expect("recorded")
+            .graphics()
+            .map(|(kind, coords)| {
+                (
+                    kind.clone(),
+                    coords.iter().map(|c| (c.value, c.source)).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            graphics,
+            vec![(
+                GraphicsKind::MaidenBloodSplats,
+                vec![((1, 1).into(), ClientId(1)), ((2, 2).into(), ClientId(2))],
+            )]
+        );
+    }
+
+    #[test]
+    fn merge_graphics_keeps_base_source_for_a_coordinate_in_both() {
+        let party = vec!["1Ogp".to_string()];
+        let mut base = single_tick(
+            1,
+            &party,
+            vec![fixtures::maiden_blood_splats_event(
+                Tick(0),
+                &[(1, 1), (2, 2)],
+            )],
+        );
+        let target = single_tick(
+            2,
+            &party,
+            vec![fixtures::maiden_blood_splats_event(Tick(0), &[(1, 1)])],
+        );
+
+        base.get_mut(Tick(0))
+            .expect("recorded")
+            .merge_from(target.get(Tick(0)).expect("recorded"));
+
+        let graphics: Vec<(GraphicsKind, Vec<(Coords, ClientId)>)> = base
+            .get(Tick(0))
+            .expect("recorded")
+            .graphics()
+            .map(|(kind, coords)| {
+                (
+                    kind.clone(),
+                    coords.iter().map(|c| (c.value, c.source)).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            graphics,
+            vec![(
+                GraphicsKind::MaidenBloodSplats,
+                vec![((1, 1).into(), ClientId(1)), ((2, 2).into(), ClientId(1))],
+            )]
+        );
     }
 }

@@ -1,5 +1,4 @@
 //! Mappings between different clients' tick spaces in a merge.
-#![expect(dead_code)]
 
 use super::Tick;
 use super::alignment::AlignmentEntry;
@@ -249,21 +248,9 @@ impl MergeMapping {
         self.in_flight.as_ref().map(|entry| entry.target_client_id)
     }
 
-    /// The base mapping of the in-flight step, if one is in progress.
-    pub fn base_mapping(&self) -> Option<&TickMapping> {
-        self.in_flight.as_ref().map(|entry| &entry.mappings.base)
-    }
-
-    /// The target mapping of the in-flight step, if one is in progress.
-    pub fn target_mapping(&self) -> Option<&TickMapping> {
-        self.in_flight.as_ref().map(|entry| &entry.mappings.target)
-    }
-
-    /// The last merged tick of the in-flight step, if one is in progress.
-    pub fn merged_last_tick(&self) -> Option<Tick> {
-        self.in_flight
-            .as_ref()
-            .map(|entry| entry.mappings.merged_last_tick)
+    /// Returns the active merge step's mappings if one is in progress.
+    pub fn current_step(&self) -> Option<&Mappings> {
+        self.in_flight.as_ref().map(|entry| &entry.mappings)
     }
 
     /// Resolves a tick index in the current merged space back to a specific

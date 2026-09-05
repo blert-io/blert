@@ -33,6 +33,12 @@ impl Tick {
         self - Self::START
     }
 
+    /// Returns the absolute duration between this tick and `other`.
+    #[inline]
+    pub fn abs_diff(self, other: Self) -> Ticks {
+        Ticks(self.0.abs_diff(other.0))
+    }
+
     /// Returns an iterator over all ticks prior to this one.
     #[inline]
     #[expect(dead_code)]
