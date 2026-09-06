@@ -12,7 +12,9 @@
     "format:fix": "prettier --write . --ignore-path ../.prettierignore",
     "start": "node ./dist/app.js",
     "dev": "NODE_ENV=development tsc-watch --noClear -p ./tsconfig.json --onSuccess \"node ./dist/app.js\"",
-    "test": "jest",
+    "test": "jest --selectProjects unit",
+    "test:integration": "jest --selectProjects integration",
+    "test:all": "jest",
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
