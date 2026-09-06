@@ -1,5 +1,4 @@
 //! Aligner for timelines.
-#![expect(dead_code)]
 
 use std::collections::BTreeSet;
 

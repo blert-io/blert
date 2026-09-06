@@ -10,6 +10,7 @@ mod alignment;
 mod classification;
 mod client_consistency;
 mod client_events;
+mod confidence;
 mod consolidator;
 mod derivation;
 mod event;
