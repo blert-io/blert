@@ -6,6 +6,7 @@ use crate::lifecycle::core::types::ClientId;
 
 use super::classification::ReferenceMethod;
 use super::client_consistency::ConsistencyIssue;
+use super::consolidator::QualityFlag;
 use super::mapping::MergeMapping;
 use super::{MergeContext, MergeStatus, RegisteredClient, Tick, Ticks};
 
@@ -65,10 +66,43 @@ impl TickSupport {
     }
 }
 
+/// Returns the tick of a quality flag that represents a content disagreement
+/// between clients, or `None` if the flag is not a disagreement.
+fn contested_flag_tick(flag: &QualityFlag) -> Option<Tick> {
+    match flag {
+        QualityFlag::Disagreement { tick, .. } => Some(*tick),
+
+        // These flags do not represent disagreements and are ignored for the
+        // prefix computation.
+        QualityFlag::LargeTemporalGap { .. }
+        | QualityFlag::UnmappedCrossTickReference { .. }
+        | QualityFlag::AttackMappedNotFound { .. } => None,
+    }
+}
+
+pub(super) fn record_contested_ticks(
+    ctx: &mut MergeContext,
+    client_id: ClientId,
+    flags: &[QualityFlag],
+) {
+    for flag in flags {
+        let Some(tick) = contested_flag_tick(flag) else {
+            continue;
+        };
+        let Some(local_tick) = ctx.mapping.resolve_client_tick(tick, client_id) else {
+            continue;
+        };
+        ctx.contested_ticks
+            .entry(client_id)
+            .or_default()
+            .insert(local_tick);
+    }
+}
+
 fn collect_contributors(ctx: &MergeContext) -> Vec<Contributor> {
     let mut contributors = Vec::new();
     for RegisteredClient { client, status } in &ctx.clients {
-        if !matches!(status, MergeStatus::Merged(_)) {
+        if !matches!(status, MergeStatus::Merged(..)) {
             continue;
         }
         contributors.push(Contributor {
@@ -442,7 +476,7 @@ mod tests {
                 fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
                     .primary_player(&PARTY[1])
                     .consistency_issue(ConsistencyIssue::LargeJump {
-                        player: PARTY[1].clone(),
+                        player: &PARTY[1],
                         tick: Tick(4),
                         last_tick: Tick(3),
                         start: (3168, 4436).into(),

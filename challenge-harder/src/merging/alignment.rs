@@ -147,24 +147,24 @@ struct AlignmentMatrices {
 
 pub(super) struct TickAligner<'a, F> {
     config: AlignmentConfig,
-    base: &'a [Option<TickState>],
-    target: &'a [Option<TickState>],
+    base: &'a [Option<TickState<'a>>],
+    target: &'a [Option<TickState<'a>>],
     score_fn: F,
     alignments: Vec<LocalAlignment>,
 }
 
-impl<'a, F: Fn(&TickState, &TickState) -> f64> TickAligner<'a, F> {
+impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
     pub fn new(
-        base: &'a [Option<TickState>],
-        target: &'a [Option<TickState>],
+        base: &'a [Option<TickState<'a>>],
+        target: &'a [Option<TickState<'a>>],
         score_fn: F,
     ) -> Self {
         Self::with_config(base, target, score_fn, AlignmentConfig::default())
     }
 
     pub fn with_config(
-        base: &'a [Option<TickState>],
-        target: &'a [Option<TickState>],
+        base: &'a [Option<TickState<'a>>],
+        target: &'a [Option<TickState<'a>>],
         score_fn: F,
         config: AlignmentConfig,
     ) -> Self {
@@ -455,14 +455,15 @@ mod tests {
 
     // Each listed tick gets a state with a dummy player so it's non-null, at
     // its position in the list, so tick numbers are decoupled from indices.
-    fn make_timeline(ticks: &[u32]) -> Vec<Option<TickState>> {
-        let party = vec!["1Ogp".to_string()];
+    fn make_timeline(ticks: &[u32]) -> Vec<Option<TickState<'static>>> {
+        static PARTY: std::sync::LazyLock<Vec<String>> =
+            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
         let events = ticks
             .iter()
             .map(|&t| fixtures::PlayerUpdateEvent::new(Tick(t), STAGE, "1Ogp", (10, 20)).build())
             .collect();
         let max_tick = ticks.iter().copied().max().unwrap_or(0);
-        let timeline = fixtures::timeline(&party, Tick(max_tick), events);
+        let timeline = fixtures::timeline(&PARTY, Tick(max_tick), events);
         ticks
             .iter()
             .map(|&t| {
@@ -476,7 +477,7 @@ mod tests {
             .collect()
     }
 
-    fn make_indexed_timeline(length: u32) -> Vec<Option<TickState>> {
+    fn make_indexed_timeline(length: u32) -> Vec<Option<TickState<'static>>> {
         let ticks: Vec<u32> = (0..length).collect();
         make_timeline(&ticks)
     }

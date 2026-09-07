@@ -131,8 +131,8 @@ struct PlayerSummary {
     attack: Option<PlayerAttackSummary>,
 }
 
-impl From<(&str, &PlayerState)> for PlayerSummary {
-    fn from((username, state): (&str, &PlayerState)) -> Self {
+impl From<(&str, &PlayerState<'_>)> for PlayerSummary {
+    fn from((username, state): (&str, &PlayerState<'_>)) -> Self {
         Self {
             username: username.to_string(),
             source: state.data_source as i32,
@@ -179,8 +179,8 @@ struct NpcSummary {
     attack: Option<NpcAttackSummary>,
 }
 
-impl From<(u64, &NpcState)> for NpcSummary {
-    fn from((room_id, state): (u64, &NpcState)) -> Self {
+impl From<(u64, &NpcState<'_>)> for NpcSummary {
+    fn from((room_id, state): (u64, &NpcState<'_>)) -> Self {
         Self {
             room_id,
             id: state.id,
@@ -197,7 +197,7 @@ impl From<(u64, &NpcState)> for NpcSummary {
                     .target
                     .as_ref()
                     .and_then(|target| match &target.value {
-                        Target::Player(name) => Some(name.clone()),
+                        Target::Player(name) => Some((*name).to_string()),
                         Target::Npc { .. } => None,
                     }),
             }),
@@ -239,8 +239,8 @@ struct TickSummary {
     event_counts: BTreeMap<&'static str, u32>,
 }
 
-impl From<&TickState> for TickSummary {
-    fn from(state: &TickState) -> Self {
+impl From<&TickState<'_>> for TickSummary {
+    fn from(state: &TickState<'_>) -> Self {
         let mut event_counts: BTreeMap<&'static str, u32> = BTreeMap::new();
         for event in state.events() {
             *event_counts
@@ -283,11 +283,11 @@ enum StepStatus {
     Skipped,
 }
 
-impl From<&super::MergeStatus> for StepStatus {
-    fn from(status: &super::MergeStatus) -> Self {
+impl From<&super::MergeStatus<'_>> for StepStatus {
+    fn from(status: &super::MergeStatus<'_>) -> Self {
         match status {
-            super::MergeStatus::Merged(_) => Self::Merged,
-            super::MergeStatus::Unmerged(_) => Self::Unmerged,
+            super::MergeStatus::Merged(..) => Self::Merged,
+            super::MergeStatus::Unmerged(_) | super::MergeStatus::Rejected(..) => Self::Unmerged,
             super::MergeStatus::Skipped(_) => Self::Skipped,
         }
     }
@@ -638,11 +638,11 @@ enum Actor {
     Player(String),
 }
 
-impl From<&Target> for Actor {
-    fn from(target: &Target) -> Self {
+impl From<&Target<'_>> for Actor {
+    fn from(target: &Target<'_>) -> Self {
         match target {
             Target::Npc { room_id, .. } => Self::Npc(*room_id),
-            Target::Player(name) => Self::Player(name.clone()),
+            Target::Player(name) => Self::Player((*name).to_string()),
         }
     }
 }
@@ -739,9 +739,9 @@ enum QualityFlag {
     },
 }
 
-impl From<&super::consolidator::QualityFlag> for QualityFlag {
+impl From<&super::consolidator::QualityFlag<'_>> for QualityFlag {
     #[expect(clippy::too_many_lines)]
-    fn from(flag: &super::consolidator::QualityFlag) -> Self {
+    fn from(flag: &super::consolidator::QualityFlag<'_>) -> Self {
         match flag {
             super::consolidator::QualityFlag::Disagreement {
                 tick,
@@ -759,7 +759,7 @@ impl From<&super::consolidator::QualityFlag> for QualityFlag {
                         discarded,
                     } => Self::AttackTypeMismatch {
                         tick,
-                        player: player.clone(),
+                        player: (*player).to_string(),
                         kept_type: *kept as i32,
                         discarded_type: *discarded as i32,
                         kept_source_client_id,
@@ -771,7 +771,7 @@ impl From<&super::consolidator::QualityFlag> for QualityFlag {
                         discarded,
                     } => Self::AttackTargetMismatch {
                         tick,
-                        player: player.clone(),
+                        player: (*player).to_string(),
                         kept_target: kept.into(),
                         discarded_target: discarded.into(),
                         kept_source_client_id,
@@ -783,7 +783,7 @@ impl From<&super::consolidator::QualityFlag> for QualityFlag {
                         discarded,
                     } => Self::SpellTypeMismatch {
                         tick,
-                        player: player.clone(),
+                        player: (*player).to_string(),
                         kept_type: *kept as i32,
                         discarded_type: *discarded as i32,
                         kept_source_client_id,
@@ -795,7 +795,7 @@ impl From<&super::consolidator::QualityFlag> for QualityFlag {
                         discarded,
                     } => Self::SpellTargetMismatch {
                         tick,
-                        player: player.clone(),
+                        player: (*player).to_string(),
                         kept_target: kept.into(),
                         discarded_target: discarded.into(),
                         kept_source_client_id,
@@ -898,6 +898,92 @@ impl From<&super::consolidator::ReconciliationCounters> for ReconciliationCounte
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct StepConfidence {
+    overall: f64,
+    structural: StructuralConfidence,
+    content: ContentConfidence,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StructuralConfidence {
+    value: f64,
+    identity: bool,
+    target_coverage: f64,
+    segments: Vec<SegmentConfidence>,
+    worst_segment_idx: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SegmentConfidence {
+    base_start: usize,
+    base_end: usize,
+    discriminability: f64,
+    bonus_support: f64,
+    score: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ContentConfidence {
+    value: f64,
+    disagreement_rate: f64,
+    large_gap_rate: f64,
+    attack_mapped_failure_rate: f64,
+}
+
+impl From<&super::StepConfidence> for StepConfidence {
+    fn from(confidence: &super::StepConfidence) -> Self {
+        Self {
+            overall: confidence.overall,
+            structural: StructuralConfidence::from(&confidence.structural),
+            content: ContentConfidence::from(&confidence.content),
+        }
+    }
+}
+
+impl From<&super::confidence::StructuralConfidence> for StructuralConfidence {
+    fn from(structural: &super::confidence::StructuralConfidence) -> Self {
+        Self {
+            value: structural.value,
+            identity: structural.identity,
+            target_coverage: structural.target_coverage,
+            segments: structural
+                .segments
+                .iter()
+                .map(SegmentConfidence::from)
+                .collect(),
+            worst_segment_idx: structural.worst_segment_idx,
+        }
+    }
+}
+
+impl From<&super::confidence::SegmentConfidence> for SegmentConfidence {
+    fn from(segment: &super::confidence::SegmentConfidence) -> Self {
+        Self {
+            base_start: segment.base_start,
+            base_end: segment.base_end,
+            discriminability: segment.discriminability,
+            bonus_support: segment.bonus_support,
+            score: segment.score,
+        }
+    }
+}
+
+impl From<&super::confidence::ContentConfidence> for ContentConfidence {
+    fn from(content: &super::confidence::ContentConfidence) -> Self {
+        Self {
+            value: content.value,
+            disagreement_rate: content.disagreement_rate,
+            large_gap_rate: content.large_gap_rate,
+            attack_mapped_failure_rate: content.attack_mapped_failure_rate,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct StepRejection {
     reason: RejectionReason,
     issues: Vec<MergeConsistencyIssue>,
@@ -907,14 +993,19 @@ pub(super) struct StepRejection {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 enum RejectionReason {
     PostMergeConsistency,
+    LowMergeConfidence,
 }
 
-impl From<&super::RejectionReason> for StepRejection {
-    fn from(reason: &super::RejectionReason) -> Self {
+impl From<&super::RejectionReason<'_>> for StepRejection {
+    fn from(reason: &super::RejectionReason<'_>) -> Self {
         match reason {
             super::RejectionReason::PostMergeConsistency(issues) => Self {
                 reason: RejectionReason::PostMergeConsistency,
                 issues: issues.iter().map(MergeConsistencyIssue::from).collect(),
+            },
+            super::RejectionReason::LowMergeConfidence(_) => Self {
+                reason: RejectionReason::LowMergeConfidence,
+                issues: Vec::new(),
             },
         }
     }
@@ -1020,21 +1111,12 @@ impl From<&merge_consistency::PhaseOccurrence> for PhaseOccurrence {
     }
 }
 
-impl From<&merge_consistency::ActorId> for Actor {
-    fn from(actor: &merge_consistency::ActorId) -> Self {
-        match actor {
-            merge_consistency::ActorId::Npc(room_id) => Self::Npc(*room_id),
-            merge_consistency::ActorId::Player(name) => Self::Player(name.clone()),
-        }
-    }
-}
-
-impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
-    fn from(issue: &merge_consistency::MergeConsistencyIssue) -> Self {
+impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIssue {
+    fn from(issue: &merge_consistency::MergeConsistencyIssue<'_>) -> Self {
         use merge_consistency::MergeConsistencyIssue as Issue;
         match issue {
             Issue::DuplicatePlayerDeath { player, ticks } => Self::DuplicatePlayerDeath {
-                player: player.clone(),
+                player: (*player).to_string(),
                 ticks: ticks.clone(),
             },
             Issue::DuplicateNpcSpawn {
@@ -1066,7 +1148,7 @@ impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
                 current,
                 cooldown,
             } => Self::WeaponCooldownViolation {
-                player: player.clone(),
+                player: (*player).to_string(),
                 previous: previous.into(),
                 current: current.into(),
                 cooldown: *cooldown,
@@ -1090,8 +1172,8 @@ impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
                 target,
             } => Self::AttackTargetMissing {
                 tick: *tick,
-                attacker: attacker.into(),
-                target: target.into(),
+                attacker: (*attacker).into(),
+                target: (*target).into(),
             },
             Issue::ExclusiveEventViolation {
                 exclusive_types: (a, b),
@@ -1117,6 +1199,7 @@ struct MergeStep {
     reconciliation: Option<ReconciliationTrace>,
     quality_flags: Vec<QualityFlag>,
     counters: ReconciliationCounters,
+    confidence: Option<StepConfidence>,
     rejection: Option<StepRejection>,
 }
 
@@ -1158,6 +1241,7 @@ struct CurrentStep {
     reconciliation: Option<ReconciliationTrace>,
     quality_flags: Vec<QualityFlag>,
     counters: ReconciliationCounters,
+    confidence: Option<StepConfidence>,
     rejection: Option<StepRejection>,
 }
 
@@ -1178,7 +1262,7 @@ impl Tracer {
         &self.output
     }
 
-    pub(super) fn record_input_client(&mut self, client: &ClientEvents) {
+    pub(super) fn record_input_client(&mut self, client: &ClientEvents<'_>) {
         let ticks = client
             .timeline
             .tick_states()
@@ -1194,7 +1278,7 @@ impl Tracer {
         );
     }
 
-    pub(super) fn record_bad_data_client(&mut self, client: &BadDataClient) {
+    pub(super) fn record_bad_data_client(&mut self, client: &BadDataClient<'_>) {
         self.input_client(
             &client.info,
             client.info.reported_accurate,
@@ -1207,14 +1291,14 @@ impl Tracer {
 
     fn input_client(
         &mut self,
-        info: &ReportedInfo,
+        info: &ReportedInfo<'_>,
         accurate: bool,
         ticks: Vec<TickSummary>,
         stage_data: StageData,
     ) {
         self.output.input_clients.push(InputClient {
             client_id: info.id,
-            primary_player: info.primary_player.clone(),
+            primary_player: info.primary_player.map(str::to_string),
             metadata: info.plugin_info.as_ref().map(|plugin_info| ClientMetadata {
                 user_id: plugin_info.user_id,
                 plugin_version: plugin_info.plugin_version.clone(),
@@ -1231,7 +1315,7 @@ impl Tracer {
     pub(super) fn record_classification(
         &mut self,
         classification: &ClientClassification,
-        clients: &[ClientEvents],
+        clients: &[ClientEvents<'_>],
     ) {
         let ids = |indices: &[usize]| -> Vec<ClientId> {
             indices.iter().map(|&i| clients[i].info.id).collect()
@@ -1273,6 +1357,7 @@ impl Tracer {
             reconciliation: None,
             quality_flags: Vec::new(),
             counters: ReconciliationCounters::default(),
+            confidence: None,
             rejection: None,
         });
     }
@@ -1408,15 +1493,20 @@ impl Tracer {
         }
     }
 
-    #[expect(dead_code)]
-    pub(super) fn record_step_rejection(&mut self, reason: &super::RejectionReason) {
+    pub(super) fn record_confidence(&mut self, confidence: &super::StepConfidence) {
+        if let Some(step) = &mut self.current_step {
+            step.confidence = Some(confidence.into());
+        }
+    }
+
+    pub(super) fn record_step_rejection(&mut self, reason: &super::RejectionReason<'_>) {
         if let Some(step) = &mut self.current_step {
             step.rejection = Some(reason.into());
         }
     }
 
     /// Commits the in-progress merge step into the output with its outcome.
-    pub(super) fn end_merge_step(&mut self, status: &super::MergeStatus) {
+    pub(super) fn end_merge_step(&mut self, status: &super::MergeStatus<'_>) {
         if let Some(step) = self.current_step.take() {
             self.output.merge_steps.push(MergeStep {
                 client_id: step.client_id,
@@ -1429,6 +1519,7 @@ impl Tracer {
                 reconciliation: step.reconciliation,
                 quality_flags: step.quality_flags,
                 counters: step.counters,
+                confidence: step.confidence,
                 rejection: step.rejection,
             });
         }

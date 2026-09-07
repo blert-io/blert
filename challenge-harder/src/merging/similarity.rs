@@ -131,6 +131,10 @@ impl SimilarityScorer {
         Self { weights }
     }
 
+    pub(super) fn weights(&self) -> &ScoringWeights {
+        &self.weights
+    }
+
     /// Scores the similarity of the two tick states, with a higher score
     /// indicating a likelihood that the two tick states represent the same
     /// moment in time.
@@ -198,7 +202,7 @@ impl SimilarityScorer {
     }
 
     fn score_player_attacks(&self, tick_a: &TickState, tick_b: &TickState) -> f64 {
-        fn transform(tick: &TickState) -> Vec<Attack<'_, PlayerAttack>> {
+        fn transform<'t>(tick: &'t TickState<'_>) -> Vec<Attack<'t, PlayerAttack>> {
             tick.players()
                 .filter_map(|(name, state)| {
                     let attack = state.attack.as_ref()?;
@@ -228,7 +232,7 @@ impl SimilarityScorer {
     }
 
     fn score_npc_attacks(&self, tick_a: &TickState, tick_b: &TickState) -> f64 {
-        fn transform(tick: &TickState) -> Vec<Attack<'_, NpcAttack>> {
+        fn transform<'t>(tick: &'t TickState<'_>) -> Vec<Attack<'t, NpcAttack>> {
             tick.npcs()
                 .filter_map(|(room_id, state)| {
                     let attack = state.attack.as_ref()?;
@@ -413,7 +417,7 @@ fn normalize_hitpoints(hitpoints: SkillLevel) -> f64 {
 /// An attack recorded on a tick.
 struct Attack<'a, K> {
     actor: Actor<'a>,
-    target: Option<&'a Sourced<Target>>,
+    target: Option<&'a Sourced<Target<'a>>>,
     kind: K,
     secondary_id: i32,
 }
@@ -596,9 +600,10 @@ mod tests {
     const STAGE: Stage = Stage::TobMaiden;
 
     /// Builds the tick state a single client's events produce on `tick`.
-    fn tick_state(tick: Tick, events: Vec<Event>) -> TickState {
-        let party = vec!["715".to_string(), "caps lock13".to_string()];
-        fixtures::timeline(&party, tick, events)
+    fn tick_state(tick: Tick, events: Vec<Event>) -> TickState<'static> {
+        static PARTY: std::sync::LazyLock<Vec<String>> =
+            std::sync::LazyLock::new(|| vec!["715".to_string(), "caps lock13".to_string()]);
+        fixtures::timeline(&PARTY, tick, events)
             .get(tick)
             .expect("tick has recorded state")
             .clone()

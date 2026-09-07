@@ -18,10 +18,10 @@ pub(super) const MAX_RECORDED_TICK: Tick = Tick(36_000); // six hour logout time
 
 /// A problem detected in a client's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConsistencyIssue {
+pub enum ConsistencyIssue<'a> {
     /// A player moved an impossibly large distance.
     LargeJump {
-        player: String,
+        player: &'a str,
         tick: Tick,
         last_tick: Tick,
         start: Coords,
@@ -38,7 +38,7 @@ pub enum ConsistencyIssue {
     },
 }
 
-impl ConsistencyIssue {
+impl ConsistencyIssue<'_> {
     /// The tick on which the issue occurred.
     pub fn tick(&self) -> Tick {
         match self {
@@ -50,11 +50,11 @@ impl ConsistencyIssue {
 }
 
 /// Checks a client's timeline for consistency issues.
-pub(super) fn check(
-    challenge: &ChallengeInfo<'_>,
+pub(super) fn check<'a>(
+    challenge: &ChallengeInfo<'a>,
     stage: Stage,
-    timeline: &Timeline,
-) -> Result<Vec<ConsistencyIssue>, BadData> {
+    timeline: &Timeline<'a>,
+) -> Result<Vec<ConsistencyIssue<'a>>, BadData> {
     let mut issues = check_movement(stage, challenge.party, timeline);
     match stage {
         Stage::TobBloat => issues.extend(check_bloat(timeline)?),
@@ -80,7 +80,11 @@ fn has_npc_attack(
     })
 }
 
-fn check_movement(stage: Stage, party: &[String], timeline: &Timeline) -> Vec<ConsistencyIssue> {
+fn check_movement<'a>(
+    stage: Stage,
+    party: &'a [String],
+    timeline: &Timeline<'a>,
+) -> Vec<ConsistencyIssue<'a>> {
     MovementChecker {
         stage,
         party,
@@ -89,14 +93,14 @@ fn check_movement(stage: Stage, party: &[String], timeline: &Timeline) -> Vec<Co
     .check()
 }
 
-struct MovementChecker<'a> {
+struct MovementChecker<'a, 't> {
     stage: Stage,
     party: &'a [String],
-    timeline: &'a Timeline,
+    timeline: &'t Timeline<'a>,
 }
 
-impl MovementChecker<'_> {
-    fn check(&self) -> Vec<ConsistencyIssue> {
+impl<'a> MovementChecker<'a, '_> {
+    fn check(&self) -> Vec<ConsistencyIssue<'a>> {
         let mut issues = Vec::new();
         let mut last_seen: Vec<Option<(Tick, Coords)>> = vec![None; self.party.len()];
         let mut dead = vec![false; self.party.len()];
@@ -134,7 +138,7 @@ impl MovementChecker<'_> {
                         );
                     if jumped {
                         issues.push(ConsistencyIssue::LargeJump {
-                            player: player.clone(),
+                            player: player.as_str(),
                             tick,
                             last_tick,
                             start: last_position,
@@ -352,7 +356,7 @@ impl MovementChecker<'_> {
     }
 }
 
-fn check_bloat(timeline: &Timeline) -> Result<Vec<ConsistencyIssue>, BadData> {
+fn check_bloat<'a>(timeline: &Timeline) -> Result<Vec<ConsistencyIssue<'a>>, BadData> {
     let mut issues = Vec::new();
     let mut is_down = false;
 
@@ -395,10 +399,10 @@ fn check_bloat(timeline: &Timeline) -> Result<Vec<ConsistencyIssue>, BadData> {
     Ok(issues)
 }
 
-fn check_nylocas(
+fn check_nylocas<'a>(
     mode: ChallengeMode,
     timeline: &Timeline,
-) -> Result<Vec<ConsistencyIssue>, BadData> {
+) -> Result<Vec<ConsistencyIssue<'a>>, BadData> {
     let mut issues = Vec::new();
     let mut last_wave = 0;
     let mut last_spawn_tick = Tick(0);
@@ -495,7 +499,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobMaiden, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3184, 4447).into(),
@@ -524,7 +528,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobMaiden, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(5),
                 last_tick: Tick(3),
                 start: (3178, 4447).into(),
@@ -578,7 +582,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobMaiden, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "WWWWWWWWWWQQ".to_string(),
+                player: "WWWWWWWWWWQQ",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3184, 4445).into(),
@@ -610,7 +614,7 @@ mod tests {
             assert_eq!(
                 check_movement(stage, &party, &timeline),
                 vec![ConsistencyIssue::LargeJump {
-                    player: "1Ogp".to_string(),
+                    player: "1Ogp",
                     tick: Tick(1),
                     last_tick: Tick(0),
                     start: start.into(),
@@ -704,7 +708,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::ColosseumWave12, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(5),
                 last_tick: Tick(4),
                 start: (1819, 3118).into(),
@@ -739,7 +743,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::ColosseumWave12, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(4),
                 last_tick: Tick(3),
                 start: (1819, 3118).into(),
@@ -764,7 +768,7 @@ mod tests {
             assert_eq!(
                 check_movement(stage, &party, &timeline),
                 vec![ConsistencyIssue::LargeJump {
-                    player: "1Ogp".to_string(),
+                    player: "1Ogp",
                     tick: Tick(1),
                     last_tick: Tick(0),
                     start: (1815, 3110).into(),
@@ -867,7 +871,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobSotetseg, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3275, 4310).into(),
@@ -892,7 +896,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobSotetseg, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(2),
                 last_tick: Tick(0),
                 start: (3275, 4312).into(),
@@ -917,7 +921,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3168, 4313).into(),
@@ -1030,7 +1034,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3168, 4313).into(),
@@ -1057,7 +1061,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3168, 4305).into(),
@@ -1084,7 +1088,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(2),
                 last_tick: Tick(0),
                 start: (3168, 4313).into(),
@@ -1150,7 +1154,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3168, 4313).into(),
@@ -1200,14 +1204,14 @@ mod tests {
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![
                 ConsistencyIssue::LargeJump {
-                    player: "1Ogp".to_string(),
+                    player: "1Ogp",
                     tick: Tick(1),
                     last_tick: Tick(0),
                     start: (3168, 4313).into(),
                     end: (3168, 4309).into(),
                 },
                 ConsistencyIssue::LargeJump {
-                    player: "WWWWWWWWWWQQ".to_string(),
+                    player: "WWWWWWWWWWQQ",
                     tick: Tick(1),
                     last_tick: Tick(0),
                     start: (3169, 4313).into(),
@@ -1276,7 +1280,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3168, 4312).into(),
@@ -1303,7 +1307,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3160, 4310).into(),
@@ -1329,7 +1333,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
                 start: (3168, 4312).into(),
@@ -1376,7 +1380,7 @@ mod tests {
         assert_eq!(
             check_movement(Stage::TobVerzik, &party, &timeline),
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 tick: Tick(5),
                 last_tick: Tick(4),
                 start: (3168, 4312).into(),

@@ -73,15 +73,15 @@ pub(super) fn challenge_info(
     }
 }
 
-pub(super) struct ClientBuilder {
+pub(super) struct ClientBuilder<'a> {
     id: ClientId,
     stage: Stage,
     last_recorded_tick: Tick,
-    primary_player: Option<String>,
-    consistency_issues: Vec<ConsistencyIssue>,
+    primary_player: Option<&'a str>,
+    consistency_issues: Vec<ConsistencyIssue<'a>>,
 }
 
-impl ClientBuilder {
+impl<'a> ClientBuilder<'a> {
     pub(super) fn new(id: i64, stage: Stage, last_recorded_tick: Tick) -> Self {
         Self {
             id: ClientId(id),
@@ -92,17 +92,17 @@ impl ClientBuilder {
         }
     }
 
-    pub(super) fn primary_player(mut self, name: &str) -> Self {
-        self.primary_player = Some(name.to_string());
+    pub(super) fn primary_player(mut self, name: &'a str) -> Self {
+        self.primary_player = Some(name);
         self
     }
 
-    pub(super) fn consistency_issue(mut self, issue: ConsistencyIssue) -> Self {
+    pub(super) fn consistency_issue(mut self, issue: ConsistencyIssue<'a>) -> Self {
         self.consistency_issues.push(issue);
         self
     }
 
-    pub(super) fn build(self) -> ClientEvents {
+    pub(super) fn build(self) -> ClientEvents<'a> {
         ClientEvents {
             info: ReportedInfo {
                 id: self.id,
@@ -137,11 +137,11 @@ pub(super) fn merge_context<'a>(
 pub(super) struct MergeContextBuilder<'a> {
     challenge: &'a ChallengeInfo<'a>,
     stage: Stage,
-    clients: Vec<ClientEvents>,
+    clients: Vec<ClientEvents<'a>>,
 }
 
 impl<'a> MergeContextBuilder<'a> {
-    pub(super) fn client(mut self, client: ClientEvents) -> Self {
+    pub(super) fn client(mut self, client: ClientEvents<'a>) -> Self {
         self.clients.push(client);
         self
     }
@@ -191,9 +191,9 @@ impl<'a> MergeContextBuilder<'a> {
             .map(|(index, client)| RegisteredClient {
                 client,
                 status: if index == 0 {
-                    MergeStatus::Merged(Classification::Reference)
+                    MergeStatus::Merged(Classification::Reference, None)
                 } else {
-                    MergeStatus::Merged(Classification::Matching)
+                    MergeStatus::Merged(Classification::Matching, None)
                 },
             })
             .collect();
@@ -207,7 +207,11 @@ impl<'a> MergeContextBuilder<'a> {
     }
 }
 
-pub(super) fn timeline(party: &[String], last_recorded_tick: Tick, events: Vec<Event>) -> Timeline {
+pub(super) fn timeline(
+    party: &[String],
+    last_recorded_tick: Tick,
+    events: Vec<Event>,
+) -> Timeline<'_> {
     Timeline::build(
         party,
         last_recorded_tick,

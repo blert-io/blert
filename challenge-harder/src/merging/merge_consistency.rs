@@ -12,9 +12,9 @@ use super::{MergeContext, Tick, Ticks};
 /// Each issue is a violation of a game invariant that the plugin enforces on a
 /// single client, meaning that it must have been introduced by the merger.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MergeConsistencyIssue {
+pub enum MergeConsistencyIssue<'a> {
     DuplicatePlayerDeath {
-        player: String,
+        player: &'a str,
         ticks: Vec<Tick>,
     },
     DuplicateNpcSpawn {
@@ -31,7 +31,7 @@ pub enum MergeConsistencyIssue {
         ticks: Vec<Tick>,
     },
     WeaponCooldownViolation {
-        player: String,
+        player: &'a str,
         previous: PlayerAttackOccurrence,
         current: PlayerAttackOccurrence,
         cooldown: Ticks,
@@ -48,8 +48,8 @@ pub enum MergeConsistencyIssue {
     },
     AttackTargetMissing {
         tick: Tick,
-        attacker: ActorId,
-        target: ActorId,
+        attacker: Actor<'a>,
+        target: Actor<'a>,
     },
     /// Emitted when an event type appears on a tick alongside another event type
     /// it is mutually exclusive with (e.g. `TOB_BLOAT_DOWN` and `TOB_BLOAT_UP`).
@@ -76,23 +76,6 @@ pub struct PhaseOccurrence {
     pub kind: event::Type,
     pub identity_key: String,
     pub tick: Tick,
-}
-
-// TODO(frolv): Remove in favor of `Actor` once player names borrow from the
-// challenge info.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ActorId {
-    Player(String),
-    Npc(u64),
-}
-
-impl From<Actor<'_>> for ActorId {
-    fn from(actor: Actor<'_>) -> Self {
-        match actor {
-            Actor::Player(name) => ActorId::Player(name.to_string()),
-            Actor::Npc(room_id) => ActorId::Npc(room_id),
-        }
-    }
 }
 
 /// Defines an ordering invariant over a set of stream event types.
@@ -141,13 +124,13 @@ fn ordering_rules(stage: Stage) -> &'static [OrderingRule] {
 
 /// Runs all post-merge consistency checks against `timeline` and returns any
 /// issues found.
-pub(super) fn check(
-    ctx: &MergeContext<'_>,
-    timeline: &Timeline,
-) -> Result<(), Vec<MergeConsistencyIssue>> {
+pub(super) fn check<'a>(
+    ctx: &MergeContext<'a>,
+    timeline: &Timeline<'a>,
+) -> Result<(), Vec<MergeConsistencyIssue<'a>>> {
     let mut issues = Vec::new();
 
-    check_actor_lifecycles(timeline, &mut issues);
+    check_actor_lifecycles(ctx, timeline, &mut issues);
     check_stream_events(ctx, timeline, &mut issues);
     check_weapon_cooldowns(timeline, &mut issues);
     check_attack_target_presence(timeline, &mut issues);
@@ -160,8 +143,12 @@ pub(super) fn check(
     }
 }
 
-fn check_actor_lifecycles(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIssue>) {
-    let mut player_death_ticks: BTreeMap<&str, Vec<Tick>> = BTreeMap::new();
+fn check_actor_lifecycles<'a>(
+    ctx: &MergeContext<'a>,
+    timeline: &Timeline<'a>,
+    issues: &mut Vec<MergeConsistencyIssue<'a>>,
+) {
+    let mut player_death_ticks: BTreeMap<&'a str, Vec<Tick>> = BTreeMap::new();
     let mut npc_spawn_occurrences: BTreeMap<u64, Vec<NpcOccurrence>> = BTreeMap::new();
     let mut npc_death_occurrences: BTreeMap<u64, Vec<NpcOccurrence>> = BTreeMap::new();
 
@@ -171,7 +158,7 @@ fn check_actor_lifecycles(timeline: &Timeline, issues: &mut Vec<MergeConsistency
         for event in state.events_of_type(event::Type::PlayerDeath) {
             let name = &event.player.as_ref().expect("validated at build").name;
             player_death_ticks
-                .entry(name.as_str())
+                .entry(ctx.player(name))
                 .or_default()
                 .push(tick);
         }
@@ -202,7 +189,7 @@ fn check_actor_lifecycles(timeline: &Timeline, issues: &mut Vec<MergeConsistency
     for (player, death_ticks) in player_death_ticks {
         if death_ticks.len() > 1 {
             issues.push(MergeConsistencyIssue::DuplicatePlayerDeath {
-                player: player.to_string(),
+                player,
                 ticks: death_ticks,
             });
         }
@@ -244,8 +231,8 @@ fn check_actor_lifecycles(timeline: &Timeline, issues: &mut Vec<MergeConsistency
 
 fn check_stream_events(
     ctx: &MergeContext<'_>,
-    timeline: &Timeline,
-    issues: &mut Vec<MergeConsistencyIssue>,
+    timeline: &Timeline<'_>,
+    issues: &mut Vec<MergeConsistencyIssue<'_>>,
 ) {
     // Every stream event is without a temporal window expected to appear at most
     // once per (type, identity). Actor lifecycle events are handled separately
@@ -321,12 +308,15 @@ fn check_stream_events(
     }
 }
 
-fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIssue>) {
+fn check_weapon_cooldowns<'a>(
+    timeline: &Timeline<'a>,
+    issues: &mut Vec<MergeConsistencyIssue<'a>>,
+) {
     // Most recent attacks by player. The plugin's `isOffCooldownOn` gate means
     // a single client's stream never contains attacks that violate cooldown in
     // its own tick space; any violation in the merged stream is therefore a
     // merger artifact.
-    let mut last_attack: BTreeMap<&str, PlayerAttackOccurrence> = BTreeMap::new();
+    let mut last_attack: BTreeMap<&'a str, PlayerAttackOccurrence> = BTreeMap::new();
 
     for state in timeline.tick_states().iter().flatten() {
         let tick = state.tick();
@@ -343,7 +333,7 @@ fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistency
                 let cooldown = previous.kind.cooldown();
                 if tick - previous.tick < cooldown {
                     issues.push(MergeConsistencyIssue::WeaponCooldownViolation {
-                        player: name.to_string(),
+                        player: name,
                         previous: *previous,
                         current,
                         cooldown,
@@ -355,7 +345,11 @@ fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistency
     }
 }
 
-fn check_target(state: &TickState, target: &Target, ignore: impl Fn(Actor) -> bool) -> bool {
+fn check_target(
+    state: &TickState<'_>,
+    target: &Target<'_>,
+    ignore: impl Fn(Actor<'_>) -> bool,
+) -> bool {
     if ignore(target.into()) {
         return true;
     }
@@ -365,7 +359,10 @@ fn check_target(state: &TickState, target: &Target, ignore: impl Fn(Actor) -> bo
     }
 }
 
-fn check_attack_target_presence(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIssue>) {
+fn check_attack_target_presence<'a>(
+    timeline: &Timeline<'a>,
+    issues: &mut Vec<MergeConsistencyIssue<'a>>,
+) {
     // When an attack carries a non-null target, that target must be present in
     // the same tick's state map. The merger combines attack and target data
     // across multiple clients, so a merge bug could drop the target's state
@@ -389,8 +386,8 @@ fn check_attack_target_presence(timeline: &Timeline, issues: &mut Vec<MergeConsi
             if !check_target(state, &target.value, |_| false) {
                 issues.push(MergeConsistencyIssue::AttackTargetMissing {
                     tick,
-                    attacker: ActorId::Player(name.to_string()),
-                    target: Actor::from(&target.value).into(),
+                    attacker: Actor::Player(name),
+                    target: Actor::from(&target.value),
                 });
             }
         }
@@ -419,8 +416,8 @@ fn check_attack_target_presence(timeline: &Timeline, issues: &mut Vec<MergeConsi
             if !ok {
                 issues.push(MergeConsistencyIssue::AttackTargetMissing {
                     tick,
-                    attacker: ActorId::Npc(room_id),
-                    target: Actor::from(&target.value).into(),
+                    attacker: Actor::Npc(room_id),
+                    target: Actor::from(&target.value),
                 });
             }
         }
@@ -433,8 +430,8 @@ fn check_attack_target_presence(timeline: &Timeline, issues: &mut Vec<MergeConsi
 
 fn check_exclusive_event_types(
     stage: Stage,
-    timeline: &Timeline,
-    issues: &mut Vec<MergeConsistencyIssue>,
+    timeline: &Timeline<'_>,
+    issues: &mut Vec<MergeConsistencyIssue<'_>>,
 ) {
     let pairs = exclusive_event_pairs(stage);
     if pairs.is_empty() {
@@ -462,16 +459,19 @@ mod tests {
     use super::*;
     use crate::item;
     use crate::lifecycle::core::types::ChallengeMode;
+    use crate::merging::ChallengeInfo;
     use crate::merging::fixtures::{self, NpcEvent};
 
-    fn check_events(
+    static PARTY: std::sync::LazyLock<Vec<String>> =
+        std::sync::LazyLock::new(|| vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+
+    fn check_events<'a>(
+        challenge: &'a ChallengeInfo<'a>,
         stage: Stage,
         last_tick: Tick,
         events: Vec<Event>,
-    ) -> Result<(), Vec<MergeConsistencyIssue>> {
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
-        let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-        let ctx = fixtures::merge_context(&challenge, stage)
+    ) -> Result<(), Vec<MergeConsistencyIssue<'a>>> {
+        let ctx = fixtures::merge_context(challenge, stage)
             .recording(true, last_tick, events)
             .build();
         check(&ctx, &ctx.client(0).timeline)
@@ -499,7 +499,10 @@ mod tests {
 
     #[test]
     fn lifecycle_permits_a_well_formed_timeline() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -513,7 +516,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_player_dying_twice() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -524,7 +530,7 @@ mod tests {
         assert_eq!(
             result,
             Err(vec![MergeConsistencyIssue::DuplicatePlayerDeath {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 ticks: vec![Tick(3), Tick(7)],
             }]),
         );
@@ -532,7 +538,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_player_dying_twice_on_one_tick() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(4),
             vec![
@@ -543,7 +552,7 @@ mod tests {
         assert_eq!(
             result,
             Err(vec![MergeConsistencyIssue::DuplicatePlayerDeath {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 ticks: vec![Tick(2), Tick(2)],
             }]),
         );
@@ -551,7 +560,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_room_id_spawning_twice() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -579,7 +591,10 @@ mod tests {
 
     #[test]
     fn lifecycle_records_the_npc_id_of_each_duplicate_spawn() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![npc_spawn(Tick(0), 1001, 100), npc_spawn(Tick(4), 1001, 200)],
@@ -604,7 +619,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_room_id_dying_twice() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -633,7 +651,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_death_without_a_spawn() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![npc_death(Tick(4), 1001, 8360)],
@@ -650,7 +671,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_death_before_a_spawn() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -670,7 +694,10 @@ mod tests {
 
     #[test]
     fn lifecycle_flags_a_death_on_its_spawn_tick() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -690,7 +717,10 @@ mod tests {
 
     #[test]
     fn lifecycle_reports_a_duplicate_spawn_and_a_death_before_spawn_together() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -726,7 +756,10 @@ mod tests {
 
     #[test]
     fn cooldown_permits_an_attack_off_cooldown() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(14),
             vec![
@@ -761,7 +794,10 @@ mod tests {
 
     #[test]
     fn cooldown_flags_an_attack_while_on_cooldown() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -794,7 +830,7 @@ mod tests {
         assert_eq!(
             result,
             Err(vec![MergeConsistencyIssue::WeaponCooldownViolation {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 previous: PlayerAttackOccurrence {
                     tick: Tick(0),
                     kind: PlayerAttack::BgsSpec,
@@ -810,7 +846,10 @@ mod tests {
 
     #[test]
     fn cooldown_ignores_ticks_without_an_attack() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(9),
             vec![
@@ -846,7 +885,10 @@ mod tests {
 
     #[test]
     fn stream_flags_a_unique_event_recurring() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobVerzik, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobVerzik,
             Tick(9),
             vec![
@@ -866,7 +908,10 @@ mod tests {
 
     #[test]
     fn stream_flags_a_phase_out_of_order() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobVerzik, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobVerzik,
             Tick(14),
             vec![
@@ -894,7 +939,10 @@ mod tests {
 
     #[test]
     fn stream_flags_a_maze_proc_before_the_previous_maze_end() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobSotetseg, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobSotetseg,
             Tick(14),
             vec![
@@ -922,7 +970,10 @@ mod tests {
 
     #[test]
     fn stream_permits_a_windowed_event_recurring() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobBloat, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobBloat,
             Tick(139),
             vec![
@@ -937,7 +988,10 @@ mod tests {
 
     #[test]
     fn target_flags_a_player_attack_on_an_absent_npc() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(0),
             vec![
@@ -963,15 +1017,18 @@ mod tests {
             result,
             Err(vec![MergeConsistencyIssue::AttackTargetMissing {
                 tick: Tick(0),
-                attacker: ActorId::Player("1Ogp".to_string()),
-                target: ActorId::Npc(1001),
+                attacker: Actor::Player("1Ogp"),
+                target: Actor::Npc(1001),
             }]),
         );
     }
 
     #[test]
     fn target_flags_an_npc_attack_on_an_absent_player() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(0),
             vec![
@@ -998,15 +1055,18 @@ mod tests {
             result,
             Err(vec![MergeConsistencyIssue::AttackTargetMissing {
                 tick: Tick(0),
-                attacker: ActorId::Npc(1001),
-                target: ActorId::Player("WWWWWWWWWWQQ".to_string()),
+                attacker: Actor::Npc(1001),
+                target: Actor::Player("WWWWWWWWWWQQ"),
             }]),
         );
     }
 
     #[test]
     fn target_permits_an_npc_attack_on_a_dead_player() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobMaiden, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobMaiden,
             Tick(1),
             vec![
@@ -1041,7 +1101,10 @@ mod tests {
 
     #[test]
     fn exclusive_flags_bloat_down_and_up_on_one_tick() {
+        let challenge =
+            fixtures::challenge_info(Stage::TobBloat, ChallengeMode::TobRegular, &PARTY);
         let result = check_events(
+            &challenge,
             Stage::TobBloat,
             Tick(4),
             vec![
