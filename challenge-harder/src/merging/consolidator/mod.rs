@@ -39,26 +39,26 @@ pub(super) struct ReconciliationCounters {
 
 /// A discrepancy between two clients' views of some occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum Disagreement {
+pub(super) enum Disagreement<'a> {
     PlayerAttackKind {
-        player: String,
+        player: &'a str,
         kept: PlayerAttack,
         discarded: PlayerAttack,
     },
     PlayerAttackTarget {
-        player: String,
-        kept: Target,
-        discarded: Target,
+        player: &'a str,
+        kept: Target<'a>,
+        discarded: Target<'a>,
     },
     PlayerSpellKind {
-        player: String,
+        player: &'a str,
         kept: PlayerSpell,
         discarded: PlayerSpell,
     },
     PlayerSpellTarget {
-        player: String,
-        kept: Target,
-        discarded: Target,
+        player: &'a str,
+        kept: Target<'a>,
+        discarded: Target<'a>,
     },
     NpcAttackKind {
         room_id: u64,
@@ -69,8 +69,8 @@ pub(super) enum Disagreement {
     NpcAttackTarget {
         room_id: u64,
         npc_id: u32,
-        kept: Target,
-        discarded: Target,
+        kept: Target<'a>,
+        discarded: Target<'a>,
     },
     AttackMapped {
         kind: event::Type,
@@ -78,12 +78,12 @@ pub(super) enum Disagreement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum QualityFlag {
+pub(super) enum QualityFlag<'a> {
     Disagreement {
         tick: Tick,
         kept_source: ClientId,
         discarded_source: ClientId,
-        subject: Disagreement,
+        subject: Disagreement<'a>,
     },
     LargeTemporalGap {
         kind: event::Type,
@@ -105,9 +105,9 @@ pub(super) enum QualityFlag {
     },
 }
 
-pub(super) struct ConsolidationResult {
-    pub timeline: Timeline,
-    pub quality_flags: Vec<QualityFlag>,
+pub(super) struct ConsolidationResult<'a> {
+    pub timeline: Timeline<'a>,
+    pub quality_flags: Vec<QualityFlag<'a>>,
     pub counters: ReconciliationCounters,
 }
 
@@ -155,14 +155,14 @@ impl ResolutionStrategy {
     fn resolve<'s>(
         &self,
         ctx: &'s MergeContext<'_>,
-        base: (ClientId, &'s TickState),
-        target: (ClientId, &'s TickState),
+        base: (ClientId, &'s TickState<'_>),
+        target: (ClientId, &'s TickState<'_>),
     ) -> Resolution<'s> {
         match self {
             Self::Unexpected => Resolution::Unexpected,
             Self::KeepBase => Resolution::KeepBase,
             Self::Proximity { position } => {
-                let measure = |(client, state): (ClientId, &'s TickState)| {
+                let measure = |(client, state): (ClientId, &'s TickState<'_>)| {
                     let primary_player = ctx.primary_player(client)?;
                     let player = state.player(primary_player)?;
                     Some(Measurement {
@@ -190,10 +190,10 @@ struct AttackMappedConfig {
     /// tick space.
     referenced_tick: fn(&Event) -> Tick,
     /// Checks whether the referenced attack exists in a tick's state.
-    attack_present: fn(&TickState, &Event) -> bool,
+    attack_present: fn(&TickState<'_>, &Event) -> bool,
     /// Defines the strategy for resolving disagreeing candidates from the state
     /// of the referenced attack's tick.
-    conflict_resolution: fn(&TickState) -> ResolutionStrategy,
+    conflict_resolution: fn(&TickState<'_>) -> ResolutionStrategy,
     /// Checks whether two candidates agree on the event's content.
     candidates_agree: fn(&Event, &Event) -> bool,
 }
@@ -382,10 +382,10 @@ struct StreamCandidate<'a> {
 
 /// Initializes tick `merged_tick` in `merged` to a clone of `state` with its
 /// buffered events extracted into `buffer`.
-fn place_tick<'a>(
-    merged: &mut Timeline,
-    buffer: &mut EventBuffer<'a>,
-    state: &'a TickState,
+fn place_tick<'a, 't>(
+    merged: &mut Timeline<'a>,
+    buffer: &mut EventBuffer<'t>,
+    state: &'t TickState<'a>,
     merged_tick: Tick,
 ) {
     let mut cloned = state.clone();
@@ -430,29 +430,29 @@ fn merge_join<T>(
     }
 }
 
-pub(super) struct Consolidator<'a> {
-    base: &'a Timeline,
-    target: &'a Timeline,
+pub(super) struct Consolidator<'a, 't> {
+    base: &'t Timeline<'a>,
+    target: &'t Timeline<'a>,
     target_client_id: ClientId,
-    mappings: &'a Mappings,
-    ctx: &'a MergeContext<'a>,
-    tracer: Option<&'a mut Tracer>,
-    base_buffer: EventBuffer<'a>,
-    target_buffer: EventBuffer<'a>,
-    quality_flags: Vec<QualityFlag>,
+    mappings: &'t Mappings,
+    ctx: &'t MergeContext<'a>,
+    tracer: Option<&'t mut Tracer>,
+    base_buffer: EventBuffer<'t>,
+    target_buffer: EventBuffer<'t>,
+    quality_flags: Vec<QualityFlag<'a>>,
     counters: ReconciliationCounters,
 }
 
-impl<'a> Consolidator<'a> {
+impl<'a, 't> Consolidator<'a, 't> {
     /// Constructs a consolidator to merge `target` into `base`.
     ///
     /// # Panics
     /// Panics if the mapping in `ctx` has not been initialized for the step.
     pub(super) fn new(
-        base: &'a Timeline,
-        target: &'a Timeline,
-        ctx: &'a MergeContext<'a>,
-        tracer: Option<&'a mut Tracer>,
+        base: &'t Timeline<'a>,
+        target: &'t Timeline<'a>,
+        ctx: &'t MergeContext<'a>,
+        tracer: Option<&'t mut Tracer>,
     ) -> Self {
         let mappings = ctx.mapping.current_step().expect("merge step has begun");
         let target_client_id = ctx
@@ -476,7 +476,7 @@ impl<'a> Consolidator<'a> {
 
     /// Merges the target into the base, producing the consolidated timeline
     /// with the quality flags raised and the reconciliation counts.
-    pub(super) fn consolidate(mut self) -> ConsolidationResult {
+    pub(super) fn consolidate(mut self) -> ConsolidationResult<'a> {
         // Runs four passes over the timeline:
         // 1. Initial construction with all base ticks and target insertions.
         // 2. Consolidation, merging target states into paired base ticks.
@@ -503,7 +503,7 @@ impl<'a> Consolidator<'a> {
     /// Constructs an initial merged timeline by placing mapped base ticks and
     /// inserting target-only ticks into empty slots. Strips buffered events
     /// from every placed tick.
-    fn build_timeline(&mut self) -> Timeline {
+    fn build_timeline(&mut self) -> Timeline<'a> {
         let mut merged = Timeline::empty(self.mappings.merged_last_tick);
 
         for tick in self.base.last_tick().up_to_inclusive() {
@@ -532,7 +532,7 @@ impl<'a> Consolidator<'a> {
 
     /// Walks the merged timeline after the initial build phase, merging the
     /// target into every tick both sides recorded and buffering its events.
-    fn consolidate_ticks(&mut self, merged: &mut Timeline) {
+    fn consolidate_ticks(&mut self, merged: &mut Timeline<'a>) {
         let mappings = self.mappings;
         let (base, target) = (self.base, self.target);
 
@@ -569,7 +569,7 @@ impl<'a> Consolidator<'a> {
 
     /// Deduplicates the buffered events from the base and client streams,
     /// placing a single version of each event into `merged`.
-    fn reconcile_streams(&mut self, merged: &mut Timeline) {
+    fn reconcile_streams(&mut self, merged: &mut Timeline<'a>) {
         let challenge = self.ctx.challenge.challenge_type;
         let (streams, attack_mapped): (BTreeSet<event::Type>, BTreeSet<event::Type>) = self
             .base_buffer
@@ -616,7 +616,7 @@ impl<'a> Consolidator<'a> {
 
     /// Remaps all events in the merged timeline from client tick space to
     /// merged tick space.
-    fn remap_to_merged_space(&mut self, merged: &mut Timeline) {
+    fn remap_to_merged_space(&mut self, merged: &mut Timeline<'a>) {
         let mappings = self.mappings;
         let target_client_id = self.target_client_id;
 
@@ -678,7 +678,7 @@ impl<'a> Consolidator<'a> {
     }
 
     /// Merges player attacks from a target tick into the base.
-    fn merge_player_attacks(&mut self, merged: &mut TickState, target: &TickState) {
+    fn merge_player_attacks(&mut self, merged: &mut TickState<'a>, target: &TickState<'a>) {
         let tick = merged.tick();
 
         for (player, other_state) in target.players() {
@@ -729,7 +729,7 @@ impl<'a> Consolidator<'a> {
                         kept_source: base.source,
                         discarded_source: other.source,
                         subject: Disagreement::PlayerAttackKind {
-                            player: player.to_string(),
+                            player,
                             kept: base.value.kind,
                             discarded: other.value.kind,
                         },
@@ -762,7 +762,7 @@ impl<'a> Consolidator<'a> {
                         kept_source: winner.source,
                         discarded_source: loser.source,
                         subject: Disagreement::PlayerAttackTarget {
-                            player: player.to_string(),
+                            player,
                             kept: kept.value.clone(),
                             discarded: discarded.value.clone(),
                         },
@@ -785,7 +785,7 @@ impl<'a> Consolidator<'a> {
     }
 
     /// Merges players' spell casts from a target tick into the base.
-    fn merge_player_spells(&mut self, merged: &mut TickState, target: &TickState) {
+    fn merge_player_spells(&mut self, merged: &mut TickState<'a>, target: &TickState<'a>) {
         let tick = merged.tick();
 
         for (player, other_state) in target.players() {
@@ -828,7 +828,7 @@ impl<'a> Consolidator<'a> {
                     kept_source: base.source,
                     discarded_source: other.source,
                     subject: Disagreement::PlayerSpellKind {
-                        player: player.to_string(),
+                        player,
                         kept: base.value.kind,
                         discarded: other.value.kind,
                     },
@@ -857,7 +857,7 @@ impl<'a> Consolidator<'a> {
                             kept_source: base.source,
                             discarded_source: other.source,
                             subject: Disagreement::PlayerSpellTarget {
-                                player: player.to_string(),
+                                player,
                                 kept: kept.value.clone(),
                                 discarded: discarded.value.clone(),
                             },
@@ -884,7 +884,7 @@ impl<'a> Consolidator<'a> {
     }
 
     /// Merges NPC attacks from a target tick into the base.
-    fn merge_npc_attacks(&mut self, merged: &mut TickState, target: &TickState) {
+    fn merge_npc_attacks(&mut self, merged: &mut TickState<'a>, target: &TickState<'a>) {
         let tick = merged.tick();
 
         for (room_id, other_npc) in target.npcs() {
@@ -996,10 +996,10 @@ impl<'a> Consolidator<'a> {
     /// Inserts a paired occurrence of an event to the earliest tick it occurred.
     fn place_paired_stream_event(
         &mut self,
-        merged: &mut Timeline,
+        merged: &mut Timeline<'a>,
         kind: event::Type,
-        base: &StreamCandidate<'a>,
-        target: &StreamCandidate<'a>,
+        base: &StreamCandidate<'t>,
+        target: &StreamCandidate<'t>,
     ) {
         let winner = if base.merged_tick <= target.merged_tick {
             base
@@ -1044,10 +1044,10 @@ impl<'a> Consolidator<'a> {
 
     fn place_unpaired_stream_event(
         &mut self,
-        merged: &mut Timeline,
+        merged: &mut Timeline<'a>,
         kind: event::Type,
         side: Side,
-        event: &StreamCandidate<'a>,
+        event: &StreamCandidate<'t>,
     ) {
         merged
             .get_mut(event.merged_tick)
@@ -1079,10 +1079,10 @@ impl<'a> Consolidator<'a> {
     /// in the stage. Any duplicates are flagged and discarded.
     fn match_unique(
         &mut self,
-        merged: &mut Timeline,
+        merged: &mut Timeline<'a>,
         kind: event::Type,
-        base: &[StreamCandidate<'a>],
-        target: &[StreamCandidate<'a>],
+        base: &[StreamCandidate<'t>],
+        target: &[StreamCandidate<'t>],
     ) {
         for (side, run) in [(Side::Base, base), (Side::Target, target)] {
             if run.len() > 1 {
@@ -1116,11 +1116,11 @@ impl<'a> Consolidator<'a> {
     /// directly.
     fn match_temporal(
         &mut self,
-        merged: &mut Timeline,
+        merged: &mut Timeline<'a>,
         kind: event::Type,
         window: Ticks,
-        base: &[StreamCandidate<'a>],
-        target: &[StreamCandidate<'a>],
+        base: &[StreamCandidate<'t>],
+        target: &[StreamCandidate<'t>],
     ) {
         let mut base = base.iter().peekable();
         let mut target = target.iter().peekable();
@@ -1158,10 +1158,10 @@ impl<'a> Consolidator<'a> {
     /// ordered by the attack's merged tick. The rest are flagged and discarded.
     fn take_attack_mapped_candidates(
         &mut self,
-        merged: &Timeline,
+        merged: &Timeline<'a>,
         kind: event::Type,
         side: Side,
-    ) -> Vec<AttackMappedCandidate<'a>> {
+    ) -> Vec<AttackMappedCandidate<'t>> {
         let config = attack_mapped_config(kind);
         let mappings = self.mappings;
         let (buffer, mapping) = match side {
@@ -1226,10 +1226,10 @@ impl<'a> Consolidator<'a> {
     /// attack and inserts the winning event on the tick after the attack.
     fn place_attack_mapped_event(
         &mut self,
-        merged: &mut Timeline,
+        merged: &mut Timeline<'a>,
         kind: event::Type,
-        base: &[AttackMappedCandidate<'a>],
-        target: &[AttackMappedCandidate<'a>],
+        base: &[AttackMappedCandidate<'t>],
+        target: &[AttackMappedCandidate<'t>],
     ) {
         if base.len() > 1 || target.len() > 1 {
             tracing::warn!(

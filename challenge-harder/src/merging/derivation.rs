@@ -149,7 +149,7 @@ fn merge_sote_pivots(ctx: &MergeContext, timeline: &mut Timeline) {
     let mut by_maze: BTreeMap<Maze, MazePivots> = BTreeMap::new();
 
     for RegisteredClient { client, status } in &ctx.clients {
-        if !matches!(status, MergeStatus::Merged(_)) {
+        if !matches!(status, MergeStatus::Merged(..)) {
             continue;
         }
         let StageData::Sotetseg { pivots } = &client.stage_data else {
@@ -228,7 +228,7 @@ mod tests {
         id: i64,
         last_recorded_tick: Tick,
         pivots: Vec<SotePivots>,
-    ) -> ClientEvents {
+    ) -> ClientEvents<'static> {
         ClientEvents {
             info: ReportedInfo {
                 id: ClientId(id),
@@ -303,7 +303,7 @@ mod tests {
                             },
                         ],
                     ),
-                    status: MergeStatus::Merged(Classification::Reference),
+                    status: MergeStatus::Merged(Classification::Reference, None),
                 },
                 RegisteredClient {
                     client: client_with_pivots(
@@ -315,7 +315,7 @@ mod tests {
                             underworld: vec![(4, 0).into(), (6, 4).into()],
                         }],
                     ),
-                    status: MergeStatus::Merged(Classification::Matching),
+                    status: MergeStatus::Merged(Classification::Matching, None),
                 },
             ],
         };
@@ -365,7 +365,7 @@ mod tests {
                         underworld: Vec::new(),
                     }],
                 ),
-                status: MergeStatus::Merged(Classification::Reference),
+                status: MergeStatus::Merged(Classification::Reference, None),
             }],
         };
 
@@ -403,7 +403,7 @@ mod tests {
                             underworld: vec![(2, 6).into(), (5, 0).into()],
                         }],
                     ),
-                    status: MergeStatus::Merged(Classification::Reference),
+                    status: MergeStatus::Merged(Classification::Reference, None),
                 },
                 RegisteredClient {
                     client: client_with_pivots(

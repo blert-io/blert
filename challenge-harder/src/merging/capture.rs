@@ -18,6 +18,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::proto::ChallengeEvents;
 
+use super::trace::StepRejection;
 use super::{Classification, MergeStatus, Tick, Ticks};
 
 /// A stage's captured client streams.
@@ -260,22 +261,44 @@ struct ClientOutcome {
     status: &'static str,
     classification: Option<&'static str>,
     error: Option<String>,
+    rejection: Option<StepRejection>,
+    worst_segment_score: Option<f64>,
 }
 
-impl From<super::ClientOutcome> for ClientOutcome {
-    fn from(outcome: super::ClientOutcome) -> ClientOutcome {
-        let (status, classification, error) = match outcome.status {
-            MergeStatus::Merged(classification) => {
-                ("MERGED", Some(classification_name(classification)), None)
+impl From<super::ClientOutcome<'_>> for ClientOutcome {
+    fn from(outcome: super::ClientOutcome<'_>) -> ClientOutcome {
+        let status = match &outcome.status {
+            MergeStatus::Merged(..) => "MERGED",
+            MergeStatus::Unmerged(_) | MergeStatus::Rejected(..) => "UNMERGED",
+            MergeStatus::Skipped(_) => "SKIPPED",
+        };
+        let classification = match &outcome.status {
+            MergeStatus::Merged(classification, _)
+            | MergeStatus::Unmerged(classification)
+            | MergeStatus::Rejected(classification, _) => {
+                Some(classification_name(*classification))
             }
-            MergeStatus::Unmerged(classification) => {
-                ("UNMERGED", Some(classification_name(classification)), None)
-            }
-            MergeStatus::Skipped(error) => ("SKIPPED", None, Some(error.to_string())),
+            MergeStatus::Skipped(_) => None,
+        };
+        let error = if let MergeStatus::Skipped(error) = &outcome.status {
+            Some(error.to_string())
+        } else {
+            None
+        };
+        let rejection = if let MergeStatus::Rejected(_, reason) = &outcome.status {
+            Some(StepRejection::from(reason))
+        } else {
+            None
+        };
+        let worst_segment_score = if let MergeStatus::Merged(_, Some(confidence)) = &outcome.status
+        {
+            confidence.worst_segment_score()
+        } else {
+            None
         };
         ClientOutcome {
             id: outcome.client_id,
-            primary_player: outcome.primary_player,
+            primary_player: outcome.primary_player.map(str::to_string),
             stage_status: outcome.stage_status,
             accurate: outcome.accurate,
             recorded_ticks: outcome.last_tick.duration(),
@@ -288,6 +311,8 @@ impl From<super::ClientOutcome> for ClientOutcome {
             status,
             classification,
             error,
+            rejection,
+            worst_segment_score,
         }
     }
 }
@@ -325,8 +350,8 @@ enum ConsistencyIssue {
     },
 }
 
-impl From<super::client_consistency::ConsistencyIssue> for ConsistencyIssue {
-    fn from(issue: super::client_consistency::ConsistencyIssue) -> ConsistencyIssue {
+impl From<super::client_consistency::ConsistencyIssue<'_>> for ConsistencyIssue {
+    fn from(issue: super::client_consistency::ConsistencyIssue<'_>) -> ConsistencyIssue {
         use super::client_consistency::ConsistencyIssue as Issue;
         match issue {
             Issue::LargeJump {
@@ -336,7 +361,7 @@ impl From<super::client_consistency::ConsistencyIssue> for ConsistencyIssue {
                 start,
                 end,
             } => ConsistencyIssue::LargeJump {
-                player,
+                player: player.to_string(),
                 tick,
                 last_tick,
                 start_x: start.x,

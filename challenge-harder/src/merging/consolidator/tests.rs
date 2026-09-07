@@ -23,8 +23,8 @@ const TARGET_CLIENT_ID: ClientId = ClientId(2);
 fn test_ctx<'a>(
     challenge: &'a ChallengeInfo<'a>,
     stage: Stage,
-    base: ClientBuilder,
-    target: ClientBuilder,
+    base: ClientBuilder<'a>,
+    target: ClientBuilder<'a>,
 ) -> MergeContext<'a> {
     let (base, target) = (base.build(), target.build());
     let (base_last_tick, target_last_tick) =
@@ -47,15 +47,15 @@ fn test_ctx<'a>(
 
 /// Builds a simple timeline of ticks with player updates and optional extra
 /// events per tick. Each tick has a player at position (tick, 0).
-fn build_timeline(
+fn build_timeline<'a>(
     client_id: ClientId,
     stage: Stage,
+    party: &'a [String],
     num_ticks: u32,
     player: &str,
     source: DataSource,
     mut extra_events: BTreeMap<Tick, Vec<Event>>,
-) -> Timeline {
-    let party = vec![player.to_string()];
+) -> Timeline<'a> {
     let last_tick = Tick(num_ticks - 1);
     let mut events = Vec::new();
 
@@ -73,7 +73,7 @@ fn build_timeline(
         .into_iter()
         .map(|event| TaggedEvent::new(client_id, event))
         .collect();
-    Timeline::build(&party, last_tick, events).expect("fixture events are well formed")
+    Timeline::build(party, last_tick, events).expect("fixture events are well formed")
 }
 
 fn event_types(timeline: &Timeline, tick: Tick) -> Vec<event::Type> {
@@ -128,6 +128,7 @@ fn merges_tick_states_and_extracts_stream_events() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         5,
         "1Ogp",
         DataSource::Secondary,
@@ -147,6 +148,7 @@ fn merges_tick_states_and_extracts_stream_events() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         5,
         "1Ogp",
         DataSource::Primary,
@@ -211,6 +213,7 @@ fn fills_gaps_in_the_base_from_the_target() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         3,
         "1Ogp",
         DataSource::Secondary,
@@ -247,6 +250,7 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         6,
         "1Ogp",
         DataSource::Secondary,
@@ -264,6 +268,7 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         4,
         "1Ogp",
         DataSource::Primary,
@@ -329,6 +334,7 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         25,
         "1Ogp",
         DataSource::Secondary,
@@ -346,6 +352,7 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         25,
         "1Ogp",
         DataSource::Primary,
@@ -397,6 +404,7 @@ fn deduplicates_deaths_within_window_in_respawnable_challenges() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         45,
         "1Ogp",
         DataSource::Secondary,
@@ -405,6 +413,7 @@ fn deduplicates_deaths_within_window_in_respawnable_challenges() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         45,
         "1Ogp",
         DataSource::Primary,
@@ -464,6 +473,7 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         30,
         "1Ogp",
         DataSource::Secondary,
@@ -484,6 +494,7 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         30,
         "1Ogp",
         DataSource::Primary,
@@ -566,6 +577,7 @@ fn deduplicates_npc_deaths_by_room_id() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         10,
         "1Ogp",
         DataSource::Secondary,
@@ -574,6 +586,7 @@ fn deduplicates_npc_deaths_by_room_id() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         10,
         "1Ogp",
         DataSource::Primary,
@@ -629,6 +642,7 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         15,
         "1Ogp",
         DataSource::Secondary,
@@ -640,6 +654,7 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         15,
         "1Ogp",
         DataSource::Primary,
@@ -685,6 +700,7 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         10,
         "1Ogp",
         DataSource::Secondary,
@@ -702,6 +718,7 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         10,
         "1Ogp",
         DataSource::Primary,
@@ -752,14 +769,15 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
 /// on its tick targeting an optional player, and an attack style event on
 /// each tick in `attack_style_events` referencing a given attack tick with
 /// its style.
-fn build_p3_timeline(
+fn build_p3_timeline<'a>(
     client_id: ClientId,
+    party: &'a [String],
     num_ticks: u32,
     player: &str,
     source: DataSource,
     attacks: BTreeMap<Tick, (NpcAttack, Option<&str>)>,
     attack_style_events: BTreeMap<Tick, (Tick, Style)>,
-) -> Timeline {
+) -> Timeline<'a> {
     let stage = Stage::TobVerzik;
     let mut extra_events: BTreeMap<Tick, Vec<Event>> = BTreeMap::new();
 
@@ -805,7 +823,15 @@ fn build_p3_timeline(
             ));
     }
 
-    build_timeline(client_id, stage, num_ticks, player, source, extra_events)
+    build_timeline(
+        client_id,
+        stage,
+        party,
+        num_ticks,
+        player,
+        source,
+        extra_events,
+    )
 }
 
 #[test]
@@ -815,6 +841,7 @@ fn places_an_attack_style_event_the_tick_after_its_attack() {
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
+        &party,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Secondary,
@@ -824,6 +851,7 @@ fn places_an_attack_style_event_the_tick_after_its_attack() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Primary,
@@ -871,6 +899,7 @@ fn deduplicates_attack_style_events_across_clients() {
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
+        &party,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Secondary,
@@ -879,6 +908,7 @@ fn deduplicates_attack_style_events_across_clients() {
     );
     let target = build_p3_timeline(
         TARGET_CLIENT_ID,
+        &party,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Primary,
@@ -1022,6 +1052,7 @@ fn keeps_the_base_conflicting_attack_style_event_when_clients_have_no_primary_pl
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
+        &party,
         15,
         "1Ogp",
         DataSource::Secondary,
@@ -1030,6 +1061,7 @@ fn keeps_the_base_conflicting_attack_style_event_when_clients_have_no_primary_pl
     );
     let target = build_p3_timeline(
         TARGET_CLIENT_ID,
+        &party,
         15,
         "1Ogp",
         DataSource::Primary,
@@ -1076,6 +1108,7 @@ fn discards_attack_style_events_whose_attack_does_not_exist() {
     let base = build_timeline(
         BASE_CLIENT_ID,
         stage,
+        &party,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Secondary,
@@ -1091,6 +1124,7 @@ fn discards_attack_style_events_whose_attack_does_not_exist() {
     let target = build_timeline(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Primary,
@@ -1282,10 +1316,10 @@ fn resolves_projectile_ambiguous_player_attacks_by_primary_proximity_to_attacker
 fn single_tick_with_attack(
     client_id: ClientId,
     stage: Stage,
+    party: &[String],
     attack: Option<PlayerAttack>,
     target: Option<event::Npc>,
-) -> Timeline {
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+) -> Timeline<'_> {
     let mut events = vec![PlayerUpdateEvent::new(Tick(0), stage, "WWWWWWWWWWQQ", (0, 0)).build()];
     if let Some(attack) = attack {
         events.push(fixtures::player_attack_event(PlayerAttackEvent {
@@ -1304,7 +1338,7 @@ fn single_tick_with_attack(
         .into_iter()
         .map(|event| TaggedEvent::new(client_id, event))
         .collect();
-    Timeline::build(&party, Tick(0), events).expect("fixture events are well formed")
+    Timeline::build(party, Tick(0), events).expect("fixture events are well formed")
 }
 
 #[test]
@@ -1320,12 +1354,14 @@ fn deduplicates_agreeing_player_attacks() {
     let base = single_tick_with_attack(
         BASE_CLIENT_ID,
         stage,
+        &party,
         Some(PlayerAttack::Scythe),
         Some(maiden),
     );
     let target = single_tick_with_attack(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         Some(PlayerAttack::Scythe),
         Some(maiden),
     );
@@ -1379,10 +1415,11 @@ fn inserts_a_player_attack_only_the_target_recorded() {
         room_id: 1,
         ..Default::default()
     };
-    let base = single_tick_with_attack(BASE_CLIENT_ID, stage, None, None);
+    let base = single_tick_with_attack(BASE_CLIENT_ID, stage, &party, None, None);
     let target = single_tick_with_attack(
         TARGET_CLIENT_ID,
         stage,
+        &party,
         Some(PlayerAttack::Scythe),
         Some(maiden),
     );
@@ -1595,7 +1632,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
                 kept_source: BASE_CLIENT_ID,
                 discarded_source: TARGET_CLIENT_ID,
                 subject: Disagreement::PlayerAttackTarget {
-                    player: "WWWWWWWWWWQQ".to_string(),
+                    player: "WWWWWWWWWWQQ",
                     kept: Target::Npc {
                         id: npc::id::MAIDEN_REGULAR,
                         room_id: 1,
@@ -1611,7 +1648,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
                 kept_source: BASE_CLIENT_ID,
                 discarded_source: TARGET_CLIENT_ID,
                 subject: Disagreement::PlayerAttackKind {
-                    player: "WWWWWWWWWWQQ".to_string(),
+                    player: "WWWWWWWWWWQQ",
                     kept: PlayerAttack::Scythe,
                     discarded: PlayerAttack::Punch,
                 },
@@ -1683,11 +1720,7 @@ fn deduplicates_agreeing_player_spells_and_fills_a_missing_target() {
         assert_eq!(spell.value.kind, PlayerSpell::HealOther, "tick {tick}");
         let target = spell.value.target.as_ref().expect("target is kept");
         assert_eq!(target.source, target_source, "tick {tick}");
-        assert_eq!(
-            target.value,
-            Target::Player("WWWWWWWWWWQQ".to_string()),
-            "tick {tick}"
-        );
+        assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ"), "tick {tick}");
     }
 
     assert_eq!(result.quality_flags, vec![]);
@@ -1837,11 +1870,7 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
         assert_eq!(spell.value.kind, PlayerSpell::HealOther, "tick {tick}");
         let target = spell.value.target.as_ref().expect("target is kept");
         assert_eq!(target.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(
-            target.value,
-            Target::Player("WWWWWWWWWWQQ".to_string()),
-            "tick {tick}"
-        );
+        assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ"), "tick {tick}");
     }
 
     assert_set_eq(
@@ -1852,9 +1881,9 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
                 kept_source: BASE_CLIENT_ID,
                 discarded_source: TARGET_CLIENT_ID,
                 subject: Disagreement::PlayerSpellTarget {
-                    player: "1Ogp".to_string(),
-                    kept: Target::Player("WWWWWWWWWWQQ".to_string()),
-                    discarded: Target::Player("715".to_string()),
+                    player: "1Ogp",
+                    kept: Target::Player("WWWWWWWWWWQQ"),
+                    discarded: Target::Player("715"),
                 },
             },
             QualityFlag::Disagreement {
@@ -1862,7 +1891,7 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
                 kept_source: BASE_CLIENT_ID,
                 discarded_source: TARGET_CLIENT_ID,
                 subject: Disagreement::PlayerSpellKind {
-                    player: "1Ogp".to_string(),
+                    player: "1Ogp",
                     kept: PlayerSpell::HealOther,
                     discarded: PlayerSpell::VengeanceOther,
                 },
@@ -1927,7 +1956,7 @@ fn inserts_a_player_spell_only_the_target_recorded() {
     assert_eq!(spell.value.kind, PlayerSpell::HealOther);
     let target = spell.value.target.as_ref().expect("target is inserted");
     assert_eq!(target.source, TARGET_CLIENT_ID);
-    assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ".to_string()));
+    assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ"));
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -1942,6 +1971,7 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
+        &party,
         2,
         "1Ogp",
         DataSource::Secondary,
@@ -1953,6 +1983,7 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
     );
     let target = build_p3_timeline(
         TARGET_CLIENT_ID,
+        &party,
         2,
         "1Ogp",
         DataSource::Primary,
@@ -1985,11 +2016,7 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
         assert_eq!(attack.value.kind, NpcAttack::TobVerzikP3Auto, "tick {tick}");
         let target = attack.value.target.as_ref().expect("target is kept");
         assert_eq!(target.source, target_source, "tick {tick}");
-        assert_eq!(
-            target.value,
-            Target::Player("1Ogp".to_string()),
-            "tick {tick}"
-        );
+        assert_eq!(target.value, Target::Player("1Ogp"), "tick {tick}");
     }
 
     assert_eq!(result.quality_flags, vec![]);
@@ -2009,6 +2036,7 @@ fn inserts_an_npc_attack_only_the_target_recorded() {
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
+        &party,
         1,
         "1Ogp",
         DataSource::Secondary,
@@ -2017,6 +2045,7 @@ fn inserts_an_npc_attack_only_the_target_recorded() {
     );
     let target = build_p3_timeline(
         TARGET_CLIENT_ID,
+        &party,
         1,
         "1Ogp",
         DataSource::Primary,
@@ -2045,7 +2074,7 @@ fn inserts_an_npc_attack_only_the_target_recorded() {
     assert_eq!(attack.value.kind, NpcAttack::TobVerzikP3Auto);
     let target = attack.value.target.as_ref().expect("target is inserted");
     assert_eq!(target.source, TARGET_CLIENT_ID);
-    assert_eq!(target.value, Target::Player("1Ogp".to_string()));
+    assert_eq!(target.value, Target::Player("1Ogp"));
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -2133,11 +2162,7 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
         assert_eq!(attack.value.kind, NpcAttack::TobVerzikP3Auto, "tick {tick}");
         let target = attack.value.target.as_ref().expect("target is kept");
         assert_eq!(target.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(
-            target.value,
-            Target::Player("1Ogp".to_string()),
-            "tick {tick}"
-        );
+        assert_eq!(target.value, Target::Player("1Ogp"), "tick {tick}");
     }
 
     assert_set_eq(
@@ -2150,8 +2175,8 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
                 subject: Disagreement::NpcAttackTarget {
                     room_id: 1,
                     npc_id: npc::id::VERZIK_P3_REGULAR,
-                    kept: Target::Player("1Ogp".to_string()),
-                    discarded: Target::Player("WWWWWWWWWWQQ".to_string()),
+                    kept: Target::Player("1Ogp"),
+                    discarded: Target::Player("WWWWWWWWWWQQ"),
                 },
             },
             QualityFlag::Disagreement {
@@ -2251,7 +2276,7 @@ fn resolves_projectile_ambiguous_npc_attacks_by_primary_proximity() {
     assert_eq!(attack.value.kind, NpcAttack::TobSoteDeathBall);
     let target = attack.value.target.as_ref().expect("target is kept");
     assert_eq!(target.source, TARGET_CLIENT_ID);
-    assert_eq!(target.value, Target::Player("1Ogp".to_string()));
+    assert_eq!(target.value, Target::Player("1Ogp"));
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(

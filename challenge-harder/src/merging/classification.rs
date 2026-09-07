@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use super::client_events::ClientEvents;
 use super::{MergeAlert, Ticks};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub(super) struct ClientClassification {
     /// Reference client for the merge.
     pub base: usize,
@@ -40,7 +40,7 @@ pub enum ReferenceMethod {
 
 /// Classifies a stage's nonempty clients ahead of a merge.
 /// Clients claiming to be accurate while disagreeing with others are demoted.
-pub(super) fn classify_clients(clients: &mut [ClientEvents]) -> ClientClassification {
+pub(super) fn classify_clients(clients: &mut [ClientEvents<'_>]) -> ClientClassification {
     debug_assert!(!clients.is_empty());
 
     let mut alert = demote_conflicting_accuracy(clients);
@@ -75,7 +75,7 @@ pub(super) fn classify_clients(clients: &mut [ClientEvents]) -> ClientClassifica
 /// Demotes clients claiming to be accurate whose tick counts disagree with the
 /// consensus of accurate clients. Without a distinct consensus, all clients
 /// are demoted.
-fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAlert> {
+fn demote_conflicting_accuracy(clients: &mut [ClientEvents<'_>]) -> Option<MergeAlert> {
     let mut counts: BTreeMap<Ticks, u32> = BTreeMap::new();
     for client in clients.iter().filter(|client| client.accurate) {
         *counts
@@ -125,7 +125,7 @@ fn demote_conflicting_accuracy(clients: &mut [ClientEvents]) -> Option<MergeAler
 ///
 /// Without accurate clients, the most complete timeline is chosen, with
 /// participants ahead of spectators and the ID as the final tiebreaker.
-fn select_base_client(clients: &[ClientEvents]) -> usize {
+fn select_base_client(clients: &[ClientEvents<'_>]) -> usize {
     let accurate = (0..clients.len())
         .filter(|&i| clients[i].accurate)
         .min_by_key(|&i| clients[i].info.id);
@@ -151,7 +151,7 @@ fn select_base_client(clients: &[ClientEvents]) -> usize {
 /// clients, so disagreements are surfaced in the result for inspection.
 ///
 /// Without any server tick count, the longest recording is used.
-fn select_reference_ticks(clients: &[ClientEvents]) -> (ReferenceTicks, Option<MergeAlert>) {
+fn select_reference_ticks(clients: &[ClientEvents<'_>]) -> (ReferenceTicks, Option<MergeAlert>) {
     let precise_durations: Vec<Ticks> = clients
         .iter()
         .filter_map(|client| client.info.server_ticks.filter(|st| st.precise))
@@ -227,7 +227,7 @@ mod tests {
         accurate: bool,
         recorded_ticks: u32,
         server_ticks: Option<ServerTicks>,
-    ) -> ClientEvents {
+    ) -> ClientEvents<'static> {
         let last_recorded_tick = Tick(recorded_ticks);
         ClientEvents {
             info: ReportedInfo {
@@ -264,11 +264,11 @@ mod tests {
         })
     }
 
-    fn accurate(id: i64, recorded: u32) -> ClientEvents {
+    fn accurate(id: i64, recorded: u32) -> ClientEvents<'static> {
         client(id, true, recorded, precise(recorded))
     }
 
-    fn inaccurate(id: i64, recorded: u32, server: Option<ServerTicks>) -> ClientEvents {
+    fn inaccurate(id: i64, recorded: u32, server: Option<ServerTicks>) -> ClientEvents<'static> {
         client(id, false, recorded, server)
     }
 
@@ -576,7 +576,7 @@ mod tests {
             inaccurate(1, 25, precise(270)),
             inaccurate(2, 270, imprecise(270)),
         ];
-        clients[1].info.primary_player = Some("1Ogp".to_string());
+        clients[1].info.primary_player = Some("1Ogp");
 
         let classification = classify_clients(&mut clients);
 
@@ -598,7 +598,7 @@ mod tests {
     #[test]
     fn classify_prioritizes_a_participant() {
         let mut clients = vec![inaccurate(1, 100, None), inaccurate(2, 100, None)];
-        clients[1].info.primary_player = Some("1Ogp".to_string());
+        clients[1].info.primary_player = Some("1Ogp");
 
         let classification = classify_clients(&mut clients);
 

@@ -41,7 +41,6 @@ impl Tick {
 
     /// Returns an iterator over all ticks prior to this one.
     #[inline]
-    #[expect(dead_code)]
     pub fn up_to(self) -> impl Iterator<Item = Self> + Clone {
         (0..self.0).map(Self)
     }

@@ -643,15 +643,16 @@ mod tests {
 
     const STAGE: Stage = Stage::TobMaiden;
 
-    fn tick_states(len: usize, nulls: &[usize]) -> Vec<Option<TickState>> {
-        let party = vec!["1Ogp".to_string()];
+    fn tick_states(len: usize, nulls: &[usize]) -> Vec<Option<TickState<'static>>> {
+        static PARTY: std::sync::LazyLock<Vec<String>> =
+            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
         let events = (0..len)
             .map(|t| {
                 fixtures::PlayerUpdateEvent::new(Tick::from_usize(t), STAGE, "1Ogp", (10, 20))
                     .build()
             })
             .collect();
-        let timeline = fixtures::timeline(&party, Tick::from_usize(len - 1), events);
+        let timeline = fixtures::timeline(&PARTY, Tick::from_usize(len - 1), events);
         (0..len)
             .map(|t| {
                 (!nulls.contains(&t)).then(|| {
@@ -1693,7 +1694,7 @@ mod tests {
                 kept_source: ClientId(1),
                 discarded_source: ClientId(2),
                 subject: Disagreement::PlayerAttackKind {
-                    player: "1Ogp".to_string(),
+                    player: "1Ogp",
                     kept: PlayerAttack::Scythe,
                     discarded: PlayerAttack::BgsSpec,
                 },
@@ -1793,7 +1794,7 @@ mod tests {
             kept_source: ClientId(1),
             discarded_source: ClientId(2),
             subject: Disagreement::PlayerAttackKind {
-                player: "1Ogp".to_string(),
+                player: "1Ogp",
                 kept: PlayerAttack::Scythe,
                 discarded: PlayerAttack::BgsSpec,
             },

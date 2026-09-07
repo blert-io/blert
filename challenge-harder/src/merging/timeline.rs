@@ -13,11 +13,11 @@ use super::event::{Class, MalformedEvent, TaggedEvent, classify, remap_event_tic
 use super::{MergeContext, Tick, Ticks};
 
 #[derive(Debug, Clone)]
-pub struct Timeline {
-    tick_states: Vec<Option<TickState>>,
+pub struct Timeline<'a> {
+    tick_states: Vec<Option<TickState<'a>>>,
 }
 
-impl Timeline {
+impl<'a> Timeline<'a> {
     /// Creates a timeline without any recorded state up through `last_tick`.
     pub(super) fn empty(last_tick: Tick) -> Self {
         Self {
@@ -28,7 +28,7 @@ impl Timeline {
     /// Initializes a timeline from a chronological list of events,
     /// preprocessed with sources and indices.
     pub(super) fn build(
-        party: &[String],
+        party: &'a [String],
         last_recorded_tick: Tick,
         events: Vec<TaggedEvent>,
     ) -> Result<Self, MalformedEvent> {
@@ -80,24 +80,24 @@ impl Timeline {
     }
 
     /// Returns the state on `tick`.
-    pub fn get(&self, tick: Tick) -> Option<&TickState> {
+    pub fn get(&self, tick: Tick) -> Option<&TickState<'a>> {
         self.tick_states.get(tick.0 as usize)?.as_ref()
     }
 
     /// Returns a mutable reference the state on `tick`.
-    pub fn get_mut(&mut self, tick: Tick) -> Option<&mut TickState> {
+    pub fn get_mut(&mut self, tick: Tick) -> Option<&mut TickState<'a>> {
         self.tick_states.get_mut(tick.0 as usize)?.as_mut()
     }
 
     /// Sets the state on `tick` to `state`, replacing any existing state.
-    pub fn set(&mut self, tick: Tick, mut state: TickState) {
+    pub fn set(&mut self, tick: Tick, mut state: TickState<'a>) {
         let slot = &mut self.tick_states[tick.as_usize()];
         state.tick = tick;
         *slot = Some(state);
     }
 
     /// Returns the full timeline as ticks.
-    pub fn tick_states(&self) -> &[Option<TickState>] {
+    pub fn tick_states(&self) -> &[Option<TickState<'a>>] {
         &self.tick_states
     }
 
@@ -119,10 +119,11 @@ impl Timeline {
         self.tick_states = shifted;
     }
 
-    pub fn finalize(mut self, ctx: &MergeContext) -> Vec<Event> {
+    pub fn finalize(mut self, ctx: &MergeContext<'_>) -> Vec<Event> {
         self.resynchronize(ctx.stage);
         super::derivation::derive_events(ctx, &mut self);
         super::derivation::merge_stage_data(ctx, &mut self);
+        super::postprocessing::postprocess(ctx, &mut self);
         self.tick_states
             .into_iter()
             .flatten()
@@ -140,20 +141,20 @@ impl Timeline {
 }
 
 #[derive(Debug)]
-struct ResyncContext {
+struct ResyncContext<'a> {
     /// The last known state of each player.
-    previous_players: HashMap<String, PlayerState>,
+    previous_players: HashMap<&'a str, PlayerState<'a>>,
     /// The last known state of each NPC.
-    previous_npcs: HashMap<u64, NpcState>,
+    previous_npcs: HashMap<u64, NpcState<'a>>,
     /// Players who died on an earlier tick.
-    dead_players: HashSet<String>,
+    dead_players: HashSet<&'a str>,
     /// NPCs which died on an earlier tick.
     dead_npcs: HashSet<u64>,
     /// Stage-specific accumulated state.
     stage_custom: StageResync,
 }
 
-impl ResyncContext {
+impl ResyncContext<'_> {
     fn for_stage(stage: Stage) -> Self {
         Self {
             previous_players: HashMap::new(),
@@ -220,13 +221,13 @@ pub struct EquippedItem {
 
 /// The target of an action.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Target {
+pub enum Target<'a> {
     Npc { id: u32, room_id: u64 },
-    Player(String),
+    Player(&'a str),
 }
 
-impl Target {
-    pub fn same_actor(&self, other: &Target) -> bool {
+impl Target<'_> {
+    pub fn same_actor(&self, other: &Target<'_>) -> bool {
         match (self, other) {
             (Target::Npc { room_id: a, .. }, Target::Npc { room_id: b, .. }) => a == b,
             (Target::Player(a), Target::Player(b)) => a == b,
@@ -236,38 +237,38 @@ impl Target {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Actor<'a> {
+pub enum Actor<'a> {
     Player(&'a str),
     Npc(u64),
 }
 
-impl<'a> From<&'a Target> for Actor<'a> {
-    fn from(target: &'a Target) -> Self {
-        match &target {
+impl<'a> From<&Target<'a>> for Actor<'a> {
+    fn from(target: &Target<'a>) -> Self {
+        match target {
             Target::Player(name) => Actor::Player(name),
             Target::Npc { room_id, .. } => Actor::Npc(*room_id),
         }
     }
 }
 
-impl<'a> From<&'a Sourced<Target>> for Actor<'a> {
-    fn from(target: &'a Sourced<Target>) -> Self {
+impl<'a> From<&Sourced<Target<'a>>> for Actor<'a> {
+    fn from(target: &Sourced<Target<'a>>) -> Self {
         Actor::from(&target.value)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct PlayerAttacked {
+pub struct PlayerAttacked<'a> {
     pub kind: PlayerAttack,
     pub weapon: Option<EquippedItem>,
-    pub target: Option<Sourced<Target>>,
+    pub target: Option<Sourced<Target<'a>>>,
     pub distance_to_target: i32,
 }
 
 #[derive(Debug, Clone)]
-pub struct PlayerCast {
+pub struct PlayerCast<'a> {
     pub kind: PlayerSpell,
-    pub target: Option<Sourced<Target>>,
+    pub target: Option<Sourced<Target<'a>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -283,7 +284,7 @@ pub struct PlayerStats {
 
 /// A party member's state on a tick.
 #[derive(Debug, Clone)]
-pub struct PlayerState {
+pub struct PlayerState<'a> {
     /// The client whose recording this view came from.
     pub source: ClientId,
     pub party_index: u32,
@@ -291,8 +292,8 @@ pub struct PlayerState {
     pub position: Coords,
     pub equipment: [Option<EquippedItem>; NUM_EQUIPMENT_SLOTS],
     pub prayers: PrayerSet,
-    pub attack: Option<Sourced<PlayerAttacked>>,
-    pub spell: Option<Sourced<PlayerCast>>,
+    pub attack: Option<Sourced<PlayerAttacked<'a>>>,
+    pub spell: Option<Sourced<PlayerCast<'a>>>,
     pub stats: Option<PlayerStats>,
     pub off_cooldown_tick: Tick,
 }
@@ -308,37 +309,35 @@ fn expect_player(event: &Event) -> Result<&event::Player, MalformedEvent> {
     Ok(player)
 }
 
-fn extract_player_state(
+fn extract_player_state<'a>(
     event: &TaggedEvent,
-    players: &mut BTreeMap<String, Option<PlayerState>>,
-    history: &[Option<TickState>],
+    players: &mut BTreeMap<&'a str, Option<PlayerState<'a>>>,
+    history: &[Option<TickState<'a>>],
     last_players: &mut [Option<Tick>],
 ) -> Result<(), MalformedEvent> {
     let player = expect_player(event)?;
 
     let last = last_players[player.party_index as usize].and_then(|tick| {
-        history.get(tick.0 as usize).and_then(|state| {
-            state
-                .as_ref()
-                .and_then(|state| state.players.get(&player.name).and_then(Option::as_ref))
-        })
+        history
+            .get(tick.0 as usize)
+            .and_then(|state| state.as_ref().and_then(|state| state.player(&player.name)))
     });
 
-    let state = players
-        .entry(player.name.clone())
-        .or_default()
-        .get_or_insert_with(|| PlayerState {
-            source: event.source(),
-            party_index: player.party_index,
-            data_source: DataSource::Secondary,
-            position: (event.x_coord, event.y_coord).into(),
-            equipment: last.map_or([None; NUM_EQUIPMENT_SLOTS], |state| state.equipment),
-            prayers: PrayerSet::empty(PrayerBook::Normal),
-            attack: None,
-            spell: None,
-            stats: None,
-            off_cooldown_tick: Tick(0),
-        });
+    let Some(slot) = players.get_mut(player.name.as_str()) else {
+        return Ok(());
+    };
+    let state = slot.get_or_insert_with(|| PlayerState {
+        source: event.source(),
+        party_index: player.party_index,
+        data_source: DataSource::Secondary,
+        position: (event.x_coord, event.y_coord).into(),
+        equipment: last.map_or([None; NUM_EQUIPMENT_SLOTS], |state| state.equipment),
+        prayers: PrayerSet::empty(PrayerBook::Normal),
+        attack: None,
+        spell: None,
+        stats: None,
+        off_cooldown_tick: Tick(0),
+    });
 
     match event.r#type() {
         event::Type::PlayerUpdate => {
@@ -452,7 +451,7 @@ fn parse_stats(player: &event::Player) -> Option<PlayerStats> {
     Some(stats)
 }
 
-fn parse_player_attack(source: ClientId, attack: &event::Attack) -> PlayerAttacked {
+fn parse_player_attack<'a>(source: ClientId, attack: &event::Attack) -> PlayerAttacked<'a> {
     PlayerAttacked {
         kind: attack.r#type(),
         weapon: attack.weapon.map(|weapon| EquippedItem {
@@ -476,9 +475,9 @@ fn parse_player_attack(source: ClientId, attack: &event::Attack) -> PlayerAttack
 }
 
 #[derive(Debug, Clone)]
-pub struct NpcAttacked {
+pub struct NpcAttacked<'a> {
     pub kind: NpcAttack,
-    pub target: Option<Sourced<Target>>,
+    pub target: Option<Sourced<Target<'a>>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -500,14 +499,14 @@ impl NpcSubtype {
 
 /// An NPC's state on a tick.
 #[derive(Debug, Clone)]
-pub struct NpcState {
+pub struct NpcState<'a> {
     /// The client whose recording this view came from.
     pub source: ClientId,
     pub id: u32,
     pub position: Coords,
     pub hitpoints: SkillLevel,
     pub prayers: PrayerSet,
-    pub attack: Option<Sourced<NpcAttacked>>,
+    pub attack: Option<Sourced<NpcAttacked<'a>>>,
     pub subtype: Option<NpcSubtype>,
 }
 
@@ -522,10 +521,10 @@ fn expect_npc(event: &Event) -> Result<&event::Npc, MalformedEvent> {
     Ok(npc)
 }
 
-fn extract_npc_state(
+fn extract_npc_state<'a>(
     event: &TaggedEvent,
-    previous: Option<&TickState>,
-) -> Result<(u64, NpcState), MalformedEvent> {
+    previous: Option<&TickState<'a>>,
+) -> Result<(u64, NpcState<'a>), MalformedEvent> {
     let npc = expect_npc(event)?;
     let prior = previous.and_then(|state| state.npcs.get(&npc.room_id));
 
@@ -594,40 +593,40 @@ impl GraphicsState {
 }
 
 #[derive(Debug, Clone)]
-pub struct TickState {
+pub struct TickState<'a> {
     tick: Tick,
     events: Vec<TaggedEvent>,
     /// Players visible on the tick.
-    players: BTreeMap<String, Option<PlayerState>>,
+    players: BTreeMap<&'a str, Option<PlayerState<'a>>>,
     /// NPCs visible on the tick, by room ID.
-    npcs: BTreeMap<u64, NpcState>,
+    npcs: BTreeMap<u64, NpcState<'a>>,
     /// Objects visible on the tick.
     graphics: GraphicsState,
 }
 
-impl TickState {
+impl<'a> TickState<'a> {
     pub(super) fn tick(&self) -> Tick {
         self.tick
     }
 
     /// Returns the players visible on the tick.
-    pub(super) fn players(&self) -> impl Iterator<Item = (&str, &PlayerState)> {
+    pub(super) fn players(&self) -> impl Iterator<Item = (&'a str, &PlayerState<'a>)> {
         self.players
             .iter()
-            .filter_map(|(name, state)| state.as_ref().map(|state| (name.as_str(), state)))
+            .filter_map(|(name, state)| state.as_ref().map(|state| (*name, state)))
     }
 
-    pub(super) fn player(&self, name: &str) -> Option<&PlayerState> {
+    pub(super) fn player(&self, name: &str) -> Option<&PlayerState<'a>> {
         self.players.get(name).and_then(Option::as_ref)
     }
 
     /// Returns the NPCs visible on the tick.
-    pub(super) fn npcs(&self) -> impl Iterator<Item = (u64, &NpcState)> {
+    pub(super) fn npcs(&self) -> impl Iterator<Item = (u64, &NpcState<'a>)> {
         self.npcs.iter().map(|(room_id, npc)| (*room_id, npc))
     }
 
     /// Returns the NPC with `room_id`, if visible on the tick.
-    pub(super) fn npc(&self, room_id: u64) -> Option<&NpcState> {
+    pub(super) fn npc(&self, room_id: u64) -> Option<&NpcState<'a>> {
         self.npcs.get(&room_id)
     }
 
@@ -674,7 +673,7 @@ impl TickState {
     ///
     /// Actions are ignored since they aren't really "state".
     /// [`set_player_attack`] and friends handle them.
-    pub(super) fn merge_from(&mut self, other: &TickState) {
+    pub(super) fn merge_from(&mut self, other: &TickState<'a>) {
         for (name, other_state) in other.players() {
             match self.players.get_mut(name) {
                 Some(Some(state)) => {
@@ -689,8 +688,7 @@ impl TickState {
                 }
                 Some(slot) => *slot = Some(other_state.clone()),
                 None => {
-                    self.players
-                        .insert(name.to_string(), Some(other_state.clone()));
+                    self.players.insert(name, Some(other_state.clone()));
                 }
             }
         }
@@ -712,20 +710,24 @@ impl TickState {
     pub(super) fn set_player_attack(
         &mut self,
         name: &str,
-        attack: Option<Sourced<PlayerAttacked>>,
+        attack: Option<Sourced<PlayerAttacked<'a>>>,
     ) {
         if let Some(Some(player)) = self.players.get_mut(name) {
             player.attack = attack;
         }
     }
 
-    pub(super) fn set_player_spell(&mut self, name: &str, spell: Option<Sourced<PlayerCast>>) {
+    pub(super) fn set_player_spell(&mut self, name: &str, spell: Option<Sourced<PlayerCast<'a>>>) {
         if let Some(Some(player)) = self.players.get_mut(name) {
             player.spell = spell;
         }
     }
 
-    pub(super) fn set_npc_attack(&mut self, room_id: u64, attack: Option<Sourced<NpcAttacked>>) {
+    pub(super) fn set_npc_attack(
+        &mut self,
+        room_id: u64,
+        attack: Option<Sourced<NpcAttacked<'a>>>,
+    ) {
         if let Some(npc) = self.npcs.get_mut(&room_id) {
             npc.attack = attack;
         }
@@ -733,14 +735,14 @@ impl TickState {
 
     fn from_events(
         tick: Tick,
-        party: &[String],
-        history: &[Option<TickState>],
+        party: &'a [String],
+        history: &[Option<TickState<'a>>],
         last_players: &mut [Option<Tick>],
         events: impl IntoIterator<Item = TaggedEvent>,
     ) -> Result<Self, MalformedEvent> {
         let mut players = party
             .iter()
-            .map(|p| (p.clone(), None))
+            .map(|p| (p.as_str(), None))
             .collect::<BTreeMap<_, _>>();
         let mut npcs = BTreeMap::new();
         let mut graphics = GraphicsState::default();
@@ -828,7 +830,7 @@ impl TickState {
         })
     }
 
-    fn resynchronize(&mut self, stage: Stage, ctx: &mut ResyncContext) {
+    fn resynchronize(&mut self, stage: Stage, ctx: &mut ResyncContext<'a>) {
         // Update stage-specific state before making decisions for this tick.
         ctx.stage_custom.observe(&self.events);
 
@@ -842,8 +844,8 @@ impl TickState {
             match event.r#type() {
                 event::Type::PlayerDeath => {
                     let player = event.player.as_ref().expect("validated at build");
-                    if !player.name.is_empty() {
-                        ctx.dead_players.insert(player.name.clone());
+                    if let Some((&name, _)) = self.players.get_key_value(player.name.as_str()) {
+                        ctx.dead_players.insert(name);
                     }
                 }
                 event::Type::NpcDeath => {
@@ -859,9 +861,9 @@ impl TickState {
             }
         }
 
-        for (name, state) in &self.players {
+        for (&name, state) in &self.players {
             if let Some(state) = state {
-                ctx.previous_players.insert(name.clone(), state.clone());
+                ctx.previous_players.insert(name, state.clone());
             }
         }
         for (&room_id, npc) in &self.npcs {
@@ -869,9 +871,9 @@ impl TickState {
         }
     }
 
-    fn resynchronize_players(&mut self, ctx: &mut ResyncContext) {
+    fn resynchronize_players(&mut self, ctx: &mut ResyncContext<'a>) {
         for (name, state) in &mut self.players {
-            if ctx.dead_players.contains(name.as_str()) {
+            if ctx.dead_players.contains(name) {
                 continue;
             }
             let Some(state) = state else {
@@ -882,22 +884,22 @@ impl TickState {
                 self.tick + attack.value.kind.cooldown()
             } else {
                 ctx.previous_players
-                    .get(name.as_str())
+                    .get(name)
                     .map_or(Tick(0), |p| p.off_cooldown_tick)
             };
         }
     }
 
     #[expect(clippy::similar_names)]
-    fn create_player_state_events(&mut self, stage: Stage, ctx: &ResyncContext) {
+    fn create_player_state_events(&mut self, stage: Stage, ctx: &ResyncContext<'a>) {
         for (name, state) in &self.players {
-            if ctx.dead_players.contains(name.as_str()) {
+            if ctx.dead_players.contains(name) {
                 continue;
             }
             let Some(state) = state else {
                 continue;
             };
-            let previous = ctx.previous_players.get(name.as_str());
+            let previous = ctx.previous_players.get(name);
 
             let base = |kind: event::Type| {
                 let mut event = Event {
@@ -909,7 +911,7 @@ impl TickState {
                 };
                 event.set_type(kind);
                 event.player = Some(event::Player {
-                    name: name.clone(),
+                    name: (*name).to_string(),
                     party_index: state.party_index,
                     ..Default::default()
                 });
@@ -969,7 +971,7 @@ impl TickState {
                         event::spell::Target::NoTarget(()),
                         |target| match &target.value {
                             Target::Player(name) => {
-                                event::spell::Target::TargetPlayer(name.clone())
+                                event::spell::Target::TargetPlayer((*name).to_string())
                             }
                             Target::Npc { id, room_id } => {
                                 event::spell::Target::TargetNpc(event::Npc {
@@ -990,7 +992,7 @@ impl TickState {
     ///
     /// Subtype fields are emitted only on ticks where they differ from the
     /// NPC's last known subtype, matching event wire semantics.
-    fn create_npc_state_events(&mut self, stage: Stage, ctx: &ResyncContext) {
+    fn create_npc_state_events(&mut self, stage: Stage, ctx: &ResyncContext<'_>) {
         let spawned = self
             .events
             .iter()
@@ -1055,7 +1057,7 @@ impl TickState {
                         .target
                         .as_ref()
                         .map(|target| match &target.value {
-                            Target::Player(name) => name.clone(),
+                            Target::Player(name) => (*name).to_string(),
                             Target::Npc { .. } => {
                                 unreachable!("npc attacks only target players")
                             }
@@ -1067,7 +1069,7 @@ impl TickState {
     }
 
     /// Synthesizes graphics events from the graphics visible on the tick.
-    fn create_graphics_events(&mut self, stage: Stage, ctx: &ResyncContext) {
+    fn create_graphics_events(&mut self, stage: Stage, ctx: &ResyncContext<'_>) {
         for (kind, coords) in &self.graphics.0 {
             let mut event = Event {
                 tick: self.tick.0,
@@ -1111,9 +1113,9 @@ impl TickState {
 }
 
 /// Attaches a tick's attack, spell, and death events to their actors' states.
-fn attach_actions(
-    players: &mut BTreeMap<String, Option<PlayerState>>,
-    npcs: &mut BTreeMap<u64, NpcState>,
+fn attach_actions<'a>(
+    players: &mut BTreeMap<&'a str, Option<PlayerState<'a>>>,
+    npcs: &mut BTreeMap<u64, NpcState<'a>>,
     actions: Vec<TaggedEvent>,
 ) -> Result<(), MalformedEvent> {
     for event in actions {
@@ -1127,6 +1129,14 @@ fn attach_actions(
                         field: "npc_attack",
                     });
                 };
+                let target = attack
+                    .target
+                    .as_deref()
+                    .and_then(|name| players.get_key_value(name))
+                    .map(|(&name, _)| Sourced {
+                        source: event.source(),
+                        value: Target::Player(name),
+                    });
                 let Some(npc) = npcs.get_mut(&npc.room_id) else {
                     continue;
                 };
@@ -1134,10 +1144,7 @@ fn attach_actions(
                     source: event.source(),
                     value: NpcAttacked {
                         kind: attack.attack(),
-                        target: attack.target.clone().map(|name| Sourced {
-                            source: event.source(),
-                            value: Target::Player(name),
-                        }),
+                        target,
                     },
                 });
             }
@@ -1150,7 +1157,7 @@ fn attach_actions(
                         field: "player_attack",
                     });
                 };
-                let Some(Some(state)) = players.get_mut(&player.name) else {
+                let Some(Some(state)) = players.get_mut(player.name.as_str()) else {
                     continue;
                 };
                 let source = event.source();
@@ -1160,37 +1167,39 @@ fn attach_actions(
                 });
             }
             event::Type::PlayerSpell => {
-                let (source, event) = event.split();
                 let player = expect_player(&event)?;
-                let Some(Some(state)) = players.get_mut(&player.name) else {
-                    continue;
-                };
-                let Some(spell) = event.player_spell else {
+                let Some(spell) = &event.player_spell else {
                     return Err(MalformedEvent::MissingPayload {
                         kind: event.r#type(),
                         tick: Tick(event.tick),
                         field: "player_spell",
                     });
                 };
-
+                let source = event.source();
+                let target = match &spell.target {
+                    Some(event::spell::Target::TargetPlayer(name)) => players
+                        .get_key_value(name.as_str())
+                        .map(|(&name, _)| Sourced {
+                            source,
+                            value: Target::Player(name),
+                        }),
+                    Some(event::spell::Target::TargetNpc(npc)) => Some(Sourced {
+                        source,
+                        value: Target::Npc {
+                            id: npc.id,
+                            room_id: npc.room_id,
+                        },
+                    }),
+                    _ => None,
+                };
+                let Some(Some(state)) = players.get_mut(player.name.as_str()) else {
+                    continue;
+                };
                 state.spell = Some(Sourced {
                     source,
                     value: PlayerCast {
                         kind: spell.r#type(),
-                        target: match spell.target {
-                            Some(event::spell::Target::TargetPlayer(name)) => Some(Sourced {
-                                source,
-                                value: Target::Player(name),
-                            }),
-                            Some(event::spell::Target::TargetNpc(npc)) => Some(Sourced {
-                                source,
-                                value: Target::Npc {
-                                    id: npc.id,
-                                    room_id: npc.room_id,
-                                },
-                            }),
-                            _ => None,
-                        },
+                        target,
                     },
                 });
             }
@@ -1274,7 +1283,7 @@ mod tests {
         assert_eq!(style.npc_attack_tick, 5);
     }
 
-    fn single_tick(client_id: i64, party: &[String], events: Vec<Event>) -> Timeline {
+    fn single_tick(client_id: i64, party: &[String], events: Vec<Event>) -> Timeline<'_> {
         Timeline::build(
             party,
             Tick(0),
