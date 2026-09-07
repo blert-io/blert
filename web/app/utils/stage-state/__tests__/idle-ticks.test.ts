@@ -89,28 +89,29 @@ describe('computeIdleTickCounts', () => {
     playerUpdate(11, name, 13),
   ];
 
-  it('counts off-cooldown ticks up to the final attack', () => {
+  it('counts off cooldown ticks between the first and final attacks', () => {
     const counts = idleTicksFor(['1Ogp'], 12, attackEvents('1Ogp'));
-    // Ticks 1-2 idle before the first attack, ticks 7-8 idle between attacks.
+    // First attack on tick 3, ticks 7-8 are idle between the attacks.
     expect(counts.get('1Ogp')).toEqual({
-      idleTicks: 4,
-      eligibleTicks: 9,
+      idleTicks: 2,
+      eligibleTicks: 7,
       longestIdle: 2,
-      idlePeriods: 2,
+      idlePeriods: 1,
     });
   });
 
   it('excludes ticks after the final attack', () => {
-    // Remove the tick 9 attack, leaving only the first attack on tick 3.
+    // Remove the tick 9 attack, leaving only the attack on tick 3. Ticks 7-8
+    // are off cooldown but aren't counted without later attacks.
     const events = attackEvents('1Ogp').filter(
       (event) => !(event.type === EventType.PLAYER_ATTACK && event.tick === 9),
     );
     const counts = idleTicksFor(['1Ogp'], 12, events);
     expect(counts.get('1Ogp')).toEqual({
-      idleTicks: 2,
-      eligibleTicks: 3,
-      longestIdle: 2,
-      idlePeriods: 1,
+      idleTicks: 0,
+      eligibleTicks: 1,
+      longestIdle: 0,
+      idlePeriods: 0,
     });
   });
 
@@ -150,18 +151,20 @@ describe('computeIdleTickCounts', () => {
   it('skips ticks without player state', () => {
     const events: Event[] = [
       playerUpdate(0, '1Ogp', 0),
-      playerUpdate(1, '1Ogp', 0),
-      playerUpdate(3, '1Ogp', 0),
-      playerUpdate(4, '1Ogp', 8),
-      playerAttack(4, '1Ogp'),
+      playerUpdate(1, '1Ogp', 2),
+      playerAttack(1, '1Ogp'),
+      playerUpdate(2, '1Ogp', 2),
+      playerUpdate(4, '1Ogp', 2),
+      playerUpdate(5, '1Ogp', 9),
+      playerAttack(5, '1Ogp'),
     ];
-    const counts = idleTicksFor(['1Ogp'], 5, events);
+    const counts = idleTicksFor(['1Ogp'], 6, events);
 
-    // Tick 2 has no events for 1Ogp, so it is neither idle nor eligible, and
+    // Tick 3 has no events for 1Ogp, so it is neither idle nor eligible, and
     // it splits the surrounding idle ticks into separate periods.
     expect(counts.get('1Ogp')).toEqual({
       idleTicks: 2,
-      eligibleTicks: 3,
+      eligibleTicks: 4,
       longestIdle: 1,
       idlePeriods: 2,
     });
@@ -170,12 +173,13 @@ describe('computeIdleTickCounts', () => {
   it('computes counts independently per player', () => {
     const events: Event[] = [
       playerUpdate(0, '1Ogp', 0),
-      playerUpdate(1, '1Ogp', 0),
-      playerUpdate(2, '1Ogp', 6),
-      playerAttack(2, '1Ogp'),
-      playerUpdate(3, '1Ogp', 6),
-      playerUpdate(4, '1Ogp', 6),
-      playerUpdate(5, '1Ogp', 6),
+      playerUpdate(1, '1Ogp', 3),
+      playerAttack(1, '1Ogp'),
+      playerUpdate(2, '1Ogp', 3),
+      playerUpdate(3, '1Ogp', 3),
+      playerUpdate(4, '1Ogp', 7),
+      playerAttack(4, '1Ogp'),
+      playerUpdate(5, '1Ogp', 7),
     ];
     for (let tick = 0; tick < 6; tick++) {
       events.push(playerUpdate(tick, 'WWWWWWWWWWQQ', 0));
@@ -186,7 +190,7 @@ describe('computeIdleTickCounts', () => {
     expect(counts.size).toBe(2);
     expect(counts.get('1Ogp')).toEqual({
       idleTicks: 1,
-      eligibleTicks: 2,
+      eligibleTicks: 4,
       longestIdle: 1,
       idlePeriods: 1,
     });
@@ -201,22 +205,25 @@ describe('computeIdleTickCounts', () => {
   it('tracks runs of unequal length', () => {
     const events: Event[] = [
       playerUpdate(0, '1Ogp', 0),
-      playerUpdate(1, '1Ogp', 0),
-      playerUpdate(2, '1Ogp', 5),
-      playerAttack(2, '1Ogp'),
-      playerUpdate(3, '1Ogp', 5),
-      playerUpdate(4, '1Ogp', 5),
-      playerUpdate(5, '1Ogp', 5),
-      playerUpdate(6, '1Ogp', 5),
-      playerUpdate(7, '1Ogp', 5),
-      playerUpdate(8, '1Ogp', 12),
-      playerAttack(8, '1Ogp'),
+      playerUpdate(1, '1Ogp', 3),
+      playerAttack(1, '1Ogp'),
+      playerUpdate(2, '1Ogp', 3),
+      playerUpdate(3, '1Ogp', 3),
+      playerUpdate(4, '1Ogp', 6),
+      playerAttack(4, '1Ogp'),
+      playerUpdate(5, '1Ogp', 6),
+      playerUpdate(6, '1Ogp', 6),
+      playerUpdate(7, '1Ogp', 6),
+      playerUpdate(8, '1Ogp', 6),
+      playerUpdate(9, '1Ogp', 11),
+      playerAttack(9, '1Ogp'),
     ];
-    const counts = idleTicksFor(['1Ogp'], 9, events);
+    const counts = idleTicksFor(['1Ogp'], 10, events);
 
+    // Idle on 3 and 6-8
     expect(counts.get('1Ogp')).toEqual({
       idleTicks: 4,
-      eligibleTicks: 8,
+      eligibleTicks: 9,
       longestIdle: 3,
       idlePeriods: 2,
     });
