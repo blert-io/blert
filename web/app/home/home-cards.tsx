@@ -916,15 +916,24 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
       <span className={styles.feedTime}>
         <ReactTimeago
           date={item.time}
-          formatter={(value: number, unit: Unit) => `${value}${unit[0]} ago`}
+          formatter={(value: number, unit: Unit) =>
+            `${value}${unit === 'month' ? 'mo' : unit[0]} ago`
+          }
         />
       </span>
     </Link>
   );
 }
 
+function feedItemKey(item: ActivityFeedItem): string {
+  switch (item.type) {
+    case ActivityFeedItemType.CHALLENGE_END:
+      return (item as ChallengeEndFeedItem).challenge.uuid;
+  }
+}
+
 function feedKeys(feed: ActivityFeedItem[]) {
-  return feed.map((item) => item.time.getTime().toString()).join(',');
+  return feed.map(feedItemKey).join(',');
 }
 
 type ActivityFeedProps = {
@@ -991,7 +1000,7 @@ export function ActivityFeed({
           </>
         ) : (
           feed.map((item, i) => (
-            <FeedItem key={item.time.getTime()} item={item} index={i} />
+            <FeedItem key={feedItemKey(item)} item={item} index={i} />
           ))
         )}
       </div>
