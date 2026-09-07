@@ -37,7 +37,7 @@ export class Dispatcher {
 
   public constructor(
     store: EffectStore,
-    handlers: EffectHandler[],
+    handlers: readonly EffectHandler[],
     options: DispatcherOptions = {},
   ) {
     this.store = store;

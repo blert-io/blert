@@ -1,5 +1,7 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} **/
 module.exports = {
+  // The integration suites share one database and truncate it between tests.
+  maxWorkers: 1,
   projects: [
     {
       displayName: 'unit',
