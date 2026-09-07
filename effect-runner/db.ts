@@ -53,7 +53,7 @@ export function connect(uri: string) {
     },
   };
 
-  if (['development', 'test'].includes(process.env.NODE_ENV!)) {
+  if (process.env.NODE_ENV === 'test') {
     connectionOptions.debug = (_, query, params) =>
       logger.debug(
         '%s %o',

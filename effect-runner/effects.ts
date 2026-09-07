@@ -9,6 +9,11 @@ export enum EffectEventKind {
   STAGE_FINISHED = 1,
 }
 
+/** Every kind of effect event. */
+export const ALL_EFFECT_EVENT_KINDS: readonly EffectEventKind[] = Object.values(
+  EffectEventKind,
+).filter((value): value is EffectEventKind => typeof value === 'number');
+
 /** Subject of a `CHALLENGE_FINISHED` event. */
 export type ChallengeSubject = {
   uuid: string;
