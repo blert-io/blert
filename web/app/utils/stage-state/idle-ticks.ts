@@ -13,8 +13,8 @@ export type IdleTickCount = {
 
 /**
  * Counts the number of ticks on which each player could have attacked but did
- * not, up to their final attack, excluding the entry tick 0. Idle ticks are
- * grouped into periods of consecutive runs.
+ * not between their first and last attacks. Idle ticks are grouped into
+ * periods of consecutive runs.
  *
  * A player without attacks counts every valid tick.
  */
@@ -24,14 +24,18 @@ export function computeIdleTickCounts(
   const counts = new Map<string, IdleTickCount>();
 
   for (const [player, states] of playerState) {
+    let firstAttackTick = -1;
     let lastAttackTick = Infinity;
-    for (let tick = states.length - 1; tick >= 0; tick--) {
+    for (let tick = 0; tick < states.length; tick++) {
       if (states[tick]?.attack !== undefined) {
+        if (firstAttackTick === -1) {
+          firstAttackTick = tick;
+        }
         lastAttackTick = tick;
-        break;
       }
     }
 
+    const start = Math.max(1, firstAttackTick);
     const end = Math.min(lastAttackTick, states.length - 1);
     let idleTicks = 0;
     let eligibleTicks = 0;
@@ -39,7 +43,7 @@ export function computeIdleTickCounts(
     let idlePeriods = 0;
     let currentRun = 0;
 
-    for (let tick = 1; tick <= end; tick++) {
+    for (let tick = start; tick <= end; tick++) {
       const state = states[tick];
       if (state === null || state.isDead) {
         currentRun = 0;

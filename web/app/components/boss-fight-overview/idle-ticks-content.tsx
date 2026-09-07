@@ -29,6 +29,10 @@ export function IdleTicksContent({ count }: IdleTicksContentProps) {
           {longestIdle} · avg {averageIdle}
         </div>
       )}
+      <div className={styles.footer}>
+        <i className="fas fa-info-circle" />
+        Ticks off cooldown between first and last attacks.
+      </div>
     </div>
   );
 }

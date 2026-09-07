@@ -116,6 +116,8 @@
 }
 
 .section {
+  display: flex;
+  flex-direction: column;
   background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 16px;
@@ -133,21 +135,25 @@
 }
 
 .sectionContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   color: var(--blert-font-color-primary);
   font-size: 0.95em;
   line-height: 1.4;
 }
 
 .idleTicks {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-family: var(--font-roboto-mono), monospace;
 
   .total {
     display: flex;
     align-items: baseline;
     gap: 6px;
+    font-family: var(--font-roboto-mono), monospace;
 
     .count {
       font-size: 1.5em;
@@ -166,6 +172,23 @@
 
   .runs {
     color: var(--blert-font-color-secondary);
-    font-size: 0.9em;
+    font-family: var(--font-roboto-mono), monospace;
+    font-size: 0.85em;
+    margin-bottom: 4px;
+  }
+
+  .footer {
+    margin-top: auto;
+    color: var(--blert-font-color-secondary);
+    font-size: 0.75em;
+    line-height: 1.4;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    i {
+      margin-right: 4px;
+    }
   }
 }
