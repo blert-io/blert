@@ -1,11 +1,12 @@
 import './env';
 
 import { Config, loadConfig } from './config';
-import { connect } from './db';
-import { HANDLERS, subscriptionsOf } from './handlers';
+import { connect as connectDatabase } from './db';
+import { FeedHandler, logHandler, subscriptionsOf } from './handlers';
 import logger from './log';
 import { startMetricsListener } from './metrics';
-import { Dispatcher, EffectStore, Poller } from './runner';
+import { connect as connectRedis } from './redis';
+import { Dispatcher, EffectHandler, EffectStore, Poller } from './runner';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -22,9 +23,15 @@ async function main(): Promise<void> {
 
   const metricsListener = startMetricsListener(config.port);
 
-  const sql = connect(config.databaseUri);
+  const sql = connectDatabase(config.databaseUri);
+  const redis = await connectRedis(config.redisUri);
   const store = new EffectStore(sql);
-  const subscriptions = subscriptionsOf(HANDLERS);
+
+  const handlers: EffectHandler[] = [new FeedHandler(sql, redis)];
+  if (process.env.NODE_ENV === 'development') {
+    handlers.push(logHandler);
+  }
+  const subscriptions = subscriptionsOf(handlers);
 
   try {
     await store.registerSubscriptions(subscriptions);
@@ -35,7 +42,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const dispatcher = new Dispatcher(store, HANDLERS);
+  const dispatcher = new Dispatcher(store, handlers);
   const poller = new Poller(
     store,
     dispatcher,
@@ -46,7 +53,7 @@ async function main(): Promise<void> {
 
   logger.info('effect_runner_started', {
     port: config.port,
-    handlers: HANDLERS.map((h) => h.key),
+    handlers: handlers.map((h) => h.key),
     commit: process.env.BLERT_COMMIT_SHA ?? 'unknown',
   });
 
@@ -66,7 +73,7 @@ async function main(): Promise<void> {
 
     try {
       await poller.stop();
-      await sql.end();
+      await Promise.allSettled([redis.quit(), sql.end()]);
 
       const closed = new Promise<void>((resolve, reject) => {
         metricsListener.close((err) =>

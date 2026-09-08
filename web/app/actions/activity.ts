@@ -21,13 +21,14 @@ export interface ChallengeEndFeedItem extends ActivityFeedItem {
   challenge: ChallengeOverview;
 }
 
-type ParsedActivityFeedItem = RedisActivityFeedItem & {
-  time: Date;
-};
+/**
+ * How many times the requested limit to read to handle broken/missing items.
+ */
+const FEED_OVERREAD_FACTOR = 2;
 
 function isChallengeEndItem(
-  item: ParsedActivityFeedItem,
-): item is ParsedActivityFeedItem & { data: ActivityFeedData } {
+  item: RedisActivityFeedItem,
+): item is RedisActivityFeedItem & { data: ActivityFeedData } {
   return (
     item.type === ActivityFeedItemType.CHALLENGE_END &&
     typeof item.data === 'object' &&
@@ -37,23 +38,28 @@ function isChallengeEndItem(
 
 export async function getRecentFeedItems(limit: number = 10) {
   const client = await redis();
-  const rawFeed: ParsedActivityFeedItem[] = await client
+  const rawFeed: RedisActivityFeedItem[] = await client
     .xRevRange(ACTIVITY_FEED_KEY, '+', '-', {
-      COUNT: limit,
+      COUNT: limit * FEED_OVERREAD_FACTOR,
     })
     .then((items) =>
-      items.map((item) => {
-        const [timestamp] = item.id.split('-');
-        const parsedData = JSON.parse(item.message.data) as ActivityFeedData;
-        return {
-          type: parseInt(item.message.type),
-          time: new Date(parseInt(timestamp)),
-          data: parsedData,
-        };
-      }),
+      items.map((item) => ({
+        type: parseInt(item.message.type),
+        data: JSON.parse(item.message.data) as ActivityFeedData,
+      })),
     );
 
-  const challengeEndItems = rawFeed.filter(isChallengeEndItem);
+  // The stream is newest first, so the first entry for a challenge wins.
+  const seen = new Set<string>();
+  const challengeEndItems = rawFeed
+    .filter(isChallengeEndItem)
+    .filter((item) => {
+      if (seen.has(item.data.challengeId)) {
+        return false;
+      }
+      seen.add(item.data.challengeId);
+      return true;
+    });
 
   const challengesToFetch = challengeEndItems.map(
     (item) => item.data.challengeId,
@@ -67,16 +73,20 @@ export async function getRecentFeedItems(limit: number = 10) {
 
   for (const item of challengeEndItems) {
     const challenge = challenges.find((c) => c.uuid === item.data.challengeId);
-    if (challenge) {
-      feed.push({
-        type: item.type,
-        time: item.time,
-        challenge,
-      } as ChallengeEndFeedItem);
+    if (challenge === undefined) {
+      continue;
     }
+    if (challenge.finishTime === null) {
+      continue;
+    }
+    feed.push({
+      type: item.type,
+      time: challenge.finishTime,
+      challenge,
+    } as ChallengeEndFeedItem);
   }
 
-  return feed;
+  return feed.slice(0, limit);
 }
 
 type ChallengePlayerRow = {
