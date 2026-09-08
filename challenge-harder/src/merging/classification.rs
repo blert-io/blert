@@ -38,6 +38,17 @@ pub enum ReferenceMethod {
     RecordedTicks,
 }
 
+impl ReferenceMethod {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::AccurateModal => "ACCURATE_MODAL",
+            Self::PreciseServer => "PRECISE_SERVER",
+            Self::ImpreciseServer => "IMPRECISE_SERVER",
+            Self::RecordedTicks => "RECORDED_TICKS",
+        }
+    }
+}
+
 /// Classifies a stage's nonempty clients ahead of a merge.
 /// Clients claiming to be accurate while disagreeing with others are demoted.
 pub(super) fn classify_clients(clients: &mut [ClientEvents<'_>]) -> ClientClassification {

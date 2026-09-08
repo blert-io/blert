@@ -12,7 +12,8 @@ use crate::lifecycle::core::types::{
     ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
 };
 use crate::lifecycle::store::StoreError;
-use crate::metrics;
+use crate::merging::{MergeReport, MergedEvents};
+use crate::metrics::{self, MergeOutcome};
 use crate::price::PriceResolver;
 use crate::redis::Store;
 use crate::repository::DataRepository;
@@ -21,7 +22,8 @@ use super::challenge::load_database_state;
 use super::challenge_processor::ChallengeProcessor;
 use super::interpret::{InterpretError, InterpretOutput, interpret};
 use super::persist::{
-    save_splits, update_challenge_row, update_player_stats, update_players, write_queryable_events,
+    save_merge_report, save_splits, update_challenge_row, update_player_stats, update_players,
+    write_queryable_events,
 };
 use super::{ChallengeInfo, ProcessorConfig, StoredState};
 use super::{db, effects};
@@ -108,9 +110,28 @@ async fn persist(
     processor: &mut dyn ChallengeProcessor,
 ) -> Result<ProcessingPayload, ProcessingError> {
     let payload = payload_from(&result);
-    let Ok(mut output) = result else {
-        return Ok(payload);
+    let mut output = match result {
+        Ok(output) => output,
+        Err(InterpretError::NoData) => {
+            metrics::record_merge_outcome(MergeOutcome::NoData);
+            return Ok(payload);
+        }
+        Err(InterpretError::BadData(report)) => {
+            metrics::record_merge_outcome(MergeOutcome::BadData);
+            write_merge_report(txn, challenge, &report, None).await?;
+            metrics::record_merge_report(challenge.stage, &report);
+            return Ok(payload);
+        }
     };
+    metrics::record_merge_outcome(MergeOutcome::Merged);
+    metrics::record_merge_report(challenge.stage, &output.report);
+    metrics::record_stage_completion(
+        challenge.stage,
+        output.events.status(),
+        output.events.fully_accurate(),
+        output.report.unmerged_count > 0,
+        output.report.skipped_count > 0,
+    );
 
     let challenge_ticks = processor
         .on_stage_finished(
@@ -134,11 +155,12 @@ async fn persist(
     )
     .await?;
 
-    let ((), (), queryable_events, ()) = tokio::try_join!(
+    let ((), (), queryable_events, (), ()) = tokio::try_join!(
         update_players(txn, challenge.stage, &output.ctx, &stored.players),
         update_player_stats(txn, output.ctx.players(), &stored.players),
         write_queryable_events(txn, challenge, &output, &stored.players),
-        update_challenge_row(txn, challenge_ticks, output.ctx.deaths().len())
+        update_challenge_row(txn, challenge_ticks, output.ctx.deaths().len()),
+        write_merge_report(txn, challenge, &output.report, Some(&output.events))
     )?;
 
     effects::emit(
@@ -192,14 +214,24 @@ async fn persist(
     Ok(payload)
 }
 
+async fn write_merge_report(
+    txn: &db::Transaction,
+    challenge: &ChallengeInfo,
+    report: &MergeReport,
+    events: Option<&MergedEvents>,
+) -> Result<(), db::Error> {
+    let result = save_merge_report(txn, challenge, report, events).await;
+    metrics::record_merge_result_write(result.is_ok());
+    result
+}
+
 fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingPayload {
     match result {
         Ok(output) => ProcessingPayload::Stage {
             status: output.events.status(),
             ticks: output.events.duration().0,
         },
-        // TODO(frolv): Handle errors.
-        Err(InterpretError::NoData) => ProcessingPayload::None,
+        Err(InterpretError::NoData | InterpretError::BadData(_)) => ProcessingPayload::None,
     }
 }
 

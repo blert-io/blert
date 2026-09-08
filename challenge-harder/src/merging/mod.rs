@@ -17,6 +17,7 @@ mod event;
 mod mapping;
 mod merge_consistency;
 mod postprocessing;
+mod report;
 mod similarity;
 mod tick;
 mod timeline;
@@ -30,22 +31,21 @@ pub(crate) mod fixtures;
 
 pub use classification::{ReferenceMethod, ReferenceTicks};
 pub use confidence::StepConfidence;
+pub use report::{ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus};
 pub(crate) use tick::{Tick, Ticks};
 pub use trace::Tracer;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeType, ClientId, ClientStageStream, ServerTicks, Stage, StageStatus,
-    Uuid,
+    ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, Uuid,
 };
 use crate::proto::Event;
 
 use alignment::{AlignmentResult, TickAligner};
 use classification::{ClientClassification, classify_clients};
-use client_consistency::ConsistencyIssue;
-use client_events::{BadDataClient, ClientEvents};
-use consolidator::Consolidator;
+use client_events::ClientEvents;
+use consolidator::{ConsolidationResult, Consolidator, QualityFlag};
 use event::MalformedEvent;
 use mapping::{Mappings, MergeMapping, TickMapping};
 use merge_consistency::MergeConsistencyIssue;
@@ -60,31 +60,6 @@ const MIN_MERGE_CONFIDENCE_THRESHOLD: f64 = 0.75;
 // Worst-segment score below which a merged client is flagged for review.
 const LOW_CONFIDENCE_WARN_THRESHOLD: f64 = 0.4;
 
-/// A notable condition encountered while merging a stage's clients.
-#[derive(Debug, PartialEq)]
-pub enum MergeAlert {
-    /// Clients sent conflicting server tick counts.
-    MultipleServerTickCounts {
-        precise: bool,
-        tick_counts: Vec<Ticks>,
-    },
-    /// The timeline was shifted forward to fit a reference tick count.
-    TimelineOffsetApplied { offset: Ticks },
-    /// Merge steps were rejected for violating game invariants.
-    PostMergeConsistencyRejections {
-        client_ids: Vec<ClientId>,
-        total_issues: usize,
-    },
-    /// Merge steps were rejected because their confidence scores fell below
-    /// the acceptance threshold.
-    LowConfidenceRejections { client_ids: Vec<ClientId> },
-    /// Clients were merged which had a segment of their alignment score below
-    /// the structural confidence warning threshold.
-    LowStructuralConfidence {
-        worst_segment_scores: Vec<(ClientId, f64)>,
-    },
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Classification {
     Reference,
@@ -92,13 +67,17 @@ pub enum Classification {
     Mismatched,
 }
 
-/// How a client in a merge was processed.
 #[derive(Debug, Clone, PartialEq)]
-pub enum MergeStatus<'a> {
-    Merged(Classification, Option<StepConfidence>),
-    Unmerged(Classification),
-    Rejected(Classification, RejectionReason<'a>),
-    Skipped(BadData),
+enum StepResult<'a> {
+    Unmerged,
+    Merged {
+        confidence: Option<StepConfidence>,
+        quality_flags: Vec<QualityFlag<'a>>,
+    },
+    Rejected {
+        reason: RejectionReason<'a>,
+        quality_flags: Vec<QualityFlag<'a>>,
+    },
 }
 
 /// Why a merge step was rejected.
@@ -108,107 +87,6 @@ pub enum RejectionReason<'a> {
     PostMergeConsistency(Vec<MergeConsistencyIssue<'a>>),
     /// The merge step's confidence score fell below the acceptance threshold.
     LowMergeConfidence(StepConfidence),
-}
-
-/// The result of a client within a merge run.
-#[derive(Debug, PartialEq)]
-pub struct ClientOutcome<'a> {
-    pub client_id: ClientId,
-    pub primary_player: Option<&'a str>,
-    pub stage_status: StageStatus,
-    pub accurate: bool,
-    pub last_tick: Tick,
-    pub server_ticks: Option<ServerTicks>,
-    pub consistency_issues: Vec<ConsistencyIssue<'a>>,
-    pub status: MergeStatus<'a>,
-}
-
-impl<'a> ClientOutcome<'a> {
-    fn new(client: &ClientEvents<'a>, status: MergeStatus<'a>) -> ClientOutcome<'a> {
-        ClientOutcome {
-            client_id: client.info.id,
-            primary_player: client.info.primary_player,
-            stage_status: client.info.status,
-            accurate: client.accurate,
-            last_tick: client.info.last_recorded_tick,
-            server_ticks: client.info.server_ticks,
-            consistency_issues: client.consistency_issues.clone(),
-            status,
-        }
-    }
-}
-
-impl<'a> From<&RegisteredClient<'a>> for ClientOutcome<'a> {
-    fn from(client: &RegisteredClient<'a>) -> ClientOutcome<'a> {
-        Self::new(&client.client, client.status.clone())
-    }
-}
-
-impl<'a> From<BadDataClient<'a>> for ClientOutcome<'a> {
-    fn from(client: BadDataClient<'a>) -> ClientOutcome<'a> {
-        ClientOutcome {
-            client_id: client.info.id,
-            primary_player: client.info.primary_player,
-            stage_status: client.info.status,
-            accurate: client.info.reported_accurate,
-            last_tick: client.info.last_recorded_tick,
-            server_ticks: client.info.server_ticks,
-            consistency_issues: Vec::new(),
-            status: MergeStatus::Skipped(client.error),
-        }
-    }
-}
-
-/// A summary of what occurred during a merge run.
-#[derive(Debug, PartialEq)]
-pub struct MergeReport<'a> {
-    pub alerts: Vec<MergeAlert>,
-    pub reference_ticks: Option<ReferenceTicks>,
-    pub clients: Vec<ClientOutcome<'a>>,
-    pub merged_count: usize,
-    pub unmerged_count: usize,
-    pub skipped_count: usize,
-}
-
-impl<'a> MergeReport<'a> {
-    /// Creates a report detailing the results of merging `clients`.
-    fn new(
-        clients: Vec<ClientOutcome<'a>>,
-        reference_ticks: ReferenceTicks,
-        alerts: Vec<MergeAlert>,
-    ) -> MergeReport<'a> {
-        let mut merged_count = 0;
-        let mut unmerged_count = 0;
-        let mut skipped_count = 0;
-        for client in &clients {
-            match client.status {
-                MergeStatus::Merged(..) => merged_count += 1,
-                MergeStatus::Unmerged(_) | MergeStatus::Rejected(..) => unmerged_count += 1,
-                MergeStatus::Skipped(_) => skipped_count += 1,
-            }
-        }
-        MergeReport {
-            alerts,
-            reference_ticks: Some(reference_ticks),
-            clients,
-            merged_count,
-            unmerged_count,
-            skipped_count,
-        }
-    }
-
-    /// Creates a report for a merge that skipped every client.
-    fn empty(clients: Vec<ClientOutcome<'a>>) -> MergeReport<'a> {
-        let skipped_count = clients.len();
-        MergeReport {
-            alerts: Vec::new(),
-            reference_ticks: None,
-            clients,
-            merged_count: 0,
-            unmerged_count: 0,
-            skipped_count,
-        }
-    }
 }
 
 /// Challenge context for a merge.
@@ -240,7 +118,7 @@ pub fn merge<'a>(
     stage: Stage,
     records: Vec<ClientStageStream>,
     mut tracer: Option<&mut Tracer>,
-) -> (Option<MergedEvents>, MergeReport<'a>) {
+) -> (Option<MergedEvents>, MergeReport) {
     let _span = tracing::info_span!("merge", uuid = %challenge.uuid, ?stage).entered();
 
     let (mut clients, bad_data_clients) =
@@ -282,30 +160,19 @@ pub fn merge<'a>(
     }
 
     for client in classification.matching {
-        merged.merge_from(
-            &mut ctx,
-            client,
-            Classification::Matching,
-            tracer.as_deref_mut(),
-        );
+        merged.merge_from(&mut ctx, client, tracer.as_deref_mut());
     }
     for client in classification.mismatched {
-        merged.merge_from(
-            &mut ctx,
-            client,
-            Classification::Mismatched,
-            tracer.as_deref_mut(),
-        );
+        merged.merge_from(&mut ctx, client, tracer.as_deref_mut());
     }
 
     let reference = classification.reference_ticks;
-    outcomes.extend(ctx.clients.iter().map(ClientOutcome::from));
-
-    let offset = merged.end_align_to_reference(reference, &outcomes);
+    let offset = merged.end_align_to_reference(reference, &ctx.clients);
     if offset.is_nonzero() {
         alerts.push(MergeAlert::TimelineOffsetApplied { offset });
     }
     alerts.extend(ctx.surface_alerts());
+    outcomes.extend(ctx.clients.iter().map(ClientOutcome::from));
 
     let last_tick = merged.timeline.last_tick();
     let missing_tick_count = merged.timeline.missing_tick_count();
@@ -327,7 +194,7 @@ pub fn merge<'a>(
     let events = MergedEvents::new(
         events,
         Metadata {
-            status: ctx.client(classification.base).info.status, // TODO(frolv): derive
+            status: ctx.stage_status(classification.base),
             last_tick,
             missing_tick_count,
             offset,
@@ -350,7 +217,8 @@ pub fn merge<'a>(
 #[derive(Debug)]
 struct RegisteredClient<'a> {
     client: ClientEvents<'a>,
-    status: MergeStatus<'a>,
+    classification: Classification,
+    result: StepResult<'a>,
 }
 
 /// The state of an in-progress merge.
@@ -376,16 +244,21 @@ impl<'a> MergeContext<'a> {
             .into_iter()
             .map(|c| RegisteredClient {
                 client: c,
-                status: MergeStatus::Unmerged(Classification::Mismatched),
+                classification: Classification::Mismatched,
+                result: StepResult::Unmerged,
             })
             .collect();
 
-        clients[classification.base].status = MergeStatus::Merged(Classification::Reference, None);
+        clients[classification.base].classification = Classification::Reference;
+        clients[classification.base].result = StepResult::Merged {
+            confidence: None,
+            quality_flags: Vec::new(),
+        };
         for &i in &classification.matching {
-            clients[i].status = MergeStatus::Unmerged(Classification::Matching);
+            clients[i].classification = Classification::Matching;
         }
         for &i in &classification.mismatched {
-            clients[i].status = MergeStatus::Unmerged(Classification::Mismatched);
+            clients[i].classification = Classification::Mismatched;
         }
 
         Self {
@@ -418,6 +291,29 @@ impl<'a> MergeContext<'a> {
             .expect("name is a party member")
     }
 
+    /// Returns the final status of the stage based ont eh merged clients.
+    fn stage_status(&self, base: usize) -> StageStatus {
+        fn rank(status: StageStatus) -> u8 {
+            match status {
+                StageStatus::Entered => 0,
+                StageStatus::Started => 1,
+                StageStatus::Wiped => 2,
+                StageStatus::Completed => 3,
+            }
+        }
+        self.clients
+            .iter()
+            .filter(|client| !matches!(client.result, StepResult::Rejected { .. }))
+            .map(|client| client.client.info.status)
+            .fold(self.client(base).info.status, |status, candidate| {
+                if rank(candidate) > rank(status) {
+                    candidate
+                } else {
+                    status
+                }
+            })
+    }
+
     /// Raises alerts for any issues encountered during the merge.
     fn surface_alerts(&self) -> Vec<MergeAlert> {
         let mut alerts = Vec::new();
@@ -428,24 +324,34 @@ impl<'a> MergeContext<'a> {
         let mut worst_segment_scores = Vec::new();
         for client in &self.clients {
             let id = client.client.info.id;
-            match &client.status {
-                MergeStatus::Rejected(_, RejectionReason::PostMergeConsistency(issues)) => {
+            match &client.result {
+                StepResult::Rejected {
+                    reason: RejectionReason::PostMergeConsistency(issues),
+                    ..
+                } => {
                     consistency_issues.push(id);
                     total_issues += issues.len();
                 }
-                MergeStatus::Rejected(_, RejectionReason::LowMergeConfidence(_)) => {
+                StepResult::Rejected {
+                    reason: RejectionReason::LowMergeConfidence(_),
+                    ..
+                } => {
                     confidence_rejections.push(id);
                 }
-                MergeStatus::Merged(_, Some(confidence)) => {
+                StepResult::Merged {
+                    confidence: Some(confidence),
+                    ..
+                } => {
                     if let Some(score) = confidence.worst_segment_score()
                         && score < LOW_CONFIDENCE_WARN_THRESHOLD
                     {
                         worst_segment_scores.push((id, score));
                     }
                 }
-                MergeStatus::Merged(_, None)
-                | MergeStatus::Unmerged(_)
-                | MergeStatus::Skipped(_) => {}
+                StepResult::Merged {
+                    confidence: None, ..
+                }
+                | StepResult::Unmerged => {}
             }
         }
         if !consistency_issues.is_empty() {
@@ -492,20 +398,18 @@ impl<'a> MergedTimeline<'a> {
         &mut self,
         ctx: &mut MergeContext<'a>,
         client: usize,
-        classification: Classification,
         mut tracer: Option<&mut Tracer>,
     ) {
         let target = ctx.client(client);
         if let Some(tracer) = tracer.as_deref_mut() {
-            tracer.begin_merge_step(target.info.id, classification);
+            tracer.begin_merge_step(target.info.id);
         }
 
         let Some((mappings, alignment)) = self.map_target(target, tracer.as_deref_mut()) else {
-            let status = MergeStatus::Unmerged(classification);
+            ctx.clients[client].result = StepResult::Unmerged;
             if let Some(tracer) = tracer {
-                tracer.end_merge_step(&status);
+                tracer.end_merge_step(&ctx.clients[client]);
             }
-            ctx.clients[client].status = status;
             return;
         };
 
@@ -515,7 +419,11 @@ impl<'a> MergedTimeline<'a> {
             tracer.record_mapping(&ctx.mapping);
         }
 
-        let consolidation_result = Consolidator::new(
+        let ConsolidationResult {
+            timeline,
+            quality_flags,
+            counters,
+        } = Consolidator::new(
             &self.timeline,
             &ctx.client(client).timeline,
             ctx,
@@ -525,8 +433,8 @@ impl<'a> MergedTimeline<'a> {
 
         let confidence = confidence::score_step_confidence(
             alignment.as_ref(),
-            &consolidation_result.counters,
-            &consolidation_result.quality_flags,
+            &counters,
+            &quality_flags,
             &confidence::ConfidenceWeights::default(),
             self.scorer.weights().baseline_compatibility_weight,
         );
@@ -534,18 +442,21 @@ impl<'a> MergedTimeline<'a> {
             tracer.record_confidence(&confidence);
         }
 
-        let consistency_result = merge_consistency::check(ctx, &consolidation_result.timeline);
+        let consistency_result = merge_consistency::check(ctx, &timeline);
         let confidence_result = confidence.check(MIN_MERGE_CONFIDENCE_THRESHOLD);
 
-        let status = match (consistency_result, confidence_result) {
+        let result = match (consistency_result, confidence_result) {
             (Ok(()), Ok(confidence)) => {
                 ctx.mapping.commit();
-                record_contested_ticks(ctx, target_id, &consolidation_result.quality_flags);
-                self.timeline = consolidation_result.timeline;
+                record_contested_ticks(ctx, target_id, &quality_flags);
+                self.timeline = timeline;
                 if let Some(tracer) = tracer.as_deref_mut() {
                     tracer.record_intermediate_snapshot(self.timeline.tick_states());
                 }
-                MergeStatus::Merged(classification, Some(confidence))
+                StepResult::Merged {
+                    confidence: Some(confidence),
+                    quality_flags,
+                }
             }
             (Err(issues), _) => {
                 ctx.mapping.discard();
@@ -555,11 +466,10 @@ impl<'a> MergedTimeline<'a> {
                     issue_count = issues.len(),
                     "merge_step_rejected",
                 );
-                let reason = RejectionReason::PostMergeConsistency(issues);
-                if let Some(tracer) = tracer.as_deref_mut() {
-                    tracer.record_step_rejection(&reason);
+                StepResult::Rejected {
+                    reason: RejectionReason::PostMergeConsistency(issues),
+                    quality_flags,
                 }
-                MergeStatus::Rejected(classification, reason)
             }
             (Ok(()), Err(confidence)) => {
                 ctx.mapping.discard();
@@ -569,18 +479,17 @@ impl<'a> MergedTimeline<'a> {
                     overall = confidence.overall,
                     "merge_step_rejected",
                 );
-                let reason = RejectionReason::LowMergeConfidence(confidence);
-                if let Some(tracer) = tracer.as_deref_mut() {
-                    tracer.record_step_rejection(&reason);
+                StepResult::Rejected {
+                    reason: RejectionReason::LowMergeConfidence(confidence),
+                    quality_flags,
                 }
-                MergeStatus::Rejected(classification, reason)
             }
         };
 
+        ctx.clients[client].result = result;
         if let Some(tracer) = tracer {
-            tracer.end_merge_step(&status);
+            tracer.end_merge_step(&ctx.clients[client]);
         }
-        ctx.clients[client].status = status;
     }
 
     /// Shifts the timeline so that its last recorded tick lies at the reference
@@ -588,7 +497,7 @@ impl<'a> MergedTimeline<'a> {
     fn end_align_to_reference(
         &mut self,
         reference: ReferenceTicks,
-        outcomes: &[ClientOutcome<'_>],
+        clients: &[RegisteredClient<'_>],
     ) -> Ticks {
         // If a client reported an in-game tick count, the stage has been completed,
         // so assume that the events are offset from the end of the stage.
@@ -616,8 +525,9 @@ impl<'a> MergedTimeline<'a> {
         // not match the reference count. End alignment will then shift the
         // timeline even though base tick 0 may have been the true stage tick 0.
         // Log it for traceability into whether this ever actually occurs.
-        let end_seen_by_contributor = outcomes.iter().any(|outcome| {
-            matches!(outcome.status, MergeStatus::Merged(..)) && outcome.server_ticks.is_some()
+        let end_seen_by_contributor = clients.iter().any(|client| {
+            matches!(client.result, StepResult::Merged { .. })
+                && client.client.info.server_ticks.is_some()
         });
         if !end_seen_by_contributor {
             tracing::warn!(
@@ -764,6 +674,11 @@ impl MergedEvents {
     /// corroborated for strict analysis.
     pub fn queryable_until(&self) -> Tick {
         self.metadata.queryable_until
+    }
+
+    /// Whether accuracy covers the entire stage.
+    pub fn fully_accurate(&self) -> bool {
+        self.metadata.last_tick < self.metadata.accurate_until
     }
 
     /// Whether queryability covers the entire stage.
@@ -915,6 +830,37 @@ mod tests {
     }
 
     #[test]
+    fn stage_status_is_taken_from_the_most_complete_client() {
+        let challenge = nylocas_challenge();
+        let end =
+            |client_id: i64, status: StageStatus, recorded_ticks: u32| ClientStageStream::End {
+                client_id: ClientId(client_id),
+                update: StageUpdate {
+                    stage: Stage::TobNylocas,
+                    status,
+                    accurate: false,
+                    recorded_ticks,
+                    server_ticks: None,
+                },
+            };
+        let records = vec![
+            end(1, StageStatus::Wiped, 95),
+            end(2, StageStatus::Completed, 90),
+        ];
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let merged = merged.expect("stage has client data");
+        assert_eq!(merged.status(), StageStatus::Completed);
+        assert!(matches!(
+            report.clients[0].status,
+            MergeStatus::Merged {
+                classification: MergeClassification::Reference,
+                ..
+            }
+        ));
+        assert_eq!(report.clients[0].stage_status, StageStatus::Wiped);
+    }
+
+    #[test]
     fn bad_data_clients_are_reported_as_skipped() {
         let challenge = nylocas_challenge();
         let records = vec![
@@ -948,27 +894,39 @@ mod tests {
             report.clients,
             vec![
                 ClientOutcome {
-                    client_id: ClientId(2),
+                    id: ClientId(2),
+                    metadata: None,
                     primary_player: None,
                     stage_status: StageStatus::Completed,
+                    reported_accurate: false,
                     accurate: false,
-                    last_tick: Tick(10),
+                    recorded_ticks: Ticks(10),
                     server_ticks: Some(ServerTicks {
                         count: 0,
                         precise: true,
                     }),
+                    anomalies: Vec::new(),
                     consistency_issues: Vec::new(),
-                    status: MergeStatus::Skipped(BadData::InvalidServerTickCount),
+                    status: MergeStatus::Skipped {
+                        error: "invalid server tick count".to_string(),
+                    },
                 },
                 ClientOutcome {
-                    client_id: ClientId(1),
+                    id: ClientId(1),
+                    metadata: None,
                     primary_player: None,
                     stage_status: StageStatus::Completed,
+                    reported_accurate: false,
                     accurate: false,
-                    last_tick: Tick(90),
+                    recorded_ticks: Ticks(90),
                     server_ticks: None,
+                    anomalies: Vec::new(),
                     consistency_issues: Vec::new(),
-                    status: MergeStatus::Merged(Classification::Reference, None),
+                    status: MergeStatus::Merged {
+                        classification: MergeClassification::Reference,
+                        confidence: None,
+                        quality_flags: Vec::new(),
+                    },
                 },
             ],
         );
@@ -1001,17 +959,22 @@ mod tests {
                 alerts: Vec::new(),
                 reference_ticks: None,
                 clients: vec![ClientOutcome {
-                    client_id: ClientId(1),
+                    id: ClientId(1),
+                    metadata: None,
                     primary_player: None,
                     stage_status: StageStatus::Wiped,
+                    reported_accurate: false,
                     accurate: false,
-                    last_tick: Tick(10),
+                    recorded_ticks: Ticks(10),
                     server_ticks: Some(ServerTicks {
                         count: 0,
                         precise: true,
                     }),
+                    anomalies: Vec::new(),
                     consistency_issues: Vec::new(),
-                    status: MergeStatus::Skipped(BadData::InvalidServerTickCount),
+                    status: MergeStatus::Skipped {
+                        error: "invalid server tick count".to_string(),
+                    },
                 }],
                 merged_count: 0,
                 unmerged_count: 0,
@@ -1056,16 +1019,19 @@ mod tests {
         let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
 
         assert!(merged.is_some());
-        let outcome = |client_id: i64, status: MergeStatus<'static>| ClientOutcome {
-            client_id: ClientId(client_id),
+        let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
+            id: ClientId(client_id),
+            metadata: None,
             primary_player: None,
             stage_status: StageStatus::Completed,
+            reported_accurate: true,
             accurate: true,
-            last_tick: Tick(90),
+            recorded_ticks: Ticks(90),
             server_ticks: Some(ServerTicks {
                 count: 90,
                 precise: true,
             }),
+            anomalies: Vec::new(),
             consistency_issues: Vec::new(),
             status,
         };
@@ -1078,28 +1044,36 @@ mod tests {
                     method: ReferenceMethod::AccurateModal,
                 }),
                 clients: vec![
-                    outcome(1, MergeStatus::Merged(Classification::Reference, None)),
+                    outcome(
+                        1,
+                        MergeStatus::Merged {
+                            classification: MergeClassification::Reference,
+                            confidence: None,
+                            quality_flags: Vec::new(),
+                        },
+                    ),
                     outcome(
                         2,
-                        MergeStatus::Merged(
-                            Classification::Matching,
-                            Some(StepConfidence {
+                        MergeStatus::Merged {
+                            classification: MergeClassification::Matching,
+                            confidence: Some(report::StepConfidence {
                                 overall: 1.0,
-                                structural: confidence::StructuralConfidence {
+                                structural: report::StructuralConfidence {
                                     value: 1.0,
                                     identity: true,
                                     target_coverage: 1.0,
                                     segments: Vec::new(),
                                     worst_segment_idx: None,
                                 },
-                                content: confidence::ContentConfidence {
+                                content: report::ContentConfidence {
                                     value: 1.0,
                                     disagreement_rate: 0.0,
                                     large_gap_rate: 0.0,
                                     attack_mapped_failure_rate: 0.0,
                                 },
                             }),
-                        ),
+                            quality_flags: Vec::new(),
+                        },
                     ),
                 ],
                 merged_count: 2,
@@ -1155,16 +1129,19 @@ mod tests {
         let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
 
         assert!(merged.is_some());
-        let outcome = |client_id: i64, status: MergeStatus<'static>| ClientOutcome {
-            client_id: ClientId(client_id),
+        let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
+            id: ClientId(client_id),
+            metadata: None,
             primary_player: None,
             stage_status: StageStatus::Completed,
+            reported_accurate: true,
             accurate: true,
-            last_tick: Tick(90),
+            recorded_ticks: Ticks(90),
             server_ticks: Some(ServerTicks {
                 count: 90,
                 precise: true,
             }),
+            anomalies: Vec::new(),
             consistency_issues: Vec::new(),
             status,
         };
@@ -1180,27 +1157,35 @@ mod tests {
                     method: ReferenceMethod::AccurateModal,
                 }),
                 clients: vec![
-                    outcome(1, MergeStatus::Merged(Classification::Reference, None)),
+                    outcome(
+                        1,
+                        MergeStatus::Merged {
+                            classification: MergeClassification::Reference,
+                            confidence: None,
+                            quality_flags: Vec::new(),
+                        },
+                    ),
                     outcome(
                         2,
-                        MergeStatus::Rejected(
-                            Classification::Matching,
-                            RejectionReason::PostMergeConsistency(vec![
-                                MergeConsistencyIssue::DuplicateNpcDeath {
+                        MergeStatus::Rejected {
+                            classification: MergeClassification::Matching,
+                            reason: report::RejectionReason::PostMergeConsistency {
+                                issues: vec![report::MergeConsistencyIssue::DuplicateNpcDeath {
                                     room_id: 1001,
                                     occurrences: vec![
-                                        merge_consistency::NpcOccurrence {
+                                        report::NpcOccurrence {
                                             tick: Tick(5),
                                             npc_id: crate::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
                                         },
-                                        merge_consistency::NpcOccurrence {
+                                        report::NpcOccurrence {
                                             tick: Tick(20),
                                             npc_id: crate::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
                                         },
                                     ],
-                                },
-                            ]),
-                        ),
+                                }],
+                            },
+                            quality_flags: Vec::new(),
+                        },
                     ),
                 ],
                 merged_count: 1,
@@ -1270,16 +1255,19 @@ mod tests {
         let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
 
         assert!(merged.is_some());
-        let outcome = |client_id: i64, status: MergeStatus<'static>| ClientOutcome {
-            client_id: ClientId(client_id),
+        let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
+            id: ClientId(client_id),
+            metadata: None,
             primary_player: None,
             stage_status: StageStatus::Completed,
+            reported_accurate: true,
             accurate: true,
-            last_tick: Tick(90),
+            recorded_ticks: Ticks(90),
             server_ticks: Some(ServerTicks {
                 count: 90,
                 precise: true,
             }),
+            anomalies: Vec::new(),
             consistency_issues: Vec::new(),
             status,
         };
@@ -1294,28 +1282,63 @@ mod tests {
                     method: ReferenceMethod::AccurateModal,
                 }),
                 clients: vec![
-                    outcome(1, MergeStatus::Merged(Classification::Reference, None)),
+                    outcome(
+                        1,
+                        MergeStatus::Merged {
+                            classification: MergeClassification::Reference,
+                            confidence: None,
+                            quality_flags: Vec::new(),
+                        },
+                    ),
                     outcome(
                         2,
-                        MergeStatus::Rejected(
-                            Classification::Matching,
-                            RejectionReason::LowMergeConfidence(StepConfidence {
-                                overall: 0.7,
-                                structural: confidence::StructuralConfidence {
-                                    value: 1.0,
-                                    identity: true,
-                                    target_coverage: 1.0,
-                                    segments: Vec::new(),
-                                    worst_segment_idx: None,
+                        MergeStatus::Rejected {
+                            classification: MergeClassification::Matching,
+                            reason: report::RejectionReason::LowMergeConfidence {
+                                confidence: report::StepConfidence {
+                                    overall: 0.7,
+                                    structural: report::StructuralConfidence {
+                                        value: 1.0,
+                                        identity: true,
+                                        target_coverage: 1.0,
+                                        segments: Vec::new(),
+                                        worst_segment_idx: None,
+                                    },
+                                    content: report::ContentConfidence {
+                                        value: 0.4,
+                                        disagreement_rate: 1.0,
+                                        large_gap_rate: 0.0,
+                                        attack_mapped_failure_rate: 0.0,
+                                    },
                                 },
-                                content: confidence::ContentConfidence {
-                                    value: 0.4,
-                                    disagreement_rate: 1.0,
-                                    large_gap_rate: 0.0,
-                                    attack_mapped_failure_rate: 0.0,
+                            },
+                            quality_flags: vec![
+                                report::QualityFlag::AttackTypeMismatch {
+                                    tick: Tick(0),
+                                    player: "1Ogp".to_string(),
+                                    kept_type: PlayerAttack::Scythe as i32,
+                                    discarded_type: PlayerAttack::BgsSpec as i32,
+                                    kept_source_client_id: ClientId(1),
+                                    discarded_source_client_id: ClientId(2),
                                 },
-                            }),
-                        ),
+                                report::QualityFlag::AttackTypeMismatch {
+                                    tick: Tick(5),
+                                    player: "1Ogp".to_string(),
+                                    kept_type: PlayerAttack::Scythe as i32,
+                                    discarded_type: PlayerAttack::BgsSpec as i32,
+                                    kept_source_client_id: ClientId(1),
+                                    discarded_source_client_id: ClientId(2),
+                                },
+                                report::QualityFlag::AttackTypeMismatch {
+                                    tick: Tick(10),
+                                    player: "1Ogp".to_string(),
+                                    kept_type: PlayerAttack::Scythe as i32,
+                                    discarded_type: PlayerAttack::BgsSpec as i32,
+                                    kept_source_client_id: ClientId(1),
+                                    discarded_source_client_id: ClientId(2),
+                                },
+                            ],
+                        },
                     ),
                 ],
                 merged_count: 1,

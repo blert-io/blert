@@ -1,8 +1,12 @@
 //! Stage event reconstruction and interpretation.
 
+use std::collections::BTreeSet;
+use std::time::Instant;
+
 use crate::item::{self, ItemDelta};
 use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
-use crate::merging::{self, MergedEvents, Tick};
+use crate::merging::{self, MergeReport, MergedEvents, Tick};
+use crate::metrics;
 use crate::proto::{Event, event};
 
 use super::ChallengeInfo;
@@ -15,6 +19,7 @@ pub struct InterpretOutput {
     /// Indices into `events` of the events kept for storage.
     pub(super) kept: Vec<usize>,
     pub(super) ctx: StageContext,
+    pub(super) report: MergeReport,
 }
 
 impl InterpretOutput {
@@ -42,6 +47,7 @@ impl InterpretOutput {
 pub enum InterpretError {
     /// The stage has no recorded data to process.
     NoData,
+    BadData(MergeReport),
 }
 
 /// Processes a stage's raw events into a canonical timeline.
@@ -67,9 +73,26 @@ pub fn interpret(
         party: party.as_slice(),
     };
 
-    // TODO(frolv): Save report
-    let (merged, _) = merging::merge(&merge_info, stage, records, None);
-    let mut events = merged.ok_or(InterpretError::NoData)?;
+    let mut client_ids = BTreeSet::new();
+    let mut total_bytes = 0;
+    for record in &records {
+        client_ids.insert(record.client_id());
+        if let ClientStageStream::Events { events, .. } = record {
+            total_bytes += events.len();
+        }
+    }
+    metrics::record_stage_event_payload(stage, total_bytes, client_ids.len());
+
+    let started = Instant::now();
+    let (merged, report) = merging::merge(&merge_info, stage, records, None);
+    metrics::observe_merge_duration(stage, started.elapsed().as_secs_f64() * 1000.0);
+    let Some(mut events) = merged else {
+        return Err(if report.clients.is_empty() {
+            InterpretError::NoData
+        } else {
+            InterpretError::BadData(report)
+        });
+    };
 
     let mut ctx = StageContext::new(stage, party);
     let mut kept = Vec::with_capacity(events.len());
@@ -90,7 +113,12 @@ pub fn interpret(
         events.restrict_accuracy_to(Tick(0));
     }
 
-    Ok(InterpretOutput { events, kept, ctx })
+    Ok(InterpretOutput {
+        events,
+        kept,
+        ctx,
+        report,
+    })
 }
 
 /// Handles a single event, updating state if necessary.

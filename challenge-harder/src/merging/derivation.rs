@@ -10,7 +10,7 @@ use crate::proto::{Coords, Event, Stage, event};
 use super::client_events::StageData;
 use super::timeline::{TickState, Timeline};
 use super::world;
-use super::{MergeContext, MergeStatus, RegisteredClient, Tick, Ticks};
+use super::{MergeContext, RegisteredClient, StepResult, Tick, Ticks};
 
 const FINAL_NYLO_WAVE: u32 = 31;
 const NYLO_WAVE_CYCLE: Ticks = Ticks(4);
@@ -148,8 +148,8 @@ struct MazePivots {
 fn merge_sote_pivots(ctx: &MergeContext, timeline: &mut Timeline) {
     let mut by_maze: BTreeMap<Maze, MazePivots> = BTreeMap::new();
 
-    for RegisteredClient { client, status } in &ctx.clients {
-        if !matches!(status, MergeStatus::Merged(..)) {
+    for RegisteredClient { client, result, .. } in &ctx.clients {
+        if !matches!(result, StepResult::Merged { .. }) {
             continue;
         }
         let StageData::Sotetseg { pivots } = &client.stage_data else {
@@ -303,7 +303,11 @@ mod tests {
                             },
                         ],
                     ),
-                    status: MergeStatus::Merged(Classification::Reference, None),
+                    classification: Classification::Reference,
+                    result: StepResult::Merged {
+                        confidence: None,
+                        quality_flags: Vec::new(),
+                    },
                 },
                 RegisteredClient {
                     client: client_with_pivots(
@@ -315,7 +319,11 @@ mod tests {
                             underworld: vec![(4, 0).into(), (6, 4).into()],
                         }],
                     ),
-                    status: MergeStatus::Merged(Classification::Matching, None),
+                    classification: Classification::Matching,
+                    result: StepResult::Merged {
+                        confidence: None,
+                        quality_flags: Vec::new(),
+                    },
                 },
             ],
         };
@@ -365,7 +373,11 @@ mod tests {
                         underworld: Vec::new(),
                     }],
                 ),
-                status: MergeStatus::Merged(Classification::Reference, None),
+                classification: Classification::Reference,
+                result: StepResult::Merged {
+                    confidence: None,
+                    quality_flags: Vec::new(),
+                },
             }],
         };
 
@@ -403,7 +415,11 @@ mod tests {
                             underworld: vec![(2, 6).into(), (5, 0).into()],
                         }],
                     ),
-                    status: MergeStatus::Merged(Classification::Reference, None),
+                    classification: Classification::Reference,
+                    result: StepResult::Merged {
+                        confidence: None,
+                        quality_flags: Vec::new(),
+                    },
                 },
                 RegisteredClient {
                     client: client_with_pivots(
@@ -415,7 +431,8 @@ mod tests {
                             underworld: vec![(9, 4).into(), (12, 2).into()],
                         }],
                     ),
-                    status: MergeStatus::Unmerged(Classification::Mismatched),
+                    classification: Classification::Mismatched,
+                    result: StepResult::Unmerged,
                 },
             ],
         };

@@ -17,8 +17,8 @@ use super::event::TaggedEvent;
 use super::mapping::MergeMapping;
 use super::timeline::Timeline;
 use super::{
-    ChallengeInfo, Classification, MergeContext, MergeStatus, MergedEvents, Metadata,
-    RegisteredClient, Tick, Ticks,
+    ChallengeInfo, Classification, MergeContext, MergedEvents, Metadata, RegisteredClient,
+    StepResult, Tick, Ticks,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -190,10 +190,14 @@ impl<'a> MergeContextBuilder<'a> {
             .enumerate()
             .map(|(index, client)| RegisteredClient {
                 client,
-                status: if index == 0 {
-                    MergeStatus::Merged(Classification::Reference, None)
+                classification: if index == 0 {
+                    Classification::Reference
                 } else {
-                    MergeStatus::Merged(Classification::Matching, None)
+                    Classification::Matching
+                },
+                result: StepResult::Merged {
+                    confidence: None,
+                    quality_flags: Vec::new(),
                 },
             })
             .collect();
