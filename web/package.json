@@ -14,7 +14,8 @@
     "format": "prettier --check . --ignore-path ../.prettierignore",
     "format:fix": "prettier --write . --ignore-path ../.prettierignore",
     "test": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand"
+    "test:coverage": "jest --coverage --runInBand",
+    "smoke:auth": "node scripts/ci/auth-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
