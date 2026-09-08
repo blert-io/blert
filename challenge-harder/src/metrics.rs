@@ -9,8 +9,9 @@ use prometheus::{
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, RecordingType, Stage, StageExt,
+    ChallengeMode, ChallengeStatus, ChallengeType, RecordingType, Stage, StageExt, StageStatus,
 };
+use crate::merging::{MergeClassification, MergeReport};
 
 static HTTP_REQUESTS: LazyLock<IntCounterVec> = LazyLock::new(|| {
     register_int_counter_vec!(
@@ -177,6 +178,132 @@ static PROCESSING_RUNS: LazyLock<IntCounterVec> = LazyLock::new(|| {
     .unwrap()
 });
 
+static STAGE_COMPLETIONS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_stage_complete_total",
+            "Stage processing outcomes"
+        ),
+        &[
+            "stage",
+            "status",
+            "accurate",
+            "has_merge_failures",
+            "has_skipped_clients"
+        ]
+    )
+    .unwrap()
+});
+
+static CLIENT_REPORTED_TIME_PRECISION: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_client_reported_time_precision_total",
+            "Client reported time precision"
+        ),
+        &["precision"]
+    )
+    .unwrap()
+});
+
+static STAGE_PAYLOAD_PER_CLIENT: LazyLock<HistogramVec> = LazyLock::new(|| {
+    register_histogram_vec!(
+        histogram_opts!(
+            "challenge_server_stage_event_payload_per_client_bytes",
+            "Average payload size per client for stage events",
+            vec![
+                8_192.0,
+                16_384.0,
+                32_768.0,
+                65_536.0,
+                131_072.0,
+                262_144.0,
+                524_288.0,
+                1_048_576.0
+            ]
+        ),
+        &["stage"]
+    )
+    .unwrap()
+});
+
+static STAGE_PAYLOAD_TOTAL: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_stage_event_payload_bytes_total",
+            "Total payload bytes per stage"
+        ),
+        &["stage"]
+    )
+    .unwrap()
+});
+
+static MERGE_DURATION: LazyLock<HistogramVec> = LazyLock::new(|| {
+    register_histogram_vec!(
+        histogram_opts!(
+            "challenge_server_merge_duration_ms",
+            "Time spent merging client events",
+            vec![
+                1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1_000.0
+            ]
+        ),
+        &["stage"]
+    )
+    .unwrap()
+});
+
+static MERGE_CLIENTS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_merge_clients_total",
+            "Per-client merge results"
+        ),
+        &["classification", "status"]
+    )
+    .unwrap()
+});
+
+static MERGE_ALERTS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new("challenge_server_merge_alerts_total", "Merge alert counts"),
+        &["stage", "type"]
+    )
+    .unwrap()
+});
+
+static CLIENT_ANOMALIES: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_client_anomalies_total",
+            "Client anomaly occurrences"
+        ),
+        &["stage", "anomaly"]
+    )
+    .unwrap()
+});
+
+static MERGE_REQUESTS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_merge_requests_total",
+            "Merge request outcomes"
+        ),
+        &["outcome"]
+    )
+    .unwrap()
+});
+
+static MERGE_RESULT_WRITES: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_merge_result_writes_total",
+            "Merge result database write outcomes"
+        ),
+        &["status"]
+    )
+    .unwrap()
+});
+
 /// How a challenge start request was resolved.
 #[derive(Debug, Clone, Copy)]
 pub enum RequestAction {
@@ -250,6 +377,32 @@ impl RunResult {
             RunResult::Failed => "failed",
             RunResult::TimedOut => "timed_out",
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum MergeOutcome {
+    Merged,
+    NoData,
+    BadData,
+}
+
+impl MergeOutcome {
+    fn label(self) -> &'static str {
+        match self {
+            MergeOutcome::Merged => "merged",
+            MergeOutcome::NoData => "no_data",
+            MergeOutcome::BadData => "bad_data",
+        }
+    }
+}
+
+fn stage_status_label(status: StageStatus) -> &'static str {
+    match status {
+        StageStatus::Entered => "entered",
+        StageStatus::Started => "started",
+        StageStatus::Completed => "completed",
+        StageStatus::Wiped => "wiped",
     }
 }
 
@@ -390,6 +543,87 @@ pub fn record_stage_events_write(success: bool) {
     let result = if success { "success" } else { "error" };
     REPOSITORY_WRITES
         .with_label_values(&["challenge", "stage_events", result])
+        .inc();
+}
+
+pub fn record_merge_result_write(success: bool) {
+    let status = if success { "success" } else { "error" };
+    MERGE_RESULT_WRITES.with_label_values(&[status]).inc();
+}
+
+pub fn record_stage_event_payload(stage: Stage, total_bytes: usize, client_count: usize) {
+    let stage = stage_label(stage);
+    let total = u32::try_from(total_bytes).unwrap_or(u32::MAX);
+    if let Ok(clients) = u32::try_from(client_count)
+        && clients > 0
+    {
+        STAGE_PAYLOAD_PER_CLIENT
+            .with_label_values(&[&stage])
+            .observe(f64::from(total) / f64::from(clients));
+    }
+    STAGE_PAYLOAD_TOTAL
+        .with_label_values(&[&stage])
+        .inc_by(u64::from(total));
+}
+
+pub fn observe_merge_duration(stage: Stage, duration_ms: f64) {
+    MERGE_DURATION
+        .with_label_values(&[&stage_label(stage)])
+        .observe(duration_ms);
+}
+
+pub fn record_merge_outcome(outcome: MergeOutcome) {
+    MERGE_REQUESTS.with_label_values(&[outcome.label()]).inc();
+}
+
+pub fn record_merge_report(stage: Stage, report: &MergeReport) {
+    let stage = stage_label(stage);
+    for client in &report.clients {
+        let classification = client
+            .status
+            .classification()
+            .map_or("none", MergeClassification::name);
+        MERGE_CLIENTS
+            .with_label_values(&[&classification, &client.status.name()])
+            .inc();
+        for anomaly in &client.anomalies {
+            CLIENT_ANOMALIES
+                .with_label_values(&[&stage, &anomaly.to_string()])
+                .inc();
+        }
+        if let Some(server_ticks) = &client.server_ticks {
+            let precision = if server_ticks.precise {
+                "precise"
+            } else {
+                "imprecise"
+            };
+            CLIENT_REPORTED_TIME_PRECISION
+                .with_label_values(&[precision])
+                .inc();
+        }
+    }
+    for alert in &report.alerts {
+        MERGE_ALERTS
+            .with_label_values(&[&stage, &alert.name().to_string()])
+            .inc();
+    }
+}
+
+pub fn record_stage_completion(
+    stage: Stage,
+    status: StageStatus,
+    accurate: bool,
+    has_merge_failures: bool,
+    has_skipped_clients: bool,
+) {
+    STAGE_COMPLETIONS
+        .with_label_values(&[
+            &stage_label(stage),
+            stage_status_label(status),
+            bool_label(accurate),
+            bool_label(has_merge_failures),
+            bool_label(has_skipped_clients),
+        ])
         .inc();
 }
 

@@ -5,18 +5,20 @@ use std::time::Instant;
 
 use serde::Serialize;
 
-use crate::lifecycle::core::types::{ClientId, UserId};
+use crate::lifecycle::core::types::ClientId;
 use crate::proto::event;
 
 use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
 use super::classification::{ClientClassification, ReferenceMethod};
 use super::client_events::{self, BadDataClient, ClientEvents, ReportedInfo};
-use super::consolidator::Disagreement;
 use super::event::IdentityKey;
 use super::mapping::{MergeMapping, TickMapping};
-use super::merge_consistency;
+use super::report::{
+    Actor, ClientMetadata, MergeClassification, MergeStatus, QualityFlag, RejectionReason, Side,
+    StepConfidence,
+};
 use super::timeline::{GraphicsCoords, GraphicsKind, NpcState, PlayerState, Target, TickState};
-use super::{Tick, Ticks};
+use super::{RegisteredClient, Tick, Ticks};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,14 +31,6 @@ struct InputClient {
     recorded_ticks: u32,
     ticks: Vec<TickSummary>,
     stage_data: StageData,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClientMetadata {
-    user_id: UserId,
-    plugin_version: String,
-    rune_lite_version: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -258,42 +252,6 @@ impl From<&TickState<'_>> for TickSummary {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum StepClassification {
-    Reference,
-    Matching,
-    Mismatched,
-}
-
-impl From<super::Classification> for StepClassification {
-    fn from(classification: super::Classification) -> Self {
-        match classification {
-            super::Classification::Reference => Self::Reference,
-            super::Classification::Matching => Self::Matching,
-            super::Classification::Mismatched => Self::Mismatched,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum StepStatus {
-    Merged,
-    Unmerged,
-    Skipped,
-}
-
-impl From<&super::MergeStatus<'_>> for StepStatus {
-    fn from(status: &super::MergeStatus<'_>) -> Self {
-        match status {
-            super::MergeStatus::Merged(..) => Self::Merged,
-            super::MergeStatus::Unmerged(_) | super::MergeStatus::Rejected(..) => Self::Unmerged,
-            super::MergeStatus::Skipped(_) => Self::Skipped,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
 #[serde(
     tag = "action",
     rename_all = "SCREAMING_SNAKE_CASE",
@@ -475,22 +433,6 @@ pub(super) enum AttackMappedDiscardReason {
     AttackNotFound,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "lowercase")]
-enum Side {
-    Base,
-    Target,
-}
-
-impl From<super::consolidator::Side> for Side {
-    fn from(side: super::consolidator::Side) -> Self {
-        match side {
-            super::consolidator::Side::Base => Self::Base,
-            super::consolidator::Side::Target => Self::Target,
-        }
-    }
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AttackMappedCandidate {
@@ -631,249 +573,6 @@ struct ReconciliationTrace {
     action_conflicts: Vec<ActionConflictEntry>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "kind", content = "id", rename_all = "lowercase")]
-enum Actor {
-    Npc(u64),
-    Player(String),
-}
-
-impl From<&Target<'_>> for Actor {
-    fn from(target: &Target<'_>) -> Self {
-        match target {
-            Target::Npc { room_id, .. } => Self::Npc(*room_id),
-            Target::Player(name) => Self::Player((*name).to_string()),
-        }
-    }
-}
-
-impl From<super::timeline::Actor<'_>> for Actor {
-    fn from(actor: super::timeline::Actor<'_>) -> Self {
-        match actor {
-            super::timeline::Actor::Npc(room_id) => Self::Npc(room_id),
-            super::timeline::Actor::Player(name) => Self::Player(name.to_string()),
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "SCREAMING_SNAKE_CASE",
-    rename_all_fields = "camelCase"
-)]
-enum QualityFlag {
-    AttackTypeMismatch {
-        tick: Tick,
-        player: String,
-        kept_type: i32,
-        discarded_type: i32,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    AttackTargetMismatch {
-        tick: Tick,
-        player: String,
-        kept_target: Actor,
-        discarded_target: Actor,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    SpellTypeMismatch {
-        tick: Tick,
-        player: String,
-        kept_type: i32,
-        discarded_type: i32,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    SpellTargetMismatch {
-        tick: Tick,
-        player: String,
-        kept_target: Actor,
-        discarded_target: Actor,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    NpcAttackTypeMismatch {
-        tick: Tick,
-        room_id: u64,
-        npc_id: u32,
-        kept_type: i32,
-        discarded_type: i32,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    NpcAttackTargetMismatch {
-        tick: Tick,
-        room_id: u64,
-        npc_id: u32,
-        kept_target: Actor,
-        discarded_target: Actor,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    UnexpectedConflict {
-        event_type: &'static str,
-        attack_tick: Tick,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
-    },
-    LargeTemporalGap {
-        event_type: &'static str,
-        tick_gap: Ticks,
-        base_tick: Tick,
-        target_tick: Tick,
-    },
-    UnmappedCrossTickReference {
-        event_type: &'static str,
-        merged_tick: Tick,
-        source_tick: Tick,
-        resolved_tick: Tick,
-    },
-    AttackMappedNotFound {
-        event_type: &'static str,
-        source: Side,
-        client_tick: Tick,
-        client_attack_tick: Tick,
-    },
-}
-
-impl From<&super::consolidator::QualityFlag<'_>> for QualityFlag {
-    #[expect(clippy::too_many_lines)]
-    fn from(flag: &super::consolidator::QualityFlag<'_>) -> Self {
-        match flag {
-            super::consolidator::QualityFlag::Disagreement {
-                tick,
-                kept_source,
-                discarded_source,
-                subject,
-            } => {
-                let tick = *tick;
-                let kept_source_client_id = *kept_source;
-                let discarded_source_client_id = *discarded_source;
-                match subject {
-                    Disagreement::PlayerAttackKind {
-                        player,
-                        kept,
-                        discarded,
-                    } => Self::AttackTypeMismatch {
-                        tick,
-                        player: (*player).to_string(),
-                        kept_type: *kept as i32,
-                        discarded_type: *discarded as i32,
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                    Disagreement::PlayerAttackTarget {
-                        player,
-                        kept,
-                        discarded,
-                    } => Self::AttackTargetMismatch {
-                        tick,
-                        player: (*player).to_string(),
-                        kept_target: kept.into(),
-                        discarded_target: discarded.into(),
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                    Disagreement::PlayerSpellKind {
-                        player,
-                        kept,
-                        discarded,
-                    } => Self::SpellTypeMismatch {
-                        tick,
-                        player: (*player).to_string(),
-                        kept_type: *kept as i32,
-                        discarded_type: *discarded as i32,
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                    Disagreement::PlayerSpellTarget {
-                        player,
-                        kept,
-                        discarded,
-                    } => Self::SpellTargetMismatch {
-                        tick,
-                        player: (*player).to_string(),
-                        kept_target: kept.into(),
-                        discarded_target: discarded.into(),
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                    Disagreement::NpcAttackKind {
-                        room_id,
-                        npc_id,
-                        kept,
-                        discarded,
-                    } => Self::NpcAttackTypeMismatch {
-                        tick,
-                        room_id: *room_id,
-                        npc_id: *npc_id,
-                        kept_type: *kept as i32,
-                        discarded_type: *discarded as i32,
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                    Disagreement::NpcAttackTarget {
-                        room_id,
-                        npc_id,
-                        kept,
-                        discarded,
-                    } => Self::NpcAttackTargetMismatch {
-                        tick,
-                        room_id: *room_id,
-                        npc_id: *npc_id,
-                        kept_target: kept.into(),
-                        discarded_target: discarded.into(),
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                    Disagreement::AttackMapped { kind } => Self::UnexpectedConflict {
-                        event_type: kind.as_str_name(),
-                        attack_tick: tick,
-                        kept_source_client_id,
-                        discarded_source_client_id,
-                    },
-                }
-            }
-            super::consolidator::QualityFlag::LargeTemporalGap {
-                kind,
-                gap,
-                base_tick,
-                target_tick,
-            } => Self::LargeTemporalGap {
-                event_type: kind.as_str_name(),
-                tick_gap: *gap,
-                base_tick: *base_tick,
-                target_tick: *target_tick,
-            },
-            super::consolidator::QualityFlag::UnmappedCrossTickReference {
-                kind,
-                merged_tick,
-                source_tick,
-                resolved_tick,
-            } => Self::UnmappedCrossTickReference {
-                event_type: kind.as_str_name(),
-                merged_tick: *merged_tick,
-                source_tick: *source_tick,
-                resolved_tick: *resolved_tick,
-            },
-            super::consolidator::QualityFlag::AttackMappedNotFound {
-                kind,
-                side,
-                client_tick,
-                client_attack_tick,
-            } => Self::AttackMappedNotFound {
-                event_type: kind.as_str_name(),
-                source: (*side).into(),
-                client_tick: *client_tick,
-                client_attack_tick: *client_attack_tick,
-            },
-        }
-    }
-}
-
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ReconciliationCounters {
@@ -898,300 +597,11 @@ impl From<&super::consolidator::ReconciliationCounters> for ReconciliationCounte
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StepConfidence {
-    overall: f64,
-    structural: StructuralConfidence,
-    content: ContentConfidence,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StructuralConfidence {
-    value: f64,
-    identity: bool,
-    target_coverage: f64,
-    segments: Vec<SegmentConfidence>,
-    worst_segment_idx: Option<usize>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SegmentConfidence {
-    base_start: usize,
-    base_end: usize,
-    discriminability: f64,
-    bonus_support: f64,
-    score: f64,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ContentConfidence {
-    value: f64,
-    disagreement_rate: f64,
-    large_gap_rate: f64,
-    attack_mapped_failure_rate: f64,
-}
-
-impl From<&super::StepConfidence> for StepConfidence {
-    fn from(confidence: &super::StepConfidence) -> Self {
-        Self {
-            overall: confidence.overall,
-            structural: StructuralConfidence::from(&confidence.structural),
-            content: ContentConfidence::from(&confidence.content),
-        }
-    }
-}
-
-impl From<&super::confidence::StructuralConfidence> for StructuralConfidence {
-    fn from(structural: &super::confidence::StructuralConfidence) -> Self {
-        Self {
-            value: structural.value,
-            identity: structural.identity,
-            target_coverage: structural.target_coverage,
-            segments: structural
-                .segments
-                .iter()
-                .map(SegmentConfidence::from)
-                .collect(),
-            worst_segment_idx: structural.worst_segment_idx,
-        }
-    }
-}
-
-impl From<&super::confidence::SegmentConfidence> for SegmentConfidence {
-    fn from(segment: &super::confidence::SegmentConfidence) -> Self {
-        Self {
-            base_start: segment.base_start,
-            base_end: segment.base_end,
-            discriminability: segment.discriminability,
-            bonus_support: segment.bonus_support,
-            score: segment.score,
-        }
-    }
-}
-
-impl From<&super::confidence::ContentConfidence> for ContentConfidence {
-    fn from(content: &super::confidence::ContentConfidence) -> Self {
-        Self {
-            value: content.value,
-            disagreement_rate: content.disagreement_rate,
-            large_gap_rate: content.large_gap_rate,
-            attack_mapped_failure_rate: content.attack_mapped_failure_rate,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct StepRejection {
-    reason: RejectionReason,
-    issues: Vec<MergeConsistencyIssue>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum RejectionReason {
-    PostMergeConsistency,
-    LowMergeConfidence,
-}
-
-impl From<&super::RejectionReason<'_>> for StepRejection {
-    fn from(reason: &super::RejectionReason<'_>) -> Self {
-        match reason {
-            super::RejectionReason::PostMergeConsistency(issues) => Self {
-                reason: RejectionReason::PostMergeConsistency,
-                issues: issues.iter().map(MergeConsistencyIssue::from).collect(),
-            },
-            super::RejectionReason::LowMergeConfidence(_) => Self {
-                reason: RejectionReason::LowMergeConfidence,
-                issues: Vec::new(),
-            },
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[serde(
-    tag = "kind",
-    rename_all = "SCREAMING_SNAKE_CASE",
-    rename_all_fields = "camelCase"
-)]
-enum MergeConsistencyIssue {
-    DuplicatePlayerDeath {
-        player: String,
-        ticks: Vec<Tick>,
-    },
-    DuplicateNpcSpawn {
-        room_id: u64,
-        occurrences: Vec<NpcOccurrence>,
-    },
-    DuplicateNpcDeath {
-        room_id: u64,
-        occurrences: Vec<NpcOccurrence>,
-    },
-    DuplicateStreamEvent {
-        event_type: &'static str,
-        identity_key: String,
-        ticks: Vec<Tick>,
-    },
-    WeaponCooldownViolation {
-        player: String,
-        previous: PlayerAttackOccurrence,
-        current: PlayerAttackOccurrence,
-        cooldown: Ticks,
-    },
-    DeathBeforeSpawn {
-        room_id: u64,
-        death_tick: Tick,
-        spawn_tick: Option<Tick>,
-    },
-    PhaseOutOfOrder {
-        previous: PhaseOccurrence,
-        current: PhaseOccurrence,
-    },
-    AttackTargetMissing {
-        tick: Tick,
-        attacker: Actor,
-        target: Actor,
-    },
-    ExclusiveEventViolation {
-        exclusive_types: (&'static str, &'static str),
-        tick: Tick,
-    },
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct NpcOccurrence {
-    tick: Tick,
-    npc_id: u32,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PlayerAttackOccurrence {
-    tick: Tick,
-    r#type: i32,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PhaseOccurrence {
-    event_type: &'static str,
-    identity_key: String,
-    tick: Tick,
-}
-
-impl From<&merge_consistency::NpcOccurrence> for NpcOccurrence {
-    fn from(occurrence: &merge_consistency::NpcOccurrence) -> Self {
-        Self {
-            tick: occurrence.tick,
-            npc_id: occurrence.npc_id,
-        }
-    }
-}
-
-impl From<&merge_consistency::PlayerAttackOccurrence> for PlayerAttackOccurrence {
-    fn from(occurrence: &merge_consistency::PlayerAttackOccurrence) -> Self {
-        Self {
-            tick: occurrence.tick,
-            r#type: occurrence.kind as i32,
-        }
-    }
-}
-
-impl From<&merge_consistency::PhaseOccurrence> for PhaseOccurrence {
-    fn from(occurrence: &merge_consistency::PhaseOccurrence) -> Self {
-        Self {
-            event_type: occurrence.kind.as_str_name(),
-            identity_key: occurrence.identity_key.clone(),
-            tick: occurrence.tick,
-        }
-    }
-}
-
-impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIssue {
-    fn from(issue: &merge_consistency::MergeConsistencyIssue<'_>) -> Self {
-        use merge_consistency::MergeConsistencyIssue as Issue;
-        match issue {
-            Issue::DuplicatePlayerDeath { player, ticks } => Self::DuplicatePlayerDeath {
-                player: (*player).to_string(),
-                ticks: ticks.clone(),
-            },
-            Issue::DuplicateNpcSpawn {
-                room_id,
-                occurrences,
-            } => Self::DuplicateNpcSpawn {
-                room_id: *room_id,
-                occurrences: occurrences.iter().map(NpcOccurrence::from).collect(),
-            },
-            Issue::DuplicateNpcDeath {
-                room_id,
-                occurrences,
-            } => Self::DuplicateNpcDeath {
-                room_id: *room_id,
-                occurrences: occurrences.iter().map(NpcOccurrence::from).collect(),
-            },
-            Issue::DuplicateStreamEvent {
-                kind,
-                identity_key,
-                ticks,
-            } => Self::DuplicateStreamEvent {
-                event_type: kind.as_str_name(),
-                identity_key: identity_key.clone(),
-                ticks: ticks.clone(),
-            },
-            Issue::WeaponCooldownViolation {
-                player,
-                previous,
-                current,
-                cooldown,
-            } => Self::WeaponCooldownViolation {
-                player: (*player).to_string(),
-                previous: previous.into(),
-                current: current.into(),
-                cooldown: *cooldown,
-            },
-            Issue::DeathBeforeSpawn {
-                room_id,
-                death_tick,
-                spawn_tick,
-            } => Self::DeathBeforeSpawn {
-                room_id: *room_id,
-                death_tick: *death_tick,
-                spawn_tick: *spawn_tick,
-            },
-            Issue::PhaseOutOfOrder { previous, current } => Self::PhaseOutOfOrder {
-                previous: previous.into(),
-                current: current.into(),
-            },
-            Issue::AttackTargetMissing {
-                tick,
-                attacker,
-                target,
-            } => Self::AttackTargetMissing {
-                tick: *tick,
-                attacker: (*attacker).into(),
-                target: (*target).into(),
-            },
-            Issue::ExclusiveEventViolation {
-                exclusive_types: (a, b),
-                tick,
-            } => Self::ExclusiveEventViolation {
-                exclusive_types: (a.as_str_name(), b.as_str_name()),
-                tick: *tick,
-            },
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct MergeStep {
     client_id: ClientId,
-    classification: StepClassification,
-    status: StepStatus,
+    status: &'static str,
+    classification: MergeClassification,
+    reason: Option<RejectionReason>,
     duration_ms: f64,
     alignment: Option<StepAlignment>,
     mapping: Option<StepMapping>,
@@ -1200,7 +610,6 @@ struct MergeStep {
     quality_flags: Vec<QualityFlag>,
     counters: ReconciliationCounters,
     confidence: Option<StepConfidence>,
-    rejection: Option<StepRejection>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1233,7 +642,6 @@ pub struct TraceOutput {
 #[derive(Debug)]
 struct CurrentStep {
     client_id: ClientId,
-    classification: StepClassification,
     started_at: Instant,
     alignment: Option<StepAlignment>,
     mapping: Option<StepMapping>,
@@ -1242,7 +650,6 @@ struct CurrentStep {
     quality_flags: Vec<QualityFlag>,
     counters: ReconciliationCounters,
     confidence: Option<StepConfidence>,
-    rejection: Option<StepRejection>,
 }
 
 pub struct Tracer {
@@ -1302,7 +709,7 @@ impl Tracer {
             metadata: info.plugin_info.as_ref().map(|plugin_info| ClientMetadata {
                 user_id: plugin_info.user_id,
                 plugin_version: plugin_info.plugin_version.clone(),
-                rune_lite_version: plugin_info.runelite_version.clone(),
+                runelite_version: plugin_info.runelite_version.clone(),
             }),
             reported_accurate: info.reported_accurate,
             accurate,
@@ -1342,14 +749,9 @@ impl Tracer {
         });
     }
 
-    pub(super) fn begin_merge_step(
-        &mut self,
-        client_id: ClientId,
-        classification: super::Classification,
-    ) {
+    pub(super) fn begin_merge_step(&mut self, client_id: ClientId) {
         self.current_step = Some(CurrentStep {
             client_id,
-            classification: classification.into(),
             started_at: Instant::now(),
             alignment: None,
             mapping: None,
@@ -1358,7 +760,6 @@ impl Tracer {
             quality_flags: Vec::new(),
             counters: ReconciliationCounters::default(),
             confidence: None,
-            rejection: None,
         });
     }
 
@@ -1499,28 +900,28 @@ impl Tracer {
         }
     }
 
-    pub(super) fn record_step_rejection(&mut self, reason: &super::RejectionReason<'_>) {
-        if let Some(step) = &mut self.current_step {
-            step.rejection = Some(reason.into());
-        }
-    }
-
     /// Commits the in-progress merge step into the output with its outcome.
-    pub(super) fn end_merge_step(&mut self, status: &super::MergeStatus<'_>) {
-        if let Some(step) = self.current_step.take() {
+    pub(super) fn end_merge_step(&mut self, client: &RegisteredClient<'_>) {
+        if let Some(current) = self.current_step.take() {
+            let status = MergeStatus::from(client);
             self.output.merge_steps.push(MergeStep {
-                client_id: step.client_id,
-                classification: step.classification,
-                status: status.into(),
-                duration_ms: step.started_at.elapsed().as_secs_f64() * 1000.0,
-                alignment: step.alignment,
-                mapping: step.mapping,
-                tick_decisions: step.tick_decisions,
-                reconciliation: step.reconciliation,
-                quality_flags: step.quality_flags,
-                counters: step.counters,
-                confidence: step.confidence,
-                rejection: step.rejection,
+                client_id: current.client_id,
+                status: status.name(),
+                classification: client.classification.into(),
+                reason: match status {
+                    MergeStatus::Rejected { reason, .. } => Some(reason),
+                    MergeStatus::Skipped { .. }
+                    | MergeStatus::Merged { .. }
+                    | MergeStatus::Unmerged { .. } => None,
+                },
+                duration_ms: current.started_at.elapsed().as_secs_f64() * 1000.0,
+                alignment: current.alignment,
+                mapping: current.mapping,
+                tick_decisions: current.tick_decisions,
+                reconciliation: current.reconciliation,
+                quality_flags: current.quality_flags,
+                counters: current.counters,
+                confidence: current.confidence,
             });
         }
     }

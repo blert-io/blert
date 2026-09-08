@@ -34,11 +34,17 @@ pub(super) fn assert_stage_artifacts(
     custom_data: &serde_json::Value,
     challenge: &ChallengeData,
     events: &[Event],
+    merge_report: &serde_json::Value,
 ) {
     assert_golden(
         name,
         &format!("{name}_custom_data.json.gz"),
         &serde_json::to_string_pretty(custom_data).expect("custom data serializes"),
+    );
+    assert_golden(
+        name,
+        &format!("{name}_merge_report.json.gz"),
+        &serde_json::to_string_pretty(merge_report).expect("merge report rows serialize"),
     );
     assert_golden(
         name,

@@ -115,7 +115,14 @@ async fn wave_test() {
         .load_stage_events(uuid, Stage::InfernoWave42, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("inferno_wave_42", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::InfernoWave42).await;
+    golden::assert_stage_artifacts(
+        "inferno_wave_42",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])

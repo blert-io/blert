@@ -179,7 +179,14 @@ async fn maiden_test() {
         .load_stage_events(uuid, Stage::TobMaiden, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("tob_maiden", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobMaiden).await;
+    golden::assert_stage_artifacts(
+        "tob_maiden",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -452,7 +459,14 @@ async fn bloat_test() {
         .load_stage_events(uuid, Stage::TobBloat, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("tob_bloat", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobBloat).await;
+    golden::assert_stage_artifacts(
+        "tob_bloat",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -760,7 +774,14 @@ async fn nylocas_test() {
         .load_stage_events(uuid, Stage::TobNylocas, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("tob_nylocas", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobNylocas).await;
+    golden::assert_stage_artifacts(
+        "tob_nylocas",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -1061,7 +1082,14 @@ async fn sotetseg_test() {
         .load_stage_events(uuid, Stage::TobSotetseg, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("tob_sotetseg", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobSotetseg).await;
+    golden::assert_stage_artifacts(
+        "tob_sotetseg",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -1327,7 +1355,14 @@ async fn xarpus_test() {
         .load_stage_events(uuid, Stage::TobXarpus, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("tob_xarpus", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobXarpus).await;
+    golden::assert_stage_artifacts(
+        "tob_xarpus",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -1644,7 +1679,14 @@ async fn verzik_test() {
         .load_stage_events(uuid, Stage::TobVerzik, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts("tob_verzik", &custom_data, &stored_data, &events);
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobVerzik).await;
+    golden::assert_stage_artifacts(
+        "tob_verzik",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -1808,4 +1850,554 @@ async fn verify_verzik_rows(
     assert_eq!(row.get::<_, Option<i32>>(2), Some(394));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
+}
+
+const BLOAT_MERGE_LOW_CONFIDENCE_UUID: &str = "27045191-fb44-4dfe-a6ab-1e83ba3b15d8";
+
+#[tokio::test]
+async fn bloat_merge_low_confidence_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = BLOAT_MERGE_LOW_CONFIDENCE_UUID
+        .parse()
+        .expect("uuid is valid");
+    let party: Vec<String> = PARTY[..4].iter().map(ToString::to_string).collect();
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+
+    prepare_fixture(
+        uuid,
+        Stage::TobBloat,
+        &load_fixture("tob_bloat_merge_low_confidence"),
+    )
+    .await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig::default(),
+    );
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tob,
+        mode: ChallengeMode::TobRegular,
+        party,
+        party_changed: false,
+        stage: Stage::TobBloat,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 4).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TobBloat,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("bloat runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Wiped,
+            ticks: 87,
+        },
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Wiped as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(87));
+    let custom_data = row
+        .get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present");
+
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TobBloat, None)
+        .await
+        .expect("stage events");
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobBloat).await;
+    golden::assert_stage_artifacts(
+        "tob_bloat_merge_low_confidence",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
+}
+
+const BLOAT_MERGE_UNMERGED_CLIENT_UUID: &str = "fcf5ffa4-507f-48f2-bb44-619d26162c37";
+
+#[tokio::test]
+async fn bloat_merge_unmerged_client_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = BLOAT_MERGE_UNMERGED_CLIENT_UUID
+        .parse()
+        .expect("uuid is valid");
+    let party: Vec<String> = PARTY.iter().map(ToString::to_string).collect();
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+
+    prepare_fixture(
+        uuid,
+        Stage::TobBloat,
+        &load_fixture("tob_bloat_merge_unmerged_client"),
+    )
+    .await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig::default(),
+    );
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tob,
+        mode: ChallengeMode::TobHard,
+        party,
+        party_changed: false,
+        stage: Stage::TobBloat,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, PARTY.len()).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TobBloat,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("bloat runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 145,
+        },
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Completed as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(145));
+    let custom_data = row
+        .get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present");
+
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TobBloat, None)
+        .await
+        .expect("stage events");
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobBloat).await;
+    golden::assert_stage_artifacts(
+        "tob_bloat_merge_unmerged_client",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
+}
+
+const NYLOCAS_MERGE_CONSISTENCY_REJECTION_UUID: &str = "622c5e9b-615f-40e3-9e89-7a42682cb6ca";
+
+#[tokio::test]
+async fn nylocas_merge_consistency_rejection_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = NYLOCAS_MERGE_CONSISTENCY_REJECTION_UUID
+        .parse()
+        .expect("uuid is valid");
+    let party: Vec<String> = PARTY.iter().map(ToString::to_string).collect();
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+
+    prepare_fixture(
+        uuid,
+        Stage::TobNylocas,
+        &load_fixture("tob_nylocas_merge_consistency_rejection"),
+    )
+    .await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig::default(),
+    );
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tob,
+        mode: ChallengeMode::TobRegular,
+        party,
+        party_changed: false,
+        stage: Stage::TobNylocas,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, PARTY.len()).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TobNylocas,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("nylocas runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 380,
+        },
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Completed as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(380));
+    let custom_data = row
+        .get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present");
+
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TobNylocas, None)
+        .await
+        .expect("stage events");
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobNylocas).await;
+    golden::assert_stage_artifacts(
+        "tob_nylocas_merge_consistency_rejection",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
+}
+
+const VERZIK_MERGE_CLEAN_UUID: &str = "fdcce6f1-5d7f-4c18-8463-4743aa08ca63";
+
+#[tokio::test]
+async fn verzik_merge_clean_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = VERZIK_MERGE_CLEAN_UUID.parse().expect("uuid is valid");
+    let party: Vec<String> = PARTY[..4].iter().map(ToString::to_string).collect();
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+
+    prepare_fixture(
+        uuid,
+        Stage::TobVerzik,
+        &load_fixture("tob_verzik_merge_clean"),
+    )
+    .await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig::default(),
+    );
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tob,
+        mode: ChallengeMode::TobRegular,
+        party,
+        party_changed: false,
+        stage: Stage::TobVerzik,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 4).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TobVerzik,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("verzik runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 360,
+        },
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Completed as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(360));
+    let custom_data = row
+        .get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present");
+
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TobVerzik, None)
+        .await
+        .expect("stage events");
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobVerzik).await;
+    golden::assert_stage_artifacts(
+        "tob_verzik_merge_clean",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
 }

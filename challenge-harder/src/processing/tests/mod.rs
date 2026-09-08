@@ -4,6 +4,7 @@
 
 use std::sync::LazyLock;
 
+use deadpool_postgres::Object;
 use serde::Deserialize;
 
 use crate::lifecycle::core::types::{ClientStageStream, Stage, StageUpdate, Uuid};
@@ -113,4 +114,23 @@ async fn prepare_fixture(uuid: Uuid, stage: Stage, records: &[FixtureRecord]) {
             .await
             .expect("record written");
     }
+}
+
+async fn merge_report_rows(client: &Object, challenge_id: i32, stage: Stage) -> serde_json::Value {
+    client
+        .query_one(
+            "SELECT COALESCE(jsonb_agg(jsonb_build_object(
+                 'merge', to_jsonb(m) - 'id' - 'challenge_id' - 'created_at',
+                 'clients', (
+                     SELECT COALESCE(jsonb_agg(to_jsonb(c) - 'id' - 'merge_id'
+                                               ORDER BY c.client_id), '[]'::jsonb)
+                     FROM challenge_merge_clients c WHERE c.merge_id = m.id
+                 )
+             ) ORDER BY m.id), '[]'::jsonb)
+             FROM challenge_stage_merges m WHERE m.challenge_id = $1 AND m.stage = $2",
+            &[&challenge_id, &(stage as i16)],
+        )
+        .await
+        .expect("merge report rows")
+        .get(0)
 }

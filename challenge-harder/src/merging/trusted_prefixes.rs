@@ -8,7 +8,7 @@ use super::classification::ReferenceMethod;
 use super::client_consistency::ConsistencyIssue;
 use super::consolidator::QualityFlag;
 use super::mapping::MergeMapping;
-use super::{MergeContext, MergeStatus, RegisteredClient, Tick, Ticks};
+use super::{MergeContext, RegisteredClient, StepResult, Tick, Ticks};
 
 #[derive(Debug)]
 pub(super) struct TimelineInfo {
@@ -101,8 +101,8 @@ pub(super) fn record_contested_ticks(
 
 fn collect_contributors(ctx: &MergeContext) -> Vec<Contributor> {
     let mut contributors = Vec::new();
-    for RegisteredClient { client, status } in &ctx.clients {
-        if !matches!(status, MergeStatus::Merged(..)) {
+    for RegisteredClient { client, result, .. } in &ctx.clients {
+        if !matches!(result, StepResult::Merged { .. }) {
             continue;
         }
         contributors.push(Contributor {

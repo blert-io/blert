@@ -2,8 +2,12 @@
 
 use std::collections::BTreeMap;
 
+use tokio_postgres::types::Json;
+
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
-use crate::merging::Tick;
+use crate::merging::{
+    ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus, MergedEvents, Tick,
+};
 use crate::proto::{Event, event};
 use crate::skill::SkillLevel;
 
@@ -358,6 +362,121 @@ pub(super) async fn update_challenge_row(
             &txn.challenge_id(),
         ],
     )
+    .await?;
+    Ok(())
+}
+
+pub(super) async fn save_merge_report(
+    txn: &db::Transaction,
+    challenge: &ChallengeInfo,
+    report: &MergeReport,
+    events: Option<&MergedEvents>,
+) -> Result<(), db::Error> {
+    let count = |count: usize| i16::try_from(count).expect("client count fits in a smallint");
+    let alert_types: Vec<&str> = report.alerts.iter().map(MergeAlert::name).collect();
+    let row = txn
+        .query_one(
+            "INSERT INTO challenge_stage_merges
+               (challenge_id, stage, attempt, status, last_tick, missing_tick_count,
+                precise_server_tick_count, accurate_until, queryable_until, reference_method,
+                reference_tick_count, merged_count, unmerged_count, skipped_count, alert_types)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+             RETURNING id",
+            &[
+                &txn.challenge_id(),
+                &(challenge.stage as i16),
+                &challenge
+                    .stage_attempt
+                    .map(|attempt| i16::try_from(attempt).expect("attempt fits in a smallint")),
+                &events.map(|events| events.status() as i16),
+                &events.map(|events| events.last_tick().0.cast_signed()),
+                &events.map(|events| events.missing_tick_count().cast_signed()),
+                &events.map(MergedEvents::has_precise_server_tick_count),
+                &events.map(|events| events.accurate_until().0.cast_signed()),
+                &events.map(|events| events.queryable_until().0.cast_signed()),
+                &report
+                    .reference_ticks
+                    .map(|reference| reference.method.name()),
+                &report
+                    .reference_ticks
+                    .map(|reference| reference.duration.0.cast_signed()),
+                &count(report.merged_count),
+                &count(report.unmerged_count),
+                &count(report.skipped_count),
+                &alert_types,
+            ],
+        )
+        .await?;
+    write_merge_clients(txn, row.get(0), &report.clients).await
+}
+
+async fn write_merge_clients(
+    txn: &db::Transaction,
+    merge_id: i32,
+    clients: &[ClientOutcome],
+) -> Result<(), db::Error> {
+    futures_util::future::try_join_all(clients.iter().map(|client| async move {
+        let (quality_flags, worst_segment_score) = match &client.status {
+            MergeStatus::Merged {
+                confidence,
+                quality_flags,
+                ..
+            } => (
+                quality_flags.as_slice(),
+                confidence.as_ref().and_then(|confidence| {
+                    confidence
+                        .structural
+                        .worst_segment_idx
+                        .map(|idx| confidence.structural.segments[idx].score)
+                }),
+            ),
+            MergeStatus::Rejected { quality_flags, .. } => (quality_flags.as_slice(), None),
+            MergeStatus::Unmerged { .. } | MergeStatus::Skipped { .. } => (&[][..], None),
+        };
+        let mut quality_flag_counts: BTreeMap<&str, u32> = BTreeMap::new();
+        for flag in quality_flags {
+            *quality_flag_counts.entry(flag.name()).or_default() += 1;
+        }
+        txn.execute(
+            "INSERT INTO challenge_merge_clients
+               (merge_id, client_id, user_id, plugin_version, runelite_version, status,
+                classification, recorded_ticks, server_tick_count, server_ticks_precise,
+                reported_accurate, derived_accurate, anomalies, worst_segment_score,
+                quality_flag_counts)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::float8, $15)",
+            &[
+                &merge_id,
+                &i32::try_from(client.id.0).expect("client id fits in an integer"),
+                &client.metadata.as_ref().map(|metadata| {
+                    i32::try_from(metadata.user_id.0).expect("user id fits in an integer")
+                }),
+                &client
+                    .metadata
+                    .as_ref()
+                    .map(|metadata| metadata.plugin_version.as_str()),
+                &client
+                    .metadata
+                    .as_ref()
+                    .map(|metadata| metadata.runelite_version.as_str()),
+                &client.status.name(),
+                &client
+                    .status
+                    .classification()
+                    .map_or("NONE", MergeClassification::name),
+                &client.recorded_ticks.0.min(i32::MAX as u32).cast_signed(),
+                &client
+                    .server_ticks
+                    .map(|ticks| ticks.count.min(i32::MAX as u32).cast_signed()),
+                &client.server_ticks.map(|ticks| ticks.precise),
+                &client.reported_accurate,
+                &client.accurate,
+                &client.anomalies,
+                &worst_segment_score,
+                &Json(quality_flag_counts),
+            ],
+        )
+        .await
+    }))
     .await?;
     Ok(())
 }

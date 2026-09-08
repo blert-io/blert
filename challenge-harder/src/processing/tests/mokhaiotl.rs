@@ -123,7 +123,9 @@ async fn delve_test() {
     );
 
     let custom_data = verify_stage_rows(&client, challenge_id, player_id).await;
-    verify_stage_artifacts(uuid, &repository, &custom_data).await;
+    let merge_report =
+        super::merge_report_rows(&client, challenge_id, Stage::MokhaiotlDelve8).await;
+    verify_stage_artifacts(uuid, &repository, &custom_data, &merge_report).await;
 
     let events = client
         .query(
@@ -340,6 +342,7 @@ async fn verify_stage_artifacts(
     uuid: Uuid,
     repository: &DataRepository,
     custom_data: &serde_json::Value,
+    merge_report: &serde_json::Value,
 ) {
     let stored_data = repository
         .load_challenge(uuid)
@@ -349,5 +352,11 @@ async fn verify_stage_artifacts(
         .load_stage_events(uuid, Stage::MokhaiotlDelve8, None)
         .await
         .expect("delve 8 events");
-    golden::assert_stage_artifacts("mokhaiotl_delve_8", custom_data, &stored_data, &events);
+    golden::assert_stage_artifacts(
+        "mokhaiotl_delve_8",
+        custom_data,
+        &stored_data,
+        &events,
+        merge_report,
+    );
 }

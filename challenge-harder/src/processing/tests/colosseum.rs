@@ -120,12 +120,14 @@ async fn wave_test() {
     );
 
     let custom_data = verify_wave_1_rows(&client, challenge_id, player_id).await;
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::ColosseumWave1).await;
     verify_stage_artifacts(
         "colosseum_wave_1",
         uuid,
         Stage::ColosseumWave1,
         &repository,
         &custom_data,
+        &merge_report,
     )
     .await;
 
@@ -162,12 +164,14 @@ async fn wave_test() {
     );
 
     let custom_data = verify_wave_2_rows(&client, challenge_id, player_id).await;
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::ColosseumWave2).await;
     verify_stage_artifacts(
         "colosseum_wave_2",
         uuid,
         Stage::ColosseumWave2,
         &repository,
         &custom_data,
+        &merge_report,
     )
     .await;
 
@@ -390,6 +394,7 @@ async fn verify_stage_artifacts(
     stage: Stage,
     repository: &DataRepository,
     custom_data: &serde_json::Value,
+    merge_report: &serde_json::Value,
 ) {
     let stored_data = repository
         .load_challenge(uuid)
@@ -399,5 +404,5 @@ async fn verify_stage_artifacts(
         .load_stage_events(uuid, stage, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts(name, custom_data, &stored_data, &events);
+    golden::assert_stage_artifacts(name, custom_data, &stored_data, &events, merge_report);
 }
