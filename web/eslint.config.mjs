@@ -63,6 +63,16 @@ const config = [
       },
     },
   },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+  },
 ];
 
 export default config;

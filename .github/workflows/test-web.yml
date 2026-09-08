@@ -117,6 +117,21 @@ jobs:
           BLERT_DATA_REPOSITORY: file://${{ github.workspace }}/.data/challenges
           BLERT_WEB_REPOSITORY: file://${{ github.workspace }}/.data/web
 
+      - name: Auth smoke against a running server
+        run: |
+          npm run -w web start &
+          echo $! > /tmp/web-smoke.pid
+          npm run -w web smoke:auth
+          kill "$(cat /tmp/web-smoke.pid)"
+        env:
+          NODE_ENV: test
+          BLERT_DATABASE_URI: postgres://blert:blert@localhost:5432/blert_test
+          BLERT_REDIS_URI: redis://localhost:6379
+          AUTH_SECRET: blert
+          BETTER_AUTH_URL: http://localhost:3000
+          BLERT_DATA_REPOSITORY: file://${{ github.workspace }}/.data/challenges
+          BLERT_WEB_REPOSITORY: file://${{ github.workspace }}/.data/web
+
       - name: Upload coverage reports
         uses: codecov/codecov-action@v7
         if: always()

@@ -18,6 +18,21 @@ export const auth = betterAuth({
     }),
     type: 'postgres',
   },
+  logger: {
+    log: (level, message, ...args) => {
+      logger.log(level, 'better_auth', {
+        detail: message,
+        args:
+          args.length > 0
+            ? args.map((arg: unknown) =>
+                arg instanceof Error
+                  ? { message: arg.message, stack: arg.stack }
+                  : arg,
+              )
+            : undefined,
+      });
+    },
+  },
   rateLimit: {
     window: 60,
     max: 100,
