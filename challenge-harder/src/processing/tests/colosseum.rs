@@ -14,7 +14,9 @@ use crate::lifecycle::core::types::{
 };
 use crate::price::PriceResolver;
 use crate::processing::split::SplitType;
-use crate::processing::{Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, db};
+use crate::processing::{
+    CaptureRates, Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, StreamCapturer, db,
+};
 use crate::proto::{ChallengeData, challenge_data};
 use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
@@ -70,7 +72,15 @@ async fn wave_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let mut info = ChallengeInfo {
         uuid,
@@ -404,5 +414,13 @@ async fn verify_stage_artifacts(
         .load_stage_events(uuid, stage, None)
         .await
         .expect("stage events");
-    golden::assert_stage_artifacts(name, custom_data, &stored_data, &events, merge_report);
+    let capture = super::capture_file(repository, uuid, stage).await;
+    golden::assert_stage_artifacts(
+        name,
+        custom_data,
+        &stored_data,
+        &events,
+        merge_report,
+        &capture,
+    );
 }

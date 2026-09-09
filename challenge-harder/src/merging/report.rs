@@ -1,6 +1,6 @@
 //! The outcomes of a merge run.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::lifecycle::core::types::{ClientId, ServerTicks, StageStatus, UserId};
 
@@ -12,7 +12,7 @@ use super::merge_consistency;
 use super::timeline::{self, Target};
 use super::{ReferenceTicks, RegisteredClient, StepResult, Tick, Ticks};
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientMetadata {
     pub user_id: UserId,
@@ -21,7 +21,7 @@ pub struct ClientMetadata {
     pub runelite_version: String,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "kind", content = "id", rename_all = "lowercase")]
 pub enum Actor {
     Npc(u64),
@@ -47,7 +47,7 @@ impl From<timeline::Actor<'_>> for Actor {
 }
 
 /// A consistency issue detected in a client's recording.
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ConsistencyIssue {
     #[serde(rename_all = "camelCase")]
@@ -119,7 +119,7 @@ impl From<&PluginInfo> for ClientMetadata {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MergeClassification {
     Reference,
@@ -147,7 +147,7 @@ impl From<super::Classification> for MergeClassification {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(
     tag = "status",
     rename_all = "SCREAMING_SNAKE_CASE",
@@ -217,7 +217,7 @@ impl From<&RegisteredClient<'_>> for MergeStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Side {
     Base,
@@ -233,7 +233,7 @@ impl From<consolidator::Side> for Side {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "SCREAMING_SNAKE_CASE",
@@ -291,25 +291,25 @@ pub enum QualityFlag {
         discarded_source_client_id: ClientId,
     },
     UnexpectedConflict {
-        event_type: &'static str,
+        event_type: i32,
         attack_tick: Tick,
         kept_source_client_id: ClientId,
         discarded_source_client_id: ClientId,
     },
     LargeTemporalGap {
-        event_type: &'static str,
+        event_type: i32,
         tick_gap: Ticks,
         base_tick: Tick,
         target_tick: Tick,
     },
     UnmappedCrossTickReference {
-        event_type: &'static str,
+        event_type: i32,
         merged_tick: Tick,
         source_tick: Tick,
         resolved_tick: Tick,
     },
     AttackMappedNotFound {
-        event_type: &'static str,
+        event_type: i32,
         source: Side,
         client_tick: Tick,
         client_attack_tick: Tick,
@@ -424,7 +424,7 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         discarded_source_client_id,
                     },
                     Disagreement::AttackMapped { kind } => Self::UnexpectedConflict {
-                        event_type: kind.as_str_name(),
+                        event_type: *kind as i32,
                         attack_tick: tick,
                         kept_source_client_id,
                         discarded_source_client_id,
@@ -437,7 +437,7 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                 base_tick,
                 target_tick,
             } => Self::LargeTemporalGap {
-                event_type: kind.as_str_name(),
+                event_type: *kind as i32,
                 tick_gap: *gap,
                 base_tick: *base_tick,
                 target_tick: *target_tick,
@@ -448,7 +448,7 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                 source_tick,
                 resolved_tick,
             } => Self::UnmappedCrossTickReference {
-                event_type: kind.as_str_name(),
+                event_type: *kind as i32,
                 merged_tick: *merged_tick,
                 source_tick: *source_tick,
                 resolved_tick: *resolved_tick,
@@ -459,7 +459,7 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                 client_tick,
                 client_attack_tick,
             } => Self::AttackMappedNotFound {
-                event_type: kind.as_str_name(),
+                event_type: *kind as i32,
                 source: (*side).into(),
                 client_tick: *client_tick,
                 client_attack_tick: *client_attack_tick,
@@ -468,7 +468,7 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "SCREAMING_SNAKE_CASE",
@@ -492,7 +492,7 @@ impl From<&super::RejectionReason<'_>> for RejectionReason {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepConfidence {
     pub overall: f64,
@@ -500,7 +500,15 @@ pub struct StepConfidence {
     pub content: ContentConfidence,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+impl StepConfidence {
+    pub fn worst_segment_score(&self) -> Option<f64> {
+        self.structural
+            .worst_segment_idx
+            .map(|idx| self.structural.segments[idx].score)
+    }
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StructuralConfidence {
     pub value: f64,
@@ -510,7 +518,7 @@ pub struct StructuralConfidence {
     pub worst_segment_idx: Option<usize>,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SegmentConfidence {
     pub base_start: usize,
@@ -520,7 +528,7 @@ pub struct SegmentConfidence {
     pub score: f64,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentConfidence {
     pub value: f64,
@@ -579,7 +587,7 @@ impl From<&confidence::ContentConfidence> for ContentConfidence {
 }
 
 /// A client's merge outcome.
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientOutcome {
     pub id: ClientId,
@@ -590,7 +598,7 @@ pub struct ClientOutcome {
     pub accurate: bool,
     pub recorded_ticks: Ticks,
     pub server_ticks: Option<ServerTicks>,
-    pub anomalies: Vec<&'static str>,
+    pub anomalies: Vec<ClientAnomaly>,
     pub consistency_issues: Vec<ConsistencyIssue>,
     #[serde(flatten)]
     pub status: MergeStatus,
@@ -608,7 +616,12 @@ impl From<&RegisteredClient<'_>> for ClientOutcome {
             accurate: client.client.accurate,
             recorded_ticks: info.last_recorded_tick.duration(),
             server_ticks: info.server_ticks,
-            anomalies: client.client.anomalies.iter().map(anomaly_name).collect(),
+            anomalies: client
+                .client
+                .anomalies
+                .iter()
+                .map(ClientAnomaly::from)
+                .collect(),
             consistency_issues: client
                 .client
                 .consistency_issues
@@ -642,12 +655,34 @@ impl From<BadDataClient<'_>> for ClientOutcome {
     }
 }
 
-fn anomaly_name(anomaly: &Anomaly) -> &'static str {
-    match anomaly {
-        Anomaly::MissingStageMetadata => "MISSING_STAGE_METADATA",
-        Anomaly::InvalidTickCount => "INVALID_TICK_COUNT",
-        Anomaly::EventsBeyondReportedTicks => "EVENTS_BEYOND_REPORTED_TICKS",
-        Anomaly::UnknownPlayer => "UNKNOWN_PLAYER",
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ClientAnomaly {
+    MissingStageMetadata,
+    InvalidTickCount,
+    EventsBeyondReportedTicks,
+    UnknownPlayer,
+}
+
+impl ClientAnomaly {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::MissingStageMetadata => "MISSING_STAGE_METADATA",
+            Self::InvalidTickCount => "INVALID_TICK_COUNT",
+            Self::EventsBeyondReportedTicks => "EVENTS_BEYOND_REPORTED_TICKS",
+            Self::UnknownPlayer => "UNKNOWN_PLAYER",
+        }
+    }
+}
+
+impl From<&Anomaly> for ClientAnomaly {
+    fn from(anomaly: &Anomaly) -> Self {
+        match anomaly {
+            Anomaly::MissingStageMetadata => Self::MissingStageMetadata,
+            Anomaly::InvalidTickCount => Self::InvalidTickCount,
+            Anomaly::EventsBeyondReportedTicks => Self::EventsBeyondReportedTicks,
+            Anomaly::UnknownPlayer => Self::UnknownPlayer,
+        }
     }
 }
 
@@ -693,7 +728,7 @@ impl MergeAlert {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(
     tag = "kind",
     rename_all = "SCREAMING_SNAKE_CASE",
@@ -713,7 +748,7 @@ pub enum MergeConsistencyIssue {
         occurrences: Vec<NpcOccurrence>,
     },
     DuplicateStreamEvent {
-        event_type: &'static str,
+        event_type: i32,
         identity_key: String,
         ticks: Vec<Tick>,
     },
@@ -738,29 +773,29 @@ pub enum MergeConsistencyIssue {
         target: Actor,
     },
     ExclusiveEventViolation {
-        exclusive_types: (&'static str, &'static str),
+        exclusive_types: (i32, i32),
         tick: Tick,
     },
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NpcOccurrence {
     pub tick: Tick,
     pub npc_id: u32,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerAttackOccurrence {
     pub tick: Tick,
     pub r#type: i32,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhaseOccurrence {
-    pub event_type: &'static str,
+    pub event_type: i32,
     pub identity_key: String,
     pub tick: Tick,
 }
@@ -786,7 +821,7 @@ impl From<&merge_consistency::PlayerAttackOccurrence> for PlayerAttackOccurrence
 impl From<&merge_consistency::PhaseOccurrence> for PhaseOccurrence {
     fn from(occurrence: &merge_consistency::PhaseOccurrence) -> Self {
         Self {
-            event_type: occurrence.kind.as_str_name(),
+            event_type: occurrence.kind as i32,
             identity_key: occurrence.identity_key.clone(),
             tick: occurrence.tick,
         }
@@ -820,7 +855,7 @@ impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIss
                 identity_key,
                 ticks,
             } => Self::DuplicateStreamEvent {
-                event_type: kind.as_str_name(),
+                event_type: *kind as i32,
                 identity_key: identity_key.clone(),
                 ticks: ticks.clone(),
             },
@@ -861,7 +896,7 @@ impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIss
                 exclusive_types: (a, b),
                 tick,
             } => Self::ExclusiveEventViolation {
-                exclusive_types: (a.as_str_name(), b.as_str_name()),
+                exclusive_types: (*a as i32, *b as i32),
                 tick: *tick,
             },
         }

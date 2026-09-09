@@ -35,6 +35,7 @@ pub(super) fn assert_stage_artifacts(
     challenge: &ChallengeData,
     events: &[Event],
     merge_report: &serde_json::Value,
+    capture: &str,
 ) {
     assert_golden(
         name,
@@ -46,6 +47,7 @@ pub(super) fn assert_stage_artifacts(
         &format!("{name}_merge_report.json.gz"),
         &serde_json::to_string_pretty(merge_report).expect("merge report rows serialize"),
     );
+    assert_golden(name, &format!("{name}_capture.json.gz"), capture);
     assert_golden(
         name,
         &format!("{name}_challenge.json.gz"),

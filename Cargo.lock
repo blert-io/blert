@@ -854,6 +854,7 @@ dependencies = [
  "prost-build",
  "prost-reflect",
  "prost-types",
+ "rand 0.10.2",
  "redis",
  "serde",
  "serde_json",

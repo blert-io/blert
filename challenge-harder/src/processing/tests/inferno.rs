@@ -1,4 +1,5 @@
 //! Runs a real recorded inferno wave through the processor, verifying results.
+#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
@@ -14,7 +15,9 @@ use crate::lifecycle::core::types::{
 };
 use crate::price::PriceResolver;
 use crate::processing::split::SplitType;
-use crate::processing::{Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, db};
+use crate::processing::{
+    CaptureRates, Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, StreamCapturer, db,
+};
 use crate::proto::{ChallengeData, challenge_data};
 use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
@@ -57,7 +60,15 @@ async fn wave_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -116,12 +127,14 @@ async fn wave_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::InfernoWave42).await;
+    let capture = super::capture_file(&repository, uuid, Stage::InfernoWave42).await;
     golden::assert_stage_artifacts(
         "inferno_wave_42",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client

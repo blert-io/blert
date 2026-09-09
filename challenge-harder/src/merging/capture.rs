@@ -19,7 +19,7 @@ use crate::lifecycle::core::types::{
 use crate::proto::ChallengeEvents;
 
 use super::Tick;
-use super::report::ClientOutcome;
+use super::report::{ClientOutcome, MergeStatus};
 
 /// A stage's captured client streams.
 #[derive(Debug)]
@@ -54,7 +54,11 @@ impl MergeCapture {
     /// Reads a capture file.
     pub fn load(path: &Path) -> Result<MergeCapture, CaptureError> {
         let contents = fs::read(path).map_err(CaptureError::Read)?;
-        let file: File = serde_json::from_slice(&contents).map_err(CaptureError::Parse)?;
+        Self::decode(&contents)
+    }
+
+    pub fn decode(contents: &[u8]) -> Result<MergeCapture, CaptureError> {
+        let file: File<'_> = serde_json::from_slice(contents).map_err(CaptureError::Parse)?;
 
         let records = file
             .raw_events
@@ -73,19 +77,47 @@ impl MergeCapture {
             records,
         })
     }
+
+    /// Serializes the capture as a JSON byte array.
+    pub fn encode(&self, capture_reasons: Vec<String>, clients: &[ClientOutcome]) -> Vec<u8> {
+        let (merged_clients, unmerged_clients) = clients
+            .iter()
+            .partition(|client| matches!(client.status, MergeStatus::Merged { .. }));
+        let file = File {
+            challenge_info: ChallengeInfo {
+                uuid: self.uuid,
+                challenge_type: self.challenge_type,
+                mode: self.mode,
+                party: self.party.clone(),
+            },
+            stage: self.stage,
+            attempt: self.attempt,
+            capture_reasons,
+            merged_clients,
+            unmerged_clients,
+            raw_events: self.records.iter().map(RawRecord::from).collect(),
+        };
+        serde_json::to_vec(&file).expect("captures are serializable")
+    }
 }
 
 /// The saved capture file format.
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct File {
+struct File<'a> {
     challenge_info: ChallengeInfo,
     stage: Stage,
     attempt: Option<u32>,
+    #[serde(skip_deserializing)]
+    capture_reasons: Vec<String>,
+    #[serde(skip_deserializing)]
+    merged_clients: Vec<&'a ClientOutcome>,
+    #[serde(skip_deserializing)]
+    unmerged_clients: Vec<&'a ClientOutcome>,
     raw_events: Vec<RawRecord>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct ChallengeInfo {
     uuid: Uuid,
     #[serde(rename = "type")]
@@ -95,21 +127,26 @@ struct ChallengeInfo {
 }
 
 /// A stream record in its JSON form, with field presence determined by `tag`.
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawRecord {
     #[serde(rename = "type")]
     tag: u8,
     client_id: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     events: Option<Buffer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     update: Option<StageUpdate>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     user_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     plugin_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     rune_lite_version: Option<String>,
 }
 
 /// The serialized form of an event batch.
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum Buffer {
     /// A nodejs buffer as serialized by `JSON.stringify`.
@@ -148,6 +185,44 @@ impl RawRecord {
                 runelite_version: self.rune_lite_version.ok_or(missing("runeLiteVersion"))?,
             }),
             tag => Err(CaptureError::UnknownRecordType { index, tag }),
+        }
+    }
+}
+
+impl From<&ClientStageStream> for RawRecord {
+    fn from(record: &ClientStageStream) -> Self {
+        let empty = RawRecord {
+            tag: 0,
+            client_id: record.client_id().0,
+            events: None,
+            update: None,
+            user_id: None,
+            plugin_version: None,
+            rune_lite_version: None,
+        };
+        match record {
+            ClientStageStream::Events { events, .. } => RawRecord {
+                tag: ClientStageStream::EVENTS_TAG,
+                events: Some(Buffer::Raw(events.to_vec())),
+                ..empty
+            },
+            ClientStageStream::End { update, .. } => RawRecord {
+                tag: ClientStageStream::STAGE_END_TAG,
+                update: Some(*update),
+                ..empty
+            },
+            ClientStageStream::Metadata {
+                user_id,
+                plugin_version,
+                runelite_version,
+                ..
+            } => RawRecord {
+                tag: ClientStageStream::METADATA_TAG,
+                user_id: Some(user_id.0),
+                plugin_version: Some(plugin_version.clone()),
+                rune_lite_version: Some(runelite_version.clone()),
+                ..empty
+            },
         }
     }
 }
@@ -286,7 +361,7 @@ fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<s
 
     let mut tracer = trace.then(super::Tracer::new);
     let merged = panic::catch_unwind(AssertUnwindSafe(|| {
-        super::merge(&challenge, capture.stage, capture.records, tracer.as_mut())
+        super::merge(&challenge, capture.stage, &capture.records, tracer.as_mut())
     }));
     let (merged, merge_report) = match merged {
         Ok((merged, merge_report)) => (merged, merge_report),
@@ -350,4 +425,74 @@ fn write_outputs(
     }
     let json = serde_json::to_vec_pretty(report).map_err(io::Error::other)?;
     fs::write(dir.join(format!("{name}.json")), json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::lifecycle::core::types::ServerTicks;
+
+    #[test]
+    fn captures_round_trip_through_serialization() {
+        let capture = MergeCapture {
+            uuid: Uuid::try_parse("d6a81e14-5f9a-4314-91d2-16eaee45b1d0").unwrap(),
+            challenge_type: ChallengeType::Tob,
+            mode: ChallengeMode::TobRegular,
+            party: vec!["715".to_string(), "Sacolyn".to_string()],
+            stage: Stage::TobBloat,
+            attempt: None,
+            records: vec![
+                ClientStageStream::Metadata {
+                    client_id: ClientId(1),
+                    user_id: UserId(0),
+                    plugin_version: "0.9.20".to_string(),
+                    runelite_version: "1.11.0".to_string(),
+                },
+                ClientStageStream::Events {
+                    client_id: ClientId(1),
+                    events: Bytes::from_static(&[8, 11, 16, 3]),
+                },
+                ClientStageStream::End {
+                    client_id: ClientId(1),
+                    update: StageUpdate {
+                        stage: Stage::TobBloat,
+                        status: StageStatus::Completed,
+                        accurate: true,
+                        recorded_ticks: 145,
+                        server_ticks: Some(ServerTicks {
+                            count: 145,
+                            precise: true,
+                        }),
+                    },
+                },
+            ],
+        };
+
+        let encoded = capture.encode(vec!["baseline".to_string()], &[]);
+        let json: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(json["captureReasons"], serde_json::json!(["baseline"]));
+        assert_eq!(json["mergedClients"], serde_json::json!([]));
+        assert_eq!(json["unmergedClients"], serde_json::json!([]));
+        assert_eq!(
+            json["rawEvents"][1]["events"],
+            serde_json::json!([8, 11, 16, 3])
+        );
+        assert_eq!(json["rawEvents"][1].get("update"), None);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir
+            .path()
+            .join("d6a81e14-5f9a-4314-91d2-16eaee45b1d0:11_events.json");
+        fs::write(&path, encoded).unwrap();
+
+        let loaded = MergeCapture::load(&path).unwrap();
+        assert_eq!(loaded.uuid, capture.uuid);
+        assert_eq!(loaded.challenge_type, ChallengeType::Tob);
+        assert_eq!(loaded.mode, ChallengeMode::TobRegular);
+        assert_eq!(loaded.party, capture.party);
+        assert_eq!(loaded.stage, Stage::TobBloat);
+        assert_eq!(loaded.attempt, None);
+        assert_eq!(loaded.records, capture.records);
+    }
 }

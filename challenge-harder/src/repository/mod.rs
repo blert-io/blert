@@ -195,6 +195,14 @@ impl DataRepository {
         }
         Ok(events)
     }
+
+    pub async fn load_file(&self, path: &str) -> Result<Vec<u8>, Error> {
+        self.backend.read(path).await
+    }
+
+    pub async fn save_file(&self, path: &str, data: &[u8]) -> Result<(), Error> {
+        self.backend.write(path, data).await
+    }
 }
 
 /// Returns the path to a challenge file relative to the repository root.
@@ -493,5 +501,28 @@ mod tests {
                 .await,
             Err(Error::NotFound(_)),
         ));
+    }
+
+    #[tokio::test]
+    async fn raw_file_writes_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let repository = repository(&dir);
+
+        assert!(matches!(
+            repository.load_file("merge-captures/magic.json").await,
+            Err(Error::NotFound(_)),
+        ));
+
+        repository
+            .save_file("merge-captures/magic.json", b"[]")
+            .await
+            .unwrap();
+        assert_eq!(
+            repository
+                .load_file("merge-captures/magic.json")
+                .await
+                .unwrap(),
+            b"[]",
+        );
     }
 }
