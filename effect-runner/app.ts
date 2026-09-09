@@ -2,7 +2,13 @@ import './env';
 
 import { Config, loadConfig } from './config';
 import { connect as connectDatabase } from './db';
-import { FeedHandler, logHandler, subscriptionsOf } from './handlers';
+import { DiscordWebhook } from './delivery/discord';
+import {
+  FeedHandler,
+  RecordsHandler,
+  logHandler,
+  subscriptionsOf,
+} from './handlers';
 import logger from './log';
 import { startMetricsListener } from './metrics';
 import { connect as connectRedis } from './redis';
@@ -28,6 +34,19 @@ async function main(): Promise<void> {
   const store = new EffectStore(sql);
 
   const handlers: EffectHandler[] = [new FeedHandler(sql, redis)];
+  if (config.recordsWebhookUrl !== null) {
+    handlers.push(
+      new RecordsHandler(
+        sql,
+        new DiscordWebhook(config.recordsWebhookUrl),
+        config.baseUrl,
+      ),
+    );
+  } else {
+    logger.warn('records_handler_disabled', {
+      reason: 'BLERT_DISCORD_RECORDS_WEBHOOK_URL is unset',
+    });
+  }
   if (process.env.NODE_ENV === 'development') {
     handlers.push(logHandler);
   }

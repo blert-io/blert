@@ -1,6 +1,10 @@
 export interface Config {
   databaseUri: string;
   redisUri: string;
+  /** Blert base URL for links in outgoing messages. */
+  baseUrl: string;
+  /** Discord webhook to which records are announced. */
+  recordsWebhookUrl: string | null;
   port: number;
   /** Delay between polls of the effect event outbox, in milliseconds. */
   pollIntervalMs: number;
@@ -18,12 +22,19 @@ export function loadConfig(): Config {
   return {
     databaseUri: requireString('BLERT_DATABASE_URI'),
     redisUri: requireString('BLERT_REDIS_URI'),
+    baseUrl: requireString('BLERT_BASE_URL'),
+    recordsWebhookUrl: optionalString('BLERT_DISCORD_RECORDS_WEBHOOK_URL'),
     port: positiveInt('PORT', DEFAULT_PORT),
     pollIntervalMs: positiveInt(
       'BLERT_EFFECT_POLL_INTERVAL_MS',
       DEFAULT_POLL_INTERVAL_MS,
     ),
   };
+}
+
+function optionalString(name: string): string | null {
+  const value = process.env[name];
+  return value === undefined || value === '' ? null : value;
 }
 
 function requireString(name: string): string {

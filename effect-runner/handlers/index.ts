@@ -2,6 +2,7 @@ import { EffectHandler, Subscription } from '../runner';
 
 export { FeedHandler } from './feed';
 export { logHandler } from './log';
+export { RecordsHandler } from './records';
 
 /**
  * Lists the subscription of each handler to each of its event kinds.

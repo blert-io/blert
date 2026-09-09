@@ -10,10 +10,11 @@ import { EffectEventKind, EffectSubject } from '../../effects';
 
 export const sql = connect(process.env.BLERT_TEST_DATABASE_URI!);
 
-/** Truncates all effect tables to reset state between tests. */
+/** Truncates the tables tests write to, resetting state between them.  */
 export async function truncateTables(): Promise<void> {
   await sql`
-    TRUNCATE TABLE effect_deliveries, effect_events, effect_handlers
+    TRUNCATE TABLE
+      effect_deliveries, effect_events, effect_handlers, challenges, players
     RESTART IDENTITY CASCADE
   `;
 }
