@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 use deadpool_postgres::Object;
 
 use crate::lifecycle::core::types::{ClientStageStream, Stage, Uuid};
-use crate::merging::capture::MergeCapture;
+use crate::merging::MergeCapture;
 use crate::repository::DataRepository;
 
 mod colosseum;
