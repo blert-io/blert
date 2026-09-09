@@ -29,6 +29,7 @@ pub mod capture;
 #[cfg(test)]
 pub(crate) mod fixtures;
 
+pub use capture::MergeCapture;
 pub use classification::{ReferenceMethod, ReferenceTicks};
 pub use confidence::StepConfidence;
 pub use report::{

@@ -2,18 +2,30 @@ use std::collections::BTreeSet;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use crate::merging::capture::MergeCapture;
 use crate::merging::{
-    ClientAnomaly, ClientOutcome, MergeAlert, MergeReport, MergeStatus, QualityFlag,
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeCapture, MergeReport, MergeStatus, MergedEvents,
+    QualityFlag,
 };
 use crate::metrics;
 use crate::repository::DataRepository;
 
 use super::ChallengeInfo;
 
+pub(super) enum MergeOutcome<'a> {
+    Merged {
+        report: &'a MergeReport,
+        events: &'a MergedEvents,
+    },
+    BadData {
+        report: &'a MergeReport,
+    },
+    Panicked,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CaptureReason {
     BadData,
+    MergePanic,
     InvalidTickCount,
     UnknownPlayer,
     ServerTickDisagreement,
@@ -31,6 +43,7 @@ impl CaptureReason {
     pub fn name(self) -> &'static str {
         match self {
             Self::BadData => "bad_data",
+            Self::MergePanic => "merge_panic",
             Self::InvalidTickCount => "invalid_tick_count",
             Self::UnknownPlayer => "unknown_player",
             Self::ServerTickDisagreement => "server_tick_disagreement",
@@ -49,6 +62,7 @@ impl CaptureReason {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CaptureRates {
     pub bad_data: f64,
+    pub merge_panic: f64,
     pub invalid_tick_count: f64,
     pub unknown_player: f64,
     pub server_tick_disagreement: f64,
@@ -66,6 +80,7 @@ impl Default for CaptureRates {
     fn default() -> Self {
         CaptureRates {
             bad_data: 1.0,
+            merge_panic: 1.0,
             invalid_tick_count: 1.0,
             unknown_player: 1.0,
             server_tick_disagreement: 1.0,
@@ -85,6 +100,7 @@ impl CaptureRates {
     fn rate(&self, reason: CaptureReason) -> f64 {
         match reason {
             CaptureReason::BadData => self.bad_data,
+            CaptureReason::MergePanic => self.merge_panic,
             CaptureReason::InvalidTickCount => self.invalid_tick_count,
             CaptureReason::UnknownPlayer => self.unknown_player,
             CaptureReason::ServerTickDisagreement => self.server_tick_disagreement,

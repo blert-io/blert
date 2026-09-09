@@ -404,6 +404,7 @@ pub enum MergeOutcome {
     Merged,
     NoData,
     BadData,
+    Panicked,
 }
 
 impl MergeOutcome {
@@ -412,6 +413,7 @@ impl MergeOutcome {
             MergeOutcome::Merged => "merged",
             MergeOutcome::NoData => "no_data",
             MergeOutcome::BadData => "bad_data",
+            MergeOutcome::Panicked => "panic",
         }
     }
 }

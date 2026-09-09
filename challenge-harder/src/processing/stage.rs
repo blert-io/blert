@@ -12,17 +12,16 @@ use crate::lifecycle::core::types::{
     ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
 };
 use crate::lifecycle::store::StoreError;
-use crate::merging::capture::MergeCapture;
-use crate::merging::{MergeReport, MergedEvents};
-use crate::metrics::{self, MergeOutcome};
+use crate::merging::MergeCapture;
+use crate::metrics;
 use crate::redis::Store;
 
 use super::challenge::load_database_state;
 use super::challenge_processor::ChallengeProcessor;
 use super::interpret::{InterpretError, InterpretOutput, interpret};
-use super::merging::{Capture, CaptureReason};
+use super::merging::{Capture, CaptureReason, MergeOutcome};
 use super::persist::{
-    save_merge_report, save_splits, update_challenge_row, update_player_stats, update_players,
+    save_merge, save_splits, update_challenge_row, update_player_stats, update_players,
     write_queryable_events,
 };
 use super::{ChallengeInfo, Pipeline, StoredState};
@@ -60,7 +59,7 @@ pub async fn process(
         message: format!("interpret task failed: {error}"),
     })?;
 
-    let payload = persist(
+    persist(
         pipeline,
         txn,
         &mut *processor,
@@ -69,8 +68,7 @@ pub async fn process(
         result,
         stream,
     )
-    .await?;
-    Ok((payload, processor.custom_data()))
+    .await
 }
 
 /// Collects the recorded streams and stored challenge state a run requires.
@@ -97,7 +95,7 @@ async fn gather(
 }
 
 /// Writes a stage's processed results to the database and blob store.
-/// Returns the payload to be sent back to the challenge.
+/// Returns the payload and custom data to be sent back to the challenge.
 async fn persist(
     pipeline: &Pipeline,
     txn: &db::Transaction,
@@ -106,9 +104,9 @@ async fn persist(
     stored: &StoredState,
     result: Result<InterpretOutput, InterpretError>,
     records: Vec<ClientStageStream>,
-) -> Result<ProcessingPayload, ProcessingError> {
+) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
     let payload = payload_from(&result);
-    let streams = MergeCapture {
+    let capture_input = MergeCapture {
         uuid: challenge.uuid,
         challenge_type: challenge.challenge_type,
         mode: challenge.mode,
@@ -119,26 +117,15 @@ async fn persist(
     };
     let mut output = match result {
         Ok(output) => output,
-        Err(InterpretError::NoData) => {
-            metrics::record_merge_outcome(MergeOutcome::NoData);
-            return Ok(payload);
-        }
-        Err(InterpretError::BadData(report)) => {
-            metrics::record_merge_outcome(MergeOutcome::BadData);
-            let capture = match &pipeline.capturer {
-                Some(capturer) => {
-                    capturer
-                        .capture(challenge, CaptureReason::BadData, &streams, &report.clients)
-                        .await
-                }
-                None => None,
-            };
-            write_merge_report(txn, challenge, &report, None, capture.as_ref()).await?;
-            metrics::record_merge_report(challenge.stage, &report);
-            return Ok(payload);
+        Err(e) => {
+            let custom_data =
+                handle_interpret_error(pipeline, txn, processor, challenge, &capture_input, e)
+                    .await?;
+            return Ok((payload, custom_data));
         }
     };
-    metrics::record_merge_outcome(MergeOutcome::Merged);
+
+    metrics::record_merge_outcome(metrics::MergeOutcome::Merged);
     metrics::record_merge_report(challenge.stage, &output.report);
     metrics::record_stage_completion(
         challenge.stage,
@@ -173,7 +160,7 @@ async fn persist(
     let capture = match &pipeline.capturer {
         Some(capturer) => {
             capturer
-                .sample_capture(challenge, &output.report, &streams)
+                .sample_capture(challenge, &output.report, &capture_input)
                 .await
         }
         None => None,
@@ -182,12 +169,14 @@ async fn persist(
         update_players(txn, challenge.stage, &output.ctx, &stored.players),
         update_player_stats(txn, output.ctx.players(), &stored.players),
         update_challenge_row(txn, challenge_ticks, output.ctx.deaths().len()),
-        write_merge_report(
+        write_merge(
             txn,
             challenge,
-            &output.report,
-            Some(&output.events),
-            capture.as_ref()
+            capture.as_ref(),
+            MergeOutcome::Merged {
+                report: &output.report,
+                events: &output.events,
+            },
         )
     )?;
 
@@ -202,7 +191,67 @@ async fn persist(
     .await?;
 
     write_challenge_data(pipeline, txn, processor, challenge, stored, output).await?;
-    Ok(payload)
+    Ok((payload, processor.custom_data()))
+}
+
+/// Processes an error from the interpret step, returning the custom data to be
+/// sent back to the challenge.
+async fn handle_interpret_error(
+    pipeline: &Pipeline,
+    txn: &db::Transaction,
+    processor: &mut dyn ChallengeProcessor,
+    challenge: &ChallengeInfo,
+    capture: &MergeCapture,
+    error: InterpretError,
+) -> Result<Option<serde_json::Value>, ProcessingError> {
+    match error {
+        InterpretError::NoData => {
+            metrics::record_merge_outcome(metrics::MergeOutcome::NoData);
+            Ok(processor.custom_data())
+        }
+
+        InterpretError::BadData(report) => {
+            metrics::record_merge_outcome(metrics::MergeOutcome::BadData);
+            let capture = match &pipeline.capturer {
+                Some(capturer) => {
+                    capturer
+                        .capture(challenge, CaptureReason::BadData, capture, &report.clients)
+                        .await
+                }
+                None => None,
+            };
+            write_merge(
+                txn,
+                challenge,
+                capture.as_ref(),
+                MergeOutcome::BadData { report: &report },
+            )
+            .await?;
+            metrics::record_merge_report(challenge.stage, &report);
+            Ok(processor.custom_data())
+        }
+
+        InterpretError::Panicked(message) => {
+            metrics::record_merge_outcome(metrics::MergeOutcome::Panicked);
+            tracing::error!(
+                uuid = %challenge.uuid,
+                stage = ?challenge.stage,
+                attempt = ?challenge.stage_attempt,
+                %message,
+                "merge_panicked",
+            );
+            let capture = match &pipeline.capturer {
+                Some(capturer) => {
+                    capturer
+                        .capture(challenge, CaptureReason::MergePanic, capture, &[])
+                        .await
+                }
+                None => None,
+            };
+            write_merge(txn, challenge, capture.as_ref(), MergeOutcome::Panicked).await?;
+            Ok(None)
+        }
+    }
 }
 
 async fn write_challenge_data(
@@ -260,14 +309,13 @@ async fn write_challenge_data(
     Ok(())
 }
 
-async fn write_merge_report(
+async fn write_merge(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
-    report: &MergeReport,
-    events: Option<&MergedEvents>,
     capture: Option<&Capture>,
+    merge: MergeOutcome<'_>,
 ) -> Result<(), db::Error> {
-    let result = save_merge_report(txn, challenge, report, events, capture).await;
+    let result = save_merge(txn, challenge, capture, merge).await;
     metrics::record_merge_result_write(result.is_ok());
     result
 }
@@ -278,7 +326,9 @@ fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingP
             status: output.events.status(),
             ticks: output.events.duration().0,
         },
-        Err(InterpretError::NoData | InterpretError::BadData(_)) => ProcessingPayload::None,
+        Err(InterpretError::NoData | InterpretError::BadData(_) | InterpretError::Panicked(_)) => {
+            ProcessingPayload::None
+        }
     }
 }
 
@@ -304,6 +354,14 @@ mod tests {
     fn no_data_yields_no_payload() {
         assert_eq!(
             payload_from(&Err(InterpretError::NoData)),
+            ProcessingPayload::None,
+        );
+    }
+
+    #[test]
+    fn panicked_yields_no_payload() {
+        assert_eq!(
+            payload_from(&Err(InterpretError::Panicked("division by 67".into()))),
             ProcessingPayload::None,
         );
     }

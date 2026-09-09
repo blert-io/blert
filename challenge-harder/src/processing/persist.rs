@@ -6,11 +6,10 @@ use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::{
-    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus,
-    MergedEvents, Tick,
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeStatus, MergedEvents, Tick,
 };
 
-use super::merging::Capture;
+use super::merging::{Capture, MergeOutcome};
 use crate::proto::{Event, event};
 use crate::skill::SkillLevel;
 
@@ -369,17 +368,26 @@ pub(super) async fn update_challenge_row(
     Ok(())
 }
 
-pub(super) async fn save_merge_report(
+pub(super) async fn save_merge(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
-    report: &MergeReport,
-    events: Option<&MergedEvents>,
     capture: Option<&Capture>,
+    merge: MergeOutcome<'_>,
 ) -> Result<(), db::Error> {
+    let (report, events) = match merge {
+        MergeOutcome::Merged { report, events } => (Some(report), Some(events)),
+        MergeOutcome::BadData { report } => (Some(report), None),
+        MergeOutcome::Panicked => (None, None),
+    };
+
     let count = |count: usize| i16::try_from(count).expect("client count fits in a smallint");
-    let alert_types: Vec<&str> = report.alerts.iter().map(MergeAlert::name).collect();
+    let reference_ticks = report.and_then(|report| report.reference_ticks);
+    let alert_types: Vec<&str> = report.map_or(Vec::new(), |report| {
+        report.alerts.iter().map(MergeAlert::name).collect()
+    });
     let capture_reasons: Option<Vec<&str>> =
         capture.map(|capture| capture.reasons.iter().map(|reason| reason.name()).collect());
+
     let row = txn
         .query_one(
             "INSERT INTO challenge_stage_merges
@@ -401,22 +409,23 @@ pub(super) async fn save_merge_report(
                 &events.map(MergedEvents::has_precise_server_tick_count),
                 &events.map(|events| events.accurate_until().0.cast_signed()),
                 &events.map(|events| events.queryable_until().0.cast_signed()),
-                &report
-                    .reference_ticks
-                    .map(|reference| reference.method.name()),
-                &report
-                    .reference_ticks
-                    .map(|reference| reference.duration.0.cast_signed()),
-                &count(report.merged_count),
-                &count(report.unmerged_count),
-                &count(report.skipped_count),
+                &reference_ticks.map(|reference| reference.method.name()),
+                &reference_ticks.map(|reference| reference.duration.0.cast_signed()),
+                &count(report.map_or(0, |report| report.merged_count)),
+                &count(report.map_or(0, |report| report.unmerged_count)),
+                &count(report.map_or(0, |report| report.skipped_count)),
                 &alert_types,
                 &capture_reasons,
                 &capture.map(|capture| capture.file.as_str()),
             ],
         )
         .await?;
-    write_merge_clients(txn, row.get(0), &report.clients).await
+    write_merge_clients(
+        txn,
+        row.get(0),
+        report.map_or(&[][..], |report| &report.clients),
+    )
+    .await
 }
 
 async fn write_merge_clients(

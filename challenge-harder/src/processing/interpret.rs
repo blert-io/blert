@@ -1,6 +1,7 @@
 //! Stage event reconstruction and interpretation.
 
 use std::collections::BTreeSet;
+use std::panic::{self, AssertUnwindSafe};
 use std::time::Instant;
 
 use crate::item::{self, ItemDelta};
@@ -48,10 +49,30 @@ pub enum InterpretError {
     /// The stage has no recorded data to process.
     NoData,
     BadData(MergeReport),
+    Panicked(String),
 }
 
 /// Processes a stage's raw events into a canonical timeline.
 pub fn interpret(
+    challenge: ChallengeInfo,
+    records: &[ClientStageStream],
+    processor: &mut dyn ChallengeProcessor,
+) -> Result<InterpretOutput, InterpretError> {
+    match panic::catch_unwind(AssertUnwindSafe(|| {
+        run_interpret(challenge, records, processor)
+    })) {
+        Ok(result) => result,
+        Err(payload) => Err(InterpretError::Panicked(
+            payload
+                .downcast_ref::<&str>()
+                .map(|&s| s.to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or("unknown panic".to_string()),
+        )),
+    }
+}
+
+fn run_interpret(
     challenge: ChallengeInfo,
     records: &[ClientStageStream],
     processor: &mut dyn ChallengeProcessor,
@@ -467,6 +488,101 @@ mod tests {
         assert_eq!(
             output.into_kept_events(),
             vec![marker(0, 4), marker(1, 2), marker(2, 6)],
+        );
+    }
+
+    #[test]
+    fn panic_during_processing_errors_with_the_panic_message() {
+        struct PanicOnEvent;
+
+        #[async_trait::async_trait]
+        impl ChallengeProcessor for PanicOnEvent {
+            fn process_challenge_event(
+                &mut self,
+                _ctx: &mut StageContext,
+                _events: &mut EventCursor<'_>,
+            ) -> bool {
+                panic!("Cannot read properties of undefined (reading 'event')")
+            }
+
+            async fn on_create(&mut self, _txn: &db::Transaction) -> Result<(), db::Error> {
+                Ok(())
+            }
+
+            async fn on_stage_finished(
+                &mut self,
+                _txn: &db::Transaction,
+                _price_resolver: &crate::price::PriceResolver,
+                _stored: &super::super::StoredState,
+                _ctx: &mut StageContext,
+                _stage: Stage,
+                events: &MergedEvents,
+            ) -> Result<ChallengeTicks, db::Error> {
+                Ok(ChallengeTicks::Add(events.duration()))
+            }
+
+            async fn on_finish(
+                &mut self,
+                _txn: &db::Transaction,
+                _stored: &super::super::StoredState,
+                _ctx: &mut ChallengeContext,
+                _final_ticks: Ticks,
+            ) -> Result<(), db::Error> {
+                Ok(())
+            }
+
+            fn custom_data(&self) -> Option<serde_json::Value> {
+                None
+            }
+
+            fn challenge_data(&self) -> Option<crate::proto::ChallengeData> {
+                None
+            }
+
+            fn has_fully_recorded_up_to(&self, _stage: Stage) -> bool {
+                false
+            }
+        }
+
+        let message = ChallengeEvents {
+            events: vec![crate::merging::fixtures::mokhaiotl_larva_leak_event(
+                Tick(0),
+                Stage::MokhaiotlDelve1,
+                40_123,
+                5,
+            )],
+            ..Default::default()
+        };
+        let info = ChallengeInfo {
+            uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
+            challenge_type: ChallengeType::Mokhaiotl,
+            mode: ChallengeMode::NoMode,
+            party: vec!["aSaradomin".to_string()],
+            party_changed: false,
+            stage: Stage::MokhaiotlDelve1,
+            stage_attempt: None,
+            status: ChallengeStatus::InProgress,
+            created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
+        };
+
+        let result = interpret(
+            info,
+            &[ClientStageStream::Events {
+                client_id: ClientId(1),
+                events: Bytes::from(message.encode_to_vec()),
+            }],
+            &mut PanicOnEvent,
+        );
+
+        let Err(InterpretError::Panicked(message)) = result else {
+            panic!("didn't get a panic? here you go");
+        };
+        assert_eq!(
+            message,
+            "Cannot read properties of undefined (reading 'event')"
         );
     }
 }
