@@ -37,7 +37,15 @@ jobs:
 
     strategy:
       matrix:
-        service: [web, socket-server, challenge-server, blertbank, live-server]
+        service:
+          [
+            web,
+            socket-server,
+            challenge-server,
+            blertbank,
+            effect-runner,
+            live-server,
+          ]
 
     steps:
       - name: Checkout
@@ -89,7 +97,12 @@ jobs:
       # Resolving `@blert/common` tests the import chain, failing if any deps
       # are unresolvable.
       - name: Smoke test image
-        if: contains(fromJSON('["socket-server", "challenge-server", "blertbank"]'), matrix.service)
+        if: >-
+          contains(
+            fromJSON('["socket-server", "challenge-server", "blertbank",
+            "effect-runner"]'),
+            matrix.service
+          )
         run: |
           tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n 1)"
           docker run --rm "$tag" node -e "require('/app/common/dist')"
