@@ -24,6 +24,7 @@ COPY web/package.json web/
 COPY socket-server/package.json socket-server/
 COPY challenge-server/package.json challenge-server/
 COPY blertbank/package.json blertbank/
+COPY effect-runner/package.json effect-runner/
 
 RUN npm ci
 
@@ -42,6 +43,7 @@ COPY web/package.json web/
 COPY socket-server/package.json socket-server/
 COPY challenge-server/package.json challenge-server/
 COPY blertbank/package.json blertbank/
+COPY effect-runner/package.json effect-runner/
 
 RUN npm ci && npm prune --omit=dev
 
@@ -120,6 +122,14 @@ FROM common-build AS blertbank-build
 
 COPY blertbank/ blertbank/
 RUN npm run -w @blert/blertbank build
+
+# ==============================================================================
+# Build effect-runner
+# ==============================================================================
+FROM common-build AS effect-runner-build
+
+COPY effect-runner/ effect-runner/
+RUN npm run -w @blert/effect-runner build
 
 # ==============================================================================
 # Runtime: web
@@ -203,6 +213,27 @@ ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
 
 EXPOSE 3003
 CMD ["node", "blertbank/dist/app.js"]
+
+# ==============================================================================
+# Runtime: effect-runner
+# ==============================================================================
+FROM base AS effect-runner
+
+ENV NODE_ENV=production
+ENV PORT=3003
+
+COPY --from=deps-prod /app/node_modules/ node_modules/
+COPY --from=common-build /app/common/dist/ common/dist/
+COPY --from=common-build /app/common/generated/ common/generated/
+COPY --from=effect-runner-build /app/effect-runner/dist/ effect-runner/dist/
+COPY common/package.json common/
+COPY effect-runner/package.json effect-runner/
+
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
+
+EXPOSE 3003
+CMD ["node", "effect-runner/dist/app.js"]
 
 # ==============================================================================
 # Build live-server (Rust)

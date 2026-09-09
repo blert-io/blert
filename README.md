@@ -12,13 +12,14 @@ services.
 
 ```
 blert/
+├── common/             # Shared utilities and modules
+├── proto/              # Shared .proto files (git submodule)
 ├── web/                # Frontend web app
 ├── socket-server/      # WebSocket event server
 ├── challenge-server/   # Processing and challenge handling
-├── blertbank/          # Blertcoin accounts and ledger
-├── common/             # Shared utilities and modules
 ├── live-server/        # Live challenge streaming server (Rust)
-├── proto/              # Shared .proto files (git submodule)
+├── effect-runner/      # Post-challenge side effects (e.g. webhooks)
+├── blertbank/          # Blertcoin accounts and ledger
 └── compose.yaml        # Local development stack
 ```
 
@@ -34,8 +35,8 @@ Follow these steps to get a full Blert development environment running.
 docker compose up
 ```
 
-This runs the websocket server, challenge server, database, and Redis
-containers.
+This runs the websocket server, the challenge server, the effect runner,
+Blertbank, the database, and Redis.
 
 ---
 
@@ -170,10 +171,26 @@ This starts the following services:
 - **Websocket server** — `ws://localhost:3003`
 - **Challenge processing server** — `http://localhost:3009`
 - **Blertbank** — `http://localhost:3013`
+- **Effect runner** — single metrics endpoint at `http://localhost:3071/metrics`
 - **Postgres** — `localhost:5433`
 - **Redis** — `localhost:6379`
 
 The web frontend is run separately.
+
+### Optional services
+
+Some services are behind compose profiles and are not started by default:
+
+```bash
+# Live challenge streaming on http://localhost:3010
+docker compose --profile live up
+
+# Prometheus (9090), Grafana (3001), and Loki (3100)
+docker compose --profile observability up
+
+# Umami analytics on http://localhost:3011
+docker compose --profile analytics up
+```
 
 ---
 
