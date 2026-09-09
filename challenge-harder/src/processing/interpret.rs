@@ -53,7 +53,7 @@ pub enum InterpretError {
 /// Processes a stage's raw events into a canonical timeline.
 pub fn interpret(
     challenge: ChallengeInfo,
-    records: Vec<ClientStageStream>,
+    records: &[ClientStageStream],
     processor: &mut dyn ChallengeProcessor,
 ) -> Result<InterpretOutput, InterpretError> {
     let ChallengeInfo {
@@ -75,7 +75,7 @@ pub fn interpret(
 
     let mut client_ids = BTreeSet::new();
     let mut total_bytes = 0;
-    for record in &records {
+    for record in records {
         client_ids.insert(record.client_id());
         if let ClientStageStream::Events { events, .. } = record {
             total_bytes += events.len();
@@ -455,7 +455,7 @@ mod tests {
 
         let output = interpret(
             info,
-            vec![ClientStageStream::Events {
+            &[ClientStageStream::Events {
                 client_id: ClientId(1),
                 events: Bytes::from(message.encode_to_vec()),
             }],

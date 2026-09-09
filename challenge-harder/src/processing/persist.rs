@@ -6,8 +6,11 @@ use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::{
-    ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus, MergedEvents, Tick,
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus,
+    MergedEvents, Tick,
 };
+
+use super::merging::Capture;
 use crate::proto::{Event, event};
 use crate::skill::SkillLevel;
 
@@ -371,16 +374,20 @@ pub(super) async fn save_merge_report(
     challenge: &ChallengeInfo,
     report: &MergeReport,
     events: Option<&MergedEvents>,
+    capture: Option<&Capture>,
 ) -> Result<(), db::Error> {
     let count = |count: usize| i16::try_from(count).expect("client count fits in a smallint");
     let alert_types: Vec<&str> = report.alerts.iter().map(MergeAlert::name).collect();
+    let capture_reasons: Option<Vec<&str>> =
+        capture.map(|capture| capture.reasons.iter().map(|reason| reason.name()).collect());
     let row = txn
         .query_one(
             "INSERT INTO challenge_stage_merges
                (challenge_id, stage, attempt, status, last_tick, missing_tick_count,
                 precise_server_tick_count, accurate_until, queryable_until, reference_method,
-                reference_tick_count, merged_count, unmerged_count, skipped_count, alert_types)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                reference_tick_count, merged_count, unmerged_count, skipped_count, alert_types,
+                capture_reasons, capture_file)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
              RETURNING id",
             &[
                 &txn.challenge_id(),
@@ -404,6 +411,8 @@ pub(super) async fn save_merge_report(
                 &count(report.unmerged_count),
                 &count(report.skipped_count),
                 &alert_types,
+                &capture_reasons,
+                &capture.map(|capture| capture.file.as_str()),
             ],
         )
         .await?;
@@ -418,25 +427,23 @@ async fn write_merge_clients(
     futures_util::future::try_join_all(clients.iter().map(|client| async move {
         let (quality_flags, worst_segment_score) = match &client.status {
             MergeStatus::Merged {
-                confidence,
+                confidence: Some(confidence),
                 quality_flags,
                 ..
-            } => (
-                quality_flags.as_slice(),
-                confidence.as_ref().and_then(|confidence| {
-                    confidence
-                        .structural
-                        .worst_segment_idx
-                        .map(|idx| confidence.structural.segments[idx].score)
-                }),
-            ),
-            MergeStatus::Rejected { quality_flags, .. } => (quality_flags.as_slice(), None),
+            } => (quality_flags.as_slice(), confidence.worst_segment_score()),
+            MergeStatus::Merged {
+                confidence: None,
+                quality_flags,
+                ..
+            }
+            | MergeStatus::Rejected { quality_flags, .. } => (quality_flags.as_slice(), None),
             MergeStatus::Unmerged { .. } | MergeStatus::Skipped { .. } => (&[][..], None),
         };
         let mut quality_flag_counts: BTreeMap<&str, u32> = BTreeMap::new();
         for flag in quality_flags {
             *quality_flag_counts.entry(flag.name()).or_default() += 1;
         }
+        let anomalies: Vec<&str> = client.anomalies.iter().map(ClientAnomaly::name).collect();
         txn.execute(
             "INSERT INTO challenge_merge_clients
                (merge_id, client_id, user_id, plugin_version, runelite_version, status,
@@ -470,7 +477,7 @@ async fn write_merge_clients(
                 &client.server_ticks.map(|ticks| ticks.precise),
                 &client.reported_accurate,
                 &client.accurate,
-                &client.anomalies,
+                &anomalies,
                 &worst_segment_score,
                 &Json(quality_flag_counts),
             ],

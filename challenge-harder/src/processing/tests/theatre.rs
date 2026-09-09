@@ -17,7 +17,9 @@ use crate::lifecycle::core::types::{
 };
 use crate::price::PriceResolver;
 use crate::processing::split::SplitType;
-use crate::processing::{Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, db};
+use crate::processing::{
+    CaptureRates, Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, StreamCapturer, db,
+};
 use crate::proto::{ChallengeData, challenge_data, event};
 use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
@@ -121,7 +123,16 @@ async fn maiden_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         price_resolver,
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -180,12 +191,14 @@ async fn maiden_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobMaiden).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobMaiden).await;
     golden::assert_stage_artifacts(
         "tob_maiden",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -401,7 +414,16 @@ async fn bloat_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -460,12 +482,14 @@ async fn bloat_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobBloat).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobBloat).await;
     golden::assert_stage_artifacts(
         "tob_bloat",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -716,7 +740,16 @@ async fn nylocas_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         price_resolver,
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -775,12 +808,14 @@ async fn nylocas_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobNylocas).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobNylocas).await;
     golden::assert_stage_artifacts(
         "tob_nylocas",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -1024,7 +1059,16 @@ async fn sotetseg_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -1083,12 +1127,14 @@ async fn sotetseg_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobSotetseg).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobSotetseg).await;
     golden::assert_stage_artifacts(
         "tob_sotetseg",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -1297,7 +1343,16 @@ async fn xarpus_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -1356,12 +1411,14 @@ async fn xarpus_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobXarpus).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobXarpus).await;
     golden::assert_stage_artifacts(
         "tob_xarpus",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -1621,7 +1678,16 @@ async fn verzik_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -1680,12 +1746,14 @@ async fn verzik_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobVerzik).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobVerzik).await;
     golden::assert_stage_artifacts(
         "tob_verzik",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -1896,7 +1964,16 @@ async fn bloat_merge_low_confidence_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -1972,12 +2049,14 @@ async fn bloat_merge_low_confidence_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobBloat).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobBloat).await;
     golden::assert_stage_artifacts(
         "tob_bloat_merge_low_confidence",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -2034,7 +2113,16 @@ async fn bloat_merge_unmerged_client_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -2110,12 +2198,14 @@ async fn bloat_merge_unmerged_client_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobBloat).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobBloat).await;
     golden::assert_stage_artifacts(
         "tob_bloat_merge_unmerged_client",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -2172,7 +2262,16 @@ async fn nylocas_merge_consistency_rejection_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -2248,12 +2347,14 @@ async fn nylocas_merge_consistency_rejection_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobNylocas).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobNylocas).await;
     golden::assert_stage_artifacts(
         "tob_nylocas_merge_consistency_rejection",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client
@@ -2308,7 +2409,16 @@ async fn verzik_merge_clean_test() {
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
         ProcessorConfig::default(),
-    );
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
 
     let info = ChallengeInfo {
         uuid,
@@ -2384,12 +2494,14 @@ async fn verzik_merge_clean_test() {
         .await
         .expect("stage events");
     let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobVerzik).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobVerzik).await;
     golden::assert_stage_artifacts(
         "tob_verzik_merge_clean",
         &custom_data,
         &stored_data,
         &events,
         &merge_report,
+        &capture,
     );
 
     client

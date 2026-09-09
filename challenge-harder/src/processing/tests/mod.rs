@@ -2,12 +2,14 @@
 //!
 //! Fixtures exist under `tests/fixtures/` and are recordings of real stages.
 
+use std::io::Read;
 use std::sync::LazyLock;
 
 use deadpool_postgres::Object;
-use serde::Deserialize;
 
-use crate::lifecycle::core::types::{ClientStageStream, Stage, StageUpdate, Uuid};
+use crate::lifecycle::core::types::{ClientStageStream, Stage, Uuid};
+use crate::merging::capture::MergeCapture;
+use crate::repository::DataRepository;
 
 mod colosseum;
 mod effects;
@@ -22,38 +24,23 @@ mod theatre;
 static FIXTURE_TESTS: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Fixture {
-    raw_events: Vec<FixtureRecord>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct FixtureRecord {
-    r#type: u8,
-    client_id: i64,
-    user_id: Option<i64>,
-    plugin_version: Option<String>,
-    rune_lite_version: Option<String>,
-    update: Option<StageUpdate>,
-    #[serde(default)]
-    events: Vec<u8>,
-}
-
-fn load_fixture(name: &str) -> Vec<FixtureRecord> {
+fn load_fixture(name: &str) -> Vec<ClientStageStream> {
     let path = format!(
         "{}/tests/fixtures/{name}.json.gz",
         env!("CARGO_MANIFEST_DIR"),
     );
     let file = std::fs::File::open(path).expect("fixture file exists");
-    let fixture: Fixture =
-        serde_json::from_reader(flate2::read::GzDecoder::new(file)).expect("fixture deserializes");
-    fixture.raw_events
+    let mut contents = Vec::new();
+    flate2::read::GzDecoder::new(file)
+        .read_to_end(&mut contents)
+        .expect("fixture decompresses");
+    MergeCapture::decode(&contents)
+        .expect("fixture is a capture")
+        .records
 }
 
 /// Loads a stage stream fixture into Redis.
-async fn prepare_fixture(uuid: Uuid, stage: Stage, records: &[FixtureRecord]) {
+async fn prepare_fixture(uuid: Uuid, stage: Stage, records: &[ClientStageStream]) {
     let uri = std::env::var("BLERT_TEST_REDIS_URI").expect("checked by test_store");
     let mut connection = redis::Client::open(uri)
         .expect("valid redis uri")
@@ -69,39 +56,40 @@ async fn prepare_fixture(uuid: Uuid, stage: Stage, records: &[FixtureRecord]) {
         .expect("stream cleared");
 
     for record in records {
-        let mut fields: Vec<(&str, Vec<u8>)> = vec![
-            ("type", record.r#type.to_string().into_bytes()),
-            ("clientId", record.client_id.to_string().into_bytes()),
-        ];
-        match record.r#type {
-            ClientStageStream::EVENTS_TAG => {
-                fields.push(("events", record.events.clone()));
+        let mut fields: Vec<(&str, Vec<u8>)> =
+            vec![("clientId", record.client_id().0.to_string().into_bytes())];
+        match record {
+            ClientStageStream::Events { events, .. } => {
+                fields.push((
+                    "type",
+                    ClientStageStream::EVENTS_TAG.to_string().into_bytes(),
+                ));
+                fields.push(("events", events.to_vec()));
             }
-            ClientStageStream::STAGE_END_TAG => {
-                let update = record
-                    .update
-                    .as_ref()
-                    .expect("end record should have an update");
+            ClientStageStream::End { update, .. } => {
+                fields.push((
+                    "type",
+                    ClientStageStream::STAGE_END_TAG.to_string().into_bytes(),
+                ));
                 fields.push((
                     "update",
                     serde_json::to_vec(update).expect("update serializes"),
                 ));
             }
-            ClientStageStream::METADATA_TAG => {
-                let user_id = record.user_id.expect("metadata record should have a user");
-                fields.push(("userId", user_id.to_string().into_bytes()));
-                let plugin = record
-                    .plugin_version
-                    .clone()
-                    .expect("metadata record should have a plugin");
-                fields.push(("pluginVersion", plugin.into_bytes()));
-                let runelite = record
-                    .rune_lite_version
-                    .clone()
-                    .expect("metadata record should have a RuneLite version");
-                fields.push(("runeLiteVersion", runelite.into_bytes()));
+            ClientStageStream::Metadata {
+                user_id,
+                plugin_version,
+                runelite_version,
+                ..
+            } => {
+                fields.push((
+                    "type",
+                    ClientStageStream::METADATA_TAG.to_string().into_bytes(),
+                ));
+                fields.push(("userId", user_id.0.to_string().into_bytes()));
+                fields.push(("pluginVersion", plugin_version.clone().into_bytes()));
+                fields.push(("runeLiteVersion", runelite_version.clone().into_bytes()));
             }
-            other => panic!("unknown record type {other}"),
         }
 
         let mut cmd = redis::cmd("XADD");
@@ -133,4 +121,15 @@ async fn merge_report_rows(client: &Object, challenge_id: i32, stage: Stage) -> 
         .await
         .expect("merge report rows")
         .get(0)
+}
+
+async fn capture_file(repository: &DataRepository, uuid: Uuid, stage: Stage) -> String {
+    let contents = repository
+        .load_file(&format!(
+            "merge-captures/{uuid}:{}_events.json",
+            stage as i32
+        ))
+        .await
+        .expect("capture file");
+    String::from_utf8(contents).expect("capture is utf-8")
 }

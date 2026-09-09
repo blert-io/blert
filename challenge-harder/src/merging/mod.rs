@@ -31,7 +31,10 @@ pub(crate) mod fixtures;
 
 pub use classification::{ReferenceMethod, ReferenceTicks};
 pub use confidence::StepConfidence;
-pub use report::{ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus};
+pub use report::{
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus,
+    QualityFlag,
+};
 pub(crate) use tick::{Tick, Ticks};
 pub use trace::Tracer;
 
@@ -45,7 +48,7 @@ use crate::proto::Event;
 use alignment::{AlignmentResult, TickAligner};
 use classification::{ClientClassification, classify_clients};
 use client_events::ClientEvents;
-use consolidator::{ConsolidationResult, Consolidator, QualityFlag};
+use consolidator::{ConsolidationResult, Consolidator};
 use event::MalformedEvent;
 use mapping::{Mappings, MergeMapping, TickMapping};
 use merge_consistency::MergeConsistencyIssue;
@@ -72,11 +75,11 @@ enum StepResult<'a> {
     Unmerged,
     Merged {
         confidence: Option<StepConfidence>,
-        quality_flags: Vec<QualityFlag<'a>>,
+        quality_flags: Vec<consolidator::QualityFlag<'a>>,
     },
     Rejected {
         reason: RejectionReason<'a>,
-        quality_flags: Vec<QualityFlag<'a>>,
+        quality_flags: Vec<consolidator::QualityFlag<'a>>,
     },
 }
 
@@ -116,7 +119,7 @@ pub enum BadData {
 pub fn merge<'a>(
     challenge: &'a ChallengeInfo<'a>,
     stage: Stage,
-    records: Vec<ClientStageStream>,
+    records: &[ClientStageStream],
     mut tracer: Option<&mut Tracer>,
 ) -> (Option<MergedEvents>, MergeReport) {
     let _span = tracing::info_span!("merge", uuid = %challenge.uuid, ?stage).entered();
@@ -762,7 +765,7 @@ mod tests {
                 },
             },
         ];
-        merge(&challenge, Stage::TobNylocas, records, None)
+        merge(&challenge, Stage::TobNylocas, &records, None)
             .0
             .expect("stage has client data")
     }
@@ -772,7 +775,7 @@ mod tests {
         let party = vec!["1Ogp".to_string()];
         let challenge =
             fixtures::challenge_info(Stage::MokhaiotlDelve1, ChallengeMode::NoMode, &party);
-        let (merged, report) = merge(&challenge, Stage::MokhaiotlDelve1, vec![], None);
+        let (merged, report) = merge(&challenge, Stage::MokhaiotlDelve1, &[], None);
         assert!(merged.is_none());
         assert_eq!(
             report,
@@ -818,7 +821,7 @@ mod tests {
                 },
             },
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         assert!(merged.is_some());
         assert_eq!(
             report.alerts,
@@ -847,7 +850,7 @@ mod tests {
             end(1, StageStatus::Wiped, 95),
             end(2, StageStatus::Completed, 90),
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         let merged = merged.expect("stage has client data");
         assert_eq!(merged.status(), StageStatus::Completed);
         assert!(matches!(
@@ -888,7 +891,7 @@ mod tests {
                 },
             },
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         assert!(merged.is_some());
         assert_eq!(
             report.clients,
@@ -951,7 +954,7 @@ mod tests {
                 }),
             },
         }];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         assert!(merged.is_none());
         assert_eq!(
             report,
@@ -1016,7 +1019,7 @@ mod tests {
             end(2),
         ];
 
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
 
         assert!(merged.is_some());
         let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
@@ -1126,7 +1129,7 @@ mod tests {
             end(2),
         ];
 
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
 
         assert!(merged.is_some());
         let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
@@ -1252,7 +1255,7 @@ mod tests {
             end(2),
         ];
 
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
 
         assert!(merged.is_some());
         let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
@@ -1414,7 +1417,7 @@ mod tests {
                 },
             },
         ];
-        let (merged, report) = merge(&challenge, Stage::TobNylocas, records, None);
+        let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         let merged = merged.expect("stage has client data");
         assert_eq!(merged.last_tick(), Tick(8));
         assert_eq!(merged.missing_tick_count(), 8);

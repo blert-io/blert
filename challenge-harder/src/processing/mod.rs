@@ -22,6 +22,7 @@ use mokhaiotl::MokhaiotlProcessor;
 use theatre::TheatreProcessor;
 
 pub use crate::lifecycle::core::types::ChallengeInfo;
+pub use merging::{CaptureRates, StreamCapturer};
 pub use session::PostgresSessionFinalizer;
 
 pub mod db;
@@ -32,6 +33,7 @@ mod colosseum;
 mod effects;
 mod inferno;
 mod interpret;
+mod merging;
 mod mokhaiotl;
 mod persist;
 mod session;
@@ -131,6 +133,7 @@ pub struct Pipeline {
     repository: DataRepository,
     price_resolver: Arc<PriceResolver>,
     config: ProcessorConfig,
+    capturer: Option<StreamCapturer>,
 }
 
 impl Pipeline {
@@ -147,7 +150,13 @@ impl Pipeline {
             repository,
             price_resolver,
             config,
+            capturer: None,
         }
+    }
+
+    pub fn with_capturer(mut self, capturer: StreamCapturer) -> Pipeline {
+        self.capturer = Some(capturer);
+        self
     }
 }
 
@@ -202,17 +211,7 @@ impl StageProcessor for Pipeline {
                     .await?;
                 (ProcessingPayload::None, None)
             }
-            Trigger::Stage { .. } => {
-                stage::process(
-                    &self.store,
-                    &self.repository,
-                    &txn,
-                    &self.price_resolver,
-                    self.config,
-                    &request.challenge,
-                )
-                .await?
-            }
+            Trigger::Stage { .. } => stage::process(self, &txn, &request.challenge).await?,
         };
         txn.commit(&payload, custom_data.as_ref()).await?;
 

@@ -304,6 +304,25 @@ static MERGE_RESULT_WRITES: LazyLock<IntCounterVec> = LazyLock::new(|| {
     .unwrap()
 });
 
+static STREAM_CAPTURES: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_merge_stream_captures_total",
+            "Raw stage stream captures by triggering reason"
+        ),
+        &["reason"]
+    )
+    .unwrap()
+});
+
+static STREAM_CAPTURES_SUPPRESSED: LazyLock<IntCounter> = LazyLock::new(|| {
+    register_int_counter!(
+        "challenge_server_merge_stream_captures_suppressed_total",
+        "Stream captures dropped by the hourly rate cap"
+    )
+    .unwrap()
+});
+
 /// How a challenge start request was resolved.
 #[derive(Debug, Clone, Copy)]
 pub enum RequestAction {
@@ -551,6 +570,21 @@ pub fn record_merge_result_write(success: bool) {
     MERGE_RESULT_WRITES.with_label_values(&[status]).inc();
 }
 
+pub fn record_stream_capture(reason: &str) {
+    STREAM_CAPTURES.with_label_values(&[reason]).inc();
+}
+
+pub fn record_stream_capture_suppressed() {
+    STREAM_CAPTURES_SUPPRESSED.inc();
+}
+
+pub fn record_unmerged_events_write(success: bool) {
+    let result = if success { "success" } else { "error" };
+    REPOSITORY_WRITES
+        .with_label_values(&["test", "unmerged_events", result])
+        .inc();
+}
+
 pub fn record_stage_event_payload(stage: Stage, total_bytes: usize, client_count: usize) {
     let stage = stage_label(stage);
     let total = u32::try_from(total_bytes).unwrap_or(u32::MAX);
@@ -588,7 +622,7 @@ pub fn record_merge_report(stage: Stage, report: &MergeReport) {
             .inc();
         for anomaly in &client.anomalies {
             CLIENT_ANOMALIES
-                .with_label_values(&[&stage, &anomaly.to_string()])
+                .with_label_values(&[&stage, anomaly.name()])
                 .inc();
         }
         if let Some(server_ticks) = &client.server_ticks {

@@ -201,13 +201,24 @@ async fn configure_challenge_processor(
         },
     };
 
-    let pipeline = processing::Pipeline::new(
+    let mut pipeline = processing::Pipeline::new(
         Arc::clone(&db),
         store,
         repository,
         price_resolver,
         processor_config,
     );
+    if let Ok(uri) = std::env::var("BLERT_CAPTURE_DATA_REPOSITORY") {
+        let capture_repository = repository::DataRepository::from_uri(&uri)
+            .await
+            .expect("failed to open the capture repository");
+        let development = std::env::var("BLERT_ENVIRONMENT").is_ok_and(|env| env == "development");
+        pipeline = pipeline.with_capturer(processing::StreamCapturer::new(
+            capture_repository,
+            development,
+            processing::CaptureRates::default(),
+        ));
+    }
     (Arc::new(pipeline), db)
 }
 

@@ -106,7 +106,7 @@ impl<'a> ClientEvents<'a> {
         challenge: &'a ChallengeInfo<'a>,
         stage: Stage,
         id: ClientId,
-        stream: Vec<ClientStageStream>,
+        stream: &[&ClientStageStream],
     ) -> Result<ClientEvents<'a>, BadDataClient<'a>> {
         StreamParser::new(id, challenge, stage).parse(stream)
     }
@@ -118,9 +118,9 @@ impl<'a> ClientEvents<'a> {
 pub(super) fn from_stage_stream<'a>(
     challenge: &'a ChallengeInfo<'a>,
     stage: Stage,
-    records: Vec<ClientStageStream>,
+    records: &[ClientStageStream],
 ) -> (Vec<ClientEvents<'a>>, Vec<BadDataClient<'a>>) {
-    let mut partitions: BTreeMap<ClientId, Vec<ClientStageStream>> = BTreeMap::new();
+    let mut partitions: BTreeMap<ClientId, Vec<&ClientStageStream>> = BTreeMap::new();
     for record in records {
         partitions
             .entry(record.client_id())
@@ -131,7 +131,7 @@ pub(super) fn from_stage_stream<'a>(
     let mut clients = Vec::new();
     let mut bad_data_clients = Vec::new();
     for (client_id, records) in partitions {
-        match ClientEvents::from_client_stream(challenge, stage, client_id, records) {
+        match ClientEvents::from_client_stream(challenge, stage, client_id, &records) {
             Ok(client) => clients.push(client),
             Err(bad_data) => {
                 tracing::error!(%client_id, error = %bad_data.error, "client_bad_data");
@@ -178,7 +178,7 @@ impl<'a> StreamParser<'a> {
     #[expect(clippy::result_large_err, reason = "return client info")]
     fn parse(
         mut self,
-        stream: Vec<ClientStageStream>,
+        stream: &[&ClientStageStream],
     ) -> Result<ClientEvents<'a>, BadDataClient<'a>> {
         let (mut info, mut raw_events) = self.read_stage_stream(stream);
 
@@ -233,7 +233,7 @@ impl<'a> StreamParser<'a> {
 
     fn read_stage_stream(
         &mut self,
-        stream: Vec<ClientStageStream>,
+        stream: &[&ClientStageStream],
     ) -> (ReportedInfo<'a>, Vec<TaggedEvent>) {
         let mut raw_events: Vec<TaggedEvent> = Vec::new();
         let mut saw_stage_end = false;
@@ -256,28 +256,30 @@ impl<'a> StreamParser<'a> {
                     ..
                 } => {
                     info.plugin_info = Some(PluginInfo {
-                        user_id,
-                        plugin_version,
-                        runelite_version,
+                        user_id: *user_id,
+                        plugin_version: plugin_version.clone(),
+                        runelite_version: runelite_version.clone(),
                     });
                 }
-                ClientStageStream::Events { events, .. } => match ChallengeEvents::decode(events) {
-                    Ok(message) => {
-                        raw_events.extend(
-                            message
-                                .events
-                                .into_iter()
-                                .map(|event| TaggedEvent::new(self.client_id, event)),
-                        );
+                ClientStageStream::Events { events, .. } => {
+                    match ChallengeEvents::decode(events.as_ref()) {
+                        Ok(message) => {
+                            raw_events.extend(
+                                message
+                                    .events
+                                    .into_iter()
+                                    .map(|event| TaggedEvent::new(self.client_id, event)),
+                            );
+                        }
+                        Err(error) => {
+                            tracing::error!(
+                                client_id = %self.client_id,
+                                %error,
+                                "client_events_deserialization_failed",
+                            );
+                        }
                     }
-                    Err(error) => {
-                        tracing::error!(
-                            client_id = %self.client_id,
-                            %error,
-                            "client_events_deserialization_failed",
-                        );
-                    }
-                },
+                }
                 ClientStageStream::End { update, .. } => {
                     info.status = update.status;
                     info.reported_accurate = update.accurate;
@@ -499,7 +501,7 @@ mod tests {
         let (clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 metadata(2),
                 metadata(1),
                 events(1, &[4, 8]),
@@ -541,7 +543,7 @@ mod tests {
         let (clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 end(1, StageStatus::Wiped, 100),
                 end(1, StageStatus::Completed, 190),
             ],
@@ -558,7 +560,7 @@ mod tests {
         let (mut clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![metadata(1), events(1, &[4, 8, 12])],
+            &[metadata(1), events(1, &[4, 8, 12])],
         );
         assert!(bad_data_clients.is_empty());
         assert_eq!(clients.len(), 1);
@@ -580,7 +582,7 @@ mod tests {
         let (clients, mut bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![events(1, &[4, 8]), end(1, StageStatus::Completed, 50_000)],
+            &[events(1, &[4, 8]), end(1, StageStatus::Completed, 50_000)],
         );
         assert!(clients.is_empty());
         assert_eq!(bad_data_clients.len(), 1);
@@ -610,7 +612,7 @@ mod tests {
         let (clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 events(1, &[4, 8]),
                 ClientStageStream::End {
                     client_id: ClientId(1),
@@ -642,7 +644,7 @@ mod tests {
         let (clients, mut bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 events(1, &[4, 8]),
                 ClientStageStream::End {
                     client_id: ClientId(1),
@@ -681,7 +683,7 @@ mod tests {
         let (mut clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 events(1, &[4, 8, 12, 16]),
                 end(1, StageStatus::Completed, 8),
             ],
@@ -715,7 +717,7 @@ mod tests {
     fn an_event_beyond_the_maximum_tick_is_bad_data() {
         let challenge = test_challenge(Stage::TobNylocas);
         let (clients, mut bad_data_clients) =
-            from_stage_stream(&challenge, Stage::TobNylocas, vec![events(1, &[4, 36_500])]);
+            from_stage_stream(&challenge, Stage::TobNylocas, &[events(1, &[4, 36_500])]);
         assert!(clients.is_empty());
         assert_eq!(bad_data_clients.len(), 1);
         let BadDataClient { info, error } = bad_data_clients.remove(0);
@@ -758,7 +760,7 @@ mod tests {
         let (mut clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 batch(&[(8, 2), (16, 4)]),
                 batch(&[(4, 1), (12, 3)]),
                 end(1, StageStatus::Completed, 16),
@@ -784,7 +786,7 @@ mod tests {
         let (mut clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 events(1, &[4, 8]),
                 ClientStageStream::Events {
                     client_id: ClientId(1),
@@ -839,7 +841,7 @@ mod tests {
         let (clients, mut bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 ClientStageStream::Events {
                     client_id: ClientId(1),
                     events: Bytes::from(message.encode_to_vec()),
@@ -871,7 +873,7 @@ mod tests {
         let (mut clients, bad_data_clients) = from_stage_stream(
             &challenge,
             Stage::TobNylocas,
-            vec![
+            &[
                 ClientStageStream::Events {
                     client_id: ClientId(1),
                     events: Bytes::from(message.encode_to_vec()),
