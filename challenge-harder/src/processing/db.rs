@@ -1,9 +1,14 @@
 //! Postgres persistence for data processing.
 
 use std::ops::Deref;
+use std::sync::Arc;
 
 use deadpool_postgres::{Manager, ManagerConfig, Object, Pool, RecyclingMethod};
-use tokio_postgres::NoTls;
+use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
+use rustls::crypto::{CryptoProvider, aws_lc_rs, verify_tls12_signature, verify_tls13_signature};
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::{DigitallySignedStruct, SignatureScheme};
+use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{ProcessingError, ProcessingPayload, StageStatus, Uuid};
@@ -59,13 +64,68 @@ pub struct Postgres {
     pool: Pool,
 }
 
+#[derive(Debug)]
+struct EncryptOnly(Arc<CryptoProvider>);
+
+impl ServerCertVerifier for EncryptOnly {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &CertificateDer<'_>,
+        _intermediates: &[CertificateDer<'_>],
+        _server_name: &ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: UnixTime,
+    ) -> Result<ServerCertVerified, rustls::Error> {
+        Ok(ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        verify_tls12_signature(
+            message,
+            cert,
+            dss,
+            &self.0.signature_verification_algorithms,
+        )
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        message: &[u8],
+        cert: &CertificateDer<'_>,
+        dss: &DigitallySignedStruct,
+    ) -> Result<HandshakeSignatureValid, rustls::Error> {
+        verify_tls13_signature(
+            message,
+            cert,
+            dss,
+            &self.0.signature_verification_algorithms,
+        )
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        self.0.signature_verification_algorithms.supported_schemes()
+    }
+}
+
 impl Postgres {
     /// Opens a connection pool to the Postgres instance at `uri`.
     pub async fn connect(uri: &str, pool_size: usize) -> Result<Postgres, Error> {
         let config: tokio_postgres::Config = uri.parse()?;
+        let provider = Arc::new(aws_lc_rs::default_provider());
+        let tls = rustls::ClientConfig::builder_with_provider(Arc::clone(&provider))
+            .with_safe_default_protocol_versions()
+            .map_err(|e| Error::Database(e.to_string()))?
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(EncryptOnly(provider)))
+            .with_no_client_auth();
         let manager = Manager::from_config(
             config,
-            NoTls,
+            MakeRustlsConnect::new(tls),
             ManagerConfig {
                 recycling_method: RecyclingMethod::Fast,
             },
