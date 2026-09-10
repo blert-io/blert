@@ -26,8 +26,8 @@
     "winston": "^3.18.3"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
-    "jest": "^30.5.0",
+    "@types/node": "^26.4.1",
+    "jest": "^30.5.1",
     "ts-jest": "^29.4.12",
     "tsc-watch": "^7.2.1"
   }
