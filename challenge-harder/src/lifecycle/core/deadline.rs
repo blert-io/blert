@@ -122,7 +122,7 @@ impl Default for LifecycleConfig {
         LifecycleConfig {
             challenge_end_grace: Duration::from_secs(5),
             stage_end_timeout: Duration::from_secs(2),
-            reconnection_window: Duration::from_mins(5),
+            reconnection_window: Duration::from_mins(10),
             inactivity: InactivityConfig::default(),
             lease_renewal_interval: Duration::from_secs(10),
             session_activity_window: Duration::from_mins(30),

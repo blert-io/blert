@@ -176,7 +176,7 @@ async fn start_for_another_party_leaves_the_recorded_challenge() {
                 .at(0, solo_start("715"))
                 .at(1_000, tob_start()),
         ],
-        run_until: 302_000,
+        run_until: 602_000,
     })
     .await;
 
@@ -213,7 +213,7 @@ async fn start_for_another_party_leaves_the_recorded_challenge() {
             ),
             entry(
                 3,
-                301_000,
+                601_000,
                 Cause::Deadline(DeadlineKind::CleanupDisconnect),
                 LifecycleEvent::ChallengeTerminated,
             ),
@@ -237,7 +237,7 @@ async fn start_joins_the_left_challenge_within_its_window() {
                 .at(1_000, solo_start("1Ogp"))
                 .at(60_000, tob_start()),
         ],
-        run_until: 400_000,
+        run_until: 700_000,
     })
     .await;
 
@@ -296,7 +296,7 @@ async fn start_attaching_to_an_incumbent_leaves_the_recorded_challenge() {
             Client::participant("b", 2).at(1_000, tob_start()),
             Client::participant("a", 1).at(1_005, tob_start()),
         ],
-        run_until: 302_000,
+        run_until: 602_000,
     })
     .await;
 

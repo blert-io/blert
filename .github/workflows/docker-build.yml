@@ -15,6 +15,9 @@ on:
       - '*/package.json'
       - 'patches/**'
       - 'tsconfig.base.json'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '*/Cargo.toml'
   workflow_dispatch:
 
 # Serialize builds per ref. Superseded pull-request validation runs are
@@ -45,6 +48,7 @@ jobs:
             blertbank,
             effect-runner,
             live-server,
+            challenge-harder,
           ]
 
     steps:
@@ -106,6 +110,12 @@ jobs:
         run: |
           tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n 1)"
           docker run --rm "$tag" node -e "require('/app/common/dist')"
+
+      - name: Smoke test challenge-harder image
+        if: matrix.service == 'challenge-harder'
+        run: |
+          tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n 1)"
+          docker run --rm "$tag" challenge-harder --help
 
       - name: Push
         if: github.event_name != 'pull_request'

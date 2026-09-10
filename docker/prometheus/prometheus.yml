@@ -16,7 +16,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - challenge-server:3003
+          - challenge-server-2:3003
   - job_name: blert-web
     metrics_path: /api/metrics
     static_configs:

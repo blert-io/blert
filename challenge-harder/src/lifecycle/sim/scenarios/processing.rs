@@ -614,7 +614,7 @@ async fn finish_after_mid_stage_disconnect_reports_abandoned() {
                     .at(600, report(Stage::TobBloat, StageStatus::Started))
                     .at(900, Action::Status(ClientStatus::Disconnected)),
             ],
-            run_until: 330_000,
+            run_until: 630_000,
         },
     )
     .await;
@@ -635,7 +635,7 @@ async fn finish_after_mid_stage_disconnect_reports_abandoned() {
             ),
             entry(
                 17,
-                300_900,
+                600_900,
                 Cause::Deadline(DeadlineKind::CleanupDisconnect),
                 LifecycleEvent::StageSealed {
                     stage: Stage::TobBloat,
@@ -645,31 +645,31 @@ async fn finish_after_mid_stage_disconnect_reports_abandoned() {
             ),
             entry(
                 18,
-                300_900,
+                600_900,
                 Cause::Deadline(DeadlineKind::CleanupDisconnect),
                 LifecycleEvent::ChallengeTerminated,
             ),
             entry(
                 19,
-                300_900,
+                600_900,
                 Cause::Deadline(DeadlineKind::ProcessingDue),
                 started(17)
             ),
             entry(
                 20,
-                300_900,
+                600_900,
                 processing(17),
                 finished(17, ProcessingPayload::None),
             ),
             entry(
                 21,
-                300_900,
+                600_900,
                 Cause::Deadline(DeadlineKind::ProcessingDue),
                 started(20)
             ),
             entry(
                 22,
-                300_900,
+                600_900,
                 processing(20),
                 finished(20, ProcessingPayload::None),
             ),

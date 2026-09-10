@@ -25,20 +25,21 @@ services:
     depends_on:
       - redis
       - postgres
-      - challenge-server
+      - challenge-server-2
     ports:
       - '3003:3003'
     links:
       - redis
       - postgres
-      - challenge-server
+      - challenge-server-2
     volumes:
       - .:/app
     environment:
       NODE_ENV: development
       ADMIN_TOKEN: blert
       BLERT_DATABASE_URI: postgres://blert:blert@postgres:5432/blert
-      BLERT_CHALLENGE_SERVER_URI: ${BLERT_CHALLENGE_SERVER_URI:-http://challenge-server:3003}
+      BLERT_CHALLENGE_SERVER_URI: http://challenge-server-2:3003
+      BLERT_CLIENT_STATUS_HTTP: 1
       BLERT_REDIS_URI: redis://redis:6379
       BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
       BLERT_DEFINITIONS_REPOSITORY: file:///app/.data
@@ -49,6 +50,8 @@ services:
 
   challenge-server:
     image: node:26
+    profiles:
+      - legacy
     depends_on:
       - redis
       - postgres
