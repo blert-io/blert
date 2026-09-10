@@ -190,11 +190,6 @@ impl ScenarioResult {
         self.projections[&uuid].status
     }
 
-    /// A canonical serialization of every challenge's journal.
-    pub fn trace(&self) -> String {
-        serde_json::to_string(&self.journals.journals).expect("journals should serialize")
-    }
-
     /// Returns the trace with each uuid replaced by its creation index.
     /// Session uuids are replaced in party identity order, which is stable
     /// for a fixed scenario.
@@ -344,17 +339,6 @@ impl Collector {
             .journals
             .get(&uuid)
             .cloned()
-            .unwrap_or_default()
-    }
-
-    /// How many times session `uuid` has been refreshed by its challenges.
-    pub fn refresh_count(&self, uuid: Uuid) -> u64 {
-        self.sessions
-            .lock()
-            .expect("collector lock poisoned")
-            .refreshes
-            .get(&uuid)
-            .copied()
             .unwrap_or_default()
     }
 

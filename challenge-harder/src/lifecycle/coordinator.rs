@@ -6,15 +6,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::{RwLock, mpsc, watch};
-use tokio::task::JoinHandle;
 
 use super::challenge::{ChallengeSignal, ChallengeStore, Claim, Rejoin, Start, run_challenge};
 use super::core::command::{
     ClientStatusChange, Command, Create, CreateRequest, Finish, Join, Update,
 };
 use super::core::deadline::LifecycleConfig;
-use super::core::state::{ChallengePhase, PublishedClient, Snapshot};
-use super::core::types::{ClientId, MsgId, Uuid};
+use super::core::state::Snapshot;
+use super::core::types::{MsgId, Uuid};
 use super::session::{SessionFinalizer, SessionResolution, SessionStore};
 use crate::metrics::{self, Decision, RequestAction};
 use crate::processing::StageProcessor;
@@ -121,15 +120,6 @@ impl SnapshotCache {
                 None
             }
         }
-    }
-
-    /// The latest known phase of a challenge, if it has published any state.
-    fn phase(&self, uuid: Uuid) -> Option<ChallengePhase> {
-        self.entries
-            .lock()
-            .expect("cache lock poisoned")
-            .get(&uuid)
-            .and_then(|entry| entry.borrow().as_ref().map(|s| s.phase))
     }
 
     fn subscribe(&self, uuid: Uuid) -> watch::Receiver<Option<Snapshot>> {
@@ -296,6 +286,7 @@ impl Coordinator {
     }
 
     /// Returns the current state of an active challenge, if it exists.
+    #[cfg_attr(not(test), expect(dead_code))]
     pub async fn snapshot(&self, uuid: Uuid) -> Option<Snapshot> {
         self.cache.refresh(uuid).await
     }
@@ -656,12 +647,11 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::lifecycle::challenge::{ChallengeClaim, ChallengeServerUpdate};
-    use crate::lifecycle::core::command::{ClientStatus, Envelope, StageProgress};
-    use crate::lifecycle::core::event::{JournalEntry, LifecycleEvent};
-    use crate::lifecycle::core::state::ChallengeState;
+    use crate::lifecycle::core::command::Envelope;
+    use crate::lifecycle::core::event::JournalEntry;
+    use crate::lifecycle::core::state::{ChallengePhase, ChallengeState, PublishedClient};
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeType, ClientId, JournalSeq, RecordingType, Stage, StageStatus,
-        Timestamp, UserId,
+        ChallengeMode, ChallengeType, ClientId, RecordingType, Stage, UserId,
     };
     use crate::lifecycle::sim::Collector;
     use crate::lifecycle::store::StoreError;

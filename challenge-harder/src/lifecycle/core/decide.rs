@@ -10,7 +10,7 @@ use super::command::{
 };
 use super::deadline::{Deadline, DeadlineKind, LifecycleConfig, next_deadline};
 use super::event::LifecycleEvent;
-use super::state::{ChallengeState, ClientState, PhaseState, ProcessingState, StageState};
+use super::state::{ChallengeState, PhaseState, ProcessingState, StageState};
 use super::types::{
     ChallengeMode, ChallengeType, RecordingType, Stage, StageExt, StageStatus, StageStatusExt,
 };

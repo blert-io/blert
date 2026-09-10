@@ -1,6 +1,5 @@
 //! Live challenge state processing.
 
-use core::future::Future;
 use core::time::Duration;
 use std::sync::Arc;
 
@@ -15,14 +14,13 @@ use super::core::deadline::{DeadlineKind, LifecycleConfig, next_deadline};
 use super::core::decide::decide;
 use super::core::event::{Cause, JournalEntry, LifecycleEvent};
 use super::core::state::{
-    ChallengeState, LastCompleted, PhaseState, Processing, ProcessingState, PublishedClient,
-    Snapshot, Trigger,
+    ChallengeState, PhaseState, Processing, ProcessingState, PublishedClient, Snapshot, Trigger,
 };
-use super::core::types::{ClientId, JournalSeq, MsgId, ProcessingPayload, Stage, Timestamp, Uuid};
+use super::core::types::{ClientId, JournalSeq, MsgId, Stage, Timestamp, Uuid};
 use super::session::SessionStore;
 use super::store::{StoreError, with_retries};
 use crate::metrics::{self, Decision, FinalizationPath, RunResult};
-use crate::processing::{ChallengeInfo, ProcessingRequest, StageProcessor};
+use crate::processing::{ProcessingRequest, StageProcessor};
 
 /// A claim on a challenge, pairing the challenge's identity with exclusive
 /// write access to its durable state.
@@ -264,6 +262,7 @@ pub struct ActiveChallenge {
 
 /// A challenge data processing task which is aborted when dropped.
 struct ProcessingTask {
+    #[expect(dead_code)]
     trigger: JournalSeq,
     handle: JoinHandle<()>,
 }
@@ -724,7 +723,7 @@ mod tests {
     use super::*;
     use crate::lifecycle::core::command::{Create, CreateRequest, Finish};
     use crate::lifecycle::core::deadline::DeadlineKind;
-    use crate::lifecycle::core::state::{ChallengePhase, StageState};
+    use crate::lifecycle::core::state::{ChallengePhase, LastCompleted, StageState};
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, RecordingType, Stage, StageStatus,
         UserId,
