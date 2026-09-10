@@ -286,6 +286,7 @@ pub struct PlayerStats {
 #[derive(Debug, Clone)]
 pub struct PlayerState<'a> {
     /// The client whose recording this view came from.
+    #[cfg_attr(not(test), expect(dead_code))]
     pub source: ClientId,
     pub party_index: u32,
     pub data_source: DataSource,
@@ -501,6 +502,7 @@ impl NpcSubtype {
 #[derive(Debug, Clone)]
 pub struct NpcState<'a> {
     /// The client whose recording this view came from.
+    #[cfg_attr(not(test), expect(dead_code))]
     pub source: ClientId,
     pub id: u32,
     pub position: Coords,

@@ -14,8 +14,8 @@ use crate::lifecycle::core::command::{
 use crate::lifecycle::core::deadline::{DeadlineKind, LifecycleConfig};
 use crate::lifecycle::core::event::{Cause, JournalEntry, LifecycleEvent};
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-    Stage, Timestamp, UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType, Stage, Timestamp,
+    UserId, Uuid,
 };
 
 fn config() -> LifecycleConfig {

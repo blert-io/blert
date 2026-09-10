@@ -240,8 +240,8 @@ mod tests {
     use crate::lifecycle::core::event::Cause;
     use crate::lifecycle::core::state::{ClientState, Processing, Trigger};
     use crate::lifecycle::core::types::{
-        ChallengeStatus, ChallengeType, ClientId, JournalSeq, ProcessingError, RecordingType,
-        Stage, StageExt, StageStatus, UserId,
+        ChallengeType, ClientId, JournalSeq, ProcessingError, RecordingType, Stage, StageExt,
+        StageStatus, UserId,
     };
 
     fn mid_stage_state(stage: Stage) -> ChallengeState {

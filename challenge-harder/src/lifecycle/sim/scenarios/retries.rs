@@ -1,7 +1,6 @@
 //! Stage retry scenarios.
 
 use super::*;
-use crate::lifecycle::core::types::ChallengeStatus;
 use crate::lifecycle::sim::{Scenario, run};
 
 fn mokhaiotl_start(stage: Stage) -> Action {

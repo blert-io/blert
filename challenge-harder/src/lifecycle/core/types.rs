@@ -408,6 +408,7 @@ impl StageExt for Stage {
 }
 
 pub trait ChallengeTypeExt {
+    #[cfg_attr(not(test), expect(dead_code))]
     fn first_stage(self) -> Option<Stage>;
     fn last_stage(self) -> Option<Stage>;
 }

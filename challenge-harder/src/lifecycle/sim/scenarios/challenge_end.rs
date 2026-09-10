@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::lifecycle::core::deadline::DeadlineKind;
-use crate::lifecycle::core::types::ChallengeStatus;
 use crate::lifecycle::sim::{Scenario, run};
 
 #[tokio::test(start_paused = true)]

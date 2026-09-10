@@ -3,9 +3,6 @@
 //! Combines the event streams recorded by a stage's clients into a single
 //! canonical timeline for challenge processing to consume.
 
-// TODO(frolv): Remove once the container's full API has consumers.
-#![cfg_attr(not(test), expect(dead_code))]
-
 mod alignment;
 mod classification;
 mod client_consistency;
@@ -609,11 +606,6 @@ pub struct MergedEvents {
 impl MergedEvents {
     fn new(events: Vec<Event>, metadata: Metadata) -> MergedEvents {
         MergedEvents { events, metadata }
-    }
-
-    /// Iterates over every event in tick order.
-    pub fn iter(&self) -> std::slice::Iter<'_, Event> {
-        self.events.iter()
     }
 
     /// The number of events in the timeline.
@@ -1384,7 +1376,7 @@ mod tests {
         for event in merged.events_for_tick_mut(Tick(8)) {
             event.y_coord = 99;
         }
-        let updated: Vec<i32> = merged.iter().map(|event| event.y_coord).collect();
+        let updated: Vec<i32> = merged.events.iter().map(|event| event.y_coord).collect();
         assert_eq!(updated, vec![0, 99]);
     }
 
