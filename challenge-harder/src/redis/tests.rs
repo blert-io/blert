@@ -2702,6 +2702,21 @@ async fn session_refresh_extends_an_existing_deadline() {
         .unwrap();
     assert!(deadline > aged);
 
+    let distant = deadline_after(TEST_WINDOW) + 60_000;
+    let _: () = connection
+        .zadd(SESSION_DEADLINES_KEY, uuid.to_string(), distant)
+        .await
+        .unwrap();
+    store
+        .refresh(uuid, TEST_WINDOW)
+        .await
+        .expect("a deadline already further out is not a failure");
+    let unchanged: u64 = connection
+        .zscore(SESSION_DEADLINES_KEY, uuid.to_string())
+        .await
+        .unwrap();
+    assert_eq!(unchanged, distant);
+
     // A session without a deadline entry cannot be refreshed.
     let missing = Uuid::new_v4();
     assert!(store.refresh(missing, TEST_WINDOW).await.is_err());
