@@ -159,7 +159,7 @@ async fn wait_for_timeouts(
         .stage_end_timeout
         .max(config.challenge_end_grace)
         .max(config.reconnection_window)
-        .max(config.inactivity_timeout)
+        .max(config.inactivity.longest())
         + Duration::from_secs(5);
     let deadline = Instant::now() + ceiling;
 

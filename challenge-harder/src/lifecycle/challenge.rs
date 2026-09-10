@@ -671,8 +671,6 @@ impl ActiveChallenge {
             metrics::record_challenge_finalization(path, self.state.status());
         }
 
-        // TODO(frolv): Trigger external effects like feed and webhooks.
-
         let finish = ChallengeServerUpdate::Finish;
         if let Err(error) = with_retries(self.state.uuid, "challenge_update", || {
             self.claim.announce(&finish)

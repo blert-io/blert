@@ -12,7 +12,7 @@ use core::time::Duration;
 
 use super::*;
 use crate::lifecycle::core::command::ClientStatus;
-use crate::lifecycle::core::deadline::LifecycleConfig;
+use crate::lifecycle::core::deadline::{InactivityConfig, LifecycleConfig};
 use crate::lifecycle::core::state::ProcessingConfig;
 use crate::lifecycle::sim::{Rng, Scenario, ScenarioResult, hash, perturb, run_with};
 
@@ -23,7 +23,15 @@ const SWEEP_CONFIG: LifecycleConfig = LifecycleConfig {
     stage_end_timeout: Duration::from_secs(2),
     challenge_end_grace: Duration::from_secs(5),
     reconnection_window: Duration::from_secs(30),
-    inactivity_timeout: Duration::from_mins(1),
+    inactivity: InactivityConfig {
+        unknown: Duration::from_mins(1),
+        tob: Duration::from_mins(1),
+        cox: Duration::from_mins(1),
+        toa: Duration::from_mins(1),
+        colosseum: Duration::from_mins(1),
+        inferno: Duration::from_mins(1),
+        mokhaiotl: Duration::from_mins(1),
+    },
     lease_renewal_interval: Duration::from_secs(10),
     session_activity_window: Duration::from_mins(30),
     processing: ProcessingConfig {
@@ -56,7 +64,7 @@ fn quiet_after(clients: &[Client]) -> u64 {
         + ms(SWEEP_CONFIG.stage_end_timeout)
         + ms(SWEEP_CONFIG.challenge_end_grace)
         + ms(SWEEP_CONFIG.reconnection_window)
-        + ms(SWEEP_CONFIG.inactivity_timeout)
+        + ms(SWEEP_CONFIG.inactivity.timeout(ChallengeType::Tob))
 }
 
 /// Builds a scenario which runs until every consequence of its actions has

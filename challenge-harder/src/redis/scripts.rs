@@ -580,6 +580,31 @@ pub(super) static SESSION_RESOLVE_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
     ))
 });
 
+/// Extends a session's activity deadline. The deadline only ever moves forward.
+///
+/// ## Arguments
+///
+/// - `KEYS[1]` = Session index
+///
+/// - `ARGV[1]` = New activity deadline as a unix millisecond timestamp
+/// - `ARGV[2]` = Session UUID
+///
+/// ## Return value
+///
+/// - `1`: The session has a deadline.
+/// - `0`: The session has no deadline entry to extend.
+pub(super) static SESSION_REFRESH_SCRIPT: LazyLock<Script> = LazyLock::new(|| {
+    Script::new(
+        r"
+        if not redis.call('ZSCORE', KEYS[1], ARGV[2]) then
+            return 0
+        end
+        redis.call('ZADD', KEYS[1], 'XX', 'GT', ARGV[1], ARGV[2])
+        return 1
+        ",
+    )
+});
+
 /// Claims a batch of expired sessions for finalization. A session is expired
 /// if its deadline has lapsed and it has no active challenges. Each claimed
 /// session's party routing key is cleared and its deadline advanced by a

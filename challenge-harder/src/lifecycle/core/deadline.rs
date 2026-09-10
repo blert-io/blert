@@ -8,7 +8,7 @@ use core::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::state::{ChallengeState, PhaseState, ProcessingConfig, ProcessingState, StageState};
-use super::types::Timestamp;
+use super::types::{ChallengeType, Timestamp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeadlineKind {
@@ -32,6 +32,69 @@ pub struct Deadline {
     pub at: Timestamp,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InactivityConfig {
+    pub unknown: Duration,
+    pub tob: Duration,
+    pub cox: Duration,
+    pub toa: Duration,
+    pub colosseum: Duration,
+    pub inferno: Duration,
+    pub mokhaiotl: Duration,
+}
+
+impl Default for InactivityConfig {
+    fn default() -> Self {
+        InactivityConfig {
+            unknown: Duration::from_mins(15),
+            tob: Duration::from_mins(15),
+            cox: Duration::from_mins(15),
+            toa: Duration::from_mins(15),
+            colosseum: Duration::from_mins(15),
+            inferno: Duration::from_mins(60),
+            mokhaiotl: Duration::from_mins(15),
+        }
+    }
+}
+
+impl InactivityConfig {
+    #[must_use]
+    pub fn timeout(self, challenge_type: ChallengeType) -> Duration {
+        match challenge_type {
+            ChallengeType::UnknownChallenge => self.unknown,
+            ChallengeType::Tob => self.tob,
+            ChallengeType::Cox => self.cox,
+            ChallengeType::Toa => self.toa,
+            ChallengeType::Colosseum => self.colosseum,
+            ChallengeType::Inferno => self.inferno,
+            ChallengeType::Mokhaiotl => self.mokhaiotl,
+        }
+    }
+
+    #[must_use]
+    pub fn longest(self) -> Duration {
+        self.unknown
+            .max(self.tob)
+            .max(self.cox)
+            .max(self.toa)
+            .max(self.colosseum)
+            .max(self.inferno)
+            .max(self.mokhaiotl)
+    }
+
+    fn scaled(self, factor: u32) -> InactivityConfig {
+        InactivityConfig {
+            unknown: self.unknown / factor,
+            tob: self.tob / factor,
+            cox: self.cox / factor,
+            toa: self.toa / factor,
+            colosseum: self.colosseum / factor,
+            inferno: self.inferno / factor,
+            mokhaiotl: self.mokhaiotl / factor,
+        }
+    }
+}
+
 /// Timing parameters for a challenge's deadlines.
 #[derive(Debug, Clone)]
 pub struct LifecycleConfig {
@@ -45,7 +108,7 @@ pub struct LifecycleConfig {
     pub reconnection_window: Duration,
     /// Time to wait for a client to become active while every connected
     /// client is idle.
-    pub inactivity_timeout: Duration,
+    pub inactivity: InactivityConfig,
     /// Interval at which a running challenge renews its lease.
     pub lease_renewal_interval: Duration,
     /// Time without any challenge activity after which a session ends.
@@ -60,7 +123,7 @@ impl Default for LifecycleConfig {
             challenge_end_grace: Duration::from_secs(5),
             stage_end_timeout: Duration::from_secs(2),
             reconnection_window: Duration::from_mins(5),
-            inactivity_timeout: Duration::from_mins(15),
+            inactivity: InactivityConfig::default(),
             lease_renewal_interval: Duration::from_secs(10),
             session_activity_window: Duration::from_mins(30),
             processing: ProcessingConfig::default(),
@@ -77,7 +140,7 @@ impl LifecycleConfig {
             stage_end_timeout: self.stage_end_timeout / factor,
             challenge_end_grace: self.challenge_end_grace / factor,
             reconnection_window: self.reconnection_window / factor,
-            inactivity_timeout: self.inactivity_timeout / factor,
+            inactivity: self.inactivity.scaled(factor),
             lease_renewal_interval: self.lease_renewal_interval / factor,
             session_activity_window: self.session_activity_window / factor,
             processing: ProcessingConfig {
@@ -140,7 +203,7 @@ fn lifecycle_deadline(state: &ChallengeState, config: &LifecycleConfig) -> Optio
         } else {
             Deadline {
                 kind: DeadlineKind::CleanupAllIdle,
-                at: since + config.inactivity_timeout,
+                at: since + config.inactivity.timeout(state.challenge_type),
             }
         };
         return Some(deadline);
@@ -178,24 +241,24 @@ mod tests {
     use crate::lifecycle::core::state::{ClientState, Processing, Trigger};
     use crate::lifecycle::core::types::{
         ChallengeStatus, ChallengeType, ClientId, JournalSeq, ProcessingError, RecordingType,
-        Stage, StageStatus, UserId,
+        Stage, StageExt, StageStatus, UserId,
     };
 
-    fn mid_stage_state() -> ChallengeState {
+    fn mid_stage_state(stage: Stage) -> ChallengeState {
         let client = ClientState {
             user_id: UserId(1),
             session_token: "tok".into(),
             recording_type: RecordingType::Participant,
             active: true,
-            stage: Stage::TobMaiden,
+            stage,
             stage_status: StageStatus::Started,
             stage_attempt: None,
             last_completed: None,
         };
 
         ChallengeState {
-            challenge_type: ChallengeType::Tob,
-            stage: Stage::TobMaiden,
+            challenge_type: stage.challenge_type().expect("stages belong to challenges"),
+            stage,
             clients: [(ClientId(10), client)].into_iter().collect(),
             ..ChallengeState::default()
         }
@@ -206,7 +269,15 @@ mod tests {
             stage_end_timeout: Duration::from_secs(2),
             challenge_end_grace: Duration::from_millis(4_500),
             reconnection_window: Duration::from_mins(5),
-            inactivity_timeout: Duration::from_mins(15),
+            inactivity: InactivityConfig {
+                unknown: Duration::from_mins(15),
+                tob: Duration::from_mins(15),
+                cox: Duration::from_mins(15),
+                toa: Duration::from_mins(15),
+                colosseum: Duration::from_mins(15),
+                inferno: Duration::from_mins(60),
+                mokhaiotl: Duration::from_mins(15),
+            },
             lease_renewal_interval: Duration::from_secs(10),
             session_activity_window: Duration::from_mins(30),
             processing: ProcessingConfig::default(),
@@ -261,7 +332,14 @@ mod tests {
         assert_eq!(config.stage_end_timeout, Duration::from_millis(200));
         assert_eq!(config.challenge_end_grace, Duration::from_millis(450));
         assert_eq!(config.reconnection_window, Duration::from_secs(30));
-        assert_eq!(config.inactivity_timeout, Duration::from_secs(90));
+        assert_eq!(
+            config.inactivity.timeout(ChallengeType::Tob),
+            Duration::from_secs(90)
+        );
+        assert_eq!(
+            config.inactivity.timeout(ChallengeType::Inferno),
+            Duration::from_secs(360)
+        );
         assert_eq!(config.lease_renewal_interval, Duration::from_secs(1));
         assert_eq!(config.processing.run_timeout, Duration::from_secs(3));
         assert_eq!(config.processing.retry_backoff, Duration::from_millis(500));
@@ -280,7 +358,7 @@ mod tests {
             stage_state: StageState::Ending {
                 since: Timestamp::from_millis(5_000),
             },
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -300,7 +378,7 @@ mod tests {
             phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_100),
             },
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -321,7 +399,7 @@ mod tests {
             phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_100),
             },
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -350,7 +428,7 @@ mod tests {
             phase: PhaseState::Finishing {
                 since: Timestamp::from_millis(5_000),
             },
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -363,7 +441,7 @@ mod tests {
 
     #[test]
     fn dormant_challenge_derives_cleanup() {
-        let mut state = mid_stage_state();
+        let mut state = mid_stage_state(Stage::TobMaiden);
         for client in state.clients.values_mut() {
             client.active = false;
         }
@@ -373,6 +451,19 @@ mod tests {
             Some(Deadline {
                 kind: DeadlineKind::CleanupAllIdle,
                 at: Timestamp::from_millis(910_000),
+            }),
+        );
+
+        let mut inferno = mid_stage_state(Stage::InfernoWave1);
+        for client in inferno.clients.values_mut() {
+            client.active = false;
+        }
+        inferno.dormant_since = Some(Timestamp::from_millis(10_000));
+        assert_eq!(
+            next_deadline(&inferno, &test_config()),
+            Some(Deadline {
+                kind: DeadlineKind::CleanupAllIdle,
+                at: Timestamp::from_millis(3_610_000),
             }),
         );
 
@@ -395,7 +486,7 @@ mod tests {
                 since: Timestamp::from_millis(5_000),
             },
             dormant_since: Some(Timestamp::from_millis(5_050)),
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         state.clients.clear();
         assert_eq!(
@@ -423,7 +514,7 @@ mod tests {
 
     #[test]
     fn challenge_with_live_clients_has_no_deadlines() {
-        let mut state = mid_stage_state();
+        let mut state = mid_stage_state(Stage::TobMaiden);
         assert_eq!(next_deadline(&state, &LifecycleConfig::default()), None);
 
         state.stage_state = StageState::Complete {
@@ -442,7 +533,7 @@ mod tests {
             stage_state: StageState::Complete {
                 since: Timestamp::from_millis(7_000),
             },
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(next_deadline(&state, &LifecycleConfig::default()), None);
     }
@@ -451,7 +542,7 @@ mod tests {
     fn queued_processing_run_is_due_immediately() {
         let state = ChallengeState {
             processing: queued_processing(Timestamp::from_millis(5_000)),
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -466,7 +557,7 @@ mod tests {
     fn failed_processing_run_waits_for_retry() {
         let state = ChallengeState {
             processing: failed_processing(Timestamp::from_millis(5_000)),
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -507,7 +598,7 @@ mod tests {
                 cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
             processing,
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -522,7 +613,7 @@ mod tests {
     fn active_processing_run_has_a_timeout() {
         let state = ChallengeState {
             processing: running_processing(Timestamp::from_millis(5_000)),
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -541,7 +632,7 @@ mod tests {
                 cause: Cause::Deadline(DeadlineKind::ChallengeEnd),
             },
             processing: running_processing(Timestamp::from_millis(5_000)),
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),
@@ -560,7 +651,7 @@ mod tests {
                 since: Timestamp::from_millis(5_000),
             },
             processing: running_processing(Timestamp::from_millis(5_000)),
-            ..mid_stage_state()
+            ..mid_stage_state(Stage::TobMaiden)
         };
         assert_eq!(
             next_deadline(&state, &test_config()),

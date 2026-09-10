@@ -618,7 +618,7 @@ pub fn record_merge_report(stage: Stage, report: &MergeReport) {
         let classification = client
             .status
             .classification()
-            .map_or("none", MergeClassification::name);
+            .map_or("NONE", MergeClassification::name);
         MERGE_CLIENTS
             .with_label_values(&[&classification, &client.status.name()])
             .inc();

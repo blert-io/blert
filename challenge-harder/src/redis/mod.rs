@@ -29,7 +29,8 @@ mod scripts;
 use scripts::{
     ANNOUNCE_SCRIPT, APPEND_SCRIPT, CLAIM_SCRIPT, CLIENT_SEND_SCRIPT, DELETE_SCRIPT,
     PROJECT_SCRIPT, REJOIN_SCRIPT, RELEASE_SCRIPT, REMOVE_STREAM_SCRIPT, RENEW_SCRIPT, SEAL_SCRIPT,
-    SEND_SCRIPT, SESSION_DELETE_SCRIPT, SESSION_RESOLVE_SCRIPT, SESSION_SWEEP_SCRIPT, START_SCRIPT,
+    SEND_SCRIPT, SESSION_DELETE_SCRIPT, SESSION_REFRESH_SCRIPT, SESSION_RESOLVE_SCRIPT,
+    SESSION_SWEEP_SCRIPT, START_SCRIPT,
 };
 
 #[cfg(test)]
@@ -678,17 +679,17 @@ impl SessionStore for Store {
 
     async fn refresh(&self, session: Uuid, window: Duration) -> Result<(), StoreError> {
         let mut connection = checkout(&self.pool).await?;
-        let extended: i64 = redis::cmd("ZADD")
-            .arg(SESSION_DEADLINES_KEY)
-            .arg("XX")
-            .arg("GT")
-            .arg("CH")
+
+        let mut invocation = SESSION_REFRESH_SCRIPT.prepare_invoke();
+        invocation
+            .key(SESSION_DEADLINES_KEY)
             .arg(deadline_after(window))
-            .arg(session.to_string())
-            .query_async(&mut connection)
+            .arg(session.to_string());
+        let present: i64 = invocation
+            .invoke_async(&mut connection)
             .await
             .map_err(|e| StoreError::Unavailable(e.to_string()))?;
-        if extended == 1 {
+        if present == 1 {
             Ok(())
         } else {
             Err(StoreError::Unavailable("session has no deadline".into()))

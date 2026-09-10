@@ -261,7 +261,7 @@ async fn logout_without_return_cleans_up_after_inactivity_window() {
                 .at(600, report(Stage::InfernoWave2, StageStatus::Started))
                 .at(5_000, idle()),
         ],
-        run_until: 910_000,
+        run_until: 3_610_000,
     })
     .await;
 
@@ -292,16 +292,21 @@ async fn logout_without_return_cleans_up_after_inactivity_window() {
                 reported(1, Stage::InfernoWave2, StageStatus::Started)
             ),
             entry(8, 5_000, cmd(5), idled(1)),
-            entry(9, 905_000, fired(DeadlineKind::CleanupAllIdle), removed(1)),
+            entry(
+                9,
+                3_605_000,
+                fired(DeadlineKind::CleanupAllIdle),
+                removed(1)
+            ),
             entry(
                 10,
-                905_000,
+                3_605_000,
                 fired(DeadlineKind::CleanupAllIdle),
                 sealed(Stage::InfernoWave2, None, true)
             ),
             entry(
                 11,
-                905_000,
+                3_605_000,
                 fired(DeadlineKind::CleanupAllIdle),
                 terminated()
             ),
@@ -365,6 +370,71 @@ async fn logout_and_return_resumes_challenge() {
             entry(11, 10_400, cmd(7), sealed(Stage::InfernoWave2, None, false)),
             entry(12, 10_500, cmd(8), client_finished(1)),
             entry(13, 10_500, cmd(8), terminated()),
+        ],
+    );
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
+}
+
+#[tokio::test(start_paused = true)]
+async fn long_idle_and_return_resumes_inferno() {
+    let result = run(Scenario {
+        clients: vec![
+            Client::participant("a", 1)
+                .at(0, inferno_start())
+                .at(10, report(Stage::InfernoWave1, StageStatus::Started))
+                .at(500, report(Stage::InfernoWave1, StageStatus::Completed))
+                .at(1_000, idle())
+                .at(1_200_000, active())
+                .at(1_200_100, report(Stage::InfernoWave2, StageStatus::Started))
+                .at(1_200_400, report(Stage::InfernoWave2, StageStatus::Wiped))
+                .at(1_200_500, finish(false)),
+        ],
+        run_until: 1_300_000,
+    })
+    .await;
+
+    let (_, journal) = result.only_challenge();
+    assert_eq!(
+        journal[1..],
+        vec![
+            entry(1, 0, cmd(1), joined(1, RecordingType::Participant)),
+            entry(2, 10, cmd(2), stage_started(Stage::InfernoWave1)),
+            entry(
+                3,
+                10,
+                cmd(2),
+                reported(1, Stage::InfernoWave1, StageStatus::Started)
+            ),
+            entry(
+                4,
+                500,
+                cmd(3),
+                reported(1, Stage::InfernoWave1, StageStatus::Completed)
+            ),
+            entry(5, 500, cmd(3), sealed(Stage::InfernoWave1, None, false)),
+            entry(6, 1_000, cmd(4), idled(1)),
+            entry(7, 1_200_000, cmd(5), activated(1)),
+            entry(8, 1_200_100, cmd(6), stage_started(Stage::InfernoWave2)),
+            entry(
+                9,
+                1_200_100,
+                cmd(6),
+                reported(1, Stage::InfernoWave2, StageStatus::Started)
+            ),
+            entry(
+                10,
+                1_200_400,
+                cmd(7),
+                reported(1, Stage::InfernoWave2, StageStatus::Wiped)
+            ),
+            entry(
+                11,
+                1_200_400,
+                cmd(7),
+                sealed(Stage::InfernoWave2, None, false)
+            ),
+            entry(12, 1_200_500, cmd(8), client_finished(1)),
+            entry(13, 1_200_500, cmd(8), terminated()),
         ],
     );
     assert_eq!(result.only_status(), ChallengeStatus::Wiped);
