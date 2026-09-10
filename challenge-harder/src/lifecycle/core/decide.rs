@@ -1259,7 +1259,7 @@ mod tests {
         };
         let fired = Deadline {
             kind: DeadlineKind::CleanupDisconnect,
-            at: Timestamp::from_millis(300_700),
+            at: Timestamp::from_millis(600_700),
         };
         assert_eq!(
             decide(

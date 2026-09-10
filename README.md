@@ -16,10 +16,11 @@ blert/
 ├── proto/              # Shared .proto files (git submodule)
 ├── web/                # Frontend web app
 ├── socket-server/      # WebSocket event server
-├── challenge-server/   # Processing and challenge handling
+├── challenge-harder/   # Challenge lifecycle and processing (Rust)
 ├── live-server/        # Live challenge streaming server (Rust)
 ├── effect-runner/      # Post-challenge side effects (e.g. webhooks)
 ├── blertbank/          # Blertcoin accounts and ledger
+├── challenge-server/   # Original challenge server (legacy)
 └── compose.yaml        # Local development stack
 ```
 
@@ -67,13 +68,24 @@ export BLERT_DATABASE_URI='postgres://blert:blert@localhost:5433/blert'
 npm run -w common migration:run
 ```
 
-### 3. Install Node.js
+### 3. Install Node.js and Rust
 
 Install Node **v26.5.0** using [nvm](https://github.com/nvm-sh/nvm):
 
 ```bash
 nvm install 26.5.0
 nvm use
+```
+
+The Rust services (`challenge-harder` and `live-server`) build on stable Rust.
+Their build scripts compile the shared `.proto` files, so `protoc` must be on
+your path as well.
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# e.g. on Debian/Ubuntu
+sudo apt-get install protobuf-compiler
 ```
 
 ---
@@ -84,7 +96,6 @@ nvm use
 npm install
 npm run -w common build
 npm run -w socket-server build
-npm run -w challenge-server build
 ```
 
 ---
@@ -169,7 +180,7 @@ docker compose up
 This starts the following services:
 
 - **Websocket server** — `ws://localhost:3003`
-- **Challenge processing server** — `http://localhost:3009`
+- **Challenge processing server** — `http://localhost:3019`
 - **Blertbank** — `http://localhost:3013`
 - **Effect runner** — single metrics endpoint at `http://localhost:3071/metrics`
 - **Postgres** — `localhost:5433`
@@ -196,11 +207,12 @@ docker compose --profile analytics up
 
 ## Running Tests
 
-You can run each service's tests from the root via the `test` command in the
-service's workspace:
+You can run each Node service's tests from the root via the `test` command in
+the service's workspace, or Rust services via cargo:
 
 ```bash
-npm run -w challenge-server test
+npm run -w socket-server test
+cargo test -p challenge-harder
 ```
 
 ---

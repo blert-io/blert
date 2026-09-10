@@ -279,3 +279,48 @@ ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
 ENV PORT=3010
 EXPOSE 3010
 CMD ["live-server"]
+
+# ==============================================================================
+# Build challenge-harder (Rust)
+# ==============================================================================
+FROM rust:1-slim AS challenge-harder-build
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY challenge-harder/Cargo.toml challenge-harder/build.rs challenge-harder/
+COPY live-server/Cargo.toml live-server/
+COPY Cargo.toml Cargo.lock ./
+COPY proto/ proto/
+COPY web/resources/extended_items.json web/resources/
+RUN mkdir -p challenge-harder/src live-server/src && \
+    echo 'fn main() {}' > challenge-harder/src/main.rs && \
+    echo 'fn main() {}' > live-server/src/main.rs && \
+    cargo build --release -p challenge-harder && \
+    rm -rf challenge-harder/src
+
+COPY challenge-harder/src/ challenge-harder/src/
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
+RUN touch challenge-harder/src/main.rs && cargo build --release -p challenge-harder
+
+# ==============================================================================
+# Runtime: challenge-harder
+# ==============================================================================
+FROM debian:trixie-slim AS challenge-harder
+
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=challenge-harder-build /app/target/release/challenge-harder /usr/local/bin/
+
+ARG BLERT_COMMIT_SHA
+ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
+
+ENV PORT=3003
+EXPOSE 3003
+CMD ["challenge-harder"]

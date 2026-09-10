@@ -116,7 +116,7 @@ async fn disconnect_without_finish_cleans_up_after_reconnection_window() {
                 .at(600, report(Stage::TobBloat, StageStatus::Started))
                 .at(900, disconnect()),
         ],
-        run_until: 302_000,
+        run_until: 602_000,
     })
     .await;
 
@@ -149,13 +149,13 @@ async fn disconnect_without_finish_cleans_up_after_reconnection_window() {
             entry(8, 900, cmd(5), removed(1)),
             entry(
                 9,
-                300_900,
+                600_900,
                 fired(DeadlineKind::CleanupDisconnect),
                 sealed(Stage::TobBloat, None, true)
             ),
             entry(
                 10,
-                300_900,
+                600_900,
                 fired(DeadlineKind::CleanupDisconnect),
                 terminated()
             ),
@@ -450,7 +450,7 @@ async fn wipe_then_crash_before_finish_is_wiped() {
                 .at(500, report(Stage::TobMaiden, StageStatus::Wiped))
                 .at(700, disconnect()),
         ],
-        run_until: 302_000,
+        run_until: 602_000,
     })
     .await;
 
@@ -476,7 +476,7 @@ async fn wipe_then_crash_before_finish_is_wiped() {
             entry(6, 700, cmd(4), removed(1)),
             entry(
                 7,
-                300_700,
+                600_700,
                 fired(DeadlineKind::CleanupDisconnect),
                 terminated()
             ),
@@ -507,7 +507,7 @@ async fn deep_delve_disconnect_abandons() {
                 )
                 .at(1_200, disconnect()),
         ],
-        run_until: 302_000,
+        run_until: 602_000,
     })
     .await;
 
@@ -567,13 +567,13 @@ async fn deep_delve_disconnect_abandons() {
             entry(12, 1_200, cmd(7), removed(1)),
             entry(
                 13,
-                301_200,
+                601_200,
                 fired(DeadlineKind::CleanupDisconnect),
                 sealed(Stage::MokhaiotlDelve8plus, Some(2), true)
             ),
             entry(
                 14,
-                301_200,
+                601_200,
                 fired(DeadlineKind::CleanupDisconnect),
                 terminated()
             ),
@@ -724,12 +724,12 @@ async fn rejoin_after_window_starts_fresh() {
                 .at(700, disconnect()),
             Client::participant("a2", 2)
                 .with_user(1)
-                .at(400_000, solo_tob_start())
-                .at(400_010, report(Stage::TobMaiden, StageStatus::Started))
-                .at(400_500, report(Stage::TobMaiden, StageStatus::Wiped))
-                .at(400_600, finish(false)),
+                .at(700_000, solo_tob_start())
+                .at(700_010, report(Stage::TobMaiden, StageStatus::Started))
+                .at(700_500, report(Stage::TobMaiden, StageStatus::Wiped))
+                .at(700_600, finish(false)),
         ],
-        run_until: 402_000,
+        run_until: 702_000,
     })
     .await;
 
@@ -744,7 +744,7 @@ async fn rejoin_after_window_starts_fresh() {
             .expect("start should produce a challenge")
     };
     let first = start_uuid(0);
-    let second = start_uuid(400_000);
+    let second = start_uuid(700_000);
     assert_ne!(first, second);
 
     assert_eq!(
@@ -761,13 +761,13 @@ async fn rejoin_after_window_starts_fresh() {
             entry(4, 700, cmd(3), removed(1)),
             entry(
                 5,
-                300_700,
+                600_700,
                 fired(DeadlineKind::CleanupDisconnect),
                 sealed(Stage::TobMaiden, None, true)
             ),
             entry(
                 6,
-                300_700,
+                600_700,
                 fired(DeadlineKind::CleanupDisconnect),
                 terminated()
             ),
