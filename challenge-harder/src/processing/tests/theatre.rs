@@ -1,5 +1,4 @@
 //! Runs real recorded Theatre rooms through the processor, verifying results.
-#![allow(clippy::too_many_lines)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

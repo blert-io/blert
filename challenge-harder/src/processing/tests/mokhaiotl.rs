@@ -28,7 +28,6 @@ const CREATED_UNIX_MS: u64 = 1_782_864_000_000;
 const UUID: &str = "a8cb035f-410a-45de-a4d3-2b0a5d8b464d";
 
 #[tokio::test]
-#[expect(clippy::too_many_lines)]
 async fn delve_test() {
     let Some(db) = db::test_database().await else {
         return;
@@ -211,7 +210,6 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
 
 /// Checks every database row the stage run writes, returning the stored
 /// custom data.
-#[expect(clippy::too_many_lines)]
 async fn verify_stage_rows(
     client: &Object,
     challenge_id: i32,

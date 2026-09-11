@@ -195,6 +195,17 @@ static STAGE_COMPLETIONS: LazyLock<IntCounterVec> = LazyLock::new(|| {
     .unwrap()
 });
 
+static UNDETERMINED_WAVE_SPAWNS: LazyLock<IntCounterVec> = LazyLock::new(|| {
+    register_int_counter_vec!(
+        Opts::new(
+            "challenge_server_undetermined_wave_spawns_total",
+            "Waves which should have a spawn whose spawn could not be determined"
+        ),
+        &["stage"]
+    )
+    .unwrap()
+});
+
 static CLIENT_REPORTED_TIME_PRECISION: LazyLock<IntCounterVec> = LazyLock::new(|| {
     register_int_counter_vec!(
         Opts::new(
@@ -660,6 +671,13 @@ pub fn record_stage_completion(
             bool_label(has_merge_failures),
             bool_label(has_skipped_clients),
         ])
+        .inc();
+}
+
+/// Records a wave which should have a spawn but which could not be determined.
+pub fn record_undetermined_wave_spawn(stage: Stage) {
+    UNDETERMINED_WAVE_SPAWNS
+        .with_label_values(&[&stage_label(stage)])
         .inc();
 }
 

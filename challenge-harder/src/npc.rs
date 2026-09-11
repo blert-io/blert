@@ -3,6 +3,11 @@
 use crate::proto::event::npc::nylo::Style as NyloStyle;
 
 pub mod id {
+    pub const JAL_MEJRAH: u32 = 7692;
+    pub const JAL_AK: u32 = 7693;
+    pub const JAL_IMKOT: u32 = 7697;
+    pub const JAL_XIL: u32 = 7698;
+    pub const JAL_ZEK: u32 = 7699;
     pub const ROCKY_SUPPORT: u32 = 7709;
 
     pub const MAIDEN_ENTRY: u32 = 10814;
@@ -128,6 +133,11 @@ pub mod id {
     pub const VERZIK_MATOMENOS_ENTRY: u32 = 10845;
     pub const VERZIK_MATOMENOS_REGULAR: u32 = 8385;
     pub const VERZIK_MATOMENOS_HARD: u32 = 10862;
+
+    pub const SERPENT_SHAMAN: u32 = 12811;
+    pub const JAVELIN_COLOSSUS: u32 = 12817;
+    pub const MANTICORE: u32 = 12818;
+    pub const SHOCKWAVE_COLOSSUS: u32 = 12819;
 }
 
 pub fn is_maiden(npc_id: u32) -> bool {

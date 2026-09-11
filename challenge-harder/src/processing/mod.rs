@@ -37,6 +37,7 @@ mod merging;
 mod mokhaiotl;
 mod persist;
 mod session;
+mod spawn_index;
 mod split;
 mod stage;
 mod stats;

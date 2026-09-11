@@ -1,6 +1,7 @@
 //! Colosseum challenge processing.
 
 use std::collections::BTreeSet;
+use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -10,18 +11,85 @@ use super::challenge_processor::{
     ChallengeContext, ChallengeProcessor, ChallengeTicks, EventCursor, RoomNpc, StageContext,
 };
 use super::db;
+use super::spawn_index::{self, Arena, SpawnIndexer};
 use super::split::SplitType;
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
 use crate::merging::{MergedEvents, Tick, Ticks};
+use crate::metrics;
+use crate::npc::id::{JAVELIN_COLOSSUS, MANTICORE, SERPENT_SHAMAN, SHOCKWAVE_COLOSSUS};
 use crate::price::PriceResolver;
-use crate::proto::{ChallengeData, challenge_data, event};
+use crate::proto::{ChallengeData, Coords, challenge_data, event};
 
 /// ID increment between consecutive levels of a handicap.
 const HANDICAP_LEVEL_INCREMENT: u32 = 30;
 
 const NUM_HANDICAPS: usize = 14;
+
+static ARENA: LazyLock<Arena> = LazyLock::new(|| {
+    Arena::new(
+        Coords { x: 1808, y: 3123 },
+        [
+            (1811, 3109),
+            (1817, 3106),
+            (1825, 3114),
+            (1821, 3109),
+            (1827, 3109),
+            (1836, 3109),
+            (1832, 3107),
+            (1811, 3104),
+            (1836, 3104),
+            (1821, 3103),
+            (1827, 3103),
+            (1824, 3099),
+        ]
+        .map(|(x, y)| Coords { x, y }),
+        &[
+            SERPENT_SHAMAN,
+            JAVELIN_COLOSSUS,
+            MANTICORE,
+            SHOCKWAVE_COLOSSUS,
+        ],
+    )
+});
+
+const WAVES: [&[u32]; 12] = [
+    &[SERPENT_SHAMAN],
+    &[SERPENT_SHAMAN, JAVELIN_COLOSSUS],
+    &[SERPENT_SHAMAN, JAVELIN_COLOSSUS, JAVELIN_COLOSSUS],
+    &[SERPENT_SHAMAN, MANTICORE],
+    &[SERPENT_SHAMAN, JAVELIN_COLOSSUS, MANTICORE],
+    &[
+        SERPENT_SHAMAN,
+        JAVELIN_COLOSSUS,
+        JAVELIN_COLOSSUS,
+        MANTICORE,
+    ],
+    &[JAVELIN_COLOSSUS, MANTICORE, SHOCKWAVE_COLOSSUS],
+    &[
+        JAVELIN_COLOSSUS,
+        JAVELIN_COLOSSUS,
+        MANTICORE,
+        SHOCKWAVE_COLOSSUS,
+    ],
+    &[JAVELIN_COLOSSUS, MANTICORE, MANTICORE],
+    &[JAVELIN_COLOSSUS, JAVELIN_COLOSSUS, MANTICORE, MANTICORE],
+    &[JAVELIN_COLOSSUS, MANTICORE, MANTICORE, SHOCKWAVE_COLOSSUS],
+    &[],
+];
+
+fn wave_index(stage: Stage) -> i32 {
+    (stage as i32) - (Stage::ColosseumWave1 as i32)
+}
+
+fn wave_npcs(stage: Stage) -> &'static [u32] {
+    usize::try_from(wave_index(stage))
+        .ok()
+        .and_then(|index| WAVES.get(index))
+        .copied()
+        .unwrap_or(&[])
+}
 
 /// In-flight Colosseum state stored between stages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -59,10 +127,6 @@ impl WaveData {
     }
 }
 
-fn wave_index(stage: Stage) -> i32 {
-    (stage as i32) - (Stage::ColosseumWave1 as i32)
-}
-
 #[derive(Debug)]
 pub struct ColosseumProcessor {
     challenge: ChallengeInfo,
@@ -71,6 +135,7 @@ pub struct ColosseumProcessor {
     selected_handicap: Option<u32>,
     /// Leveled IDs of the handicaps offered this wave.
     wave_handicap_options: Vec<u32>,
+    spawn_indexer: SpawnIndexer<'static>,
 }
 
 impl ColosseumProcessor {
@@ -91,11 +156,14 @@ impl ColosseumProcessor {
                 handicap_levels: [0; NUM_HANDICAPS],
             },
         };
+
+        let spawn_indexer = SpawnIndexer::new(&ARENA, wave_npcs(challenge.stage).iter().copied());
         Ok(ColosseumProcessor {
             challenge,
             data,
             selected_handicap: None,
             wave_handicap_options: Vec::new(),
+            spawn_indexer,
         })
     }
 
@@ -108,6 +176,16 @@ impl ColosseumProcessor {
             .copied()
             .unwrap_or(0);
         handicap + level * HANDICAP_LEVEL_INCREMENT
+    }
+
+    fn extra_wave_npcs(&self, stage: Stage) -> &'static [u32] {
+        let dynamic_duo = (event::ColosseumHandicap::DynamicDuo as i32).cast_unsigned();
+        let picked = self.data.handicap_levels[dynamic_duo as usize] > 0;
+        if picked && wave_npcs(stage).contains(&SHOCKWAVE_COLOSSUS) {
+            &[SHOCKWAVE_COLOSSUS]
+        } else {
+            &[]
+        }
     }
 }
 
@@ -144,6 +222,20 @@ impl ChallengeProcessor for ColosseumProcessor {
                 Some(index) => self.data.handicaps[index] = selected,
                 None => self.data.handicaps.push(base),
             }
+        }
+
+        if events.current().r#type() == event::Type::NpcSpawn
+            && let Some(npc) = &events.current().npc
+        {
+            let event = events.current();
+            self.spawn_indexer.track_spawn(
+                Tick(event.tick),
+                npc.id,
+                Coords {
+                    x: event.x_coord,
+                    y: event.y_coord,
+                },
+            );
         }
         true
     }
@@ -214,6 +306,15 @@ impl ChallengeProcessor for ColosseumProcessor {
             &[&handicaps, &txn.challenge_id()],
         )
         .await?;
+
+        let extra = self.extra_wave_npcs(stage);
+        let indexer = std::mem::replace(&mut self.spawn_indexer, SpawnIndexer::new(&ARENA, []));
+        let spawn = indexer.check(extra);
+        if spawn.is_none() && !wave_npcs(stage).is_empty() {
+            metrics::record_undetermined_wave_spawn(stage);
+        }
+        spawn_index::save(txn, stage, spawn.as_ref(), !extra.is_empty()).await?;
+
         Ok(ChallengeTicks::Add(events.duration()))
     }
 
@@ -466,6 +567,7 @@ mod tests {
             },
             selected_handicap: None,
             wave_handicap_options: Vec::new(),
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(contiguous.has_fully_recorded_up_to(Stage::ColosseumWave3));
         assert!(contiguous.has_fully_recorded_up_to(Stage::ColosseumWave2));
@@ -486,6 +588,7 @@ mod tests {
             },
             selected_handicap: None,
             wave_handicap_options: Vec::new(),
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(!gapped.has_fully_recorded_up_to(Stage::ColosseumWave5));
         assert!(!gapped.has_fully_recorded_up_to(Stage::ColosseumWave4));
@@ -502,8 +605,70 @@ mod tests {
             },
             selected_handicap: None,
             wave_handicap_options: Vec::new(),
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(!empty.has_fully_recorded_up_to(Stage::ColosseumWave1));
+    }
+
+    #[test]
+    fn dynamic_duo_adds_extra_expected_npc() {
+        let challenge = ChallengeInfo {
+            uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
+            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
+            challenge_type: ChallengeType::Colosseum,
+            mode: ChallengeMode::NoMode,
+            party: vec!["aSaradomin".to_string()],
+            party_changed: false,
+            stage: Stage::ColosseumWave7,
+            stage_attempt: None,
+            status: ChallengeStatus::InProgress,
+            created_unix_ms: 0,
+            reported_times: None,
+            finished_unix_ms: None,
+        };
+
+        let with_dynamic_duo = ColosseumProcessor {
+            challenge: challenge.clone(),
+            data: CustomData {
+                waves: Vec::new(),
+                handicaps: vec![64, 42, 5, 9],
+                handicap_levels: [0, 0, 0, 0, 3, 1, 0, 0, 0, 1, 0, 0, 2, 0],
+            },
+            selected_handicap: None,
+            wave_handicap_options: Vec::new(),
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
+        };
+        assert_eq!(
+            with_dynamic_duo.extra_wave_npcs(Stage::ColosseumWave7),
+            [SHOCKWAVE_COLOSSUS],
+        );
+        assert!(
+            with_dynamic_duo
+                .extra_wave_npcs(Stage::ColosseumWave9)
+                .is_empty()
+        );
+
+        let without_dynamic_duo = ColosseumProcessor {
+            challenge,
+            data: CustomData {
+                waves: Vec::new(),
+                handicaps: vec![64, 42, 5],
+                handicap_levels: [0, 0, 0, 0, 3, 1, 0, 0, 0, 0, 0, 0, 2, 0],
+            },
+            selected_handicap: None,
+            wave_handicap_options: Vec::new(),
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
+        };
+        assert!(
+            without_dynamic_duo
+                .extra_wave_npcs(Stage::ColosseumWave7)
+                .is_empty()
+        );
+        assert!(
+            without_dynamic_duo
+                .extra_wave_npcs(Stage::ColosseumWave9)
+                .is_empty()
+        );
     }
 
     #[tokio::test]

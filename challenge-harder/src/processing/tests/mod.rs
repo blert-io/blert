@@ -1,6 +1,7 @@
 //! Test fixture processing and verification.
 //!
 //! Fixtures exist under `tests/fixtures/` and are recordings of real stages.
+#![allow(clippy::too_many_lines)]
 
 use std::io::Read;
 use std::sync::LazyLock;

@@ -1,5 +1,4 @@
 //! Runs a real recorded inferno wave through the processor, verifying results.
-#![allow(clippy::too_many_lines)]
 
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
@@ -246,6 +245,22 @@ async fn verify_wave_rows(client: &Object, challenge_id: i32, player_id: i32) ->
     assert_eq!(row.get::<_, Option<i32>>(2), None);
     assert_eq!(row.get::<_, Option<i32>>(3), None);
     assert_eq!(row.get::<_, Option<i32>>(4), None);
+
+    let spawns: Vec<(i16, Option<Vec<i16>>, bool)> = client
+        .query(
+            "SELECT stage, spawns, modified FROM challenge_stage_spawns
+             WHERE challenge_id = $1 ORDER BY stage",
+            &[&challenge_id],
+        )
+        .await
+        .expect("spawn rows")
+        .iter()
+        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .collect();
+    assert_eq!(
+        spawns,
+        [(Stage::InfernoWave42 as i16, Some(vec![2757, 4133]), false)],
+    );
 
     let splits = client
         .query(
