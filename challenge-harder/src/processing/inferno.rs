@@ -1,6 +1,7 @@
 //! Inferno challenge processing.
 
 use std::collections::BTreeSet;
+use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -11,15 +12,109 @@ use super::challenge_processor::{
 };
 use super::db;
 use super::persist;
+use super::spawn_index::{self, Arena, SpawnIndexer};
 use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
 use crate::merging::{MergedEvents, Tick, Ticks};
+use crate::metrics;
 use crate::npc;
+use crate::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
 use crate::price::PriceResolver;
-use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
+use crate::proto::{ChallengeData, Coords, NpcAttack, challenge_data, event};
 
 /// Ticks between the end of one wave and the start of the next.
 const WAVE_INTERVAL_TICKS: Ticks = Ticks(6);
+
+static ARENA: LazyLock<Arena> = LazyLock::new(|| {
+    Arena::new(
+        Coords { x: 2257, y: 5358 },
+        [
+            (2258, 5330),
+            (2262, 5335),
+            (2272, 5330),
+            (2258, 5353),
+            (2273, 5341),
+            (2279, 5353),
+            (2260, 5347),
+            (2280, 5333),
+            (2280, 5346),
+        ]
+        .map(|(x, y)| Coords { x, y }),
+        &[JAL_MEJRAH, JAL_AK, JAL_IMKOT, JAL_XIL, JAL_ZEK],
+    )
+});
+
+const WAVES: [&[u32]; 69] = [
+    &[JAL_MEJRAH],
+    &[JAL_MEJRAH, JAL_MEJRAH],
+    &[],
+    &[JAL_AK],
+    &[JAL_AK, JAL_MEJRAH],
+    &[JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_AK, JAL_AK],
+    &[],
+    &[JAL_IMKOT],
+    &[JAL_IMKOT, JAL_MEJRAH],
+    &[JAL_IMKOT, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_IMKOT, JAL_AK],
+    &[JAL_IMKOT, JAL_AK, JAL_MEJRAH],
+    &[JAL_IMKOT, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_IMKOT, JAL_AK, JAL_AK],
+    &[JAL_IMKOT, JAL_IMKOT],
+    &[],
+    &[JAL_XIL],
+    &[JAL_XIL, JAL_MEJRAH],
+    &[JAL_XIL, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_XIL, JAL_AK],
+    &[JAL_XIL, JAL_AK, JAL_MEJRAH],
+    &[JAL_XIL, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_XIL, JAL_AK, JAL_AK],
+    &[JAL_XIL, JAL_IMKOT],
+    &[JAL_XIL, JAL_IMKOT, JAL_MEJRAH],
+    &[JAL_XIL, JAL_IMKOT, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_XIL, JAL_IMKOT, JAL_AK],
+    &[JAL_XIL, JAL_IMKOT, JAL_AK, JAL_MEJRAH],
+    &[JAL_XIL, JAL_IMKOT, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_XIL, JAL_IMKOT, JAL_AK, JAL_AK],
+    &[JAL_XIL, JAL_IMKOT, JAL_IMKOT],
+    &[JAL_XIL, JAL_XIL],
+    &[],
+    &[JAL_ZEK],
+    &[JAL_ZEK, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_AK],
+    &[JAL_ZEK, JAL_AK, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_AK, JAL_AK],
+    &[JAL_ZEK, JAL_IMKOT],
+    &[JAL_ZEK, JAL_IMKOT, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_IMKOT, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_IMKOT, JAL_AK],
+    &[JAL_ZEK, JAL_IMKOT, JAL_AK, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_IMKOT, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_IMKOT, JAL_AK, JAL_AK],
+    &[JAL_ZEK, JAL_IMKOT, JAL_IMKOT],
+    &[JAL_ZEK, JAL_XIL],
+    &[JAL_ZEK, JAL_XIL, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_AK],
+    &[JAL_ZEK, JAL_XIL, JAL_AK, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_AK, JAL_AK],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_AK],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_AK, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_AK, JAL_MEJRAH, JAL_MEJRAH],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_AK, JAL_AK],
+    &[JAL_ZEK, JAL_XIL, JAL_IMKOT, JAL_IMKOT],
+    &[JAL_ZEK, JAL_XIL, JAL_XIL],
+    &[JAL_ZEK, JAL_ZEK],
+    &[],
+    &[],
+    &[],
+];
 
 /// In-flight inferno state stored between stages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -60,6 +155,14 @@ impl WaveData {
 
 fn stage_to_wave(stage: Stage) -> u32 {
     (stage as u32) - (Stage::InfernoWave1 as u32) + 1
+}
+
+fn wave_npcs(stage: Stage) -> &'static [u32] {
+    usize::try_from(stage as i32 - Stage::InfernoWave1 as i32)
+        .ok()
+        .and_then(|index| WAVES.get(index))
+        .copied()
+        .unwrap_or(&[])
 }
 
 /// Returns the challenge split marking the start of a milestone wave.
@@ -106,6 +209,7 @@ pub struct InfernoProcessor {
     data: CustomData,
     /// Client-reported start tick for this wave.
     wave_start_tick: Option<Ticks>,
+    spawn_indexer: SpawnIndexer<'static>,
 }
 
 impl InfernoProcessor {
@@ -129,10 +233,13 @@ impl InfernoProcessor {
                 south_pillar_collapse_wave: None,
             },
         };
+
+        let spawn_indexer = SpawnIndexer::new(&ARENA, wave_npcs(challenge.stage).iter().copied());
         Ok(InfernoProcessor {
             challenge,
             data,
             wave_start_tick: None,
+            spawn_indexer,
         })
     }
 }
@@ -175,6 +282,19 @@ impl ChallengeProcessor for InfernoProcessor {
                     self.wave_start_tick = Some(Ticks(wave_start.overall_ticks));
                 }
                 false
+            }
+            event::Type::NpcSpawn => {
+                if let Some(npc) = &event.npc {
+                    self.spawn_indexer.track_spawn(
+                        Tick(event.tick),
+                        npc.id,
+                        Coords {
+                            x: event.x_coord,
+                            y: event.y_coord,
+                        },
+                    );
+                }
+                true
             }
             _ => true,
         }
@@ -246,6 +366,13 @@ impl ChallengeProcessor for InfernoProcessor {
         )
         .await?;
 
+        let indexer = std::mem::replace(&mut self.spawn_indexer, SpawnIndexer::new(&ARENA, []));
+        let spawn = indexer.check(&[]);
+        if spawn.is_none() && !wave_npcs(stage).is_empty() {
+            metrics::record_undetermined_wave_spawn(stage);
+        }
+        spawn_index::save(txn, stage, spawn.as_ref(), false).await?;
+
         Ok(ticks)
     }
 
@@ -310,6 +437,7 @@ impl ChallengeProcessor for InfernoProcessor {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::too_many_lines)]
     use serde_json::json;
 
     use super::*;
@@ -517,6 +645,7 @@ mod tests {
                 south_pillar_collapse_wave: None,
             },
             wave_start_tick: None,
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(contiguous.has_fully_recorded_up_to(Stage::InfernoWave3));
         assert!(contiguous.has_fully_recorded_up_to(Stage::InfernoWave2));
@@ -537,6 +666,7 @@ mod tests {
                 south_pillar_collapse_wave: None,
             },
             wave_start_tick: None,
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(!missing_waves.has_fully_recorded_up_to(Stage::InfernoWave3));
         assert!(!missing_waves.has_fully_recorded_up_to(Stage::InfernoWave2));
@@ -553,6 +683,7 @@ mod tests {
                 south_pillar_collapse_wave: None,
             },
             wave_start_tick: None,
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(!empty.has_fully_recorded_up_to(Stage::InfernoWave1));
     }
@@ -562,10 +693,20 @@ mod tests {
         let Some(db) = db::test_database().await else {
             return;
         };
-        let txn = db
-            .start_transaction(Uuid::new_v4(), Trigger::Create { seq: JournalSeq(1) })
+        let uuid = Uuid::new_v4();
+        let mut txn = db
+            .start_transaction(uuid, Trigger::Create { seq: JournalSeq(1) })
             .await
             .expect("guard should pass");
+
+        let row = txn
+            .query_one(
+                "INSERT INTO challenges (uuid, type, scale) VALUES ($1, $2, $3) RETURNING id",
+                &[&uuid, &(ChallengeType::Inferno as i16), &1i16],
+            )
+            .await
+            .unwrap();
+        txn.set_challenge_id(row.get(0));
 
         let mut processor = InfernoProcessor {
             challenge: challenge_info(Stage::InfernoWave25, ChallengeStatus::InProgress),
@@ -576,6 +717,7 @@ mod tests {
             .unwrap()
             .data,
             wave_start_tick: Some(Ticks(852)),
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
         let stored = StoredState {
@@ -838,6 +980,7 @@ mod tests {
             challenge: challenge.clone(),
             data: full_recording.clone(),
             wave_start_tick: None,
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         let mut ctx = ChallengeContext::new(vec![username.clone()]);
         processor
@@ -858,6 +1001,7 @@ mod tests {
             challenge,
             data: full_recording,
             wave_start_tick: None,
+            spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         let mut ctx = ChallengeContext::new(vec![username]);
         processor

@@ -17,7 +17,6 @@ use crate::processing::{ChallengeInfo, PostgresSessionFinalizer, ProcessorConfig
 use crate::repository::{DataRepository, FilesystemBackend};
 
 #[tokio::test]
-#[expect(clippy::too_many_lines)]
 async fn empty_challenge_is_deleted_at_finish() {
     let Some(db) = db::test_database().await else {
         return;
@@ -175,7 +174,6 @@ async fn empty_challenge_is_deleted_at_finish() {
 }
 
 #[tokio::test]
-#[expect(clippy::too_many_lines)]
 async fn reported_time_mismatch_corrects_the_challenge_ticks() {
     let Some(db) = db::test_database().await else {
         return;
@@ -400,7 +398,6 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
 }
 
 #[tokio::test]
-#[expect(clippy::too_many_lines)]
 async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
     let Some(db) = db::test_database().await else {
         return;

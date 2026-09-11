@@ -26,7 +26,6 @@ const CREATED_UNIX_MS: u64 = 1_786_716_274_057;
 const UUID: &str = "3f9b2a71-88d4-4c5e-9c0f-5b1de60a2f13";
 
 #[tokio::test]
-#[expect(clippy::too_many_lines)]
 async fn wave_test() {
     let Some(db) = db::test_database().await else {
         return;
@@ -256,6 +255,22 @@ async fn verify_wave_1_rows(
         .expect("stats row");
     assert_eq!(row.get::<_, Vec<i16>>(0), vec![4]);
 
+    let spawns: Vec<(i16, Option<Vec<i16>>, bool)> = client
+        .query(
+            "SELECT stage, spawns, modified FROM challenge_stage_spawns
+             WHERE challenge_id = $1 ORDER BY stage",
+            &[&challenge_id],
+        )
+        .await
+        .expect("spawn rows")
+        .iter()
+        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .collect();
+    assert_eq!(
+        spawns,
+        [(Stage::ColosseumWave1 as i16, Some(vec![784]), false)],
+    );
+
     let splits = client
         .query(
             "SELECT id, type, scale, ticks, accurate FROM challenge_splits
@@ -348,6 +363,25 @@ async fn verify_wave_2_rows(
         .await
         .expect("stats row");
     assert_eq!(row.get::<_, Vec<i16>>(0), vec![4, 4]);
+
+    let spawns: Vec<(i16, Option<Vec<i16>>, bool)> = client
+        .query(
+            "SELECT stage, spawns, modified FROM challenge_stage_spawns
+             WHERE challenge_id = $1 ORDER BY stage",
+            &[&challenge_id],
+        )
+        .await
+        .expect("spawn rows")
+        .iter()
+        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .collect();
+    assert_eq!(
+        spawns,
+        [
+            (Stage::ColosseumWave1 as i16, Some(vec![784]), false),
+            (Stage::ColosseumWave2 as i16, Some(vec![430, 1939]), false),
+        ],
+    );
 
     let splits = client
         .query(
