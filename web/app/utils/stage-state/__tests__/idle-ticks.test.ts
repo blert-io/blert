@@ -59,6 +59,7 @@ function idleTicksFor(
   party: string[],
   totalTicks: number,
   events: Event[],
+  firstTick?: number,
 ): Map<string, IdleTickCount> {
   const [eventsByTick, eventsByType] = buildEventMaps(events);
   const playerState = computePlayerState(
@@ -67,7 +68,7 @@ function idleTicksFor(
     eventsByTick,
     eventsByType,
   );
-  return computeIdleTickCounts(playerState);
+  return computeIdleTickCounts(playerState, firstTick);
 }
 
 describe('computeIdleTickCounts', () => {
@@ -89,14 +90,15 @@ describe('computeIdleTickCounts', () => {
     playerUpdate(11, name, 13),
   ];
 
-  it('counts off cooldown ticks between the first and final attacks', () => {
+  it('counts off cooldown ticks from the first tick to the final attack', () => {
     const counts = idleTicksFor(['1Ogp'], 12, attackEvents('1Ogp'));
-    // First attack on tick 3, ticks 7-8 are idle between the attacks.
+    // Ticks 1-2 idle before the first attack, ticks 7-8 idle between attacks.
     expect(counts.get('1Ogp')).toEqual({
-      idleTicks: 2,
-      eligibleTicks: 7,
+      startTick: 1,
+      idleTicks: 4,
+      eligibleTicks: 9,
       longestIdle: 2,
-      idlePeriods: 1,
+      idlePeriods: 2,
     });
   });
 
@@ -108,10 +110,35 @@ describe('computeIdleTickCounts', () => {
     );
     const counts = idleTicksFor(['1Ogp'], 12, events);
     expect(counts.get('1Ogp')).toEqual({
-      idleTicks: 0,
-      eligibleTicks: 1,
-      longestIdle: 0,
-      idlePeriods: 0,
+      startTick: 1,
+      idleTicks: 2,
+      eligibleTicks: 3,
+      longestIdle: 2,
+      idlePeriods: 1,
+    });
+  });
+
+  it('counts ticks between the given first tick and a late first attack', () => {
+    const counts = idleTicksFor(['1Ogp'], 12, attackEvents('1Ogp'), 2);
+    // Tick 2 is idle before the attack on tick 3.
+    expect(counts.get('1Ogp')).toEqual({
+      startTick: 2,
+      idleTicks: 3,
+      eligibleTicks: 8,
+      longestIdle: 2,
+      idlePeriods: 2,
+    });
+  });
+
+  it('starts at the first attack when it precedes the first tick', () => {
+    // Attack on tick 3 before configured start tick on 5.
+    const counts = idleTicksFor(['1Ogp'], 12, attackEvents('1Ogp'), 5);
+    expect(counts.get('1Ogp')).toEqual({
+      startTick: 3,
+      idleTicks: 2,
+      eligibleTicks: 7,
+      longestIdle: 2,
+      idlePeriods: 1,
     });
   });
 
@@ -123,9 +150,26 @@ describe('computeIdleTickCounts', () => {
     const counts = idleTicksFor(['1Ogp'], 6, events);
 
     expect(counts.get('1Ogp')).toEqual({
+      startTick: 1,
       idleTicks: 5,
       eligibleTicks: 5,
       longestIdle: 5,
+      idlePeriods: 1,
+    });
+  });
+
+  it('counts from the first tick for a player who never attacks', () => {
+    const events: Event[] = [];
+    for (let tick = 0; tick < 6; tick++) {
+      events.push(playerUpdate(tick, '1Ogp', 0));
+    }
+    const counts = idleTicksFor(['1Ogp'], 6, events, 3);
+
+    expect(counts.get('1Ogp')).toEqual({
+      startTick: 3,
+      idleTicks: 3,
+      eligibleTicks: 3,
+      longestIdle: 3,
       idlePeriods: 1,
     });
   });
@@ -141,6 +185,7 @@ describe('computeIdleTickCounts', () => {
 
     // Ticks 1-3 are idle. Tick 4 is the death tick.
     expect(counts.get('1Ogp')).toEqual({
+      startTick: 1,
       idleTicks: 3,
       eligibleTicks: 3,
       longestIdle: 3,
@@ -163,6 +208,7 @@ describe('computeIdleTickCounts', () => {
     // Tick 3 has no events for 1Ogp, so it is neither idle nor eligible, and
     // it splits the surrounding idle ticks into separate periods.
     expect(counts.get('1Ogp')).toEqual({
+      startTick: 1,
       idleTicks: 2,
       eligibleTicks: 4,
       longestIdle: 1,
@@ -189,12 +235,14 @@ describe('computeIdleTickCounts', () => {
 
     expect(counts.size).toBe(2);
     expect(counts.get('1Ogp')).toEqual({
+      startTick: 1,
       idleTicks: 1,
       eligibleTicks: 4,
       longestIdle: 1,
       idlePeriods: 1,
     });
     expect(counts.get('WWWWWWWWWWQQ')).toEqual({
+      startTick: 1,
       idleTicks: 5,
       eligibleTicks: 5,
       longestIdle: 5,
@@ -222,6 +270,7 @@ describe('computeIdleTickCounts', () => {
 
     // Idle on 3 and 6-8
     expect(counts.get('1Ogp')).toEqual({
+      startTick: 1,
       idleTicks: 4,
       eligibleTicks: 9,
       longestIdle: 3,

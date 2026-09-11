@@ -74,6 +74,10 @@ const PILLARS = [
   { x: 1831, y: 3113 },
 ];
 
+// Sol Heredit is not clickable until tick 6 and spawns four tiles away, so the
+// player's first melee attack occurs on tick 8.
+const FIRST_ATTACK_ON_SOL_TICK = 8;
+
 export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const router = useRouter();
   const display = useDisplay();
@@ -283,8 +287,11 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }, [playerName, solCustomStates, eventsByType]);
 
   const idleTickCounts = useMemo(
-    () => computeIdleTickCounts(playerState),
-    [playerState],
+    () =>
+      waveNumber === 12
+        ? computeIdleTickCounts(playerState, FIRST_ATTACK_ON_SOL_TICK)
+        : computeIdleTickCounts(playerState),
+    [playerState, waveNumber],
   );
 
   if (challenge === null || loading) {

@@ -7,7 +7,8 @@ type IdleTicksContentProps = {
 };
 
 export function IdleTicksContent({ count }: IdleTicksContentProps) {
-  const { idleTicks, eligibleTicks, longestIdle, idlePeriods } = count;
+  const { startTick, idleTicks, eligibleTicks, longestIdle, idlePeriods } =
+    count;
 
   const percentage =
     eligibleTicks > 0 ? ((idleTicks / eligibleTicks) * 100).toFixed(1) : null;
@@ -31,7 +32,7 @@ export function IdleTicksContent({ count }: IdleTicksContentProps) {
       )}
       <div className={styles.footer}>
         <i className="fas fa-info-circle" />
-        Ticks off cooldown between first and last attacks.
+        Ticks off cooldown from tick {startTick} to last attack.
       </div>
     </div>
   );
