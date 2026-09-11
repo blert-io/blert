@@ -48,6 +48,26 @@ const VERSION_ACTION_TYPES: Record<BCFVersion, VersionActionTypes> = {
   },
 };
 
+/**
+ * The type of actor which can perform `action`, or `null` if the action is not
+ * known or restricted to one actor type.
+ */
+export function actorTypeForAction(
+  action: string,
+  version: BCFVersion = LATEST_VERSION,
+): 'player' | 'npc' | null {
+  const { playerActions, npcActions } = VERSION_ACTION_TYPES[version];
+  const type = action as BCFAction['type'];
+
+  if (playerActions.has(type)) {
+    return 'player';
+  }
+  if (npcActions.has(type)) {
+    return 'npc';
+  }
+  return null;
+}
+
 const LATEST_BY_MAJOR_VERSION: Record<number, BCFVersion> =
   SUPPORTED_VERSIONS.reduce(
     (acc, version) => {
