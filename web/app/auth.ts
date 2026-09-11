@@ -1,17 +1,20 @@
 import bcrypt from 'bcrypt';
-import { betterAuth } from 'better-auth';
-import { username } from 'better-auth/plugins';
+import { betterAuth, type BetterAuthOptions } from 'better-auth';
+import { customSession, username } from 'better-auth/plugins';
 import { nextCookies } from 'better-auth/next-js';
 import { PostgresJSDialect } from 'kysely-postgres-js';
+import { headers } from 'next/headers';
+import { cache } from 'react';
 
 import logger from '@/utils/log';
 
 import { sendPasswordResetEmail, sendVerificationEmail } from './email/send';
+import { connectedPlayersCache } from './actions/connected-players';
 import { sql } from './actions/db';
 
 const SALT_ROUNDS = 10;
 
-export const auth = betterAuth({
+const options = {
   database: {
     dialect: new PostgresJSDialect({
       postgres: sql,
@@ -63,7 +66,6 @@ export const auth = betterAuth({
       updatedAt: 'updated_at',
       emailVerified: 'email_verified',
       name: 'display_username',
-      displayUsername: 'display_username',
     },
     changeEmail: {
       enabled: true,
@@ -157,6 +159,29 @@ export const auth = betterAuth({
         },
       },
     }),
+  ],
+} satisfies BetterAuthOptions;
+
+export const auth = betterAuth({
+  ...options,
+  plugins: [
+    ...options.plugins,
+    customSession(
+      async ({ user, session }) => ({
+        user,
+        session,
+        connectedPlayers: await connectedPlayersCache.get(
+          parseInt(user.id, 10),
+        ),
+      }),
+      options,
+    ),
+    // nextCookies must be the last plugin.
     nextCookies(),
   ],
 });
+
+/** Returns the current request's session, or `null` if signed out. */
+export const getSession = cache(async () =>
+  auth.api.getSession({ headers: await headers() }),
+);

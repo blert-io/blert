@@ -53,13 +53,15 @@ export function ImportRaids({
   const raidsRequestIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Try to detect user's active raid on mount.
+  const usernamesKey = connectedPlayers.map((p) => p.username).join(',');
+
+  // Try to detect the user's active raid.
   useEffect(() => {
-    if (connectedPlayers.length === 0) {
+    if (usernamesKey === '') {
       return;
     }
 
-    const usernames = connectedPlayers.map((p) => p.username);
+    const usernames = usernamesKey.split(',');
 
     Promise.all(
       usernames.map((username) =>
@@ -84,7 +86,7 @@ export function ImportRaids({
       .finally(() => {
         setUserRaidLoading(false);
       });
-  }, [connectedPlayers]);
+  }, [usernamesKey]);
 
   // Fetch active raids when the panel opens.
   useEffect(() => {

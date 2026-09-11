@@ -13,6 +13,7 @@ import {
 import type { SessionRow } from '@blert/common/dist/db/challenge';
 import postgres from 'postgres';
 
+import { getSession } from '@/auth';
 import { clamp } from '@/utils/math';
 
 import { sql } from './db';
@@ -22,7 +23,7 @@ import {
   SessionWithChallenges,
   findChallenges,
 } from './challenge';
-import { getConnectedPlayers, getSignedInUserId } from './users';
+import { getSignedInUserId } from './users';
 
 export type SessionFeedItem = {
   type: 'session';
@@ -775,16 +776,16 @@ export type SuggestionsQuery = {
 export async function getSuggestedPlayers(
   query: SuggestionsQuery = {},
 ): Promise<SuggestedPlayer[]> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
+  const session = await getSession();
+  if (session === null) {
     return [];
   }
+  const userId = parseInt(session.user.id, 10);
 
   const limit = clamp(query.limit ?? 5, 1, MAX_SUGGESTED_PLAYERS);
   const excludeIds = query.exclude ?? [];
 
-  const connectedPlayers = await getConnectedPlayers();
-  const connectedPlayerIds = connectedPlayers.map((p) => p.id);
+  const connectedPlayerIds = session.connectedPlayers.map((p) => p.id);
 
   // Combine connected players and explicit excludes.
   const allExcludeIds = [...new Set([...connectedPlayerIds, ...excludeIds])];

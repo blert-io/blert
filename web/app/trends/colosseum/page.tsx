@@ -1,7 +1,6 @@
 import { ResolvingMetadata } from 'next';
 import { Suspense } from 'react';
 
-import { getConnectedPlayers } from '@/actions/users';
 import Card from '@/components/card';
 import Loading from '@/components/loading';
 import { basicMetadata } from '@/utils/metadata';
@@ -10,9 +9,7 @@ import WaveTimes from './wave-times';
 
 import styles from './style.module.scss';
 
-export default async function ColosseumWaveTimesPage() {
-  const connectedPlayers = await getConnectedPlayers().catch(() => []);
-
+export default function ColosseumWaveTimesPage() {
   return (
     <div className={styles.colosseumWaves}>
       <Card primary className={styles.header}>
@@ -23,7 +20,7 @@ export default async function ColosseumWaveTimesPage() {
       </Card>
       <Card className={styles.mainPanel}>
         <Suspense fallback={<Loading />}>
-          <WaveTimes connectedPlayers={connectedPlayers} />
+          <WaveTimes />
         </Suspense>
       </Card>
     </div>
