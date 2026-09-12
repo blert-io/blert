@@ -335,6 +335,95 @@ button.item {
   }
 }
 
+.profile {
+  display: flex;
+  align-items: center;
+}
+
+.profileLink {
+  flex: 1;
+  min-width: 0;
+
+  &.withToggle {
+    margin-right: 0;
+  }
+}
+
+.profileToggle {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin: 2px 12px 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: var(--blert-surface-dark);
+  color: var(--blert-font-color-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  i {
+    font-size: 11px;
+    transition: transform 0.2s ease;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+
+  &:hover {
+    background: var(--blert-surface-light);
+    color: var(--blert-font-color-primary);
+  }
+
+  :global([data-theme='aero']) & {
+    margin: 5px 12px 5px 6px;
+    @include aeroStartButton;
+
+    &:hover {
+      @include aeroStartButtonHover;
+    }
+  }
+}
+
+.profilePlayers {
+  display: flex;
+  flex-direction: column;
+  margin: 0 12px 4px;
+}
+
+.subItem {
+  padding: 6px 10px 6px 42px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  color: var(--blert-font-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+
+  &:hover,
+  &.active {
+    background: var(--blert-surface-light);
+    color: var(--blert-font-color-primary);
+  }
+
+  :global([data-theme='aero']) & {
+    margin: 4px 0;
+    @include aeroTaskbarButton;
+
+    &:hover {
+      @include aeroTaskbarButtonHover;
+    }
+
+    &.active {
+      @include aeroTaskbarButtonActive;
+    }
+  }
+}
+
 .divider {
   height: 1px;
   margin: 10px 12px;
@@ -703,6 +792,14 @@ $COLLAPSED_ICON_SIZE: 40px;
   .itemLabel,
   .tileLabel {
     display: none;
+  }
+
+  .profile {
+    justify-content: center;
+  }
+
+  .profileLink {
+    flex: 0 0 auto;
   }
 
   .header {

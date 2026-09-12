@@ -4,16 +4,18 @@ import { ChallengeType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ReactNode, Suspense, useContext } from 'react';
+import { ReactNode, Suspense, useContext, useState } from 'react';
 
 import { authClient } from '@/auth-client';
 import { NavbarContext, useDisplay } from '@/display';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeLogo, MAIN_LOGO } from '@/logo';
+import { playerUrl } from '@/utils/url';
 
 import DashboardIcon from '@/svg/aero-dashboard.svg';
 import GearSetupsIcon from '@/svg/aero-gear-setups.svg';
 import GuidesIcon from '@/svg/aero-guides.svg';
+import IdCardIcon from '@/svg/aero-id-card.svg';
 import LeaderboardsIcon from '@/svg/aero-leaderboards.svg';
 import NameChangesIcon from '@/svg/aero-name-changes.svg';
 import TrendsIcon from '@/svg/aero-trends.svg';
@@ -132,6 +134,16 @@ export function LeftNav() {
   const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } =
     useContext(NavbarContext);
 
+  const [playersOpen, setPlayersOpen] = useState(false);
+
+  const connectedPlayers = session?.connectedPlayers ?? [];
+  const defaultPlayer = connectedPlayers[0] ?? null;
+
+  const hasPlayerList = !collapsed && connectedPlayers.length > 1;
+  const onOwnProfile = connectedPlayers.some((player) =>
+    isUnder(pathname, playerUrl(player.username)),
+  );
+
   return (
     <LeftNavWrapper>
       <nav className={`${styles.nav} ${collapsed ? styles.collapsed : ''}`}>
@@ -192,6 +204,60 @@ export function LeftNav() {
             </span>
             <span className={styles.itemLabel}>Dashboard</span>
           </Link>
+        )}
+
+        {isLoggedIn && defaultPlayer !== null && (
+          <div className={styles.profile}>
+            <Link
+              className={`${styles.item} ${styles.profileLink} ${
+                hasPlayerList ? styles.withToggle : ''
+              } ${onOwnProfile ? styles.active : ''}`}
+              href={playerUrl(defaultPlayer.username)}
+              title={defaultPlayer.username}
+            >
+              <span className={styles.itemIcon}>
+                <i className={`fa-solid fa-id-card ${styles.faIcon}`} />
+                <span className={styles.aeroIcon}>
+                  <IdCardIcon />
+                </span>
+              </span>
+              <span className={styles.itemLabel}>Profile</span>
+            </Link>
+            {hasPlayerList && (
+              <button
+                className={styles.profileToggle}
+                onClick={() => setPlayersOpen(!playersOpen)}
+                aria-expanded={playersOpen}
+                aria-label={
+                  playersOpen ? 'Hide your players' : 'Show your players'
+                }
+              >
+                <i
+                  className={`fa-solid fa-chevron-down ${
+                    playersOpen ? styles.open : ''
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+        )}
+
+        {isLoggedIn && hasPlayerList && playersOpen && (
+          <div className={styles.profilePlayers}>
+            {connectedPlayers.map((player) => (
+              <Link
+                key={player.id}
+                className={`${styles.subItem} ${
+                  isUnder(pathname, playerUrl(player.username))
+                    ? styles.active
+                    : ''
+                }`}
+                href={playerUrl(player.username)}
+              >
+                {player.username}
+              </Link>
+            ))}
+          </div>
         )}
 
         <div className={styles.divider} />

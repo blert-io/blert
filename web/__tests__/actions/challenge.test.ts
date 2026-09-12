@@ -15,8 +15,10 @@ import {
   aggregateSessions,
   countUniquePlayers,
   findChallenges,
+  loadPlayerWithStats,
   loadSessionsPage,
   loadSessionWithStats,
+  PlayerWithStats,
   SessionQuery,
 } from '@/actions/challenge';
 import { sql } from '@/actions/db';
@@ -1690,5 +1692,95 @@ describe('challenges', () => {
         expect(count).toBe(0);
       });
     });
+  });
+});
+
+describe('loadPlayerWithStats', () => {
+  const ZERO_STATS: PlayerWithStats['stats'] = {
+    tobCompletions: 0,
+    tobWipes: 0,
+    tobResets: 0,
+    colosseumCompletions: 0,
+    colosseumWipes: 0,
+    colosseumResets: 0,
+    infernoCompletions: 0,
+    infernoWipes: 0,
+    infernoResets: 0,
+    mokhaiotlCompletions: 0,
+    mokhaiotlWipes: 0,
+    mokhaiotlResets: 0,
+    mokhaiotlTotalDelves: 0,
+    mokhaiotlDelvesCompleted: 0,
+    mokhaiotlDeepDelvesCompleted: 0,
+    deathsTotal: 0,
+    deathsMaiden: 0,
+    deathsBloat: 0,
+    deathsNylocas: 0,
+    deathsSotetseg: 0,
+    deathsXarpus: 0,
+    deathsVerzik: 0,
+    bgsSmacks: 0,
+    hammerBops: 0,
+    challyPokes: 0,
+    unchargedScytheSwings: 0,
+    ralosAutos: 0,
+    elderMaulSmacks: 0,
+    tobBarragesWithoutProperWeapon: 0,
+    tobVerzikP1TrollSpecs: 0,
+    tobVerzikP3Melees: 0,
+    chinsThrownTotal: 0,
+    chinsThrownBlack: 0,
+    chinsThrownRed: 0,
+    chinsThrownGrey: 0,
+    chinsThrownMaiden: 0,
+    chinsThrownNylocas: 0,
+    chinsThrownValue: 0,
+    chinsThrownIncorrectlyMaiden: 0,
+  };
+
+  let playerId: number;
+
+  beforeEach(async () => {
+    [{ id: playerId }] = await sql<{ id: number }[]>`
+      INSERT INTO players (username, normalized_username)
+      VALUES ('Amili', ${normalizeRsn('Amili')})
+      RETURNING id
+    `;
+  });
+
+  afterEach(async () => {
+    await sql`DELETE FROM player_stats WHERE player_id = ${playerId}`;
+    await sql`DELETE FROM players WHERE id = ${playerId}`;
+  });
+
+  it("returns a player's latest snapshot", async () => {
+    await sql`
+      INSERT INTO player_stats (player_id, date, tob_completions, deaths_total)
+      VALUES
+        (${playerId}, ${new Date('2026-01-10')}, 5, 3),
+        (${playerId}, ${new Date('2026-05-10')}, 12, 8)
+    `;
+
+    expect(await loadPlayerWithStats('Amili')).toEqual({
+      id: playerId,
+      username: 'Amili',
+      totalRecordings: 0,
+      firstRecorded: new Date('2026-01-10'),
+      stats: { ...ZERO_STATS, tobCompletions: 12, deathsTotal: 8 },
+    });
+  });
+
+  it('returns zero stats for a player that has never been recorded', async () => {
+    expect(await loadPlayerWithStats('Amili')).toEqual({
+      id: playerId,
+      username: 'Amili',
+      totalRecordings: 0,
+      firstRecorded: null,
+      stats: ZERO_STATS,
+    });
+  });
+
+  it('returns null for a player that does not exist', async () => {
+    expect(await loadPlayerWithStats('versik mele')).toBeNull();
   });
 });
