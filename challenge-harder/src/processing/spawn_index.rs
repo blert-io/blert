@@ -7,44 +7,52 @@ use crate::proto::Coords;
 
 const MAX_SPAWNS: usize = 9;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) struct LocalCoords(i16, i16);
+
 #[derive(Debug)]
 pub(super) struct SpawnKey {
+    tick: Tick,
     vals: [i16; MAX_SPAWNS],
     len: usize,
 }
 
 impl SpawnKey {
-    /// Encodes each spawn as `type << 10 | x << 5 | y` from its type in `arena`
-    /// and its local coordinates, sorting the results.
-    fn encode(arena: &Arena, spawns: &[(u32, Coords)]) -> Self {
+    pub fn iter(&self) -> impl Iterator<Item = i16> + '_ {
+        self.vals[..self.len].iter().copied()
+    }
+
+    pub fn tick(&self) -> Tick {
+        self.tick
+    }
+
+    /// Encodes each wave spawn as `type << 10 | x << 5 | y` from its type in
+    /// `arena` and its local coordinates, sorting the results.
+    fn encode(arena: &Arena, spawns: &[(u32, LocalCoords)], tick: Tick) -> Self {
         let mut vals = [0; MAX_SPAWNS];
         for (val, &(npc, coords)) in vals[..spawns.len()].iter_mut().zip(spawns) {
             let npc_type = arena
                 .npc_types
                 .iter()
                 .position(|&id| id == npc)
-                .and_then(|index| i32::try_from(index).ok())
+                .and_then(|index| i16::try_from(index).ok())
                 .expect("spawn NPCs are arena types");
-            *val = i16::try_from((npc_type << 10) | (coords.x << 5) | coords.y)
-                .expect("spawns fit in a smallint");
+            *val = (npc_type << 10) | (coords.0 << 5) | coords.1;
         }
         vals[..spawns.len()].sort_unstable();
 
         Self {
+            tick,
             vals,
             len: spawns.len(),
         }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = i16> + '_ {
-        self.vals[..self.len].iter().copied()
     }
 }
 
 #[derive(Debug)]
 pub(super) struct Arena {
     base: Coords,
-    spawn_locations: HashSet<Coords>,
+    spawn_locations: HashSet<LocalCoords>,
     npc_types: &'static [u32],
 }
 
@@ -71,13 +79,15 @@ impl Arena {
         arena
     }
 
-    // y is inverted from the game because that's what popular spawn analysis
-    // tools use and we want to be compatible.
-    fn to_local(&self, coords: Coords) -> Coords {
-        Coords {
-            x: coords.x - self.base.x,
-            y: self.base.y - coords.y,
-        }
+    /// Converts a world position to the arena's local coordinate space.
+    pub fn to_local(&self, coords: Coords) -> LocalCoords {
+        #![expect(clippy::cast_possible_truncation)]
+        // y is inverted from the game because that's what popular spawn
+        // analysis tools use and we want to be compatible.
+        LocalCoords(
+            (coords.x - self.base.x) as i16,
+            (self.base.y - coords.y) as i16,
+        )
     }
 }
 
@@ -87,7 +97,7 @@ impl Arena {
 pub(super) struct SpawnIndexer<'a> {
     arena: &'a Arena,
     expected_npcs: Vec<u32>,
-    spawns_by_tick: BTreeMap<Tick, Vec<(u32, Coords)>>,
+    spawns_by_tick: BTreeMap<Tick, Vec<(u32, LocalCoords)>>,
 }
 
 impl<'a> SpawnIndexer<'a> {
@@ -121,7 +131,7 @@ impl<'a> SpawnIndexer<'a> {
             return None;
         }
 
-        let (_, mut spawns) = self.spawns_by_tick.into_iter().next()?;
+        let (first_tick, mut spawns) = self.spawns_by_tick.into_iter().next()?;
 
         let mut matched = Vec::with_capacity(self.expected_npcs.len() + extra.len());
         for npc in self.expected_npcs {
@@ -142,7 +152,7 @@ impl<'a> SpawnIndexer<'a> {
             return None;
         }
 
-        Some(SpawnKey::encode(self.arena, &matched))
+        Some(SpawnKey::encode(self.arena, &matched, first_tick))
     }
 }
 
@@ -153,14 +163,22 @@ pub(super) async fn save(
     txn: &db::Transaction,
     stage: Stage,
     spawn: Option<&SpawnKey>,
+    player: Option<LocalCoords>,
     modified: bool,
 ) -> Result<(), db::Error> {
     let spawns: Option<Vec<i16>> = spawn.map(|key| key.iter().collect());
+    let player = player.map(|coords| (coords.1 << 8) | coords.0);
     txn.execute(
-        "INSERT INTO challenge_stage_spawns (challenge_id, stage, spawns, modified)
-         VALUES ($1, $2, $3, $4)
+        "INSERT INTO challenge_stage_spawns (challenge_id, stage, spawns, player, modified)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (challenge_id, stage) DO NOTHING",
-        &[&txn.challenge_id(), &(stage as i16), &spawns, &modified],
+        &[
+            &txn.challenge_id(),
+            &(stage as i16),
+            &spawns,
+            &player,
+            &modified,
+        ],
     )
     .await?;
     Ok(())
