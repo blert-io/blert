@@ -14,7 +14,9 @@ import {
   Stage,
   handicapBase,
 } from '../challenge';
+import { DataRepository } from '../data-repository/data-repository';
 import { Coords } from '../event';
+import { Event as EventProto } from '../generated/event_pb';
 import { NpcId } from '../npcs/npc-id';
 
 type Arena = {
@@ -166,7 +168,7 @@ function waveSpawn(
   expected: number[],
   extra: number[],
   npcs: RoomNpc[],
-): number[] | null {
+): { spawns: number[]; tick: number } | null {
   if (expected.length === 0 || npcs.length === 0) {
     return null;
   }
@@ -200,7 +202,7 @@ function waveSpawn(
     return null;
   }
 
-  return matched
+  const values = matched
     .map((npc) => {
       const type = arena.npcTypes.indexOf(npc.spawnNpcId);
       const x = npc.spawnPoint.x - arena.base.x;
@@ -208,6 +210,36 @@ function waveSpawn(
       return (type << 10) | (x << 5) | y;
     })
     .sort((a, b) => a - b);
+
+  return { spawns: values, tick: firstTick };
+}
+
+async function wavePlayer(
+  dataRepository: DataRepository,
+  uuid: string,
+  arena: Arena,
+  stage: Stage,
+  tick: number,
+): Promise<number | null> {
+  let events: EventProto[];
+  try {
+    events = await dataRepository.loadStageEvents(uuid, stage);
+  } catch {
+    return null;
+  }
+
+  const update = events.find(
+    (event) =>
+      event.getType() === EventProto.Type.PLAYER_UPDATE &&
+      event.getTick() === tick,
+  );
+  if (update === undefined) {
+    return null;
+  }
+
+  const x = update.getXCoord() - arena.base.x;
+  const y = arena.base.y - update.getYCoord();
+  return (y << 8) | x;
 }
 
 export async function scriptMain(sql: postgres.Sql, args: string[]) {
@@ -239,6 +271,7 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
       const rows: {
         stage: Stage;
         spawns: number[] | null;
+        player: number | null;
         modified: boolean;
       }[] = [];
 
@@ -254,14 +287,26 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
             dynamicDuo && expected.includes(SHOCKWAVE_COLOSSUS)
               ? [SHOCKWAVE_COLOSSUS]
               : [];
+          const spawn = waveSpawn(
+            COLOSSEUM_ARENA,
+            expected,
+            extra,
+            Object.values(wave.npcs),
+          );
+          const player =
+            spawn === null
+              ? null
+              : await wavePlayer(
+                  dataRepository,
+                  challenge.uuid,
+                  COLOSSEUM_ARENA,
+                  wave.stage,
+                  spawn.tick,
+                );
           rows.push({
             stage: wave.stage,
-            spawns: waveSpawn(
-              COLOSSEUM_ARENA,
-              expected,
-              extra,
-              Object.values(wave.npcs),
-            ),
+            spawns: spawn?.spawns ?? null,
+            player,
             modified: extra.length > 0,
           });
         }
@@ -269,14 +314,26 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
         for (const wave of (data as InfernoData).waves) {
           const expected =
             INFERNO_WAVES[wave.stage - Stage.INFERNO_WAVE_1] ?? [];
+          const spawn = waveSpawn(
+            INFERNO_ARENA,
+            expected,
+            [],
+            Object.values(wave.npcs),
+          );
+          const player =
+            spawn === null
+              ? null
+              : await wavePlayer(
+                  dataRepository,
+                  challenge.uuid,
+                  INFERNO_ARENA,
+                  wave.stage,
+                  spawn.tick,
+                );
           rows.push({
             stage: wave.stage,
-            spawns: waveSpawn(
-              INFERNO_ARENA,
-              expected,
-              [],
-              Object.values(wave.npcs),
-            ),
+            spawns: spawn?.spawns ?? null,
+            player,
             modified: false,
           });
         }
@@ -289,8 +346,8 @@ export async function scriptMain(sql: postgres.Sql, args: string[]) {
 
       for (const row of rows) {
         await sql`
-          INSERT INTO challenge_stage_spawns (challenge_id, stage, spawns, modified)
-          VALUES (${challenge.id}, ${row.stage}, ${row.spawns}::smallint[], ${row.modified})
+          INSERT INTO challenge_stage_spawns (challenge_id, stage, spawns, player, modified)
+          VALUES (${challenge.id}, ${row.stage}, ${row.spawns}::smallint[], ${row.player}, ${row.modified})
           ON CONFLICT (challenge_id, stage) DO NOTHING
         `;
       }

@@ -246,21 +246,22 @@ async fn verify_wave_rows(client: &Object, challenge_id: i32, player_id: i32) ->
     assert_eq!(row.get::<_, Option<i32>>(3), None);
     assert_eq!(row.get::<_, Option<i32>>(4), None);
 
-    let spawns: Vec<(i16, Option<Vec<i16>>, bool)> = client
+    let spawns = client
         .query(
-            "SELECT stage, spawns, modified FROM challenge_stage_spawns
+            "SELECT stage, spawns, player, modified FROM challenge_stage_spawns
              WHERE challenge_id = $1 ORDER BY stage",
             &[&challenge_id],
         )
         .await
-        .expect("spawn rows")
-        .iter()
-        .map(|row| (row.get(0), row.get(1), row.get(2)))
-        .collect();
+        .expect("spawn rows");
+    assert_eq!(spawns.len(), 1);
+    assert_eq!(spawns[0].get::<_, i16>(0), Stage::InfernoWave42 as i16);
     assert_eq!(
-        spawns,
-        [(Stage::InfernoWave42 as i16, Some(vec![2757, 4133]), false)],
+        spawns[0].get::<_, Option<Vec<i16>>>(1),
+        Some(vec![2757, 4133]),
     );
+    assert_eq!(spawns[0].get::<_, Option<i16>>(2), Some(1296));
+    assert!(!spawns[0].get::<_, bool>(3));
 
     let splits = client
         .query(

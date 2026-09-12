@@ -313,7 +313,19 @@ impl ChallengeProcessor for ColosseumProcessor {
         if spawn.is_none() && !wave_npcs(stage).is_empty() {
             metrics::record_undetermined_wave_spawn(stage);
         }
-        spawn_index::save(txn, stage, spawn.as_ref(), !extra.is_empty()).await?;
+        let player = spawn.as_ref().and_then(|spawn| {
+            events
+                .events_for_tick(spawn.tick())
+                .iter()
+                .find(|event| event.r#type() == event::Type::PlayerUpdate)
+                .map(|event| {
+                    ARENA.to_local(Coords {
+                        x: event.x_coord,
+                        y: event.y_coord,
+                    })
+                })
+        });
+        spawn_index::save(txn, stage, spawn.as_ref(), player, !extra.is_empty()).await?;
 
         Ok(ChallengeTicks::Add(events.duration()))
     }
