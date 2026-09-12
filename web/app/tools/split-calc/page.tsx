@@ -1,7 +1,6 @@
 import { ResolvingMetadata } from 'next';
 import { Suspense } from 'react';
 
-import { getConnectedPlayers } from '@/actions/users';
 import Card from '@/components/card';
 import Loading from '@/components/loading';
 import { basicMetadata } from '@/utils/metadata';
@@ -10,9 +9,7 @@ import { SplitCalculator } from './split-calculator';
 
 import styles from './style.module.scss';
 
-export default async function SplitCalcPage() {
-  const connectedPlayers = await getConnectedPlayers().catch(() => []);
-
+export default function SplitCalcPage() {
   return (
     <div className={styles.page}>
       <Card primary className={styles.header}>
@@ -23,7 +20,7 @@ export default async function SplitCalcPage() {
         </p>
       </Card>
       <Suspense fallback={<Loading />}>
-        <SplitCalculator connectedPlayers={connectedPlayers} />
+        <SplitCalculator />
       </Suspense>
     </div>
   );

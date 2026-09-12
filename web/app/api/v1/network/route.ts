@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 
 import { loadPlayerNetwork, PlayerNetworkOptions } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
-import { cachedRaw } from '@/api/cache';
+import { createRawCache } from '@/api/cache';
 import { withApiRoute } from '@/api/handler';
 import { dateParam, numericListParam, numericParam } from '@/api/query';
 import { clamp } from '@/utils/math';
@@ -139,7 +139,7 @@ function cacheKey(options: ResolvedNetworkOptions): string {
   return key.toString();
 }
 
-const cachedLoadPlayerNetwork = cachedRaw(
+const playerNetworkCache = createRawCache(
   { name: 'network', ttlSec: CACHE_TTL_SEC },
   (_options: ResolvedNetworkOptions, key: string) => key,
   (options: ResolvedNetworkOptions, _key: string) => loadPlayerNetwork(options),
@@ -151,7 +151,7 @@ export const GET = withApiRoute(
     const options = parseNetworkOptions(
       Object.fromEntries(request.nextUrl.searchParams),
     );
-    const body = await cachedLoadPlayerNetwork(options, cacheKey(options));
+    const body = await playerNetworkCache.get(options, cacheKey(options));
     return new Response(body, { headers: RESPONSE_HEADERS });
   },
 );

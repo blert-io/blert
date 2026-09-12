@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { ChallengeOverview } from '@/actions/challenge';
-import { ConnectedPlayer } from '@/actions/users';
+import { authClient } from '@/auth-client';
 import Card from '@/components/card';
 import Checkbox from '@/components/checkbox';
 import DistributionChart from '@/components/distribution-chart';
@@ -159,14 +159,12 @@ function buildQueryString(
   return params.toString();
 }
 
-type SplitCalculatorProps = {
-  connectedPlayers: ConnectedPlayer[];
-};
-
-export function SplitCalculator({ connectedPlayers }: SplitCalculatorProps) {
+export function SplitCalculator() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showToast = useToast();
+  const { data: session } = authClient.useSession();
+  const connectedPlayers = session?.connectedPlayers ?? [];
 
   // Parse initial state from URL.
   const initial = useMemo(() => parseQueryState(searchParams), [searchParams]);

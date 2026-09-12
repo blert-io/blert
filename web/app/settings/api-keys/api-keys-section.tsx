@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import { ApiKeyWithUsername } from '@/actions/users';
+import { authClient } from '@/auth-client';
 
 import ApiKey from './api-key';
 import ApiKeyForm from './api-key-form';
@@ -17,6 +18,7 @@ export default function ApiKeysSection({
   initialApiKeys,
 }: ApiKeysSectionProps) {
   const [apiKeys, setApiKeys] = useState(initialApiKeys);
+  const { refetch: refetchSession } = authClient.useSession();
   const existingPlayers = useMemo(
     () => new Set(apiKeys.map((key) => key.rsn.toLowerCase())),
     [apiKeys],
@@ -24,6 +26,7 @@ export default function ApiKeysSection({
 
   const handleDelete = (deletedKey: ApiKeyWithUsername) => {
     setApiKeys(apiKeys.filter((key) => key.id !== deletedKey.id));
+    void refetchSession();
   };
 
   return (
@@ -58,7 +61,10 @@ export default function ApiKeysSection({
       <div className={styles.generateKey}>
         <h3>Generate new API key</h3>
         <ApiKeyForm
-          onApiKeyGenerated={(key) => setApiKeys((prev) => [...prev, key])}
+          onApiKeyGenerated={(key) => {
+            setApiKeys((prev) => [...prev, key]);
+            void refetchSession();
+          }}
           existingPlayers={existingPlayers}
         />
       </div>

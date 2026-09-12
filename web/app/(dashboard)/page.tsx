@@ -8,7 +8,8 @@ import {
   findChallenges,
 } from '@/actions/challenge';
 import { getFollowing, getSuggestedPlayers, loadFeed } from '@/actions/feed';
-import { getConnectedPlayers, getSignedInUser } from '@/actions/users';
+import { getSignedInUser } from '@/actions/users';
+import { getSession } from '@/auth';
 import Card from '@/components/card';
 import { basicMetadata } from '@/utils/metadata';
 import { ticksToFormattedDuration } from '@/utils/tick';
@@ -123,12 +124,12 @@ async function getQuickStats(usernames: string[]): Promise<QuickStats> {
 }
 
 export default async function Dashboard() {
-  const user = await getSignedInUser();
-  if (user === null) {
+  const [session, user] = await Promise.all([getSession(), getSignedInUser()]);
+  if (session === null || user === null) {
     redirect('/home');
   }
 
-  const connectedPlayers = await getConnectedPlayers();
+  const { connectedPlayers } = session;
   const connectedUsernames = connectedPlayers.map((p) => p.username);
 
   const [

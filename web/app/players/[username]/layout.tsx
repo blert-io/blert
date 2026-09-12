@@ -13,7 +13,7 @@ import {
   type PlayerWithStats,
 } from '@/actions/challenge';
 import { isFollowing } from '@/actions/feed';
-import { getConnectedPlayers, getSignedInUserId } from '@/actions/users';
+import { getSession } from '@/auth';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import FollowButton from './follow-button';
@@ -130,7 +130,7 @@ export default async function PlayerLayout({
   params,
 }: PlayerLayoutProps) {
   const username = await params.then((u) => decodeURIComponent(u.username));
-  const [player, totalRecordedTicks, personalBests, userId, [challenges]] =
+  const [player, totalRecordedTicks, personalBests, session, [challenges]] =
     await Promise.all([
       loadPlayerWithStats(username),
       aggregateChallenges(
@@ -140,7 +140,7 @@ export default async function PlayerLayout({
         { challengeTicks: { type: 'sum' } },
       ),
       loadPbsForPlayer(username),
-      getSignedInUserId(),
+      getSession(),
       findChallenges(1, { party: [username] }),
     ]);
 
@@ -162,8 +162,8 @@ export default async function PlayerLayout({
         }
       : null;
 
-  const isSignedIn = userId !== null;
-  const connectedPlayers = isSignedIn ? await getConnectedPlayers() : [];
+  const isSignedIn = session !== null;
+  const connectedPlayers = session?.connectedPlayers ?? [];
   const isOwnPlayer = connectedPlayers.some(
     (p) => p.username.toLowerCase() === player.username.toLowerCase(),
   );

@@ -7,12 +7,12 @@ import {
   SingleOrArray,
 } from '@/actions/challenge';
 import { Comparator } from '@/actions/query';
-import { cachedRaw } from '@/api/cache';
+import { createRawCache } from '@/api/cache';
 import { withApiRoute } from '@/api/handler';
 
 import { parseChallengeQueryParams } from '../../query';
 
-const cachedCountUniquePlayers = cachedRaw(
+const uniquePlayersCache = createRawCache(
   { name: 'challenges:stats:players' },
   (_: ChallengeQuery, params: string) => params,
   async (query: ChallengeQuery, _params: string) => ({
@@ -163,7 +163,7 @@ export const GET = withApiRoute(
       return Response.json({ count }, { status: 200 });
     }
 
-    const body = await cachedCountUniquePlayers(query, key);
+    const body = await uniquePlayersCache.get(query, key);
     return new Response(body, {
       headers: {
         'Content-Type': 'application/json',

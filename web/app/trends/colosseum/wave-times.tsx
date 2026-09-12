@@ -4,7 +4,7 @@ import { SplitType, splitName } from '@blert/common';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { ConnectedPlayer } from '@/actions/users';
+import { authClient } from '@/auth-client';
 import DistributionChart from '@/components/distribution-chart';
 import PercentileChart from '@/components/percentile-chart';
 import PlayerSearch from '@/components/player-search';
@@ -34,20 +34,12 @@ function windowParam(window: TimeWindow): string {
   return window === '6m' ? `&after=${sixMonthsAgo().toISOString()}` : '';
 }
 
-export default function WaveTimes({
-  connectedPlayers,
-}: {
-  connectedPlayers: ConnectedPlayer[];
-}) {
-  const defaultPlayer = connectedPlayers[0]?.username ?? null;
+export default function WaveTimes() {
+  const { data: session } = authClient.useSession();
 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  const paramPlayer = searchParams.get('player');
-  const initialPlayer =
-    paramPlayer !== null && paramPlayer !== '' ? paramPlayer : defaultPlayer;
 
   const showToast = useToast();
 
@@ -58,8 +50,18 @@ export default function WaveTimes({
   const abortRef = useRef<AbortController | null>(null);
   const hasDataRef = useRef(false);
 
-  const [playerInput, setPlayerInput] = useState(initialPlayer ?? '');
-  const [player, setPlayer] = useState<string | null>(initialPlayer);
+  const defaultPlayer = session?.connectedPlayers[0]?.username ?? null;
+  const playerParam = searchParams.get('player');
+
+  // `undefined` until the user selects or clears a player.
+  const [selectedPlayer, setSelectedPlayer] = useState<
+    string | null | undefined
+  >(playerParam !== null && playerParam !== '' ? playerParam : undefined);
+  const player = selectedPlayer === undefined ? defaultPlayer : selectedPlayer;
+
+  const [typedInput, setPlayerInput] = useState<string | null>(null);
+  const playerInput = typedInput ?? player ?? '';
+
   const [playerDistributions, setPlayerDistributions] = useState<
     Distribution[] | null
   >(null);
@@ -228,7 +230,7 @@ export default function WaveTimes({
   const selectPlayer = useCallback(
     (username: string) => {
       setPlayerInput(username);
-      setPlayer(username);
+      setSelectedPlayer(username);
       setPlayerDistributions(null);
       updateQueryParam('player', username);
     },
@@ -237,7 +239,7 @@ export default function WaveTimes({
 
   const clearPlayer = useCallback(() => {
     setPlayerInput('');
-    setPlayer(null);
+    setSelectedPlayer(null);
     setPlayerDistributions(null);
     updateQueryParam('player', null);
   }, [updateQueryParam]);

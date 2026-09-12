@@ -1,7 +1,7 @@
 import { RedisClientType } from 'redis';
 
 import redis from '@/actions/redis';
-import { cached, cachedRaw } from '@/api/cache';
+import { createCache, createRawCache } from '@/api/cache';
 import { recordCacheResult } from '@/utils/metrics';
 
 jest.mock('@/actions/redis');
@@ -10,6 +10,7 @@ jest.mock('@/utils/metrics');
 type MockRedisClient = {
   get: jest.Mock;
   set: jest.Mock;
+  del: jest.Mock;
 };
 
 const mockedRedis = redis as jest.MockedFunction<typeof redis>;
@@ -21,12 +22,13 @@ function createMockClient(): MockRedisClient {
   return {
     get: jest.fn(),
     set: jest.fn(),
+    del: jest.fn(),
   };
 }
 
 const OPTIONS = { name: 'test' };
 
-describe('cachedRaw', () => {
+describe('createRawCache', () => {
   let mockClient: MockRedisClient;
 
   beforeEach(() => {
@@ -43,9 +45,9 @@ describe('cachedRaw', () => {
     mockClient.set.mockResolvedValue('OK');
 
     const fn = jest.fn().mockResolvedValue({ count: 42 });
-    const cachedFn = cachedRaw(OPTIONS, (x: string) => x, fn);
+    const cache = createRawCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toBe(JSON.stringify({ count: 42 }));
     expect(fn).toHaveBeenCalledWith('abc');
@@ -62,9 +64,9 @@ describe('cachedRaw', () => {
     mockClient.get.mockResolvedValue('{"count":99}');
 
     const fn = jest.fn().mockResolvedValue({ count: 0 });
-    const cachedFn = cachedRaw(OPTIONS, (x: string) => x, fn);
+    const cache = createRawCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toBe('{"count":99}');
     expect(fn).not.toHaveBeenCalled();
@@ -77,13 +79,13 @@ describe('cachedRaw', () => {
 
     const fn = jest.fn().mockResolvedValue({ count: 0 });
     const transform = jest.fn(JSON.parse);
-    const cachedFn = cachedRaw(
+    const cache = createRawCache(
       { ...OPTIONS, parse: transform },
       (x: string) => x,
       fn,
     );
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toEqual({ count: 99 });
     expect(transform).toHaveBeenCalledWith('{"count":99}');
@@ -95,13 +97,13 @@ describe('cachedRaw', () => {
     mockClient.set.mockResolvedValue('OK');
 
     const fn = jest.fn().mockResolvedValue({ count: 7 });
-    const cachedFn = cachedRaw(
+    const cache = createRawCache(
       { ...OPTIONS, parse: JSON.parse },
       (x: string) => x,
       fn,
     );
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toEqual({ count: 7 });
     expect(fn).toHaveBeenCalledWith('abc');
@@ -118,13 +120,13 @@ describe('cachedRaw', () => {
     mockClient.set.mockResolvedValue('OK');
 
     const fn = jest.fn().mockResolvedValue('val');
-    const cachedFn = cachedRaw(
+    const cache = createRawCache(
       { name: 'test', ttlSec: 120 },
       (x: string) => x,
       fn,
     );
 
-    await cachedFn('abc');
+    await cache.get('abc');
 
     expect(mockClient.set).toHaveBeenCalledWith(
       'web:cache:test:abc',
@@ -138,9 +140,9 @@ describe('cachedRaw', () => {
     mockClient.set.mockResolvedValue('OK');
 
     const fn = jest.fn().mockResolvedValue(7);
-    const cachedFn = cachedRaw(OPTIONS, (x: string) => x, fn);
+    const cache = createRawCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toBe(JSON.stringify(7));
     expect(fn).toHaveBeenCalledWith('abc');
@@ -154,9 +156,9 @@ describe('cachedRaw', () => {
     mockClient.set.mockRejectedValue(new Error('redis down'));
 
     const fn = jest.fn().mockResolvedValue(7);
-    const cachedFn = cachedRaw(OPTIONS, (x: string) => x, fn);
+    const cache = createRawCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toBe(JSON.stringify(7));
     expect(mockedRecordCacheResult).toHaveBeenCalledWith('test', 'miss');
@@ -168,16 +170,36 @@ describe('cachedRaw', () => {
 
     const fn = jest.fn().mockResolvedValue('ok');
     const keyFn = jest.fn().mockReturnValue('multi-arg-key');
-    const cachedFn = cachedRaw(OPTIONS, keyFn, fn);
+    const cache = createRawCache(OPTIONS, keyFn, fn);
 
-    await cachedFn('a', 2, true);
+    await cache.get('a', 2, true);
 
     expect(keyFn).toHaveBeenCalledWith('a', 2, true);
     expect(fn).toHaveBeenCalledWith('a', 2, true);
   });
+
+  it('deletes the key for the given arguments on invalidate', async () => {
+    mockClient.del.mockResolvedValue(1);
+
+    const fn = jest.fn();
+    const cache = createRawCache(OPTIONS, (x: string) => x, fn);
+
+    await cache.invalidate('abc');
+
+    expect(mockClient.del).toHaveBeenCalledWith('web:cache:test:abc');
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when Redis del fails', async () => {
+    mockClient.del.mockRejectedValue(new Error('redis down'));
+
+    const cache = createRawCache(OPTIONS, (x: string) => x, jest.fn());
+
+    await expect(cache.invalidate('abc')).resolves.toBeUndefined();
+  });
 });
 
-describe('cached', () => {
+describe('createCache', () => {
   let mockClient: MockRedisClient;
 
   beforeEach(() => {
@@ -193,9 +215,9 @@ describe('cached', () => {
     mockClient.get.mockResolvedValue(JSON.stringify({ count: 99 }));
 
     const fn = jest.fn().mockResolvedValue({ count: 0 });
-    const cachedFn = cached(OPTIONS, (x: string) => x, fn);
+    const cache = createCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toEqual({ count: 99 });
     expect(fn).not.toHaveBeenCalled();
@@ -206,9 +228,9 @@ describe('cached', () => {
     mockClient.set.mockResolvedValue('OK');
 
     const fn = jest.fn().mockResolvedValue({ count: 7 });
-    const cachedFn = cached(OPTIONS, (x: string) => x, fn);
+    const cache = createCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toEqual({ count: 7 });
     expect(fn).toHaveBeenCalledWith('abc');
@@ -219,9 +241,9 @@ describe('cached', () => {
     mockClient.set.mockResolvedValue('OK');
 
     const fn = jest.fn().mockResolvedValue(42);
-    const cachedFn = cached(OPTIONS, (x: string) => x, fn);
+    const cache = createCache(OPTIONS, (x: string) => x, fn);
 
-    const result = await cachedFn('abc');
+    const result = await cache.get('abc');
 
     expect(result).toBe(42);
     expect(fn).toHaveBeenCalledWith('abc');

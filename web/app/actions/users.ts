@@ -9,12 +9,12 @@ import {
   isPostgresUniqueViolation,
   normalizeRsn,
 } from '@blert/common';
-import { headers } from 'next/headers';
 
-import { auth } from '@/auth';
+import { getSession } from '@/auth';
 import logger from '@/utils/log';
 import { withServerAction } from '@/utils/metrics';
 
+import { connectedPlayersCache } from './connected-players';
 import { sql } from './db';
 import { AuthenticationError } from './errors';
 
@@ -33,9 +33,7 @@ export async function userExists(username: string): Promise<boolean> {
 }
 
 export async function getSignedInUserId(): Promise<number | null> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession();
   if (!session?.user.id) {
     return null;
   }
@@ -43,9 +41,7 @@ export async function getSignedInUserId(): Promise<number | null> {
 }
 
 export async function getSignedInUser(): Promise<User | null> {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession();
   if (!session?.user.id) {
     return null;
   }
@@ -253,6 +249,7 @@ export async function createApiKey(rsn: string): Promise<ApiKeyWithUsername> {
       }
     }
 
+    await connectedPlayersCache.invalidate(userId);
     return { ...apiKey, rsn: player.username };
   });
 }
@@ -265,6 +262,7 @@ export async function deleteApiKey(key: string): Promise<void> {
       DELETE FROM api_keys
       WHERE key = ${key} AND user_id = ${userId}
     `;
+    await connectedPlayersCache.invalidate(userId);
   });
 }
 
@@ -306,23 +304,6 @@ export type ConnectedPlayer = {
   id: number;
   username: string;
 };
-
-/**
- * Gets the list of OSRS players connected to the current user's account.
- *
- * @returns List of players connected to the current user's account.
- */
-export async function getConnectedPlayers(): Promise<ConnectedPlayer[]> {
-  const userId = await ensureAuthenticated();
-  const players = await sql<{ id: number; username: string }[]>`
-    SELECT p.id, p.username
-    FROM users u
-    JOIN api_keys a ON u.id = a.user_id
-    JOIN players p ON a.player_id = p.id
-    WHERE u.id = ${userId}
-  `;
-  return players.map((p) => ({ id: p.id, username: p.username }));
-}
 
 /**
  * Generates a new Discord linking code for the current user.
