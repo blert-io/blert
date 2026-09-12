@@ -2718,7 +2718,7 @@ export async function loadEventsForStage(
 export type PlayerWithStats = Pick<Player, 'username' | 'totalRecordings'> & {
   id: number;
   stats: Omit<PlayerStats, 'playerId' | 'date'>;
-  firstRecorded: Date;
+  firstRecorded: Date | null;
 };
 
 type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
@@ -2740,15 +2740,15 @@ export async function loadPlayerWithStats(
       player_id: number;
       username: string;
       total_recordings: number;
-    } & PlayerStatsRow)[]
+    } & { [K in keyof PlayerStatsRow]: PlayerStatsRow[K] | null })[]
   >`
     SELECT
+      player_stats.*,
       players.id as player_id,
       players.username,
-      players.total_recordings,
-      player_stats.*
+      players.total_recordings
     FROM players
-    JOIN player_stats ON players.id = player_stats.player_id
+    LEFT JOIN player_stats ON players.id = player_stats.player_id
     WHERE players.normalized_username = ${normalizeRsn(username)}
     ORDER BY player_stats.date DESC
     LIMIT 1
@@ -2765,7 +2765,7 @@ export async function loadPlayerWithStats(
     ORDER BY date ASC
     LIMIT 1
   `;
-  const firstRecorded = firstStats?.date ?? new Date();
+  const firstRecorded = firstStats?.date ?? null;
 
   return {
     id: playerWithStats.player_id,
@@ -2773,48 +2773,48 @@ export async function loadPlayerWithStats(
     totalRecordings: playerWithStats.total_recordings,
     firstRecorded,
     stats: {
-      tobCompletions: playerWithStats.tob_completions,
-      tobWipes: playerWithStats.tob_wipes,
-      tobResets: playerWithStats.tob_resets,
-      colosseumCompletions: playerWithStats.colosseum_completions,
-      colosseumWipes: playerWithStats.colosseum_wipes,
-      colosseumResets: playerWithStats.colosseum_resets,
-      infernoCompletions: playerWithStats.inferno_completions,
-      infernoWipes: playerWithStats.inferno_wipes,
-      infernoResets: playerWithStats.inferno_resets,
-      mokhaiotlCompletions: playerWithStats.mokhaiotl_completions,
-      mokhaiotlWipes: playerWithStats.mokhaiotl_wipes,
-      mokhaiotlResets: playerWithStats.mokhaiotl_resets,
-      mokhaiotlTotalDelves: playerWithStats.mokhaiotl_total_delves,
-      mokhaiotlDelvesCompleted: playerWithStats.mokhaiotl_delves_completed,
+      tobCompletions: playerWithStats.tob_completions ?? 0,
+      tobWipes: playerWithStats.tob_wipes ?? 0,
+      tobResets: playerWithStats.tob_resets ?? 0,
+      colosseumCompletions: playerWithStats.colosseum_completions ?? 0,
+      colosseumWipes: playerWithStats.colosseum_wipes ?? 0,
+      colosseumResets: playerWithStats.colosseum_resets ?? 0,
+      infernoCompletions: playerWithStats.inferno_completions ?? 0,
+      infernoWipes: playerWithStats.inferno_wipes ?? 0,
+      infernoResets: playerWithStats.inferno_resets ?? 0,
+      mokhaiotlCompletions: playerWithStats.mokhaiotl_completions ?? 0,
+      mokhaiotlWipes: playerWithStats.mokhaiotl_wipes ?? 0,
+      mokhaiotlResets: playerWithStats.mokhaiotl_resets ?? 0,
+      mokhaiotlTotalDelves: playerWithStats.mokhaiotl_total_delves ?? 0,
+      mokhaiotlDelvesCompleted: playerWithStats.mokhaiotl_delves_completed ?? 0,
       mokhaiotlDeepDelvesCompleted:
-        playerWithStats.mokhaiotl_deep_delves_completed,
-      deathsTotal: playerWithStats.deaths_total,
-      deathsMaiden: playerWithStats.deaths_maiden,
-      deathsBloat: playerWithStats.deaths_bloat,
-      deathsNylocas: playerWithStats.deaths_nylocas,
-      deathsSotetseg: playerWithStats.deaths_sotetseg,
-      deathsXarpus: playerWithStats.deaths_xarpus,
-      deathsVerzik: playerWithStats.deaths_verzik,
-      bgsSmacks: playerWithStats.bgs_smacks,
-      hammerBops: playerWithStats.hammer_bops,
-      challyPokes: playerWithStats.chally_pokes,
-      unchargedScytheSwings: playerWithStats.uncharged_scythe_swings,
-      ralosAutos: playerWithStats.ralos_autos,
-      elderMaulSmacks: playerWithStats.elder_maul_smacks,
+        playerWithStats.mokhaiotl_deep_delves_completed ?? 0,
+      deathsTotal: playerWithStats.deaths_total ?? 0,
+      deathsMaiden: playerWithStats.deaths_maiden ?? 0,
+      deathsBloat: playerWithStats.deaths_bloat ?? 0,
+      deathsNylocas: playerWithStats.deaths_nylocas ?? 0,
+      deathsSotetseg: playerWithStats.deaths_sotetseg ?? 0,
+      deathsXarpus: playerWithStats.deaths_xarpus ?? 0,
+      deathsVerzik: playerWithStats.deaths_verzik ?? 0,
+      bgsSmacks: playerWithStats.bgs_smacks ?? 0,
+      hammerBops: playerWithStats.hammer_bops ?? 0,
+      challyPokes: playerWithStats.chally_pokes ?? 0,
+      unchargedScytheSwings: playerWithStats.uncharged_scythe_swings ?? 0,
+      ralosAutos: playerWithStats.ralos_autos ?? 0,
+      elderMaulSmacks: playerWithStats.elder_maul_smacks ?? 0,
       tobBarragesWithoutProperWeapon:
-        playerWithStats.tob_barrages_without_proper_weapon,
-      tobVerzikP1TrollSpecs: playerWithStats.tob_verzik_p1_troll_specs,
-      tobVerzikP3Melees: playerWithStats.tob_verzik_p3_melees,
-      chinsThrownTotal: playerWithStats.chins_thrown_total,
-      chinsThrownBlack: playerWithStats.chins_thrown_black,
-      chinsThrownRed: playerWithStats.chins_thrown_red,
-      chinsThrownGrey: playerWithStats.chins_thrown_grey,
-      chinsThrownMaiden: playerWithStats.chins_thrown_maiden,
-      chinsThrownNylocas: playerWithStats.chins_thrown_nylocas,
-      chinsThrownValue: playerWithStats.chins_thrown_value,
+        playerWithStats.tob_barrages_without_proper_weapon ?? 0,
+      tobVerzikP1TrollSpecs: playerWithStats.tob_verzik_p1_troll_specs ?? 0,
+      tobVerzikP3Melees: playerWithStats.tob_verzik_p3_melees ?? 0,
+      chinsThrownTotal: playerWithStats.chins_thrown_total ?? 0,
+      chinsThrownBlack: playerWithStats.chins_thrown_black ?? 0,
+      chinsThrownRed: playerWithStats.chins_thrown_red ?? 0,
+      chinsThrownGrey: playerWithStats.chins_thrown_grey ?? 0,
+      chinsThrownMaiden: playerWithStats.chins_thrown_maiden ?? 0,
+      chinsThrownNylocas: playerWithStats.chins_thrown_nylocas ?? 0,
+      chinsThrownValue: playerWithStats.chins_thrown_value ?? 0,
       chinsThrownIncorrectlyMaiden:
-        playerWithStats.chins_thrown_incorrectly_maiden,
+        playerWithStats.chins_thrown_incorrectly_maiden ?? 0,
     },
   };
 }

@@ -91,7 +91,7 @@ function PlayerInfo({
               <i className="fa-solid fa-clock" /> First recorded
             </span>
             <span className={styles.value}>
-              {player.firstRecorded.toLocaleDateString()}
+              {player.firstRecorded?.toLocaleDateString() ?? 'Never'}
             </span>
           </div>
           <div className={styles.statRow}>
@@ -230,8 +230,13 @@ export async function generateMetadata(
   const completionRate =
     totalRaids > 0 ? Math.round((stats.tobCompletions / totalRaids) * 100) : 0;
 
+  const since =
+    player.firstRecorded !== null
+      ? ` since ${player.firstRecorded.toLocaleDateString()}`
+      : '';
+
   const description =
-    `${player.username}'s Theatre of Blood statistics on Blert since ${player.firstRecorded.toLocaleDateString()}: ` +
+    `${player.username}'s Theatre of Blood statistics on Blert${since}: ` +
     `${stats.tobCompletions} completion${stats.tobCompletions === 1 ? '' : 's'} ` +
     `out of ${totalRaids} raid${totalRaids === 1 ? '' : 's'}, ` +
     `with a ${completionRate}% success rate. ` +

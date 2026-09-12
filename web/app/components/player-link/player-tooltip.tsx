@@ -79,7 +79,8 @@ function PlayerTooltipRenderer({
       .then((json: ApiResponse<PlayerWithStats>) => {
         const data: PlayerWithStats = {
           ...json,
-          firstRecorded: new Date(json.firstRecorded),
+          firstRecorded:
+            json.firstRecorded !== null ? new Date(json.firstRecorded) : null,
         };
         cachePlayer(username, data);
         setState({ loading: false, error: false, data });
@@ -129,7 +130,7 @@ function PlayerTooltipRenderer({
         <div className={styles.stat}>
           <span className={styles.label}>First Recorded</span>
           <span className={styles.value}>
-            {data.firstRecorded.toLocaleDateString()}
+            {data.firstRecorded?.toLocaleDateString() ?? 'Never'}
           </span>
         </div>
       </div>
