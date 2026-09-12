@@ -255,20 +255,25 @@ async fn verify_wave_1_rows(
         .expect("stats row");
     assert_eq!(row.get::<_, Vec<i16>>(0), vec![4]);
 
-    let spawns: Vec<(i16, Option<Vec<i16>>, bool)> = client
+    let spawns: Vec<(i16, Option<Vec<i16>>, Option<i16>, bool)> = client
         .query(
-            "SELECT stage, spawns, modified FROM challenge_stage_spawns
+            "SELECT stage, spawns, player, modified FROM challenge_stage_spawns
              WHERE challenge_id = $1 ORDER BY stage",
             &[&challenge_id],
         )
         .await
         .expect("spawn rows")
         .iter()
-        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .map(|row| (row.get(0), row.get(1), row.get(2), row.get(3)))
         .collect();
     assert_eq!(
         spawns,
-        [(Stage::ColosseumWave1 as i16, Some(vec![784]), false)],
+        [(
+            Stage::ColosseumWave1 as i16,
+            Some(vec![784]),
+            Some(2826),
+            false,
+        )],
     );
 
     let splits = client
@@ -364,22 +369,32 @@ async fn verify_wave_2_rows(
         .expect("stats row");
     assert_eq!(row.get::<_, Vec<i16>>(0), vec![4, 4]);
 
-    let spawns: Vec<(i16, Option<Vec<i16>>, bool)> = client
+    let spawns: Vec<(i16, Option<Vec<i16>>, Option<i16>, bool)> = client
         .query(
-            "SELECT stage, spawns, modified FROM challenge_stage_spawns
+            "SELECT stage, spawns, player, modified FROM challenge_stage_spawns
              WHERE challenge_id = $1 ORDER BY stage",
             &[&challenge_id],
         )
         .await
         .expect("spawn rows")
         .iter()
-        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .map(|row| (row.get(0), row.get(1), row.get(2), row.get(3)))
         .collect();
     assert_eq!(
         spawns,
         [
-            (Stage::ColosseumWave1 as i16, Some(vec![784]), false),
-            (Stage::ColosseumWave2 as i16, Some(vec![430, 1939]), false),
+            (
+                Stage::ColosseumWave1 as i16,
+                Some(vec![784]),
+                Some(2826),
+                false,
+            ),
+            (
+                Stage::ColosseumWave2 as i16,
+                Some(vec![430, 1939]),
+                Some(5390),
+                false,
+            ),
         ],
     );
 
