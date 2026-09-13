@@ -447,9 +447,11 @@ mod tests {
 
     use std::collections::BTreeMap;
 
+    use blert::Tick;
+
     use super::*;
     use crate::lifecycle::core::types::Stage;
-    use crate::merging::{Tick, fixtures};
+    use crate::merging::fixtures;
 
     const STAGE: Stage = Stage::TobMaiden;
 

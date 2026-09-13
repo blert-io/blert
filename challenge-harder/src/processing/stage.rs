@@ -334,6 +334,7 @@ fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingP
 
 #[cfg(test)]
 mod tests {
+    use blert::Tick;
     use bytes::Bytes;
     use prost::Message;
 
@@ -343,7 +344,6 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ServerTicks, Stage, StageStatus,
         StageUpdate, Uuid,
     };
-    use crate::merging::Tick;
     use crate::proto::ChallengeEvents;
 
     fn test_uuid() -> Uuid {
@@ -372,7 +372,7 @@ mod tests {
                 .iter()
                 .map(|&tick| {
                     crate::merging::fixtures::mokhaiotl_larva_leak_event(
-                        crate::merging::Tick(tick),
+                        Tick(tick),
                         Stage::MokhaiotlDelve1,
                         40_000 + u64::from(tick),
                         5,

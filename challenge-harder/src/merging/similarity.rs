@@ -589,11 +589,12 @@ fn score_attacks<A: PartialEq + Copy>(
 #[cfg(test)]
 mod tests {
     #![expect(clippy::float_cmp, reason = "scoring constants are controlled")]
+    use blert::Tick;
 
     use super::*;
     use crate::item::{self, ItemDelta};
     use crate::lifecycle::core::types::Stage;
-    use crate::merging::{Tick, fixtures};
+    use crate::merging::fixtures;
     use crate::prayer::{Prayer, PrayerBook, PrayerSet};
     use crate::proto::Event;
 

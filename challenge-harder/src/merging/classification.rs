@@ -5,8 +5,10 @@
 
 use std::collections::BTreeMap;
 
+use blert::Ticks;
+
+use super::MergeAlert;
 use super::client_events::ClientEvents;
-use super::{MergeAlert, Ticks};
 
 #[derive(Debug, PartialEq)]
 pub(super) struct ClientClassification {
@@ -227,9 +229,10 @@ fn consensus_ticks(durations: impl IntoIterator<Item = Ticks>) -> Option<Ticks> 
 
 #[cfg(test)]
 mod tests {
+    use blert::Tick;
+
     use super::*;
     use crate::lifecycle::core::types::{ClientId, ServerTicks, Stage, StageStatus};
-    use crate::merging::Tick;
     use crate::merging::client_events::{ReportedInfo, StageData};
     use crate::merging::timeline::Timeline;
 

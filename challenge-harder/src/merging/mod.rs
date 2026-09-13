@@ -16,7 +16,6 @@ mod merge_consistency;
 mod postprocessing;
 mod report;
 mod similarity;
-mod tick;
 mod timeline;
 mod trace;
 mod trusted_prefixes;
@@ -33,10 +32,11 @@ pub use report::{
     ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeReport, MergeStatus,
     QualityFlag,
 };
-pub(crate) use tick::{Tick, Ticks};
 pub use trace::Tracer;
 
 use std::collections::{BTreeMap, BTreeSet};
+
+use blert::{Tick, Ticks};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, Uuid,

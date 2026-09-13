@@ -307,9 +307,11 @@ RUN mkdir -p challenge-harder/src live-server/src blertlib/src && \
     rm -rf challenge-harder/src
 
 COPY challenge-harder/src/ challenge-harder/src/
+COPY blertlib/src/ blertlib/src/
 ARG BLERT_COMMIT_SHA
 ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
-RUN touch challenge-harder/src/main.rs && cargo build --release -p challenge-harder
+RUN touch challenge-harder/src/main.rs blertlib/src/lib.rs && \
+    cargo build --release -p challenge-harder
 
 # ==============================================================================
 # Runtime: challenge-harder

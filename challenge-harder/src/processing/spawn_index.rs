@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashSet};
 
+use blert::Tick;
+
 use super::db;
 use crate::lifecycle::core::types::Stage;
-use crate::merging::Tick;
 use crate::proto::Coords;
 
 const MAX_SPAWNS: usize = 9;

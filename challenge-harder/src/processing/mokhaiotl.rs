@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use async_trait::async_trait;
+use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -14,7 +15,7 @@ use super::split::SplitType;
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::{MergedEvents, Tick, Ticks};
+use crate::merging::MergedEvents;
 use crate::price::PriceResolver;
 use crate::proto::event::attack_style::Style;
 use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
@@ -328,7 +329,6 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear,
         StageStatus, Uuid,
     };
-    use crate::merging::Tick;
     use crate::merging::fixtures::{
         ServerTicks, merged_events, mokhaiotl_attack_style_event, mokhaiotl_larva_leak_event,
         npc_attack_event,

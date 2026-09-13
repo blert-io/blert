@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use async_trait::async_trait;
+use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use super::challenge_processor::{
@@ -15,7 +16,7 @@ use super::{StoredState, TheatreConfig};
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::{MergedEvents, Tick, Ticks};
+use crate::merging::MergedEvents;
 use crate::npc;
 use crate::price::PriceResolver;
 use crate::proto::event::attack_style::Style as AttackStyle;
@@ -1432,7 +1433,6 @@ mod tests {
         ChallengeMode, ChallengeType, JournalSeq, ReportedTimes, StageStatus, Uuid,
     };
     use crate::merging::fixtures::*;
-    use crate::merging::{Tick, Ticks};
     use crate::processing::split::{SavedSplit, StageSplit};
     use crate::processing::stats::PlayerStatsDelta;
     use crate::proto::Event;

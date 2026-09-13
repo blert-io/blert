@@ -2,11 +2,12 @@
 
 use std::collections::BTreeMap;
 
+use blert::Tick;
 use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::{
-    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeStatus, MergedEvents, Tick,
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeStatus, MergedEvents,
 };
 
 use super::merging::{Capture, MergeOutcome};

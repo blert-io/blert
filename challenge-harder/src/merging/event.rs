@@ -1,9 +1,9 @@
 //! Event classification by merge policy.
 
+use blert::{Tick, Ticks};
+
 use crate::lifecycle::core::types::{ChallengeType, ClientId};
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
-
-use super::{Tick, Ticks};
 
 #[derive(Debug, Clone)]
 pub struct TaggedEvent(ClientId, Event);

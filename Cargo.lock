@@ -846,6 +846,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-s3",
  "axum",
+ "blert",
  "bytes",
  "clap",
  "console",

@@ -4,12 +4,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
+use blert::Ticks;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
     ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
 };
-use crate::merging::Ticks;
 use crate::metrics;
 use crate::price::PriceResolver;
 use crate::redis::Store;

@@ -3,11 +3,13 @@
 use std::collections::BTreeMap;
 use std::time::Instant;
 
+use blert::{Tick, Ticks};
 use serde::Serialize;
 
 use crate::lifecycle::core::types::ClientId;
 use crate::proto::event;
 
+use super::RegisteredClient;
 use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
 use super::classification::{ClientClassification, ReferenceMethod};
 use super::client_events::{self, BadDataClient, ClientEvents, ReportedInfo};
@@ -18,7 +20,6 @@ use super::report::{
     StepConfidence,
 };
 use super::timeline::{GraphicsCoords, GraphicsKind, NpcState, PlayerState, Target, TickState};
-use super::{RegisteredClient, Tick, Ticks};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

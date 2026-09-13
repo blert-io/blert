@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use blert::Tick;
 use prost::Message;
 
 use crate::lifecycle::core::types::{
@@ -13,7 +14,7 @@ use crate::proto::{ChallengeEvents, Coords, event};
 use super::client_consistency::{self, ConsistencyIssue, MAX_RECORDED_TICK};
 use super::event::TaggedEvent;
 use super::timeline::Timeline;
-use super::{BadData, ChallengeInfo, Tick};
+use super::{BadData, ChallengeInfo};
 
 /// Stage-scoped data extracted from a client's raw events.
 ///

@@ -2,8 +2,9 @@
 //!
 //! `SplitType` is generated from `challenge_storage.proto`.
 
+use blert::{Tick, Ticks};
+
 use crate::lifecycle::core::types::ChallengeMode;
-use crate::merging::{Tick, Ticks};
 
 pub use crate::proto::SplitType;
 

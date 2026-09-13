@@ -2,13 +2,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use blert::{Tick, Ticks};
+
 use crate::lifecycle::core::types::ClientId;
 
 use super::classification::ReferenceMethod;
 use super::client_consistency::ConsistencyIssue;
 use super::consolidator::QualityFlag;
 use super::mapping::MergeMapping;
-use super::{MergeContext, RegisteredClient, StepResult, Tick, Ticks};
+use super::{MergeContext, RegisteredClient, StepResult};
 
 #[derive(Debug)]
 pub(super) struct TimelineInfo {

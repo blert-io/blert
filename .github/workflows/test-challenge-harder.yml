@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'challenge-harder/**'
+      - 'blertlib/**'
       - 'common/migrations/**'
       - 'proto'
       - 'web/resources/extended_items.json'
@@ -15,6 +16,7 @@ on:
       - main
     paths:
       - 'challenge-harder/**'
+      - 'blertlib/**'
       - 'common/migrations/**'
       - 'proto'
       - 'web/resources/extended_items.json'

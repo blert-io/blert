@@ -1,11 +1,13 @@
 //! Post-merge event fiddling.
 
+use blert::Tick;
+
 use crate::npc;
 use crate::proto::{Stage, event};
 use crate::skill::SkillLevel;
 
+use super::MergeContext;
 use super::timeline::Timeline;
-use super::{MergeContext, Tick};
 
 /// Applies post-merge event corrections to a timeline.
 pub(super) fn postprocess(ctx: &MergeContext<'_>, timeline: &mut Timeline<'_>) {
