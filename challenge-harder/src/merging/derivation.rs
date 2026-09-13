@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use blert::{Tick, Ticks};
+
 use crate::lifecycle::core::types::{ChallengeMode, ClientId};
 use crate::npc;
 use crate::proto::event::sote_maze::Maze;
@@ -10,7 +12,7 @@ use crate::proto::{Coords, Event, Stage, event};
 use super::client_events::StageData;
 use super::timeline::{TickState, Timeline};
 use super::world;
-use super::{MergeContext, RegisteredClient, StepResult, Tick, Ticks};
+use super::{MergeContext, RegisteredClient, StepResult};
 
 const FINAL_NYLO_WAVE: u32 = 31;
 const NYLO_WAVE_CYCLE: Ticks = Ticks(4);

@@ -4,12 +4,13 @@
 //! Lag detection in the general case is impossible. The absence of issues
 //! does not imply that a timeline is of high quality.
 
+use blert::{Tick, Ticks};
+
 use crate::lifecycle::core::types::{ChallengeMode, ChallengeType, StageExt};
 use crate::npc;
 use crate::proto::{Coords, NpcAttack, Stage, event};
 
 use super::event::MalformedEvent;
-use super::tick::{Tick, Ticks};
 use super::timeline::{TickState, Timeline};
 use super::world;
 use super::{BadData, ChallengeInfo};

@@ -106,7 +106,7 @@ services:
       BLERT_STRUCTURED_LOGS: ${BLERT_STRUCTURED_LOGS:-false}
       RUST_LOG: info
     working_dir: /app
-    command: cargo watch -w challenge-harder/src -w proto -x 'run -p challenge-harder'
+    command: cargo watch -w challenge-harder/src -w blertlib/src -w proto -x 'run -p challenge-harder'
 
   blertbank:
     image: node:26

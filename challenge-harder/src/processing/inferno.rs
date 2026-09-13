@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use async_trait::async_trait;
+use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -15,7 +16,7 @@ use super::persist;
 use super::spawn_index::{self, Arena, SpawnIndexer};
 use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
-use crate::merging::{MergedEvents, Tick, Ticks};
+use crate::merging::MergedEvents;
 use crate::metrics;
 use crate::npc;
 use crate::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
@@ -461,7 +462,6 @@ mod tests {
         NpcEvent, ServerTicks, inferno_wave_start_event, merged_events, npc_attack_event,
         npc_death_event,
     };
-    use crate::merging::{Tick, Ticks};
     use crate::players::normalize_rsn;
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::{ChallengeSplit, SavedSplit};

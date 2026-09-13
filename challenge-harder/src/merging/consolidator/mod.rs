@@ -3,6 +3,8 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
+use blert::{Tick, Ticks};
+
 use crate::lifecycle::core::types::ClientId;
 use crate::npc;
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, event};
@@ -17,7 +19,7 @@ use super::trace::{
     StreamOutcome, StreamResolution, TickMergeDecision, Tracer,
 };
 use super::world::euclidean;
-use super::{Mappings, MergeContext, Tick, Ticks};
+use super::{Mappings, MergeContext};
 
 #[cfg(test)]
 mod tests;

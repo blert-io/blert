@@ -2,11 +2,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use blert::{Tick, Ticks};
+
 use crate::proto::{Event, PlayerAttack, Stage, event};
 
+use super::MergeContext;
 use super::event::{identity_key, stream_config};
 use super::timeline::{Actor, Target, TickState, Timeline};
-use super::{MergeContext, Tick, Ticks};
 
 /// Issues detected by the post-merge consistency checker.
 /// Each issue is a violation of a game invariant that the plugin enforces on a

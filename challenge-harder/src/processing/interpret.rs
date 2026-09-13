@@ -4,9 +4,11 @@ use std::collections::BTreeSet;
 use std::panic::{self, AssertUnwindSafe};
 use std::time::Instant;
 
+use blert::Tick;
+
 use crate::item::{self, ItemDelta};
 use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
-use crate::merging::{self, MergeReport, MergedEvents, Tick};
+use crate::merging::{self, MergeReport, MergedEvents};
 use crate::metrics;
 use crate::proto::{Event, event};
 
@@ -217,6 +219,7 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
 
 #[cfg(test)]
 mod tests {
+    use blert::Ticks;
     use bytes::Bytes;
     use prost::Message;
 
@@ -226,7 +229,6 @@ mod tests {
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage,
     };
-    use crate::merging::Ticks;
     use crate::proto::ChallengeEvents;
     use crate::proto::event::player::EquipmentSlot;
 
@@ -440,7 +442,7 @@ mod tests {
         let marker = |tick: u32, x_coord: i32| {
             let room_id = 40_000 + u64::try_from(x_coord).expect("nonnegative");
             let mut event = crate::merging::fixtures::mokhaiotl_larva_leak_event(
-                crate::merging::Tick(tick),
+                Tick(tick),
                 Stage::MokhaiotlDelve1,
                 room_id,
                 5,

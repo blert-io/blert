@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use blert::{Tick, Ticks};
+
 use crate::item::ItemDelta;
 use crate::lifecycle::core::types::ClientId;
 use crate::prayer::{PrayerBook, PrayerSet};
@@ -9,8 +11,8 @@ use crate::proto::event::player::{DataSource, EquipmentSlot};
 use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, Stage, event};
 use crate::skill::SkillLevel;
 
+use super::MergeContext;
 use super::event::{Class, MalformedEvent, TaggedEvent, classify, remap_event_tick};
-use super::{MergeContext, Tick, Ticks};
 
 #[derive(Debug, Clone)]
 pub struct Timeline<'a> {
@@ -1216,7 +1218,6 @@ fn attach_actions<'a>(
 mod tests {
     use super::*;
     use crate::merging::fixtures;
-    use crate::merging::{Tick, Ticks};
     use crate::proto::event::attack_style::Style;
 
     #[test]

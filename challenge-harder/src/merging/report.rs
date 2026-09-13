@@ -1,5 +1,6 @@
 //! The outcomes of a merge run.
 
+use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use crate::lifecycle::core::types::{ClientId, ServerTicks, StageStatus, UserId};
@@ -10,7 +11,7 @@ use super::confidence;
 use super::consolidator::{self, Disagreement};
 use super::merge_consistency;
 use super::timeline::{self, Target};
-use super::{ReferenceTicks, RegisteredClient, StepResult, Tick, Ticks};
+use super::{ReferenceTicks, RegisteredClient, StepResult};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

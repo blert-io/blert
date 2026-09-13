@@ -2,11 +2,12 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use blert::Ticks;
+
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeTypeExt, PlayerId, PrimaryMeleeGear, ProcessingError,
     RecordingType, Stage, UserId,
 };
-use crate::merging::Ticks;
 use crate::metrics;
 use crate::players::normalize_rsn;
 use crate::repository::DataRepository;

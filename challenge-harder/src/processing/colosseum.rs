@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use async_trait::async_trait;
+use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -16,7 +17,7 @@ use super::split::SplitType;
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::{MergedEvents, Tick, Ticks};
+use crate::merging::MergedEvents;
 use crate::metrics;
 use crate::npc::id::{JAVELIN_COLOSSUS, MANTICORE, SERPENT_SHAMAN, SHOCKWAVE_COLOSSUS};
 use crate::price::PriceResolver;
@@ -393,7 +394,6 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear,
         StageStatus, Uuid,
     };
-    use crate::merging::Tick;
     use crate::merging::fixtures::{ServerTicks, colosseum_handicap_choice_event, merged_events};
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::ChallengeSplit;
