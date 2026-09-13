@@ -47,6 +47,17 @@ const RATE_LIMITS: RouteMatcher[] = [
     },
   },
   {
+    test: (path) =>
+      /^\/api\/v1\/(raids\/tob|challenges\/(colosseum|inferno|mokhaiotl))\/[^/]+$/.test(
+        path,
+      ),
+    config: {
+      limit: 30,
+      windowSec: 60,
+      keyPrefix: 'ratelimit:v1:challenge',
+    },
+  },
+  {
     test: (path) => /^\/api\/v1\/.+\/events/.test(path),
     config: {
       limit: 30,
