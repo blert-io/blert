@@ -251,11 +251,13 @@ RUN apt-get update && \
 # manifest lists every member, so unbuilt members are stubbed out too.
 COPY live-server/Cargo.toml live-server/Cargo.lock* live-server/build.rs live-server/
 COPY challenge-harder/Cargo.toml challenge-harder/
+COPY blertlib/Cargo.toml blertlib/
 COPY Cargo.toml Cargo.lock ./
 COPY proto/ proto/
-RUN mkdir -p live-server/src challenge-harder/src && \
+RUN mkdir -p live-server/src challenge-harder/src blertlib/src && \
     echo 'fn main() {}' > live-server/src/main.rs && \
     echo 'fn main() {}' > challenge-harder/src/main.rs && \
+    touch blertlib/src/lib.rs && \
     cargo build --release -p live-server && \
     rm -rf live-server/src
 
@@ -293,12 +295,14 @@ RUN apt-get update && \
 
 COPY challenge-harder/Cargo.toml challenge-harder/build.rs challenge-harder/
 COPY live-server/Cargo.toml live-server/
+COPY blertlib/Cargo.toml blertlib/
 COPY Cargo.toml Cargo.lock ./
 COPY proto/ proto/
 COPY web/resources/extended_items.json web/resources/
-RUN mkdir -p challenge-harder/src live-server/src && \
+RUN mkdir -p challenge-harder/src live-server/src blertlib/src && \
     echo 'fn main() {}' > challenge-harder/src/main.rs && \
     echo 'fn main() {}' > live-server/src/main.rs && \
+    touch blertlib/src/lib.rs && \
     cargo build --release -p challenge-harder && \
     rm -rf challenge-harder/src
 
