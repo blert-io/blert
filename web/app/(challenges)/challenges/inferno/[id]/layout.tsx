@@ -1,7 +1,7 @@
 import { ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 
-import { loadChallenge } from '@/actions/challenge';
+import { findChallenges } from '@/actions/challenge';
 import ChallengeNav from '@/components/challenge-nav';
 import { statusNameAndColor } from '@/utils/challenge';
 import { challengePageDescription } from '@/utils/challenge-description';
@@ -35,11 +35,15 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ) {
   const { id } = await params;
-  const [challenge, metadata] = await Promise.all([
-    loadChallenge(ChallengeType.INFERNO, id),
+  const [[challenges], metadata] = await Promise.all([
+    findChallenges(null, {
+      uuid: [id],
+      type: ['==', ChallengeType.INFERNO],
+    }),
     parent,
   ]);
 
+  const challenge = challenges[0] ?? null;
   if (challenge === null) {
     return { title: 'Not Found' };
   }

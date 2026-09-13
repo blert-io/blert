@@ -924,8 +924,9 @@ function applyFilters(
 
   if (query.status !== undefined) {
     conditions.push(comparatorToSql(sqlChallenges, 'status', query.status));
-  } else {
-    // Exclude abandoned challenges by default.
+  } else if (query.uuid === undefined) {
+    // Exclude abandoned challenges by default, unless specific challenges are
+    // requested by UUID.
     conditions.push(
       sql`${sqlChallenges}.status != ${ChallengeStatus.ABANDONED}`,
     );

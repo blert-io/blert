@@ -1,6 +1,6 @@
 'use client';
 
-import { ChallengeType } from '@blert/common';
+import { Challenge, ChallengeStatus, ChallengeType } from '@blert/common';
 import {
   Dispatch,
   ReactNode,
@@ -57,7 +57,7 @@ function missingActorDispatch(): never {
   throw new Error('setSelectedActor must be used within an ActorContext');
 }
 
-export function createChallengeContextProvider<TChallenge>(
+export function createChallengeContextProvider<TChallenge extends Challenge>(
   options: ChallengeProviderOptions<TChallenge>,
 ): ChallengeProviderResult {
   const {
@@ -93,14 +93,28 @@ export function createChallengeContextProvider<TChallenge>(
     const [refreshKey, setRefreshKey] = useState(0);
     const challengeIdRef = useRef(challengeId);
 
+    const challengeRef = useRef(challenge);
+    const fetchedRefreshKeyRef = useRef<number | null>(null);
+    challengeRef.current = challenge;
+
     const handleLiveRefresh = useCallback(() => {
       setRefreshKey((k) => k + 1);
     }, []);
 
-    const challengeLoaded = challenge !== null;
-
     useEffect(() => {
       let isActive = true;
+      const c = challengeRef.current;
+      const challengeLoaded = c !== null;
+
+      const isSettled =
+        c !== null &&
+        c.uuid === challengeId &&
+        c.status !== ChallengeStatus.IN_PROGRESS &&
+        fetchedRefreshKeyRef.current === refreshKey;
+      if (isSettled) {
+        return;
+      }
+      fetchedRefreshKeyRef.current = refreshKey;
 
       const loadChallenge = async () => {
         setLoading(!challengeLoaded || challengeIdRef.current !== challengeId);
@@ -156,7 +170,7 @@ export function createChallengeContextProvider<TChallenge>(
       return () => {
         isActive = false;
       };
-    }, [challengeLoaded, challengeId, pathname, setChallenge, refreshKey]);
+    }, [challengeId, pathname, setChallenge, refreshKey]);
 
     useEffect(() => {
       return () => {

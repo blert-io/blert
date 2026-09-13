@@ -2,7 +2,6 @@
 
 import {
   ActivityFeedItemType,
-  Challenge,
   ChallengeMode,
   challengeName,
   ChallengeStatus,
@@ -879,8 +878,7 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
 
       content = (
         <span>
-          <strong>{challengePartyNames(challenge as Challenge)}</strong>{' '}
-          {status}
+          <strong>{challengePartyNames(challenge)}</strong> {status}
           {challenge.status === ChallengeStatus.COMPLETED ? ' a ' : ' in a '}
           {challenge.scale > 1 &&
             `${scaleName(challenge.scale).toLowerCase()} `}

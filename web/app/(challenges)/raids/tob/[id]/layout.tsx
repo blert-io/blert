@@ -1,7 +1,7 @@
 import { ChallengeMode, ChallengeType } from '@blert/common';
 import { ResolvingMetadata } from 'next';
 
-import { loadChallenge } from '@/actions/challenge';
+import { findChallenges } from '@/actions/challenge';
 import ChallengeNav from '@/components/challenge-nav';
 import { statusNameAndColor } from '@/utils/challenge';
 import { challengePageDescription } from '@/utils/challenge-description';
@@ -42,11 +42,12 @@ export async function generateMetadata(
 ) {
   const { id } = await params;
 
-  const [raid, metadata] = await Promise.all([
-    loadChallenge(ChallengeType.TOB, id),
+  const [[challenges], metadata] = await Promise.all([
+    findChallenges(null, { uuid: [id], type: ['==', ChallengeType.TOB] }),
     parent,
   ]);
 
+  const raid = challenges[0] ?? null;
   if (raid === null) {
     return { title: 'Not Found' };
   }
@@ -82,6 +83,7 @@ export async function generateMetadata(
       break;
     case ChallengeMode.TOB_HARD:
       title += 'Hard Mode ';
+      break;
     default:
       title += 'Regular ';
       break;

@@ -963,6 +963,19 @@ describe('challenges', () => {
           'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
         ]);
       });
+
+      it('includes abandoned challenges requested by UUID', async () => {
+        const [challenges] = await findChallenges(null, {
+          uuid: [
+            'cccccccc-cccc-cccc-cccc-cccccccccccc',
+            'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+          ],
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([
+          'cccccccc-cccc-cccc-cccc-cccccccccccc',
+          'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        ]);
+      });
     });
 
     describe('bloat down filters', () => {

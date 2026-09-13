@@ -7,26 +7,34 @@ import {
 
 import { oxford } from './copy';
 
-export function challengePartyNames(challenge: Challenge): string {
+export function challengePartyNames(
+  challenge: Pick<Challenge, 'party'>,
+): string {
   return oxford(challenge.party.map((p) => p.username));
 }
 
-export function challengePageDescription(challenge: Challenge): string {
+export function challengePageDescription(
+  challenge: Pick<Challenge, 'party' | 'status' | 'stage' | 'type'>,
+): string {
   const party = challengePartyNames(challenge);
+  const stage = stageName(challenge.stage);
+  const target =
+    `the ${challengeName(challenge.type)} ` +
+    `on Blert, Old School RuneScape's premier PvM tracker.`;
 
-  let stem;
-  if (challenge.status === ChallengeStatus.IN_PROGRESS) {
-    stem = `Follow ${party}'s progress in`;
-  } else if (challenge.status === ChallengeStatus.COMPLETED) {
-    stem = `Review ${party}'s completion of`;
-  } else {
-    const status =
-      challenge.status === ChallengeStatus.RESET ? 'reset' : 'wipe';
-    stem = `Review ${party}'s ${status} at ${stageName(challenge.stage)} in`;
+  switch (challenge.status) {
+    case ChallengeStatus.IN_PROGRESS:
+      return `Follow ${party}'s progress in ${target}`;
+    case ChallengeStatus.COMPLETED:
+      return `Review ${party}'s completion of ${target}`;
+    case ChallengeStatus.RESET:
+      return `Review ${party}'s reset at ${stage} in ${target}`;
+    case ChallengeStatus.WIPED:
+      return `Review ${party}'s wipe at ${stage} in ${target}`;
+    case ChallengeStatus.ABANDONED:
+      return `Review ${party}'s abandoned attempt at ${stage} in ${target}`;
   }
 
-  return (
-    `${stem} the ${challengeName(challenge.type)} ` +
-    `on Blert, Old School RuneScape's premier PvM tracker.`
-  );
+  const _exhaustive: never = challenge.status;
+  return `Review ${party}'s attempt at ${stage} in ${target}`;
 }
