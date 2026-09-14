@@ -3,6 +3,7 @@ import { NextRequest } from 'next/server';
 import { InvalidQueryError } from '@/actions/errors';
 import logger, { runWithLogContext } from '@/utils/log';
 import { observeHttpRequest } from '@/utils/metrics';
+import { requestParams } from '@/utils/url';
 
 type RouteHandlerContext = {
   params?: Promise<Record<string, string | string[] | undefined>>;
@@ -31,7 +32,7 @@ export function withApiRoute(
   return async (request, context) => {
     const start = process.hrtime.bigint();
     const route = request.nextUrl.pathname;
-    const params = Object.fromEntries(request.nextUrl.searchParams);
+    const params = requestParams(request.nextUrl.searchParams);
     const method = request.method;
 
     const ctx: HandlerContext = {

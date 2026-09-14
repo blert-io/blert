@@ -11,7 +11,7 @@ import {
 } from '@/actions/challenge';
 import Button from '@/components/button';
 import { getLocalSetting } from '@/utils/user-settings';
-import { UrlParams, queryString } from '@/utils/url';
+import { UrlParams, queryString, requestParams } from '@/utils/url';
 
 import {
   SearchContext,
@@ -310,9 +310,7 @@ export default function Search({
 
   useEffect(() => {
     const initialLoad = async () => {
-      const initialContext = contextFromUrlParams(
-        Object.fromEntries(searchParams),
-      );
+      const initialContext = contextFromUrlParams(requestParams(searchParams));
       const activeColumns = getLocalSetting<SelectedColumn[]>(
         'search-active-columns',
         DEFAULT_SELECTED_COLUMNS,

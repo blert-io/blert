@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { AggregationKey, SortQuery } from '@/actions/query';
-import {
-  ChallengeQuery,
-  QueryOptions,
-  aggregateChallenges,
-} from '@/actions/challenge';
+import { QueryOptions, aggregateChallenges } from '@/actions/challenge';
 import { withApiRoute } from '@/api/handler';
 import {
   restoreAggregateAliases,
@@ -21,17 +17,7 @@ export const GET = withApiRoute(
   async (request: NextRequest) => {
     const searchParams = request.nextUrl.searchParams;
 
-    let query: ChallengeQuery;
-
-    try {
-      const q = parseChallengeQueryParams(searchParams);
-      if (q === null) {
-        return new Response(null, { status: 400 });
-      }
-      query = q;
-    } catch {
-      return new Response(null, { status: 400 });
-    }
+    const query = parseChallengeQueryParams(searchParams);
 
     const groupings = (searchParams.get('group') ?? '')
       .split(',')

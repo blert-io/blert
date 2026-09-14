@@ -145,17 +145,7 @@ export const GET = withApiRoute(
   async (request: NextRequest) => {
     const searchParams = request.nextUrl.searchParams;
 
-    let query: ChallengeQuery;
-
-    try {
-      const q = parseChallengeQueryParams(searchParams);
-      if (q === null) {
-        return new Response(null, { status: 400 });
-      }
-      query = q;
-    } catch {
-      return new Response(null, { status: 400 });
-    }
+    const query = parseChallengeQueryParams(searchParams);
 
     const key = cacheKey(searchParams, query);
     if (key === null) {

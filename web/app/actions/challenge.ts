@@ -24,10 +24,12 @@ import {
   RELEVANT_PB_SPLITS,
   Session,
   SessionStatus,
+  SpawnedNpc,
   SplitType,
   Stage,
   TobChallengeStats,
   TobRaid,
+  WaveSpawn,
   allSplitModes,
   camelToSnake,
   generalizeSplit,
@@ -46,6 +48,7 @@ import type { ChallengeRow, SessionRow } from '@blert/common/dist/db/challenge';
 import postgres from 'postgres';
 
 import logger from '@/utils/log';
+import { decodePlayerTile, decodeSpawn } from '@/utils/spawn-index';
 
 import { sql } from './db';
 import dataRepository from './data-repository';
@@ -180,7 +183,15 @@ export async function loadChallenge(
 
     case ChallengeType.COLOSSEUM: {
       const colosseum = challenge as ColosseumChallenge;
-      colosseum.colosseum = await dataRepository.loadColosseumChallengeData(id);
+      const [data, spawns] = await Promise.all([
+        dataRepository.loadColosseumChallengeData(id),
+        loadWaveSpawns([rawChallenge.id]).then((spawns) =>
+          spawns.get(rawChallenge.id),
+        ),
+      ]);
+
+      colosseum.colosseum = data;
+      colosseum.spawns = spawns ?? {};
       const handicaps: Partial<Record<Handicap, number>> = {};
       for (const handicap of colosseum.colosseum.handicaps) {
         handicaps[handicapBase(handicap)] = handicapLevel(handicap);
@@ -197,11 +208,14 @@ export async function loadChallenge(
           FROM inferno_challenge_stats
           WHERE challenge_id = ${rawChallenge.id}
         `,
-      ]).then(([infernoData, [stats]]) => {
+        loadWaveSpawns([rawChallenge.id]),
+      ]).then(([infernoData, [stats], spawns]) => {
         (challenge as InfernoChallenge).inferno = infernoData;
         if (stats) {
           (challenge as InfernoChallenge).infernoStats = statsObject(stats);
         }
+        (challenge as InfernoChallenge).spawns =
+          spawns.get(rawChallenge.id) ?? {};
       });
       break;
 
@@ -387,6 +401,54 @@ async function attachChallengeStats<T extends StatsTarget>(
   await Promise.all(promises);
 }
 
+/**
+ * Loads the indexed wave spawns of a set of challenges.
+ * @param challengeIds IDs of the challenges to load.
+ * @returns Each challenge's spawns, if present, by challenge ID.
+ */
+async function loadWaveSpawns(
+  challengeIds: number[],
+): Promise<Map<number, Partial<Record<Stage, WaveSpawn>>>> {
+  const rows = await sql<
+    {
+      challenge_id: number;
+      stage: Stage;
+      spawns: number[] | null;
+      player: number | null;
+      modified: boolean;
+    }[]
+  >`
+    SELECT challenge_id, stage, spawns, player, modified
+    FROM challenge_stage_spawns
+    WHERE challenge_id = ANY(${challengeIds})
+  `;
+
+  const byChallenge = new Map<number, Partial<Record<Stage, WaveSpawn>>>();
+
+  for (const row of rows) {
+    if (row.spawns === null || row.player === null) {
+      continue;
+    }
+
+    const npcs: SpawnedNpc[] = row.spawns
+      .map((value) => decodeSpawn(row.stage, value))
+      .filter((npc) => npc !== null);
+    const player = decodePlayerTile(row.stage, row.player);
+    if (player === null || npcs.length !== row.spawns.length) {
+      continue;
+    }
+
+    let spawns = byChallenge.get(row.challenge_id);
+    if (spawns === undefined) {
+      spawns = {};
+      byChallenge.set(row.challenge_id, spawns);
+    }
+    spawns[row.stage] = { npcs, player, modified: row.modified };
+  }
+
+  return byChallenge;
+}
+
 export type SplitValue = {
   ticks: number;
   accurate: boolean;
@@ -468,6 +530,15 @@ export type MokhaiotlQuery = {
   maxCompletedDelve?: Comparator<number>;
 };
 
+export type SpawnQuery = {
+  stage: Comparator<Stage> | null;
+  values: number[];
+  tiles: number[][];
+  player: number | null;
+  /** Whether `values` is the entire spawn. `exact` requires a single stage. */
+  match: 'exact' | 'contains';
+};
+
 export type ChallengeQuery = {
   uuid?: string[];
   session?: number[] | string[];
@@ -482,6 +553,7 @@ export type ChallengeQuery = {
   tob?: TobQuery;
   colosseum?: ColosseumQuery;
   mokhaiotl?: MokhaiotlQuery;
+  spawns?: SpawnQuery[];
   sort?: SingleOrArray<SortQuery<SortableFields>>;
   startTime?: Comparator<Date>;
   challengeTicks?: Comparator<number>;
@@ -758,6 +830,46 @@ function applyColosseumFilters(
   }
 }
 
+function applySpawnFilters(
+  spawns: SpawnQuery[],
+  baseTable: postgres.Helper<string>,
+  conditions: postgres.Fragment[],
+) {
+  const table = sql('challenge_stage_spawns');
+
+  for (const spawn of spawns) {
+    const predicates: postgres.Fragment[] = [
+      sql`${table}.challenge_id = ${baseTable}.id`,
+    ];
+
+    if (spawn.stage !== null) {
+      predicates.push(comparatorToSql(table, 'stage', spawn.stage));
+    }
+
+    if (spawn.values.length > 0) {
+      if (spawn.match === 'exact') {
+        // Stored spawns are sorted, so equality needs the same order.
+        const values = spawn.values.toSorted((a, b) => a - b);
+        predicates.push(sql`${table}.spawns = ${values}`);
+      } else {
+        predicates.push(sql`${table}.spawns @> ${spawn.values}`);
+      }
+    }
+
+    for (const tile of spawn.tiles) {
+      predicates.push(sql`${table}.spawns && ${tile}`);
+    }
+
+    if (spawn.player !== null) {
+      predicates.push(sql`${table}.player = ${spawn.player}`);
+    }
+
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM challenge_stage_spawns ${where(predicates)})`,
+    );
+  }
+}
+
 function addSplitsTable(
   split: SplitType,
   baseTable: postgres.Helper<string, string[]>,
@@ -880,6 +992,10 @@ function applyFilters(
 
   if (query.mokhaiotl !== undefined) {
     applyMokhaiotlFilters(query.mokhaiotl, sqlChallenges, joins, conditions);
+  }
+
+  if (query.spawns !== undefined) {
+    applySpawnFilters(query.spawns, sqlChallenges, conditions);
   }
 
   if (query.sort !== undefined) {

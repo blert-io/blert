@@ -182,6 +182,7 @@ export function countActiveFilters(filters: SearchFilters): number {
   if (filters.fullRecordings) {
     count++;
   }
+  count += filters.passthrough.spawns.length;
   return count;
 }
 
@@ -193,6 +194,10 @@ export type SearchFilters = SharedFilters & {
   mokhaiotl: MokhaiotlFilters;
   accurateSplits: boolean;
   fullRecordings: boolean;
+  /** Params that are forwarded directly without being interpreted. */
+  passthrough: {
+    spawns: string[];
+  };
 };
 
 export function defaultSearchFilters(): SearchFilters {
@@ -205,6 +210,7 @@ export function defaultSearchFilters(): SearchFilters {
     mokhaiotl: emptyMokhaiotlFilters(),
     accurateSplits: true,
     fullRecordings: false,
+    passthrough: { spawns: [] },
   };
 }
 
@@ -273,6 +279,7 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     ...sharedFiltersToUrlParams(filters),
     status: filters.status,
     options,
+    spawn: { repeated: filters.passthrough.spawns },
   };
 
   if (filters.stage !== null) {
@@ -384,6 +391,10 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
         }
         break;
       }
+
+      case 'spawn':
+        context.filters.passthrough.spawns = Array.isArray(v) ? v : [value];
+        break;
 
       case 'options': {
         const options = value.split(',');

@@ -8,7 +8,7 @@ import { withApiRoute } from '@/api/handler';
 import { dateParam, numericListParam, numericParam } from '@/api/query';
 import { clamp } from '@/utils/math';
 import { MS_PER_DAY } from '@/utils/time';
-import { NextSearchParams } from '@/utils/url';
+import { NextSearchParams, requestParams } from '@/utils/url';
 
 /**
  * The limit is applied after the pair aggregation, so it bounds the size of the
@@ -149,7 +149,7 @@ export const GET = withApiRoute(
   { route: '/api/v1/network' },
   async (request: NextRequest) => {
     const options = parseNetworkOptions(
-      Object.fromEntries(request.nextUrl.searchParams),
+      requestParams(request.nextUrl.searchParams),
     );
     const body = await playerNetworkCache.get(options, cacheKey(options));
     return new Response(body, { headers: RESPONSE_HEADERS });

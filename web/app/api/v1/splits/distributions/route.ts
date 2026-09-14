@@ -8,6 +8,7 @@ import {
 } from '@/actions/split-distributions';
 import { withApiRoute } from '@/api/handler';
 import { expectSingle, numericListParam, numericParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 const VALID_TIERS = ['standard', 'speedrun'];
 function isSplitTier(value: string): value is SplitTier {
@@ -21,7 +22,7 @@ const CACHE_HEADERS = {
 export const GET = withApiRoute(
   { route: '/api/v1/splits/distributions' },
   async (request: NextRequest) => {
-    const params = Object.fromEntries(request.nextUrl.searchParams);
+    const params = requestParams(request.nextUrl.searchParams);
 
     const types = numericListParam<SplitType>(params, 'types');
     const scale = numericParam(params, 'scale');

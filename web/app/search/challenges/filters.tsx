@@ -3,7 +3,9 @@ import {
   ChallengeType,
   SplitType,
   Stage,
+  stageName,
 } from '@blert/common';
+import Link from 'next/link';
 import {
   Dispatch,
   SetStateAction,
@@ -19,6 +21,7 @@ import Menu, { MenuItem } from '@/components/menu';
 import TickInput from '@/components/tick-input';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { oxford } from '@/utils/copy';
+import { queryString } from '@/utils/url';
 
 import {
   DateRangeFilter,
@@ -108,7 +111,8 @@ const STAGE_MENU_ITEMS: MenuItem[] = [
       { label: 'Wave 8', value: Stage.COLOSSEUM_WAVE_8 },
       { label: 'Wave 9', value: Stage.COLOSSEUM_WAVE_9 },
       { label: 'Wave 10', value: Stage.COLOSSEUM_WAVE_10 },
-      { label: 'Sol Heredit', value: Stage.COLOSSEUM_WAVE_11 },
+      { label: 'Wave 11', value: Stage.COLOSSEUM_WAVE_11 },
+      { label: 'Sol Heredit', value: Stage.COLOSSEUM_WAVE_12 },
     ],
   },
   {
@@ -305,6 +309,13 @@ export default function Filters({
         loading={loading}
         setContext={setContext}
       />
+
+      {context.filters.passthrough.spawns.length > 0 && (
+        <SpawnFilters
+          spawns={context.filters.passthrough.spawns}
+          onChange={(spawns) => updateFilters({ passthrough: { spawns } })}
+        />
+      )}
     </div>
   );
 }
@@ -1278,6 +1289,78 @@ function CustomFilters({
                 round={filterDef.round}
               />
             )}
+          </FilterField>
+        );
+      })}
+    </FilterSection>
+  );
+}
+
+function describeSpawn(value: string): { label: string; summary: string } {
+  let label = 'Spawn';
+  let npcs = 0;
+  let tiles = 0;
+  let player = false;
+
+  for (const clause of value.split(';')) {
+    const [key, value] = clause.split(':');
+    switch (key) {
+      case 'stage':
+        if (/^\d+$/.test(value)) {
+          label = stageName(parseInt(value, 10));
+        }
+        break;
+      case 'npc':
+      case 'value':
+        npcs++;
+        break;
+      case 'tile':
+        tiles++;
+        break;
+      case 'player':
+        player = true;
+        break;
+    }
+  }
+
+  const parts: string[] = [];
+  if (npcs > 0) {
+    parts.push(`${npcs} NPC${npcs === 1 ? '' : 's'}`);
+  }
+  if (tiles > 0) {
+    parts.push(`${tiles} tile${tiles === 1 ? '' : 's'}`);
+  }
+  if (player) {
+    parts.push('player');
+  }
+
+  return { label, summary: parts.length > 0 ? parts.join(', ') : 'Any' };
+}
+
+function SpawnFilters({
+  spawns,
+  onChange,
+}: {
+  spawns: string[];
+  onChange: (spawns: string[]) => void;
+}) {
+  return (
+    <FilterSection title="Spawns">
+      {spawns.map((spawn, i) => {
+        const { label, summary } = describeSpawn(spawn);
+        return (
+          <FilterField
+            key={i}
+            label={label}
+            onRemove={() => onChange(spawns.toSpliced(i, 1))}
+          >
+            <Link
+              className={styles.spawnLink}
+              href={`/tools/spawns?${queryString({ spawn })}`}
+            >
+              <span>{summary}</span>
+              <i className="fas fa-chevron-right" aria-hidden />
+            </Link>
           </FilterField>
         );
       })}
