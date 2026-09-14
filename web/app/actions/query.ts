@@ -132,6 +132,43 @@ export function comparatorToSql(
 }
 
 /**
+ * Like {@link comparatorToSql}, but evaluated in memory against a value.
+ */
+export function comparatorMatches<T extends ComparableValue>(
+  comparator: Comparator<T>,
+  value: T,
+): boolean {
+  switch (comparator[0]) {
+    case 'in':
+      return comparator[1].includes(value);
+    case 'nin':
+      return !comparator[1].includes(value);
+    case 'range':
+      return value >= comparator[1][0] && value < comparator[1][1];
+    case '<':
+      return value < comparator[1];
+    case '>':
+      return value > comparator[1];
+    case '<=':
+      return value <= comparator[1];
+    case '>=':
+      return value >= comparator[1];
+    case '==':
+    case 'is':
+      return value === comparator[1];
+    case '!=':
+    case 'isnot':
+      return value !== comparator[1];
+    case '&&':
+    case '||':
+      throw new InvalidQueryError(`Invalid operator: ${comparator[0]}`);
+  }
+
+  const _exhaustive: never = comparator;
+  return _exhaustive;
+}
+
+/**
  * Like {@link comparatorToSql}, but for an array column, interpreting the
  * comparator as set membership.
  */

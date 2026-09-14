@@ -67,10 +67,7 @@ export default async function SearchPage({
   let initialQuery: ChallengeQuery = { sort: ['-startTime'] };
 
   try {
-    const query = parseChallengeQuery(params);
-    if (query !== null) {
-      initialQuery = { ...initialQuery, ...query };
-    }
+    initialQuery = { ...initialQuery, ...parseChallengeQuery(params) };
   } catch {
     // Ignore invalid queries.
   }

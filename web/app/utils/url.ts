@@ -165,7 +165,12 @@ export function npcImageUrl(npcId: number): string {
 }
 
 type SingleOrArray<T> = T | T[];
-export type UrlParam = SingleOrArray<string | number> | undefined;
+
+/** A list parameter encoded either joined by commas or multiple parameters. */
+export type ListParam =
+  { joined: (string | number)[] } | { repeated: (string | number)[] };
+
+export type UrlParam = SingleOrArray<string | number> | ListParam | undefined;
 export type UrlParams = Record<string, UrlParam>;
 
 export type NextSearchParams = Record<string, string | string[] | undefined>;
@@ -174,15 +179,9 @@ export type NextSearchParams = Record<string, string | string[] | undefined>;
  * Returns a URL query string from the given parameters.
  *
  * @param params Key-value pairs to encode. Undefined values are ignored.
- * @param joinMultiple If a value is an array, join its values with commas as a
- *   single URL parameter. If false, each array value is added as a separate
- *   parameter.
  * @returns A URL query string.
  */
-export function queryString(
-  params: UrlParams,
-  joinMultiple: boolean = true,
-): string {
+export function queryString(params: UrlParams): string {
   const searchParams = new URLSearchParams();
   for (const [key, valueRaw] of Object.entries(params)) {
     if (valueRaw === undefined) {
@@ -191,21 +190,41 @@ export function queryString(
 
     let value = valueRaw;
 
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        continue;
-      }
-
-      if (!joinMultiple) {
-        for (const v of value) {
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      if ('repeated' in value) {
+        for (const v of value.repeated) {
           searchParams.append(key, v.toString());
         }
         continue;
       }
+      value = value.joined;
+    }
 
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        continue;
+      }
       value = value.join(',');
     }
     searchParams.set(key, value.toString());
   }
   return searchParams.toString();
+}
+
+/** Collects query parameters into an object. */
+export function requestParams(searchParams: URLSearchParams): NextSearchParams {
+  const params: NextSearchParams = {};
+
+  for (const [key, value] of searchParams) {
+    const existing = params[key];
+    if (existing === undefined) {
+      params[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      params[key] = [existing, value];
+    }
+  }
+
+  return params;
 }

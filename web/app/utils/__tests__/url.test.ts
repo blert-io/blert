@@ -4,6 +4,7 @@ import {
   challengeApiUrl,
   challengeUrl,
   npcImageUrl,
+  queryString,
   stagePath,
   validateRedirectUrl,
 } from '../url';
@@ -187,5 +188,32 @@ describe('npcImageUrl', () => {
     expect(npcImageUrl(10804)).toBe('/images/npcs/10804.webp');
     expect(npcImageUrl(10805)).toBe('/images/npcs/10805.webp');
     expect(npcImageUrl(10806)).toBe('/images/npcs/10806.webp');
+  });
+});
+
+describe('queryString', () => {
+  it('encodes scalars and skips undefined values', () => {
+    expect(queryString({ party: 'a b', limit: 10, after: undefined })).toBe(
+      'party=a+b&limit=10',
+    );
+  });
+
+  it('joins a plain array or a joined list with commas', () => {
+    expect(queryString({ type: [1, 2], status: { joined: ['x', 'y'] } })).toBe(
+      'type=1%2C2&status=x%2Cy',
+    );
+  });
+
+  it('skips an empty list', () => {
+    expect(queryString({ type: [], status: { joined: [] }, v: 'x' })).toBe(
+      'v=x',
+    );
+    expect(queryString({ spawn: { repeated: [] } })).toBe('');
+  });
+
+  it('repeats a repeated list as one parameter per value', () => {
+    expect(queryString({ point: { repeated: ['3.4', '10.2'] } })).toBe(
+      'point=3.4&point=10.2',
+    );
   });
 });

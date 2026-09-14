@@ -435,6 +435,46 @@
   }
 }
 
+.spawnLink {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--blert-font-color-primary);
+  font-size: 0.9rem;
+  border: 1px solid var(--blert-divider-color);
+  text-decoration: none;
+  transition: all 0.2s ease;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  i {
+    font-size: 0.75em;
+    color: var(--blert-purple);
+  }
+
+  &:hover {
+    background: rgba(var(--blert-purple-base), 0.1);
+    border-color: rgba(var(--blert-purple-base), 0.2);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroField;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.8);
+      border-color: rgba(74, 154, 216, 0.7);
+    }
+  }
+}
+
 .filters {
   display: flex;
   flex-direction: column;

@@ -169,6 +169,20 @@ describe('challenges filter URL round-trip', () => {
     expect(result.filters.accurateSplits).toBe(true);
     expect(result.filters.fullRecordings).toBe(false);
   });
+
+  it('preserves passthrough spawns as repeated parameters', () => {
+    const spawns = ['stage:104,105;npc:shaman@13.20', 'stage:100;value:915'];
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      passthrough: { spawns },
+    };
+    const url = queryString(filtersToUrlParams(filters));
+    expect(url.match(/spawn=/g)).toHaveLength(2);
+    expect(roundTrip(filters).passthrough.spawns).toEqual(spawns);
+    expect(
+      contextFromUrlParams({ spawn: spawns[1] }).filters.passthrough.spawns,
+    ).toEqual([spawns[1]]);
+  });
 });
 
 describe('countActiveFilters', () => {
@@ -233,6 +247,14 @@ describe('countActiveFilters', () => {
       },
     };
     expect(countActiveFilters(filters)).toBe(2);
+  });
+
+  it('counts passthrough parameters', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      passthrough: { spawns: ['stage:104;value:436', 'stage:100;value:915'] },
+    };
+    expect(countActiveFilters(filters)).toBe(3);
   });
 });
 

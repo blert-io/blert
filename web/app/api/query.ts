@@ -1,4 +1,13 @@
-import { AggregationQuery } from '@/actions/challenge';
+import {
+  ChallengeType,
+  Coords,
+  Stage,
+  challengeName,
+  isColosseumStage,
+  isInfernoStage,
+} from '@blert/common';
+
+import { AggregationQuery, SpawnQuery } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
 import {
   Aggregation,
@@ -8,6 +17,7 @@ import {
   parseAggregation,
   parseSort,
 } from '@/actions/query';
+import { encodePlayerTile, encodeSpawn, encodeTile } from '@/utils/spawn-index';
 import { NextSearchParams } from '@/utils/url';
 
 /**
@@ -140,7 +150,7 @@ function op(value: string): Operator {
     case '!=':
       return '!=';
     default:
-      throw new Error(`Invalid operator: ${value}`);
+      throw new InvalidQueryError(`Invalid operator: ${value}`);
   }
 }
 
@@ -158,7 +168,7 @@ function comparatorValue<T>(
   if (negatedRest !== undefined) {
     const negated = negatedRest.split(',');
     if (!negated.every((v) => VALUE_REGEX.test(v))) {
-      throw new Error(`Invalid comparator value: ${value}`);
+      throw new InvalidQueryError(`Invalid comparator value: ${value}`);
     }
     return negated.length > 1
       ? ['nin', negated.map(constructor)]
@@ -168,7 +178,7 @@ function comparatorValue<T>(
   const values = value.split(',');
   if (values.length > 1) {
     if (!values.every((v) => VALUE_REGEX.test(v))) {
-      throw new Error(`Invalid comparator value: ${value}`);
+      throw new InvalidQueryError(`Invalid comparator value: ${value}`);
     }
     return ['in', values.map(constructor)];
   }
@@ -179,7 +189,7 @@ function comparatorValue<T>(
     const rhs = match[3];
 
     if (lhs === undefined && rhs === undefined) {
-      throw new Error(`Invalid range value: ${value}`);
+      throw new InvalidQueryError(`Invalid range value: ${value}`);
     } else if (lhs === undefined) {
       return ['<', constructor(rhs)];
     } else if (rhs === undefined) {
@@ -195,7 +205,7 @@ function comparatorValue<T>(
       return ['==', constructor(value)];
     }
 
-    throw new Error(`Invalid comparator value: ${value}`);
+    throw new InvalidQueryError(`Invalid comparator value: ${value}`);
   }
 
   return [op(match[1]), constructor(match[2])];
@@ -206,9 +216,15 @@ export function comparatorParam<T>(
   param: string,
   constructor: (value: string) => T,
 ): Comparator<T> | undefined {
-  const value = searchParams[param];
-  if (value === undefined || Array.isArray(value)) {
+  let value = searchParams[param];
+  if (value === undefined) {
     return undefined;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return undefined;
+    }
+    value = value.at(-1)!;
   }
 
   return comparatorValue(value, constructor);
@@ -363,4 +379,165 @@ export function dateParam(
   }
 
   return date;
+}
+
+const TILE_REGEX = /^(\d+)\.(\d+)$/;
+
+function tileFromToken(token: string): Coords | null {
+  const match = TILE_REGEX.exec(token);
+  return match === null ? null : { x: Number(match[1]), y: Number(match[2]) };
+}
+
+const SMALLINT_MAX = (1 << 15) - 1;
+
+function smallintFromToken(token: string): number | null {
+  if (!/^\d+$/.test(token)) {
+    return null;
+  }
+  const value = Number(token);
+  return value <= SMALLINT_MAX ? value : null;
+}
+
+function referencedChallenge(stage: Comparator<Stage>): ChallengeType | null {
+  if (stage[0] !== '==') {
+    return null;
+  }
+  if (isColosseumStage(stage[1])) {
+    return ChallengeType.COLOSSEUM;
+  }
+  if (isInfernoStage(stage[1])) {
+    return ChallengeType.INFERNO;
+  }
+  return null;
+}
+
+/**
+ * Parses the value of a `spawn` search parameter into a spawn query.
+ *
+ * @param value The parameter value.
+ * @param type The challenge the search is limited to, if a single one.
+ * @returns The spawn query alongside the challenge type it implies.
+ * @throws InvalidQueryError If a clause is malformed.
+ */
+export function spawnQueryValue(
+  value: string,
+  type: ChallengeType | null,
+): [SpawnQuery, ChallengeType | null] {
+  const query: SpawnQuery = {
+    stage: null,
+    values: [],
+    tiles: [],
+    player: null,
+    match: 'contains',
+  };
+  const tiles: Coords[] = [];
+  let challenge = type;
+
+  function implies(implied: ChallengeType | null, clause: string) {
+    if (implied === null || implied === challenge) {
+      return;
+    }
+    if (challenge !== null) {
+      throw new InvalidQueryError(
+        `spawn: ${clause} is not in the ${challengeName(challenge)}`,
+      );
+    }
+    challenge = implied;
+  }
+
+  for (const clause of value.split(';')) {
+    const colon = clause.indexOf(':');
+    if (colon === -1) {
+      throw new InvalidQueryError(`spawn: Invalid clause ${clause}`);
+    }
+    const key = clause.slice(0, colon);
+    const arg = clause.slice(colon + 1);
+
+    switch (key) {
+      case 'stage':
+        query.stage = numericComparatorValue(arg);
+        implies(referencedChallenge(query.stage), clause);
+        break;
+
+      case 'npc': {
+        const at = arg.indexOf('@');
+        const tile = tileFromToken(arg.slice(at + 1));
+        const spawn =
+          at === -1 || tile === null
+            ? null
+            : encodeSpawn({ npcId: arg.slice(0, at), ...tile });
+        if (spawn === null) {
+          throw new InvalidQueryError(`spawn: Invalid npc ${arg}`);
+        }
+        implies(spawn.type, clause);
+        query.values.push(spawn.value);
+        break;
+      }
+
+      case 'tile': {
+        const tile = tileFromToken(arg);
+        if (tile === null) {
+          throw new InvalidQueryError(`spawn: Invalid tile ${arg}`);
+        }
+        tiles.push(tile);
+        break;
+      }
+
+      case 'value': {
+        const stored = smallintFromToken(arg);
+        if (stored === null) {
+          throw new InvalidQueryError(`spawn: Invalid value ${arg}`);
+        }
+        query.values.push(stored);
+        break;
+      }
+
+      case 'player': {
+        const tile = tileFromToken(arg);
+        if (tile !== null) {
+          const player = encodePlayerTile(tile);
+          implies(player.type, clause);
+          query.player = player.value;
+        } else {
+          const stored = smallintFromToken(arg);
+          if (stored === null) {
+            throw new InvalidQueryError(`spawn: Invalid player ${arg}`);
+          }
+          query.player = stored;
+        }
+        break;
+      }
+
+      case 'match':
+        if (arg !== 'exact' && arg !== 'contains') {
+          throw new InvalidQueryError(`spawn: Invalid match ${arg}`);
+        }
+        query.match = arg;
+        break;
+
+      default:
+        throw new InvalidQueryError(`spawn: Unknown clause ${key}`);
+    }
+  }
+
+  if (query.match === 'exact' && query.stage?.[0] !== '==') {
+    throw new InvalidQueryError('spawn: exact match requires a single stage');
+  }
+
+  if (tiles.length > 0) {
+    if (challenge === null) {
+      throw new InvalidQueryError('spawn: tile requires a stage or type');
+    }
+    for (const tile of tiles) {
+      const values = encodeTile(challenge, tile);
+      if (values === null) {
+        throw new InvalidQueryError(
+          `spawn: invalid spawn tile ${tile.x}.${tile.y}`,
+        );
+      }
+      query.tiles.push(values);
+    }
+  }
+
+  return [query, challenge];
 }

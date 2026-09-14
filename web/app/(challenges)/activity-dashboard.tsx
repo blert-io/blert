@@ -541,7 +541,7 @@ export default function ActivityDashboard({
 
       const sessionParams = {
         ...filterParams,
-        aggregate: ['duration:avg', 'challenges:sum'],
+        aggregate: { repeated: ['duration:avg', 'challenges:sum'] },
         group: 'status',
       };
       const sessionPromise = fetchJsonOrNull<
@@ -553,7 +553,7 @@ export default function ActivityDashboard({
             challenges: { sum: number };
           }
         >
-      >(`/api/v1/sessions/stats?${queryString(sessionParams, false)}`);
+      >(`/api/v1/sessions/stats?${queryString(sessionParams)}`);
 
       const teamParams = {
         ...filterParams,

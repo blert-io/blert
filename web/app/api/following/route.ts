@@ -4,12 +4,13 @@ import { AuthenticationError, InvalidQueryError } from '@/actions/errors';
 import { followPlayer, getFollowing } from '@/actions/feed';
 import { withApiRoute } from '@/api/handler';
 import { expectSingle, numericParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/following' },
   async (request: NextRequest) => {
     try {
-      const searchParams = Object.fromEntries(request.nextUrl.searchParams);
+      const searchParams = requestParams(request.nextUrl.searchParams);
       const cursor = expectSingle(searchParams, 'cursor');
       const limit = numericParam(searchParams, 'limit');
 

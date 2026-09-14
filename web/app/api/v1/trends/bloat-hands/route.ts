@@ -3,11 +3,12 @@ import { NextRequest } from 'next/server';
 import { aggregateBloatHands, BloatHandsQuery } from '@/actions/theatre';
 import { withApiRoute } from '@/api/handler';
 import { dateComparatorParam, expectSingle } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/v1/trends/bloat-hands' },
   async (request: NextRequest) => {
-    const searchParams = Object.fromEntries(request.nextUrl.searchParams);
+    const searchParams = requestParams(request.nextUrl.searchParams);
 
     const query: BloatHandsQuery = {};
 

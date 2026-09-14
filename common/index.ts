@@ -115,11 +115,13 @@ export type {
   RoomNpc,
   RoomNpcMap,
   Session,
+  SpawnedNpc,
   TobChallengeStats,
   TobRaid,
   TobRooms,
   VerzikCrab,
   VerzikCrabProperties,
+  WaveSpawn,
 } from './challenge';
 export {
   ChallengeMode,

@@ -7,6 +7,7 @@ import {
 } from '@/actions/split-distributions';
 import { withApiRoute } from '@/api/handler';
 import { expectSingle, numericListParam, numericParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 const VALID_TIERS = ['standard', 'speedrun'];
 function isSplitTier(value: string): value is SplitTier {
@@ -18,7 +19,7 @@ const MAX_PLAYERS = 5;
 export const GET = withApiRoute(
   { route: '/api/v1/splits/distributions/query' },
   async (request: NextRequest) => {
-    const params = Object.fromEntries(request.nextUrl.searchParams);
+    const params = requestParams(request.nextUrl.searchParams);
 
     const partyParam = expectSingle(params, 'party');
     if (partyParam === undefined || partyParam.length === 0) {

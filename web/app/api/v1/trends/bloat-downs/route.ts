@@ -7,11 +7,12 @@ import {
   expectSingle,
   numericComparatorParam,
 } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/v1/trends/bloat-downs' },
   async (request: NextRequest) => {
-    const searchParams = Object.fromEntries(request.nextUrl.searchParams);
+    const searchParams = requestParams(request.nextUrl.searchParams);
 
     const query: BloatDownsQuery = {};
 

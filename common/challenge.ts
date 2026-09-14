@@ -9,6 +9,7 @@ import {
   Stage as StageProto,
 } from './generated/event_pb';
 import { ChallengeUpdate as ChallengeUpdateProto } from './generated/server_message_pb';
+import { NpcId } from './npcs/npc-id';
 import { SplitType } from './split';
 
 type Nullable<T> = T | null;
@@ -52,10 +53,25 @@ export interface TobRaid extends Challenge {
   tobStats: TobChallengeStats;
 }
 
+export type SpawnedNpc = Coords & {
+  npcId: NpcId;
+};
+
+/**
+ * A spawn in a wave-based challenge.
+ * `modified` indicates that the NPCs are not the base set for the wave.
+ */
+export type WaveSpawn = {
+  npcs: SpawnedNpc[];
+  player: Coords;
+  modified: boolean;
+};
+
 export interface ColosseumChallenge extends Challenge {
   type: ChallengeType.COLOSSEUM;
   colosseum: ColosseumData;
   colosseumStats: ColosseumChallengeStats;
+  spawns: Partial<Record<Stage, WaveSpawn>>;
 }
 
 export type ColosseumChallengeStats = {
@@ -66,6 +82,7 @@ export interface InfernoChallenge extends Challenge {
   type: ChallengeType.INFERNO;
   inferno: InfernoData;
   infernoStats: InfernoChallengeStats;
+  spawns: Partial<Record<Stage, WaveSpawn>>;
 }
 
 export type InfernoChallengeStats = {

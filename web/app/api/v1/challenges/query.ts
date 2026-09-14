@@ -1,4 +1,4 @@
-import { ChallengeMode } from '@blert/common';
+import { ChallengeMode, challengeName } from '@blert/common';
 
 import { ChallengeQuery, SortableFields } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
@@ -6,6 +6,7 @@ import {
   Comparator,
   Condition,
   Operator,
+  comparatorMatches,
   parseQuery,
   SortQuery,
 } from '@/actions/query';
@@ -15,9 +16,10 @@ import {
   expectSingle,
   numericComparatorParam,
   numericComparatorValue,
+  spawnQueryValue,
 } from '@/api/query';
 import { handicapFromToken } from '@/utils/colosseum';
-import { NextSearchParams } from '@/utils/url';
+import { NextSearchParams, requestParams } from '@/utils/url';
 
 type NamespacedParamHandler = {
   /** Parses the key segment to an id, or null if invalid. Defaults to numeric. */
@@ -71,15 +73,23 @@ function valuesInRange(
   }
 }
 
+/**
+ * Parses URL parameters for a query that filters challenges.
+ * @throws InvalidQueryError If a parameter is malformed.
+ */
 export function parseChallengeQueryParams(
   searchParams: URLSearchParams,
-): ChallengeQuery | null {
-  return parseChallengeQuery(Object.fromEntries(searchParams));
+): ChallengeQuery {
+  return parseChallengeQuery(requestParams(searchParams));
 }
 
+/**
+ * Parses URL parameters for a query that filters challenges.
+ * @throws InvalidQueryError If a parameter is malformed.
+ */
 export function parseChallengeQuery(
   searchParams: NextSearchParams,
-): ChallengeQuery | null {
+): ChallengeQuery {
   const party = expectSingle(searchParams, 'party')?.split(',') ?? undefined;
   const mode: ChallengeMode[] | undefined = expectSingle(searchParams, 'mode')
     ?.split(',')
@@ -96,7 +106,7 @@ export function parseChallengeQuery(
   const before = expectSingle(searchParams, 'before');
   const after = expectSingle(searchParams, 'after');
   if (before !== undefined && after !== undefined) {
-    return null;
+    throw new InvalidQueryError('Cannot page with both before and after');
   }
 
   const reverseSorts = before !== undefined;
@@ -108,13 +118,13 @@ export function parseChallengeQuery(
 
     const fields = sort.split(',');
     if (fields.length === 0 || fields.length > 2) {
-      return null;
+      throw new InvalidQueryError('sort: Expected one or two fields');
     }
 
     for (const sort of fields) {
       const sortOp = sort[0];
       if (sortOp !== '-' && sortOp !== '+') {
-        return null;
+        throw new InvalidQueryError(`sort: Invalid direction ${sort}`);
       }
 
       const sortField = sort.slice(1) as SortableFields;
@@ -135,13 +145,13 @@ export function parseChallengeQuery(
   if (before !== undefined) {
     const condition = paginationCondition(sortFields, before.split(','), true);
     if (condition === null) {
-      return null;
+      throw new InvalidQueryError(`before: Invalid cursor ${before}`);
     }
     query.customConditions!.push(condition);
   } else if (after !== undefined) {
     const condition = paginationCondition(sortFields, after.split(','), false);
     if (condition === null) {
-      return null;
+      throw new InvalidQueryError(`after: Invalid cursor ${after}`);
     }
     query.customConditions!.push(condition);
   }
@@ -158,12 +168,12 @@ export function parseChallengeQuery(
     }
 
     if (value === undefined || Array.isArray(value)) {
-      return null;
+      throw new InvalidQueryError(`${key}: Expected a single value`);
     }
 
     const rawKey = key.slice(colonIndex + 1);
     if (rawKey === '') {
-      return null;
+      throw new InvalidQueryError(`${key}: Missing key`);
     }
 
     let id: number | null;
@@ -174,76 +184,90 @@ export function parseChallengeQuery(
       id = Number.isFinite(parsed) ? parsed : null;
     }
     if (id === null) {
-      return null;
+      throw new InvalidQueryError(`${key}: Invalid key ${rawKey}`);
     }
 
     if (handler.validateKey !== undefined && !handler.validateKey(id)) {
-      return null;
+      throw new InvalidQueryError(`${key}: Invalid key ${rawKey}`);
     }
 
-    try {
-      handler.apply(query, id, numericComparatorValue(value));
-    } catch {
-      return null;
+    handler.apply(query, id, numericComparatorValue(value));
+  }
+
+  query.type = numericComparatorParam(searchParams, 'type');
+  query.scale = numericComparatorParam(searchParams, 'scale');
+  query.status = numericComparatorParam(searchParams, 'status');
+  query.startTime = dateComparatorParam(searchParams, 'startTime');
+  query.challengeTicks = numericComparatorParam(searchParams, 'challengeTicks');
+  query.stage = numericComparatorParam(searchParams, 'stage');
+
+  const spawn = searchParams.spawn;
+  if (spawn !== undefined) {
+    let type = query.type?.[0] === '==' ? query.type[1] : null;
+    query.spawns = [];
+    for (const value of Array.isArray(spawn) ? spawn : [spawn]) {
+      const [parsed, challenge] = spawnQueryValue(value, type);
+      query.spawns.push(parsed);
+      type = challenge;
+    }
+    if (type !== null) {
+      if (query.type !== undefined && !comparatorMatches(query.type, type)) {
+        throw new InvalidQueryError(
+          `spawn: npc/coords for ${challengeName(type)} contradict "type" param`,
+        );
+      }
+      // Narrow the type since the spawn query can only match it.
+      query.type = ['==', type];
     }
   }
 
-  try {
-    query.type = numericComparatorParam(searchParams, 'type');
-    query.scale = numericComparatorParam(searchParams, 'scale');
-    query.status = numericComparatorParam(searchParams, 'status');
-    query.startTime = dateComparatorParam(searchParams, 'startTime');
-    query.challengeTicks = numericComparatorParam(
-      searchParams,
-      'challengeTicks',
-    );
-    query.stage = numericComparatorParam(searchParams, 'stage');
-
-    const tobScalarParams = [
-      'bloatDownCount',
-      'nylocasPreCapStalls',
-      'nylocasPostCapStalls',
-      'xarpusHealing',
-      'verzikRedsCount',
-    ] as const;
-    for (const field of tobScalarParams) {
-      const value = numericComparatorParam(searchParams, `tob.${field}`);
-      if (value !== undefined) {
-        (query.tob ??= {})[field] = value;
-      }
+  const tobScalarParams = [
+    'bloatDownCount',
+    'nylocasPreCapStalls',
+    'nylocasPostCapStalls',
+    'xarpusHealing',
+    'verzikRedsCount',
+  ] as const;
+  for (const field of tobScalarParams) {
+    const value = numericComparatorParam(searchParams, `tob.${field}`);
+    if (value !== undefined) {
+      (query.tob ??= {})[field] = value;
     }
+  }
 
-    const mokhaiotlScalarParams = ['maxCompletedDelve'] as const;
-    for (const field of mokhaiotlScalarParams) {
-      const value = numericComparatorParam(searchParams, `mok.${field}`);
-      if (value !== undefined) {
-        (query.mokhaiotl ??= {})[field] = value;
-      }
+  const mokhaiotlScalarParams = ['maxCompletedDelve'] as const;
+  for (const field of mokhaiotlScalarParams) {
+    const value = numericComparatorParam(searchParams, `mok.${field}`);
+    if (value !== undefined) {
+      (query.mokhaiotl ??= {})[field] = value;
     }
+  }
 
-    const handicap = comparatorParam(searchParams, 'colo.handicap', (token) => {
-      const h = handicapFromToken(token);
-      if (h === null) {
-        throw new InvalidQueryError(`Invalid handicap: ${token}`);
-      }
-      return h;
-    });
-    if (handicap !== undefined) {
-      const op = handicap[0];
-      if (op !== '==' && op !== '!=' && op !== 'in' && op !== 'nin') {
-        throw new InvalidQueryError(`Invalid handicap operator: ${op}`);
-      }
-      (query.colosseum ??= {}).has = handicap;
+  const handicap = comparatorParam(searchParams, 'colo.handicap', (token) => {
+    const h = handicapFromToken(token);
+    if (h === null) {
+      throw new InvalidQueryError(`Invalid handicap: ${token}`);
     }
-  } catch {
-    return null;
+    return h;
+  });
+  if (handicap !== undefined) {
+    const op = handicap[0];
+    if (op !== '==' && op !== '!=' && op !== 'in' && op !== 'nin') {
+      throw new InvalidQueryError(`Invalid handicap operator: ${op}`);
+    }
+    (query.colosseum ??= {}).has = handicap;
   }
 
   const customQuery = expectSingle(searchParams, 'q');
   if (customQuery !== undefined) {
-    const customConditions = parseQuery(atob(customQuery));
+    let customConditions: Condition | null;
+    try {
+      customConditions = parseQuery(atob(customQuery));
+    } catch {
+      customConditions = null;
+    }
     if (customConditions === null) {
-      return null;
+      throw new InvalidQueryError('q: Invalid query');
     }
     query.customConditions!.push(customConditions);
   }

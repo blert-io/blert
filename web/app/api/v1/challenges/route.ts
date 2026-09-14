@@ -1,11 +1,7 @@
 import { SplitType } from '@blert/common';
 import { NextRequest, NextResponse } from 'next/server';
 
-import {
-  ChallengeQuery,
-  FindChallengesOptions,
-  findChallenges,
-} from '@/actions/challenge';
+import { FindChallengesOptions, findChallenges } from '@/actions/challenge';
 import { withApiRoute } from '@/api/handler';
 import { parseIntParam } from '@/utils/params';
 
@@ -48,17 +44,7 @@ export const GET = withApiRoute(
       return new Response(null, { status: 400 });
     }
 
-    let query: ChallengeQuery;
-
-    try {
-      const q = parseChallengeQueryParams(searchParams);
-      if (q === null) {
-        return new Response(null, { status: 400 });
-      }
-      query = q;
-    } catch {
-      return new Response(null, { status: 400 });
-    }
+    const query = parseChallengeQueryParams(searchParams);
 
     const splits = new Set(DEFAULT_SPLITS);
     let loadStats = false;

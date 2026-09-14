@@ -16,7 +16,10 @@ function parseParams(filters: SharedFilters): SharedFilters {
   const next = emptySharedFilters();
   const params = sharedFiltersToUrlParams(filters);
   for (const [key, value] of Object.entries(params)) {
-    if (value === undefined) {
+    if (
+      value === undefined ||
+      (typeof value === 'object' && !Array.isArray(value))
+    ) {
       continue;
     }
     const str = Array.isArray(value) ? value.join(',') : value.toString();

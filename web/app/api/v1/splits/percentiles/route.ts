@@ -5,6 +5,7 @@ import { InvalidQueryError } from '@/actions/errors';
 import { getSplitPercentiles } from '@/actions/split-distributions';
 import { withApiRoute } from '@/api/handler';
 import { expectSingle, numericListParam, numericParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 const DEFAULT_PERCENTILES = [5, 25, 50, 75, 95];
 const MAX_PERCENTILES = 10;
@@ -16,7 +17,7 @@ const CACHE_HEADERS = {
 export const GET = withApiRoute(
   { route: '/api/v1/splits/percentiles' },
   async (request: NextRequest) => {
-    const params = Object.fromEntries(request.nextUrl.searchParams);
+    const params = requestParams(request.nextUrl.searchParams);
 
     const types = numericListParam<SplitType>(params, 'types');
     const scale = numericParam(params, 'scale');
