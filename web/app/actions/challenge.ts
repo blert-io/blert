@@ -36,7 +36,6 @@ import {
   handicapBase,
   handicapLevel,
   isPostgresInvalidTextRepresentation,
-  isPostgresUndefinedColumn,
   normalizeRsn,
   protoToJsonEvent,
   snakeToCamel,
@@ -3315,6 +3314,19 @@ export async function findBestSplitTimes(
   return rankedSplits;
 }
 
+let playerStatsColumnSet: Promise<Set<string>> | null = null;
+
+function playerStatsColumns(): Promise<Set<string>> {
+  playerStatsColumnSet ??= sql`SELECT * FROM player_stats`
+    .describe()
+    .then((statement) => new Set(statement.columns.map((c) => c.name)))
+    .catch((e: unknown) => {
+      playerStatsColumnSet = null;
+      throw e;
+    });
+  return playerStatsColumnSet;
+}
+
 export type PlayerStatsFilter = {
   after?: Date;
   before?: Date;
@@ -3345,22 +3357,23 @@ export async function getPlayerStatsHistory(
   }
 
   if (filter.fields && filter.fields.length > 0) {
+    const columns = await playerStatsColumns();
     fields.push(sql`player_stats.date`);
     for (const field of filter.fields) {
-      if (field === 'id' || field === 'player_id') {
-        throw new InvalidQueryError(`Invalid field: ${snakeToCamel(field)}`);
+      const column = camelToSnake(field);
+      if (column === 'id' || column === 'player_id' || !columns.has(column)) {
+        throw new InvalidQueryError(`Invalid field: ${snakeToCamel(column)}`);
       }
-      fields.push(sql`player_stats.${sql(camelToSnake(field))}`);
+      fields.push(sql`player_stats.${sql(column)}`);
     }
   }
 
-  try {
-    const rows = await sql<Partial<PlayerStatsRow>[]>`
-      SELECT ${
-        fields.length > 0
-          ? sql`${fields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}`
-          : sql`player_stats.*`
-      }
+  const rows = await sql<Partial<PlayerStatsRow>[]>`
+    SELECT ${
+      fields.length > 0
+        ? sql`${fields.flatMap((f, i) => (i === 0 ? f : [sql`, `, f]))}`
+        : sql`player_stats.*`
+    }
     FROM players
     JOIN player_stats ON players.id = player_stats.player_id
     ${where(conditions)}
@@ -3368,32 +3381,17 @@ export async function getPlayerStatsHistory(
     ${limit ? sql`LIMIT ${limit}` : sql``}
   `;
 
-    return rows.map((row) => {
-      const { date, player_id: _playerId, id: _id, ...statsFields } = row;
-      const stats: Partial<PlayerStats> = { date };
+  return rows.map((row) => {
+    const { date, player_id: _playerId, id: _id, ...statsFields } = row;
+    const stats: Partial<PlayerStats> = { date };
 
-      for (const [key, value] of Object.entries(statsFields)) {
-        const k = snakeToCamel(key) as keyof Omit<PlayerStats, 'date'>;
-        stats[k] = value;
-      }
-
-      return stats;
-    });
-  } catch (e: unknown) {
-    if (isPostgresUndefinedColumn(e)) {
-      const err = e as Error;
-      const missingField = /column ([^"]+) does not exist/.exec(err.message);
-      if (missingField) {
-        let field = missingField[1];
-        if (field.startsWith('player_stats.')) {
-          field = field.slice(13);
-        }
-        throw new InvalidQueryError(`Invalid field: ${snakeToCamel(field)}`);
-      }
-      throw new InvalidQueryError('Invalid field');
+    for (const [key, value] of Object.entries(statsFields)) {
+      const k = snakeToCamel(key) as keyof Omit<PlayerStats, 'date'>;
+      stats[k] = value;
     }
-    throw e;
-  }
+
+    return stats;
+  });
 }
 
 export type PlayerNetworkOptions = {

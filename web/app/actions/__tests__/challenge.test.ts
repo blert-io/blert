@@ -15,6 +15,7 @@ import {
   aggregateSessions,
   countUniquePlayers,
   findChallenges,
+  getPlayerStatsHistory,
   loadPlayerWithStats,
   loadSessionsPage,
   loadSessionWithStats,
@@ -1796,4 +1797,53 @@ describe('loadPlayerWithStats', () => {
   it('returns null for a player that does not exist', async () => {
     expect(await loadPlayerWithStats('versik mele')).toBeNull();
   });
+});
+
+describe('getPlayerStatsHistory', () => {
+  let playerId: number;
+
+  beforeEach(async () => {
+    [{ id: playerId }] = await sql<{ id: number }[]>`
+      INSERT INTO players (username, normalized_username)
+      VALUES ('1Ogp', ${normalizeRsn('1Ogp')})
+      RETURNING id
+    `;
+    await sql`
+      INSERT INTO player_stats (player_id, date, tob_completions, deaths_total)
+      VALUES
+        (${playerId}, ${new Date('2026-09-14')}, 5, 3),
+        (${playerId}, ${new Date('2026-09-15')}, 6, 3)
+    `;
+  });
+
+  afterEach(async () => {
+    await sql`DELETE FROM player_stats WHERE player_id = ${playerId}`;
+    await sql`DELETE FROM players WHERE id = ${playerId}`;
+  });
+
+  it('selects requested fields', async () => {
+    expect(
+      await getPlayerStatsHistory('1Ogp', undefined, {
+        fields: ['tobCompletions', 'deathsTotal'],
+      }),
+    ).toEqual([
+      { date: new Date('2026-09-15'), tobCompletions: 6, deathsTotal: 3 },
+      { date: new Date('2026-09-14'), tobCompletions: 5, deathsTotal: 3 },
+    ]);
+  });
+
+  it.each(['bogusField', 'id', 'playerId', 'player_id'])(
+    'rejects field %s',
+    async (field) => {
+      await expect(
+        getPlayerStatsHistory('1Ogp', undefined, {
+          fields: ['tobCompletions', field],
+        }),
+      ).rejects.toThrow(
+        new InvalidQueryError(
+          `Invalid field: ${field === 'player_id' ? 'playerId' : field}`,
+        ),
+      );
+    },
+  );
 });

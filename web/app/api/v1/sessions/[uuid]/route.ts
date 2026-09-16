@@ -10,6 +10,9 @@ export const GET = withApiRoute(
 
     // TODO(frolv): Cache the session if it is completed.
     const session = await loadSessionWithStats(uuid);
+    if (session === null) {
+      return new Response(null, { status: 404 });
+    }
     return Response.json(session);
   },
 );

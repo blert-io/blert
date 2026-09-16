@@ -1,5 +1,4 @@
 import { SplitType } from '@blert/common';
-import { NextRequest } from 'next/server';
 
 jest.mock('@/actions/split-distributions', () => ({
   getSplitPercentiles: jest.fn(),
@@ -9,19 +8,12 @@ jest.mock('@/utils/metrics', () => ({
 }));
 
 import { getSplitPercentiles } from '@/actions/split-distributions';
+import { apiRequest } from '@/api/__tests__/request';
 import { GET } from '@/api/v1/splits/percentiles/route';
 
 const mockedGetSplitPercentiles = getSplitPercentiles as jest.MockedFunction<
   typeof getSplitPercentiles
 >;
-
-function createRequest(params: Record<string, string>): NextRequest {
-  const url = new URL('http://localhost:3000/api/v1/splits/percentiles');
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-  return new NextRequest(url);
-}
 
 const SAMPLE_RESULT = [
   {
@@ -38,20 +30,36 @@ describe('GET /api/v1/splits/percentiles', () => {
   });
 
   it('requires types and scale', async () => {
-    const missingTypes = await GET(createRequest({ scale: '1' }));
+    const missingTypes = await GET(
+      apiRequest('/api/v1/splits/percentiles', { scale: '1' }),
+    );
     expect(missingTypes.status).toBe(400);
 
-    const missingScale = await GET(createRequest({ types: '152' }));
+    const missingScale = await GET(
+      apiRequest('/api/v1/splits/percentiles', { types: '152' }),
+    );
     expect(missingScale.status).toBe(400);
 
-    const emptyTypes = await GET(createRequest({ types: '', scale: '1' }));
+    const emptyTypes = await GET(
+      apiRequest('/api/v1/splits/percentiles', { types: '', scale: '1' }),
+    );
     expect(emptyTypes.status).toBe(400);
 
     expect(mockedGetSplitPercentiles).not.toHaveBeenCalled();
   });
 
+  it.each(['99999', '152,abc'])('rejects types %s', async (types) => {
+    const response = await GET(
+      apiRequest('/api/v1/splits/percentiles', { types, scale: '1' }),
+    );
+    expect(response.status).toBe(400);
+    expect(mockedGetSplitPercentiles).not.toHaveBeenCalled();
+  });
+
   it.each(['0', '6', 'abc'])('rejects scale %s', async (scale) => {
-    const response = await GET(createRequest({ types: '152', scale }));
+    const response = await GET(
+      apiRequest('/api/v1/splits/percentiles', { types: '152', scale }),
+    );
     expect(response.status).toBe(400);
     expect(mockedGetSplitPercentiles).not.toHaveBeenCalled();
   });
@@ -60,7 +68,11 @@ describe('GET /api/v1/splits/percentiles', () => {
     'rejects percentiles %s',
     async (percentiles) => {
       const response = await GET(
-        createRequest({ types: '152', scale: '1', percentiles }),
+        apiRequest('/api/v1/splits/percentiles', {
+          types: '152',
+          scale: '1',
+          percentiles,
+        }),
       );
       expect(response.status).toBe(400);
       expect(mockedGetSplitPercentiles).not.toHaveBeenCalled();
@@ -68,7 +80,12 @@ describe('GET /api/v1/splits/percentiles', () => {
   );
 
   it('applies default percentiles', async () => {
-    const response = await GET(createRequest({ types: '152,153', scale: '1' }));
+    const response = await GET(
+      apiRequest('/api/v1/splits/percentiles', {
+        types: '152,153',
+        scale: '1',
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(mockedGetSplitPercentiles).toHaveBeenCalledWith(
@@ -86,7 +103,11 @@ describe('GET /api/v1/splits/percentiles', () => {
 
   it('passes through custom fractional percentiles', async () => {
     const response = await GET(
-      createRequest({ types: '152', scale: '1', percentiles: '12.5,87.5' }),
+      apiRequest('/api/v1/splits/percentiles', {
+        types: '152',
+        scale: '1',
+        percentiles: '12.5,87.5',
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -101,7 +122,7 @@ describe('GET /api/v1/splits/percentiles', () => {
 
   it('parses a time window', async () => {
     const response = await GET(
-      createRequest({
+      apiRequest('/api/v1/splits/percentiles', {
         types: '152',
         scale: '1',
         after: '2026-01-01',
@@ -121,7 +142,11 @@ describe('GET /api/v1/splits/percentiles', () => {
 
   it.each(['after', 'before'])('rejects an invalid %s date', async (key) => {
     const response = await GET(
-      createRequest({ types: '152', scale: '1', [key]: 'not-a-date' }),
+      apiRequest('/api/v1/splits/percentiles', {
+        types: '152',
+        scale: '1',
+        [key]: 'not-a-date',
+      }),
     );
     expect(response.status).toBe(400);
     expect(mockedGetSplitPercentiles).not.toHaveBeenCalled();

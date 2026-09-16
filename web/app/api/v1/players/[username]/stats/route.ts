@@ -1,68 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getPlayerStatsHistory, PlayerStatsFilter } from '@/actions/challenge';
-import { InvalidQueryError } from '@/actions/errors';
 import { withApiRoute } from '@/api/handler';
+import { dateParam, expectSingle, integerParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/v1/players/[username]/stats' },
-  async (request: NextRequest, { params }) => {
-    const { username } = await params;
-    const searchParams = request.nextUrl.searchParams;
+  async (request: NextRequest, { params: path }) => {
+    const { username } = await path;
+    const params = requestParams(request.nextUrl.searchParams);
 
     const filter: PlayerStatsFilter = {};
 
-    const after = searchParams.get('after');
-    if (after) {
-      const date = new Date(after);
-      if (isNaN(date.getTime())) {
-        return NextResponse.json(
-          { error: 'Invalid after date format' },
-          { status: 400 },
-        );
-      }
-      date.setUTCHours(0, 0, 0, 0);
-      filter.after = date;
+    const after = dateParam(params, 'after');
+    if (after !== undefined) {
+      after.setUTCHours(0, 0, 0, 0);
+      filter.after = after;
     }
 
-    const before = searchParams.get('before');
-    if (before) {
-      const date = new Date(before);
-      if (isNaN(date.getTime())) {
-        return NextResponse.json(
-          { error: 'Invalid before date format' },
-          { status: 400 },
-        );
-      }
-      date.setUTCHours(0, 0, 0, 0);
-      filter.before = date;
+    const before = dateParam(params, 'before');
+    if (before !== undefined) {
+      before.setUTCHours(0, 0, 0, 0);
+      filter.before = before;
     }
 
-    let limit = undefined;
-    const limitParam = searchParams.get('limit');
-    if (limitParam) {
-      limit = parseInt(limitParam, 10);
-      if (isNaN(limit) || limit < 1) {
-        return NextResponse.json(
-          { error: 'Invalid limit value' },
-          { status: 400 },
-        );
-      }
-    }
+    const limit = integerParam(params, 'limit', 1);
 
-    const which = searchParams.get('which');
-    if (which) {
+    const which = expectSingle(params, 'which');
+    if (which !== undefined && which !== '') {
       filter.fields = which.split(',').map((f) => f.trim());
     }
 
-    try {
-      const stats = await getPlayerStatsHistory(username, limit, filter);
-      return NextResponse.json(stats);
-    } catch (error: any) {
-      if (error instanceof InvalidQueryError) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-      }
-      throw error;
-    }
+    const stats = await getPlayerStatsHistory(username, limit, filter);
+    return NextResponse.json(stats);
   },
 );

@@ -1,9 +1,13 @@
+import { ChallengeMode, ChallengeType, SessionStatus } from '@blert/common';
+
 import { SessionQuery } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
 import {
   dateComparatorParam,
+  enumComparatorParam,
   expectSingle,
-  numericComparatorParam,
+  integerComparatorParam,
+  isValidEnumValue,
 } from '@/api/query';
 import { NextSearchParams } from '@/utils/url';
 
@@ -42,7 +46,7 @@ export function parseSessionQueryParams(
 }
 
 export function parseSessionQuery(params: NextSearchParams): SessionQuery {
-  const status = numericComparatorParam(params, 'status');
+  const status = enumComparatorParam(SessionStatus, params, 'status');
   const expectedCursorCount = status === undefined ? 2 : 1;
   const before = parseCursorParam(params, 'before', expectedCursorCount);
   const after = parseCursorParam(params, 'after', expectedCursorCount);
@@ -51,19 +55,19 @@ export function parseSessionQuery(params: NextSearchParams): SessionQuery {
   }
 
   return {
-    type: numericComparatorParam(params, 'type'),
+    type: enumComparatorParam(ChallengeType, params, 'type'),
     mode: expectSingle(params, 'mode')
       ?.split(',')
       .map((m) => parseInt(m))
-      .filter((m) => !isNaN(m)),
-    scale: numericComparatorParam(params, 'scale'),
+      .filter((m) => isValidEnumValue(ChallengeMode, m)),
+    scale: integerComparatorParam(params, 'scale', 1, 8),
     startTime: dateComparatorParam(params, 'startTime'),
     status,
     party: expectSingle(params, 'party')
       ?.split(',')
       .map((p) => p.trim()),
-    challengeCount: numericComparatorParam(params, 'challengeCount'),
-    duration: numericComparatorParam(params, 'duration'),
+    challengeCount: integerComparatorParam(params, 'challengeCount'),
+    duration: integerComparatorParam(params, 'duration'),
     before,
     after,
   };

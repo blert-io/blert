@@ -230,13 +230,17 @@ export function comparatorParam<T>(
   return comparatorValue(value, constructor);
 }
 
+/** The largest millisecond timestamp a `Date` can represent. */
+export const MAX_TIMESTAMP = 8.64e15;
+
 /**
- * Returns a comparator for a date search parameter.
+ * Returns a comparator for a date search parameter, given as a millisecond
+ * timestamp.
  *
  * @param searchParams The search params object.
  * @param param The parameter key.
  * @returns The comparator for the parameter.
- * @throws InvalidQueryError If the parameter's value is not a date.
+ * @throws InvalidQueryError If the parameter's value is not a timestamp.
  */
 export function dateComparatorParam(
   searchParams: NextSearchParams,
@@ -245,25 +249,61 @@ export function dateComparatorParam(
   return comparatorParam(
     searchParams,
     param,
-    (value) => new Date(parseInt(value)),
+    (value) => new Date(integerFromToken(value, 0, MAX_TIMESTAMP, param)),
   );
+}
+
+export const INT_MIN = -(2 ** 31);
+export const INT_MAX = 2 ** 31 - 1;
+export const SMALLINT_MIN = -(2 ** 15);
+export const SMALLINT_MAX = 2 ** 15 - 1;
+
+/**
+ * Parses an integer from a single token.
+ *
+ * @param token The token to parse.
+ * @param min The smallest accepted value.
+ * @param max The largest accepted value.
+ * @param name A name with which to prefix query errors.
+ * @returns The parsed integer.
+ * @throws InvalidQueryError If the token is not an integer in the range.
+ */
+export function integerFromToken(
+  token: string,
+  min: number,
+  max: number,
+  name?: string,
+): number {
+  const err = (str: string) =>
+    new InvalidQueryError(name !== undefined ? `${name}: ${str}` : str);
+
+  if (!/^-?\d+$/.test(token)) {
+    throw err(`Invalid numeric value ${token}`);
+  }
+  const value = Number(token);
+  if (value < min || value > max) {
+    throw err(`Value ${value} is out of range [${min}, ${max}]`);
+  }
+  return value;
 }
 
 /**
  * Returns a comparator for a numeric value.
  *
  * @param value The value to convert to a comparator.
+ * @param min The smallest accepted value.
+ * @param max The largest accepted value.
+ * @param name A name with which to prefix query errors.
  * @returns The comparator for the value.
- * @throws InvalidQueryError If the value is not a number.
+ * @throws InvalidQueryError If the value is not an integer in the range.
  */
-export function numericComparatorValue(value: string): Comparator<number> {
-  return comparatorValue(value, (v) => {
-    const value = parseInt(v);
-    if (isNaN(value)) {
-      throw new InvalidQueryError(`Invalid numeric value ${v}`);
-    }
-    return value;
-  });
+export function integerComparatorValue(
+  value: string,
+  min: number = INT_MIN,
+  max: number = INT_MAX,
+  name?: string,
+): Comparator<number> {
+  return comparatorValue(value, (v) => integerFromToken(v, min, max, name));
 }
 
 /**
@@ -271,19 +311,105 @@ export function numericComparatorValue(value: string): Comparator<number> {
  *
  * @param searchParams The search params object.
  * @param param The parameter key.
+ * @param min The smallest accepted value.
+ * @param max The largest accepted value.
  * @returns The comparator for the parameter.
- * @throws InvalidQueryError If the parameter's value is not a number.
+ * @throws InvalidQueryError If the parameter's value is not an integer in the
+ *   range.
  */
-export function numericComparatorParam(
+export function integerComparatorParam(
   searchParams: NextSearchParams,
   param: string,
+  min: number = INT_MIN,
+  max: number = INT_MAX,
 ): Comparator<number> | undefined {
-  return comparatorParam(searchParams, param, (v) => {
-    const value = Number(v);
-    if (!Number.isFinite(value)) {
-      throw new InvalidQueryError(`${param}: Invalid numeric value ${v}`);
+  return comparatorParam(searchParams, param, (v) =>
+    integerFromToken(v, min, max, param),
+  );
+}
+
+/** A numeric enum, whose object holds its members and their reverse mapping. */
+type NumericEnum<T extends number> = Record<string, T | string>;
+
+export function isValidEnumValue<T extends number>(
+  enumObject: NumericEnum<T>,
+  value: number,
+): value is T {
+  return Object.values(enumObject).some((member) => member === value);
+}
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Checks that every given value is a UUID.
+ *
+ * @param value The value or values to check.
+ * @param name A name with which to prefix query errors.
+ * @throws InvalidQueryError If any value is invalid.
+ */
+export function assertValidUuid(value: string | string[], name?: string): void {
+  const values = Array.isArray(value) ? value : [value];
+  const invalid = values.filter((uuid) => !UUID_REGEX.test(uuid));
+  if (invalid.length > 0) {
+    const bad = invalid.join(',');
+    throw new InvalidQueryError(
+      name === undefined
+        ? `Invalid uuid ${bad}`
+        : `${name}: Invalid uuid ${bad}`,
+    );
+  }
+}
+
+/**
+ * Returns a comparator for a value which is a member of a numeric enum.
+ *
+ * @param enumObject The enum whose members are accepted.
+ * @param value The value to convert to a comparator.
+ * @param name A name with which to prefix query errors.
+ * @returns The comparator for the value.
+ * @throws InvalidQueryError If the value is not a member of the enum.
+ */
+export function enumComparatorValue<T extends number>(
+  enumObject: NumericEnum<T>,
+  value: string,
+  name?: string,
+): Comparator<T> {
+  return comparatorValue(value, (v) => {
+    const member = integerFromToken(v, 0, INT_MAX, name);
+    if (!isValidEnumValue(enumObject, member)) {
+      throw new InvalidQueryError(
+        name === undefined
+          ? `Invalid value ${v}`
+          : `${name}: Invalid value ${v}`,
+      );
     }
-    return value;
+    return member;
+  });
+}
+
+/**
+ * Returns a comparator for a search parameter which is a member of a numeric
+ * enum.
+ *
+ * @param enumObject The enum whose members are accepted.
+ * @param searchParams The search params object.
+ * @param param The parameter key.
+ * @returns The comparator for the parameter.
+ * @throws InvalidQueryError If the parameter's value is not a member of the
+ *   enum.
+ */
+export function enumComparatorParam<T extends number>(
+  enumObject: NumericEnum<T>,
+  searchParams: NextSearchParams,
+  param: string,
+): Comparator<T> | undefined {
+  return comparatorParam(searchParams, param, (v) => {
+    const member = integerFromToken(v, 0, INT_MAX, param);
+    if (!isValidEnumValue(enumObject, member)) {
+      throw new InvalidQueryError(`${param}: Invalid value ${v}`);
+    }
+    return member;
   });
 }
 
@@ -316,48 +442,96 @@ export function expectSingle(
 }
 
 /**
- * Parses a comma-separated list of numbers from a search parameter.
+ * Parses a comma-separated list of integers from a search parameter.
  *
  * @param obj The search params object.
  * @param key The parameter key.
- * @returns The list of numbers, or `undefined` if the parameter is not present.
+ * @param min The smallest accepted value.
+ * @param max The largest accepted value.
+ * @returns The list of integers, or `undefined` if the parameter is not
+ *   present.
+ * @throws InvalidQueryError If a value is not an integer in the range.
  */
-export function numericListParam<T extends number = number>(
+export function integerListParam<T extends number = number>(
   obj: NextSearchParams,
   key: string,
+  min: number = INT_MIN,
+  max: number = INT_MAX,
 ): T[] | undefined {
   return expectSingle(obj, key)
     ?.split(',')
-    .map((v) => parseInt(v) as T)
-    ?.filter((v) => !isNaN(v));
+    .map((v) => integerFromToken(v, min, max, key) as T);
 }
 
 /**
- * Parses a numeric value from a search parameter.
+ * Parses an integer from a search parameter.
  *
  * @param obj The search params object.
  * @param key The parameter key.
- * @returns The numeric value, or `undefined` if the parameter is not present.
+ * @param min The smallest accepted value.
+ * @param max The largest accepted value.
+ * @returns The integer, or `undefined` if the parameter is not present.
+ * @throws InvalidQueryError If the value is not an integer in the range.
  */
-export function numericParam<T extends number = number>(
+export function integerParam<T extends number = number>(
+  obj: NextSearchParams,
+  key: string,
+  min: number = INT_MIN,
+  max: number = INT_MAX,
+): T | undefined {
+  const value = expectSingle(obj, key);
+  return value === undefined
+    ? undefined
+    : (integerFromToken(value, min, max, key) as T);
+}
+
+/**
+ * Parses a member of a numeric enum from a search parameter.
+ *
+ * @param enumObject The enum whose members are accepted.
+ * @param obj The search params object.
+ * @param key The parameter key.
+ * @returns The member, or `undefined` if the parameter is not present.
+ * @throws InvalidQueryError If the value is not a member of the enum.
+ */
+export function enumParam<T extends number>(
+  enumObject: NumericEnum<T>,
   obj: NextSearchParams,
   key: string,
 ): T | undefined {
-  const value = expectSingle(obj, key);
-  if (value === undefined) {
-    return undefined;
+  const value = integerParam(obj, key, 0, INT_MAX);
+  if (value !== undefined && !isValidEnumValue(enumObject, value)) {
+    throw new InvalidQueryError(`${key}: Invalid value ${value}`);
   }
+  return value;
+}
 
-  const num = parseInt(value);
-  if (isNaN(num)) {
-    throw new InvalidQueryError(`${key}: Invalid numeric value ${value}`);
-  }
-
-  return num as T;
+/**
+ * Parses a comma-separated list of members of a numeric enum from a search
+ * parameter.
+ *
+ * @param enumObject The enum whose members are accepted.
+ * @param obj The search params object.
+ * @param key The parameter key.
+ * @returns The members, or `undefined` if the parameter is not present.
+ * @throws InvalidQueryError If a value is not a member of the enum.
+ */
+export function enumListParam<T extends number>(
+  enumObject: NumericEnum<T>,
+  obj: NextSearchParams,
+  key: string,
+): T[] | undefined {
+  return integerListParam(obj, key, 0, INT_MAX)?.map((value) => {
+    if (!isValidEnumValue(enumObject, value)) {
+      throw new InvalidQueryError(`${key}: Invalid value ${value}`);
+    }
+    return value;
+  });
 }
 
 /**
  * Parses a date from a search parameter.
+ * Accepts either millisecond timestamps or `Date` constructor strings.
  *
  * @param obj The search params object.
  * @param key The parameter key.
@@ -373,7 +547,7 @@ export function dateParam(
     return undefined;
   }
 
-  const date = new Date(value);
+  const date = new Date(/^\d+$/.test(value) ? Number(value) : value);
   if (Number.isNaN(date.getTime())) {
     throw new InvalidQueryError(`${key}: Invalid date ${value}`);
   }
@@ -386,16 +560,6 @@ const TILE_REGEX = /^(\d+)\.(\d+)$/;
 function tileFromToken(token: string): Coords | null {
   const match = TILE_REGEX.exec(token);
   return match === null ? null : { x: Number(match[1]), y: Number(match[2]) };
-}
-
-const SMALLINT_MAX = (1 << 15) - 1;
-
-function smallintFromToken(token: string): number | null {
-  if (!/^\d+$/.test(token)) {
-    return null;
-  }
-  const value = Number(token);
-  return value <= SMALLINT_MAX ? value : null;
 }
 
 function referencedChallenge(stage: Comparator<Stage>): ChallengeType | null {
@@ -455,7 +619,7 @@ export function spawnQueryValue(
 
     switch (key) {
       case 'stage':
-        query.stage = numericComparatorValue(arg);
+        query.stage = enumComparatorValue(Stage, arg, 'spawn');
         implies(referencedChallenge(query.stage), clause);
         break;
 
@@ -483,14 +647,9 @@ export function spawnQueryValue(
         break;
       }
 
-      case 'value': {
-        const stored = smallintFromToken(arg);
-        if (stored === null) {
-          throw new InvalidQueryError(`spawn: Invalid value ${arg}`);
-        }
-        query.values.push(stored);
+      case 'value':
+        query.values.push(integerFromToken(arg, 0, SMALLINT_MAX, 'spawn'));
         break;
-      }
 
       case 'player': {
         const tile = tileFromToken(arg);
@@ -499,11 +658,7 @@ export function spawnQueryValue(
           implies(player.type, clause);
           query.player = player.value;
         } else {
-          const stored = smallintFromToken(arg);
-          if (stored === null) {
-            throw new InvalidQueryError(`spawn: Invalid player ${arg}`);
-          }
-          query.player = stored;
+          query.player = integerFromToken(arg, 0, SMALLINT_MAX, 'spawn');
         }
         break;
       }

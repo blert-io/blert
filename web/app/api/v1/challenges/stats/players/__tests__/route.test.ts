@@ -1,5 +1,4 @@
 import { ChallengeMode, ChallengeType } from '@blert/common';
-import { NextRequest } from 'next/server';
 import { RedisClientType } from 'redis';
 
 jest.mock('@/actions/challenge', () => ({
@@ -13,6 +12,7 @@ jest.mock('@/utils/metrics', () => ({
 
 import { countUniquePlayers } from '@/actions/challenge';
 import redis from '@/actions/redis';
+import { apiRequest } from '@/api/__tests__/request';
 import { GET } from '@/api/v1/challenges/stats/players/route';
 
 type MockRedisClient = {
@@ -32,14 +32,6 @@ function createMockClient(): MockRedisClient {
   };
 }
 
-function createRequest(params: Record<string, string>): NextRequest {
-  const url = new URL('http://localhost:3000/api/v1/challenges/stats/players');
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-  return new NextRequest(url);
-}
-
 describe('GET /api/v1/challenges/stats/players', () => {
   let mockClient: MockRedisClient;
 
@@ -56,7 +48,7 @@ describe('GET /api/v1/challenges/stats/players', () => {
   });
 
   it('caches requests with normalized type, mode, and scale filters', async () => {
-    const request = createRequest({
+    const request = apiRequest('/api/v1/challenges/stats/players', {
       scale: '5,3,5',
       type: `${ChallengeType.COLOSSEUM},${ChallengeType.TOB}`,
       mode: `${ChallengeMode.TOB_HARD},${ChallengeMode.TOB_REGULAR}`,
@@ -88,7 +80,7 @@ describe('GET /api/v1/challenges/stats/players', () => {
   });
 
   it('caches supported comparator filters with canonical keys', async () => {
-    const request = createRequest({
+    const request = apiRequest('/api/v1/challenges/stats/players', {
       type: String(ChallengeType.TOB),
       scale: 'ge4',
     });
@@ -114,7 +106,7 @@ describe('GET /api/v1/challenges/stats/players', () => {
   });
 
   it('bypasses Redis when unsupported filters are present', async () => {
-    const request = createRequest({
+    const request = apiRequest('/api/v1/challenges/stats/players', {
       type: String(ChallengeType.TOB),
       status: '1',
     });
@@ -127,7 +119,7 @@ describe('GET /api/v1/challenges/stats/players', () => {
   });
 
   it('bypasses Redis for unsupported namespaced filters', async () => {
-    const request = createRequest({
+    const request = apiRequest('/api/v1/challenges/stats/players', {
       type: String(ChallengeType.TOB),
       'split:28': 'le600',
     });

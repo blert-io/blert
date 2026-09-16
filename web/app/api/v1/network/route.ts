@@ -5,7 +5,12 @@ import { loadPlayerNetwork, PlayerNetworkOptions } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
 import { createRawCache } from '@/api/cache';
 import { withApiRoute } from '@/api/handler';
-import { dateParam, numericListParam, numericParam } from '@/api/query';
+import {
+  dateParam,
+  enumParam,
+  integerListParam,
+  integerParam,
+} from '@/api/query';
 import { clamp } from '@/utils/math';
 import { MS_PER_DAY } from '@/utils/time';
 import { NextSearchParams, requestParams } from '@/utils/url';
@@ -40,10 +45,6 @@ type ResolvedNetworkOptions = PlayerNetworkOptions & {
   minChallengesTogether: number;
 };
 
-function isValidEnumValue(enumObject: object, value: number): boolean {
-  return Object.values(enumObject).includes(value);
-}
-
 /** Truncates a timestamp to UTC midnight. */
 function normalizeDay(timestamp: number, latest: number): Date {
   const clamped = clamp(timestamp, EARLIEST_DAY, latest);
@@ -59,17 +60,10 @@ function normalizeDay(timestamp: number, latest: number): Date {
  * @throws InvalidQueryError If a parameter is malformed or out of range.
  */
 function parseNetworkOptions(params: NextSearchParams): ResolvedNetworkOptions {
-  const type = numericParam<ChallengeType>(params, 'type');
-  if (type !== undefined && !isValidEnumValue(ChallengeType, type)) {
-    throw new InvalidQueryError(`type: Invalid challenge type ${type}`);
-  }
+  const type = enumParam(ChallengeType, params, 'type');
+  const mode = enumParam(ChallengeMode, params, 'mode');
 
-  const mode = numericParam<ChallengeMode>(params, 'mode');
-  if (mode !== undefined && !isValidEnumValue(ChallengeMode, mode)) {
-    throw new InvalidQueryError(`mode: Invalid challenge mode ${mode}`);
-  }
-
-  const requestedScales = numericListParam(params, 'scale');
+  const requestedScales = integerListParam(params, 'scale');
   let scale: number[] | undefined;
   if (requestedScales !== undefined) {
     if (requestedScales.length === 0) {
@@ -96,8 +90,14 @@ function parseNetworkOptions(params: NextSearchParams): ResolvedNetworkOptions {
     throw new InvalidQueryError('from: Range starts after it ends');
   }
 
-  const limit = numericParam(params, 'limit');
-  const minConnections = numericParam(params, 'minConnections');
+  const limit = integerParam(params, 'limit', 1, MAX_LIMIT) ?? DEFAULT_LIMIT;
+  const minChallengesTogether =
+    integerParam(
+      params,
+      'minConnections',
+      MIN_CONNECTIONS_FLOOR,
+      MIN_CONNECTIONS_CAP,
+    ) ?? DEFAULT_MIN_CONNECTIONS;
 
   return {
     type,
@@ -105,11 +105,8 @@ function parseNetworkOptions(params: NextSearchParams): ResolvedNetworkOptions {
     scale,
     from,
     to,
-    limit: limit === undefined ? DEFAULT_LIMIT : clamp(limit, 1, MAX_LIMIT),
-    minChallengesTogether:
-      minConnections === undefined
-        ? DEFAULT_MIN_CONNECTIONS
-        : clamp(minConnections, MIN_CONNECTIONS_FLOOR, MIN_CONNECTIONS_CAP),
+    limit,
+    minChallengesTogether,
   };
 }
 

@@ -3,14 +3,16 @@ import { NextRequest } from 'next/server';
 import { AuthenticationError } from '@/actions/errors';
 import { loadFeed } from '@/actions/feed';
 import { withApiRoute } from '@/api/handler';
-import { clamp } from '@/utils/math';
+import { integerParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/feed' },
   async (request: NextRequest) => {
     const searchParams = request.nextUrl.searchParams;
+    const params = requestParams(searchParams);
 
-    const limit = clamp(parseInt(searchParams.get('limit') ?? '20'), 1, 50);
+    const limit = integerParam(params, 'limit', 1, 50) ?? 20;
     const cursor = searchParams.get('cursor') ?? undefined;
     const directionParam = searchParams.get('direction');
 

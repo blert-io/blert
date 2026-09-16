@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server';
 import { InvalidQueryError } from '@/actions/errors';
 import { getSplitPercentiles } from '@/actions/split-distributions';
 import { withApiRoute } from '@/api/handler';
-import { expectSingle, numericListParam, numericParam } from '@/api/query';
+import { enumListParam, expectSingle, integerParam } from '@/api/query';
 import { requestParams } from '@/utils/url';
 
 const DEFAULT_PERCENTILES = [5, 25, 50, 75, 95];
@@ -19,8 +19,8 @@ export const GET = withApiRoute(
   async (request: NextRequest) => {
     const params = requestParams(request.nextUrl.searchParams);
 
-    const types = numericListParam<SplitType>(params, 'types');
-    const scale = numericParam(params, 'scale');
+    const types = enumListParam(SplitType, params, 'types');
+    const scale = integerParam(params, 'scale');
 
     if (types === undefined || types.length === 0 || scale === undefined) {
       throw new InvalidQueryError('Missing required parameters: types, scale');

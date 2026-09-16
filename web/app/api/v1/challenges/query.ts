@@ -1,4 +1,11 @@
-import { ChallengeMode, challengeName } from '@blert/common';
+import {
+  ChallengeMode,
+  challengeName,
+  ChallengeStatus,
+  ChallengeType,
+  SplitType,
+  Stage,
+} from '@blert/common';
 
 import { ChallengeQuery, SortableFields } from '@/actions/challenge';
 import { InvalidQueryError } from '@/actions/errors';
@@ -13,9 +20,12 @@ import {
 import {
   comparatorParam,
   dateComparatorParam,
+  enumComparatorParam,
+  enumListParam,
   expectSingle,
-  numericComparatorParam,
-  numericComparatorValue,
+  integerComparatorParam,
+  integerComparatorValue,
+  isValidEnumValue,
   spawnQueryValue,
 } from '@/api/query';
 import { handicapFromToken } from '@/utils/colosseum';
@@ -34,6 +44,7 @@ type NamespacedParamHandler = {
 
 const namespacedParams: Record<string, NamespacedParamHandler> = {
   split: {
+    validateKey: (id) => isValidEnumValue(SplitType, id),
     apply: (query, id, comparator) => {
       (query.splits ??= new Map()).set(id, comparator);
     },
@@ -91,10 +102,7 @@ export function parseChallengeQuery(
   searchParams: NextSearchParams,
 ): ChallengeQuery {
   const party = expectSingle(searchParams, 'party')?.split(',') ?? undefined;
-  const mode: ChallengeMode[] | undefined = expectSingle(searchParams, 'mode')
-    ?.split(',')
-    .map((m) => parseInt(m))
-    ?.filter((m) => !isNaN(m));
+  const mode = enumListParam(ChallengeMode, searchParams, 'mode');
 
   const query: ChallengeQuery = {
     mode,
@@ -191,15 +199,19 @@ export function parseChallengeQuery(
       throw new InvalidQueryError(`${key}: Invalid key ${rawKey}`);
     }
 
-    handler.apply(query, id, numericComparatorValue(value));
+    handler.apply(query, id, integerComparatorValue(value));
   }
 
-  query.type = numericComparatorParam(searchParams, 'type');
-  query.scale = numericComparatorParam(searchParams, 'scale');
-  query.status = numericComparatorParam(searchParams, 'status');
+  query.type = enumComparatorParam(ChallengeType, searchParams, 'type');
+  query.scale = integerComparatorParam(searchParams, 'scale', 1, 8);
+  query.status = enumComparatorParam(ChallengeStatus, searchParams, 'status');
   query.startTime = dateComparatorParam(searchParams, 'startTime');
-  query.challengeTicks = numericComparatorParam(searchParams, 'challengeTicks');
-  query.stage = numericComparatorParam(searchParams, 'stage');
+  query.challengeTicks = integerComparatorParam(
+    searchParams,
+    'challengeTicks',
+    0,
+  );
+  query.stage = enumComparatorParam(Stage, searchParams, 'stage');
 
   const spawn = searchParams.spawn;
   if (spawn !== undefined) {
@@ -229,7 +241,7 @@ export function parseChallengeQuery(
     'verzikRedsCount',
   ] as const;
   for (const field of tobScalarParams) {
-    const value = numericComparatorParam(searchParams, `tob.${field}`);
+    const value = integerComparatorParam(searchParams, `tob.${field}`, 0, 9001);
     if (value !== undefined) {
       (query.tob ??= {})[field] = value;
     }
@@ -237,7 +249,7 @@ export function parseChallengeQuery(
 
   const mokhaiotlScalarParams = ['maxCompletedDelve'] as const;
   for (const field of mokhaiotlScalarParams) {
-    const value = numericComparatorParam(searchParams, `mok.${field}`);
+    const value = integerComparatorParam(searchParams, `mok.${field}`, 0, 1000);
     if (value !== undefined) {
       (query.mokhaiotl ??= {})[field] = value;
     }
