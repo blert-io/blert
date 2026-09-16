@@ -1,5 +1,4 @@
 import { ChallengeMode, ChallengeType } from '@blert/common';
-import { NextRequest } from 'next/server';
 import { RedisClientType } from 'redis';
 
 jest.mock('@/actions/challenge', () => ({
@@ -13,6 +12,7 @@ jest.mock('@/utils/metrics', () => ({
 
 import { loadPlayerNetwork } from '@/actions/challenge';
 import redis from '@/actions/redis';
+import { apiRequest } from '@/api/__tests__/request';
 import { GET } from '@/api/v1/network/route';
 
 type MockRedisClient = {
@@ -41,14 +41,6 @@ const mockedLoadPlayerNetwork = loadPlayerNetwork as jest.MockedFunction<
 >;
 const mockedRedis = redis as jest.MockedFunction<typeof redis>;
 
-function createRequest(params: Record<string, string> = {}): NextRequest {
-  const url = new URL('http://localhost:3000/api/v1/network');
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
-  }
-  return new NextRequest(url);
-}
-
 function expectedKey(params: Record<string, string>): string {
   const search = new URLSearchParams(params);
   search.sort();
@@ -71,7 +63,7 @@ describe('GET /api/v1/network', () => {
   });
 
   it('caches an unfiltered request under a key with defaults resolved', async () => {
-    const response = await GET(createRequest());
+    const response = await GET(apiRequest('/api/v1/network'));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(NETWORK);
@@ -89,7 +81,7 @@ describe('GET /api/v1/network', () => {
   it('serves a cache hit without querying the database', async () => {
     mockClient.get.mockResolvedValue(JSON.stringify(NETWORK));
 
-    const response = await GET(createRequest());
+    const response = await GET(apiRequest('/api/v1/network'));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(NETWORK);
@@ -97,23 +89,25 @@ describe('GET /api/v1/network', () => {
     expect(mockClient.set).not.toHaveBeenCalled();
   });
 
-  it('clamps an oversized limit and an unselective threshold', async () => {
-    const response = await GET(
-      createRequest({ limit: '999999', minConnections: '0' }),
-    );
+  it.each([
+    ['an oversized limit', { limit: '999999' }, 'limit'],
+    [
+      'a meaningless connection threshold',
+      { minConnections: '0' },
+      'minConnections',
+    ],
+  ])('rejects %s', async (_label, params, name) => {
+    const response = await GET(apiRequest('/api/v1/network', params));
 
-    expect(response.status).toBe(200);
-    expect(mockedLoadPlayerNetwork).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 10_000, minChallengesTogether: 2 }),
-    );
-    expect(mockClient.get).toHaveBeenCalledWith(
-      expectedKey({ limit: '10000', minConnections: '2' }),
-    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain(name);
+    expect(mockedLoadPlayerNetwork).not.toHaveBeenCalled();
+    expect(mockClient.get).not.toHaveBeenCalled();
   });
 
   it('collapses equivalent scale filters onto one cache key', async () => {
-    await GET(createRequest({ scale: '5,3,5' }));
-    await GET(createRequest({ scale: '3,5' }));
+    await GET(apiRequest('/api/v1/network', { scale: '5,3,5' }));
+    await GET(apiRequest('/api/v1/network', { scale: '3,5' }));
 
     const key = expectedKey({
       limit: '10000',
@@ -126,7 +120,7 @@ describe('GET /api/v1/network', () => {
 
   it('keys distinct filters separately', async () => {
     await GET(
-      createRequest({
+      apiRequest('/api/v1/network', {
         type: String(ChallengeType.TOB),
         mode: String(ChallengeMode.TOB_HARD),
       }),
@@ -142,9 +136,13 @@ describe('GET /api/v1/network', () => {
     );
   });
 
-  it('collapses sub-day precision onto one cache key', async () => {
-    await GET(createRequest({ from: '2026-03-04T00:00:00.001Z' }));
-    await GET(createRequest({ from: '2026-03-04T23:59:59.999Z' }));
+  it('collapses sub-day precision into one cache key', async () => {
+    await GET(
+      apiRequest('/api/v1/network', { from: '2026-03-04T00:00:00.001Z' }),
+    );
+    await GET(
+      apiRequest('/api/v1/network', { from: '2026-03-04T23:59:59.999Z' }),
+    );
 
     const key = expectedKey({
       from: '2026-03-04',
@@ -155,11 +153,13 @@ describe('GET /api/v1/network', () => {
     expect(mockClient.get).toHaveBeenNthCalledWith(2, key);
   });
 
-  it('clamps a future bound to the current day', async () => {
+  it('replaces a future time with the current date', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-10T12:34:56.789Z'));
 
     try {
-      await GET(createRequest({ to: '2999-01-01T00:00:00.000Z' }));
+      await GET(
+        apiRequest('/api/v1/network', { to: '2999-01-01T00:00:00.000Z' }),
+      );
 
       expect(mockClient.get).toHaveBeenCalledWith(
         expectedKey({
@@ -175,7 +175,7 @@ describe('GET /api/v1/network', () => {
 
   it('rejects an inverted date range', async () => {
     const response = await GET(
-      createRequest({ from: '2026-03-04', to: '2026-03-01' }),
+      apiRequest('/api/v1/network', { from: '2026-03-04', to: '2026-03-01' }),
     );
 
     expect(response.status).toBe(400);
@@ -189,7 +189,7 @@ describe('GET /api/v1/network', () => {
     ['an unparseable date', { from: 'garbage' }],
     ['a non-numeric limit', { limit: 'abc' }],
   ])('rejects %s without querying the database', async (_label, params) => {
-    const response = await GET(createRequest(params));
+    const response = await GET(apiRequest('/api/v1/network', params));
 
     expect(response.status).toBe(400);
     expect(mockedLoadPlayerNetwork).not.toHaveBeenCalled();

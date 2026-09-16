@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { AuthenticationError, InvalidQueryError } from '@/actions/errors';
 import { followPlayer, getFollowing } from '@/actions/feed';
 import { withApiRoute } from '@/api/handler';
-import { expectSingle, numericParam } from '@/api/query';
+import { expectSingle, integerParam } from '@/api/query';
 import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
@@ -12,7 +12,7 @@ export const GET = withApiRoute(
     try {
       const searchParams = requestParams(request.nextUrl.searchParams);
       const cursor = expectSingle(searchParams, 'cursor');
-      const limit = numericParam(searchParams, 'limit');
+      const limit = integerParam(searchParams, 'limit');
 
       const result = await getFollowing({ cursor, limit });
       return Response.json(result);

@@ -9,6 +9,7 @@ jest.mock('@/actions/feed', () => ({
 }));
 
 import { followPlayer, getFollowing } from '@/actions/feed';
+import { apiRequest } from '@/api/__tests__/request';
 import { GET, POST } from '@/api/following/route';
 
 const mockFollowPlayer = followPlayer as jest.MockedFunction<
@@ -23,15 +24,7 @@ describe('GET /api/following', () => {
     mockGetFollowing.mockClear();
   });
 
-  const createRequest = (params: Record<string, string> = {}) => {
-    const url = new URL('http://localhost:3000/api/following');
-    for (const [key, value] of Object.entries(params)) {
-      url.searchParams.set(key, value);
-    }
-    return new NextRequest(url);
-  };
-
-  it('should return following list on success', async () => {
+  it('returns following list on success', async () => {
     const mockResult = {
       players: [{ id: 1, username: 'Player1' }],
       cursor: 'next-cursor',
@@ -39,7 +32,7 @@ describe('GET /api/following', () => {
     } as unknown as FollowingResult;
     mockGetFollowing.mockResolvedValue(mockResult);
 
-    const request = createRequest();
+    const request = apiRequest('/api/following');
     const response = await GET(request);
 
     expect(response.status).toBe(200);
@@ -50,14 +43,17 @@ describe('GET /api/following', () => {
     });
   });
 
-  it('should pass query parameters to getFollowing', async () => {
+  it('forwards query parameters to getFollowing', async () => {
     mockGetFollowing.mockResolvedValue({
       players: [],
       cursor: null,
       totalCount: 0,
     });
 
-    const request = createRequest({ cursor: 'abc123', limit: '25' });
+    const request = apiRequest('/api/following', {
+      cursor: 'abc123',
+      limit: '25',
+    });
     await GET(request);
 
     expect(mockGetFollowing).toHaveBeenCalledWith({
@@ -66,8 +62,8 @@ describe('GET /api/following', () => {
     });
   });
 
-  it('should return 400 for invalid query parameters', async () => {
-    const request = createRequest({ limit: 'invalid' });
+  it('returns 400 for invalid query parameters', async () => {
+    const request = apiRequest('/api/following', { limit: 'invalid' });
     const response = await GET(request);
 
     expect(response.status).toBe(400);
@@ -75,20 +71,20 @@ describe('GET /api/following', () => {
     expect(body.error).toContain('limit');
   });
 
-  it('should return 401 when user is not authenticated', async () => {
+  it('returns 401 when user is not authenticated', async () => {
     mockGetFollowing.mockRejectedValue(new AuthenticationError());
 
-    const request = createRequest();
+    const request = apiRequest('/api/following');
     const response = await GET(request);
 
     expect(response.status).toBe(401);
     expect(response.body).toBeNull();
   });
 
-  it('should return 500 for unexpected errors', async () => {
+  it('returns 500 for unexpected errors', async () => {
     mockGetFollowing.mockRejectedValue(new Error('Database error'));
 
-    const request = createRequest();
+    const request = apiRequest('/api/following');
     const response = await GET(request);
 
     expect(response.status).toBe(500);
@@ -108,7 +104,7 @@ describe('POST /api/following', () => {
     });
   };
 
-  it('should follow players and return results', async () => {
+  it('follows players and returns the results', async () => {
     const mockPlayer = {
       id: 1,
       username: 'Player1',
@@ -125,9 +121,22 @@ describe('POST /api/following', () => {
     expect(mockFollowPlayer).toHaveBeenCalledWith('Player2');
   });
 
-  it('should return 400 when usernames is not an array', async () => {
-    const request = createRequest({ usernames: 'Player1' });
-    const response = await POST(request);
+  it('returns 400 when usernames is not an array of names', async () => {
+    let response = await POST(createRequest({ usernames: 'Player1' }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Usernames array is required',
+    });
+
+    response = await POST(createRequest({ usernames: [] }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Usernames array is required',
+    });
+
+    response = await POST(createRequest({}));
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
@@ -135,27 +144,7 @@ describe('POST /api/following', () => {
     });
   });
 
-  it('should return 400 when usernames array is empty', async () => {
-    const request = createRequest({ usernames: [] });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: 'Usernames array is required',
-    });
-  });
-
-  it('should return 400 when usernames is missing', async () => {
-    const request = createRequest({});
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: 'Usernames array is required',
-    });
-  });
-
-  it('should return 400 when more than 50 usernames', async () => {
+  it('returns 400 for more than 50 usernames', async () => {
     const usernames = Array.from({ length: 51 }, (_, i) => `Player${i}`);
     const request = createRequest({ usernames });
     const response = await POST(request);
@@ -166,31 +155,24 @@ describe('POST /api/following', () => {
     });
   });
 
-  it('should return 400 when username is not a string', async () => {
-    const request = createRequest({ usernames: [123] });
-    const response = await POST(request);
+  it('returns 400 when a username is invalid', async () => {
+    let response = await POST(createRequest({ usernames: [123] }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid username' });
+
+    response = await POST(createRequest({ usernames: [''] }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid username' });
+
+    response = await POST(createRequest({ usernames: ['over_12_characters'] }));
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'Invalid username' });
   });
 
-  it('should return 400 when username is empty', async () => {
-    const request = createRequest({ usernames: [''] });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: 'Invalid username' });
-  });
-
-  it('should return 400 when username is longer than 12 characters', async () => {
-    const request = createRequest({ usernames: ['ThisNameIsTooLong'] });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: 'Invalid username' });
-  });
-
-  it('should return 401 when user is not authenticated', async () => {
+  it('returns 401 when user is not authenticated', async () => {
     mockFollowPlayer.mockRejectedValue(new AuthenticationError());
 
     const request = createRequest({ usernames: ['Player1'] });
@@ -200,7 +182,7 @@ describe('POST /api/following', () => {
     expect(response.body).toBeNull();
   });
 
-  it('should return 500 for unexpected errors', async () => {
+  it('returns 500 for unexpected errors', async () => {
     mockFollowPlayer.mockRejectedValue(new Error('Database error'));
 
     const request = createRequest({ usernames: ['Player1'] });

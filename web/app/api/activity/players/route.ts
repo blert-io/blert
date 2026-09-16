@@ -2,8 +2,9 @@ import { ChallengeType } from '@blert/common';
 import { NextRequest } from 'next/server';
 
 import { getPlayersPerHour, playerActivityByHour } from '@/actions/activity';
+import { InvalidQueryError } from '@/actions/errors';
 import { withApiRoute } from '@/api/handler';
-import { expectSingle, numericParam } from '@/api/query';
+import { enumParam, expectSingle } from '@/api/query';
 
 function periodToStartTime(period: string) {
   const startTime = new Date();
@@ -21,7 +22,7 @@ function periodToStartTime(period: string) {
     case 'all':
       return new Date(0);
     default:
-      throw new Error(`Invalid period: ${period}`);
+      throw new InvalidQueryError(`period: Invalid value ${period}`);
   }
 
   return startTime;
@@ -36,7 +37,7 @@ export const GET = withApiRoute(
     const period = expectSingle(params, 'period') ?? 'day';
     const startTime = periodToStartTime(period);
 
-    const challengeType = numericParam<ChallengeType>(params, 'type');
+    const challengeType = enumParam(ChallengeType, params, 'type');
 
     if (searchParams.has('username')) {
       const username = searchParams.get('username')!;

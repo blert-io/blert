@@ -1,43 +1,27 @@
+import { ChallengeMode } from '@blert/common';
 import { NextRequest } from 'next/server';
 
 import { aggregateBloatDowns, BloatDownsQuery } from '@/actions/theatre';
 import { withApiRoute } from '@/api/handler';
 import {
   dateComparatorParam,
-  expectSingle,
-  numericComparatorParam,
+  enumListParam,
+  integerComparatorParam,
+  integerListParam,
 } from '@/api/query';
 import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/v1/trends/bloat-downs' },
   async (request: NextRequest) => {
-    const searchParams = requestParams(request.nextUrl.searchParams);
+    const params = requestParams(request.nextUrl.searchParams);
 
-    const query: BloatDownsQuery = {};
-
-    const mode = expectSingle(searchParams, 'mode');
-    if (mode !== undefined) {
-      query.mode = mode
-        .split(',')
-        .map((m) => parseInt(m))
-        .filter((m) => !isNaN(m));
-    }
-
-    const scale = expectSingle(searchParams, 'scale');
-    if (scale !== undefined) {
-      query.scale = scale
-        .split(',')
-        .map((s) => parseInt(s))
-        .filter((s) => !isNaN(s));
-    }
-
-    try {
-      query.startTime = dateComparatorParam(searchParams, 'startTime');
-      query.downNumber = numericComparatorParam(searchParams, 'downNumber');
-    } catch {
-      return new Response(null, { status: 400 });
-    }
+    const query: BloatDownsQuery = {
+      mode: enumListParam(ChallengeMode, params, 'mode'),
+      scale: integerListParam(params, 'scale', 1, 8),
+      startTime: dateComparatorParam(params, 'startTime'),
+      downNumber: integerComparatorParam(params, 'downNumber', 0, 100),
+    };
 
     const result = await aggregateBloatDowns(query);
     return Response.json(result);

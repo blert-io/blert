@@ -1,36 +1,28 @@
+import { SplitType } from '@blert/common';
 import { NextRequest } from 'next/server';
 
 import { findBestSplitTimes } from '@/actions/challenge';
+import { InvalidQueryError } from '@/actions/errors';
 import { withApiRoute } from '@/api/handler';
+import { dateParam, enumListParam, integerParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/v1/leaderboards' },
   async (request: NextRequest) => {
-    const params = request.nextUrl.searchParams;
+    const params = requestParams(request.nextUrl.searchParams);
 
-    const splits = (params.get('splits') ?? '')
-      .split(',')
-      .map((s) => parseInt(s));
-    const scale = parseInt(params.get('scale') ?? '-1');
-    const limit = parseInt(params.get('limit') ?? '10');
-    const tiedTeamsLimit = parseInt(params.get('tiedTeamsLimit') ?? '10');
-
-    if (scale === -1 || splits.length === 0 || splits.some(isNaN)) {
-      return Response.json(null, { status: 400 });
+    const splits = enumListParam(SplitType, params, 'splits');
+    if (splits === undefined) {
+      throw new InvalidQueryError('Missing splits');
     }
-
-    if (isNaN(tiedTeamsLimit) || tiedTeamsLimit < 0 || tiedTeamsLimit > 50) {
-      return Response.json(null, { status: 400 });
+    const scale = integerParam(params, 'scale', 1, 8);
+    if (scale === undefined) {
+      throw new InvalidQueryError('Missing scale');
     }
-
-    let startTime: Date | undefined = undefined;
-    if (params.get('from')) {
-      const time = parseInt(params.get('from')!);
-      if (isNaN(time)) {
-        return Response.json(null, { status: 400 });
-      }
-      startTime = new Date(time);
-    }
+    const limit = integerParam(params, 'limit', 1, 100) ?? 10;
+    const tiedTeamsLimit = integerParam(params, 'tiedTeamsLimit', 0, 50) ?? 10;
+    const startTime = dateParam(params, 'from');
 
     const rankedSplits = await findBestSplitTimes(
       splits,

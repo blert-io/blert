@@ -24,7 +24,7 @@ describe('parseChallengeQuery', () => {
     expect(
       parseChallengeQuery({
         party: 'Caps lock13,Yieldofin',
-        mode: `${ChallengeMode.TOB_REGULAR},x,${ChallengeMode.TOB_HARD}`,
+        mode: `${ChallengeMode.TOB_REGULAR},${ChallengeMode.TOB_HARD}`,
       }),
     ).toEqual({
       party: ['Caps lock13', 'Yieldofin'],
@@ -137,9 +137,9 @@ describe('parseChallengeQuery', () => {
       'nin',
       [1, 2],
     ]);
-    expect(parseChallengeQuery({ status: 'ne3,4,5' })?.status).toEqual([
+    expect(parseChallengeQuery({ status: 'ne2,3,4' })?.status).toEqual([
       'nin',
-      [3, 4, 5],
+      [2, 3, 4],
     ]);
   });
 
@@ -246,12 +246,21 @@ describe('parseChallengeQuery', () => {
   it.each<NextSearchParams>([
     { party: ['WWWWWWWWWWQQ', 'WWWWWWWWWWQQ'] },
     { scale: 'x' },
+    { scale: '9' },
+    { type: '99' },
+    { status: '99' },
+    { stage: '99999' },
+    { challengeTicks: '99999999999' },
+    { 'tob.bloatDownCount': '9002' },
+    { 'split:99999': '1' },
     { before: '1', after: '1' },
     { sort: 'challengeTicks' },
     { sort: '+challengeTicks,-deaths,+startTime' },
     { sort: '+challengeTicks', after: '1,2' },
     { sort: '+challengeTicks', after: 'x' },
     { sort: '+challengeTicks,-deaths', after: '1,x' },
+    { mode: 'x' },
+    { mode: `${ChallengeMode.TOB_HARD},99` },
     { 'split:1': ['1', '2'] },
     { 'split:': '1' },
     { 'split:x': '1' },

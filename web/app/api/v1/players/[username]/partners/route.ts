@@ -5,40 +5,35 @@ import {
   PlayerNetworkOptions,
   topPartnersForPlayer,
 } from '@/actions/challenge';
-import { numericListParam, numericParam } from '@/api/query';
-import { InvalidQueryError } from '@/actions/errors';
+import {
+  dateParam,
+  enumParam,
+  integerListParam,
+  integerParam,
+} from '@/api/query';
 import { withApiRoute } from '@/api/handler';
+import { requestParams } from '@/utils/url';
 
 export const GET = withApiRoute(
   { route: '/api/v1/players/[username]/partners' },
-  async (request: NextRequest, { params }) => {
-    const { username } = await params;
-    const searchParams = request.nextUrl.searchParams;
-    const nextParams = Object.fromEntries(searchParams);
+  async (request: NextRequest, { params: path }) => {
+    const { username } = await path;
+    const params = requestParams(request.nextUrl.searchParams);
 
-    try {
-      const options: PlayerNetworkOptions = {
-        limit: parseInt(searchParams.get('limit') ?? '10'),
-        scale: numericListParam(nextParams, 'scale'),
-        mode: numericParam<ChallengeMode>(nextParams, 'mode'),
-        type: numericParam<ChallengeType>(nextParams, 'type'),
-      };
+    const options: PlayerNetworkOptions = {
+      limit: integerParam(params, 'limit', 1) ?? 10,
+      scale: integerListParam(params, 'scale', 1, 8),
+      mode: enumParam(ChallengeMode, params, 'mode'),
+      type: enumParam(ChallengeType, params, 'type'),
+      from: dateParam(params, 'from'),
+      to: dateParam(params, 'to'),
+    };
 
-      if (searchParams.get('from')) {
-        options.from = new Date(searchParams.get('from')!);
-      }
-      if (searchParams.get('to')) {
-        options.to = new Date(searchParams.get('to')!);
-      }
-
-      const partners = await topPartnersForPlayer(username, options);
-
-      return NextResponse.json(partners);
-    } catch (error) {
-      if (error instanceof InvalidQueryError) {
-        return new Response(null, { status: 400 });
-      }
-      throw error;
+    const partners = await topPartnersForPlayer(username, options);
+    if (partners === null) {
+      return new Response(null, { status: 404 });
     }
+
+    return NextResponse.json(partners);
   },
 );

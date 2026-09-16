@@ -1,13 +1,25 @@
+import { ChallengeType } from '@blert/common';
 import { NextRequest } from 'next/server';
 
+import { InvalidQueryError } from '@/actions/errors';
 import {
   getSetups,
   SetupFilter,
   SetupCursor,
+  SetupSort,
   SetupState,
 } from '@/actions/setup';
 import { withApiRoute } from '@/api/handler';
-import { clamp } from '@/utils/math';
+import {
+  enumParam,
+  expectSingle,
+  INT_MAX,
+  INT_MIN,
+  integerFromToken,
+  integerParam,
+  MAX_TIMESTAMP,
+} from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 function isSetupState(state: string): state is SetupState {
   return (
@@ -18,101 +30,96 @@ function isSetupState(state: string): state is SetupState {
   );
 }
 
+function isSetupSort(sort: string): sort is SetupSort {
+  return sort === 'latest' || sort === 'score' || sort === 'views';
+}
+
+function setupCursor(
+  key: 'after' | 'before',
+  sort: SetupSort,
+  value: string,
+): SetupCursor {
+  const direction = key === 'after' ? 'forward' : 'backward';
+  const values = value.split(',');
+  const expected = sort === 'latest' ? 2 : 3;
+  if (values.length !== expected) {
+    throw new InvalidQueryError(`${key}: Expected ${expected} cursor values`);
+  }
+
+  switch (sort) {
+    case 'score':
+      return {
+        score: integerFromToken(values[0], INT_MIN, INT_MAX, key),
+        createdAt: new Date(integerFromToken(values[1], 0, MAX_TIMESTAMP, key)),
+        publicId: values[2],
+        direction,
+        views: 0,
+      };
+    case 'views':
+      return {
+        views: integerFromToken(values[0], 0, INT_MAX, key),
+        createdAt: new Date(integerFromToken(values[1], 0, MAX_TIMESTAMP, key)),
+        publicId: values[2],
+        direction,
+        score: 0,
+      };
+    case 'latest':
+      return {
+        createdAt: new Date(integerFromToken(values[0], 0, MAX_TIMESTAMP, key)),
+        publicId: values[1],
+        direction,
+        score: 0,
+        views: 0,
+      };
+  }
+
+  const _exhaustive: never = sort;
+  return _exhaustive;
+}
+
 export const GET = withApiRoute(
   { route: '/api/setups' },
   async (request: NextRequest) => {
-    const searchParams = request.nextUrl.searchParams;
+    const params = requestParams(request.nextUrl.searchParams);
 
-    const limitParam = Number.parseInt(searchParams.get('limit') ?? '10');
-    const limit = Number.isInteger(limitParam) ? clamp(limitParam, 1, 50) : 10;
+    const limit = integerParam(params, 'limit', 1, 50) ?? 10;
 
-    const after = searchParams.get('after');
-    const before = searchParams.get('before');
-    const sort = searchParams.get('sort') ?? 'latest';
+    const sort = expectSingle(params, 'sort') ?? 'latest';
+    if (!isSetupSort(sort)) {
+      throw new InvalidQueryError(`sort: Invalid value ${sort}`);
+    }
+
+    const after = expectSingle(params, 'after');
+    const before = expectSingle(params, 'before');
+    if (after !== undefined && before !== undefined) {
+      throw new InvalidQueryError('Cannot page with both before and after');
+    }
 
     let cursor: SetupCursor | null = null;
-    if (after || before) {
-      const cursorData = after ?? before;
-      const direction = after ? 'forward' : 'backward';
-
-      try {
-        const values = cursorData!.split(',');
-
-        switch (sort) {
-          case 'score':
-            if (values.length >= 3) {
-              cursor = {
-                score: parseFloat(values[0]),
-                createdAt: new Date(parseInt(values[1])),
-                publicId: values[2],
-                direction,
-                views: 0,
-              };
-            }
-            break;
-          case 'views':
-            if (values.length >= 3) {
-              cursor = {
-                views: parseInt(values[0]),
-                createdAt: new Date(parseInt(values[1])),
-                publicId: values[2],
-                direction,
-                score: 0,
-              };
-            }
-            break;
-          default:
-            if (values.length >= 2) {
-              cursor = {
-                createdAt: new Date(parseInt(values[0])),
-                publicId: values[1],
-                direction,
-                score: 0,
-                views: 0,
-              };
-            }
-        }
-      } catch {
-        return Response.json({ error: 'Invalid cursor' }, { status: 400 });
-      }
+    if (after !== undefined) {
+      cursor = setupCursor('after', sort, after);
+    } else if (before !== undefined) {
+      cursor = setupCursor('before', sort, before);
     }
 
     const filter: SetupFilter = {
-      orderBy: sort === 'score' || sort === 'views' ? sort : 'latest',
+      orderBy: sort,
+      challenge: enumParam(ChallengeType, params, 'challenge'),
+      scale: integerParam(params, 'scale', 1, 8),
+      author: integerParam(params, 'author', 1),
     };
 
-    const state = searchParams.get('state');
-    if (state !== null && isSetupState(state)) {
+    const state = expectSingle(params, 'state');
+    if (state !== undefined) {
+      if (!isSetupState(state)) {
+        throw new InvalidQueryError(`state: Invalid value ${state}`);
+      }
       filter.state = state;
     }
 
-    const challenge = searchParams.get('challenge');
-    if (challenge !== null) {
-      const challengeType = parseInt(challenge);
-      if (!isNaN(challengeType)) {
-        filter.challenge = challengeType;
-      }
-    }
-
-    const scale = searchParams.get('scale');
-    if (scale !== null) {
-      const scaleNum = parseInt(scale);
-      if (!isNaN(scaleNum) && scaleNum >= 1 && scaleNum <= 8) {
-        filter.scale = scaleNum;
-      }
-    }
-
-    const search = searchParams.get('search');
-    if (search !== null && search.trim().length > 0) {
+    const search = expectSingle(params, 'search');
+    if (search !== undefined && search.trim().length > 0) {
       filter.search = search.trim();
-    }
-
-    const author = searchParams.get('author');
-    if (author !== null) {
-      const authorId = parseInt(author);
-      if (Number.isInteger(authorId)) {
-        filter.author = authorId;
-      }
     }
 
     const result = await getSetups(filter, cursor, limit);

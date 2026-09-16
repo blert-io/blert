@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 
 import { getSessionStatuses } from '@/actions/challenge';
 import { withApiRoute } from '@/api/handler';
+import { assertValidUuid } from '@/api/query';
 
 export const GET = withApiRoute(
   { route: '/api/v1/sessions/status' },
@@ -12,6 +13,7 @@ export const GET = withApiRoute(
     }
 
     const uuidList = uuids.split(',');
+    assertValidUuid(uuidList, 'uuids');
     const statuses = await getSessionStatuses(uuidList);
     return Response.json(statuses);
   },

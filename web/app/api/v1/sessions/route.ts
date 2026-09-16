@@ -2,18 +2,18 @@ import { NextRequest } from 'next/server';
 
 import { loadSessionsPage } from '@/actions/challenge';
 import { withApiRoute } from '@/api/handler';
-import { clamp } from '@/utils/math';
+import { integerParam } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
-import { parseSessionQueryParams } from './query';
+import { parseSessionQuery } from './query';
 
 export const GET = withApiRoute(
   { route: '/api/v1/sessions' },
   async (request: NextRequest) => {
-    const searchParams = request.nextUrl.searchParams;
+    const params = requestParams(request.nextUrl.searchParams);
 
-    const limit = clamp(parseInt(searchParams.get('limit') ?? '10'), 1, 100);
-
-    const query = parseSessionQueryParams(searchParams);
+    const limit = integerParam(params, 'limit', 1, 100) ?? 10;
+    const query = parseSessionQuery(params);
 
     const { sessions, total, remaining } = await loadSessionsPage(limit, query);
 
