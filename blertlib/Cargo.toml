@@ -7,7 +7,13 @@ edition = "2024"
 pedantic = "warn"
 
 [dependencies]
+prost = "0.14.4"
+prost-types = "0.14.4"
 serde = { version = "1.0.229", features = ["derive"] }
 
 [dev-dependencies]
+serde_json = "1.0.151"
+
+[build-dependencies]
+prost-build = "0.14.4"
 serde_json = "1.0.151"
