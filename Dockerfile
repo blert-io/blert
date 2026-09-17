@@ -251,7 +251,7 @@ RUN apt-get update && \
 # manifest lists every member, so unbuilt members are stubbed out too.
 COPY live-server/Cargo.toml live-server/Cargo.lock* live-server/build.rs live-server/
 COPY challenge-harder/Cargo.toml challenge-harder/
-COPY blertlib/Cargo.toml blertlib/
+COPY blertlib/Cargo.toml blertlib/build.rs blertlib/
 COPY Cargo.toml Cargo.lock ./
 COPY proto/ proto/
 RUN mkdir -p live-server/src challenge-harder/src blertlib/src && \
@@ -295,7 +295,7 @@ RUN apt-get update && \
 
 COPY challenge-harder/Cargo.toml challenge-harder/build.rs challenge-harder/
 COPY live-server/Cargo.toml live-server/
-COPY blertlib/Cargo.toml blertlib/
+COPY blertlib/Cargo.toml blertlib/build.rs blertlib/
 COPY Cargo.toml Cargo.lock ./
 COPY proto/ proto/
 COPY web/resources/extended_items.json web/resources/
