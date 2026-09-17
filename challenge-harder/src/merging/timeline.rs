@@ -1144,6 +1144,22 @@ fn attach_actions<'a>(
                 let Some(npc) = npcs.get_mut(&npc.room_id) else {
                     continue;
                 };
+
+                // The plugin (<=0.9.21) sends an unidentified auto alongside
+                // every green ball. These can never be identified and are
+                // therefore meaningless.
+                // TODO(frolv): Remove this once patched in the plugin. Longer
+                // term, the entire pipeline up to web should be rewritten to
+                // support multiple NPC attacks per tick.
+                if attack.attack() == NpcAttack::TobVerzikP3Auto
+                    && npc
+                        .attack
+                        .as_ref()
+                        .is_some_and(|existing| existing.value.kind == NpcAttack::TobVerzikP3Ball)
+                {
+                    continue;
+                }
+
                 npc.attack = Some(Sourced {
                     source: event.source(),
                     value: NpcAttacked {
