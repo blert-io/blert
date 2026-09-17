@@ -60,10 +60,15 @@ function processNpcTick(
     cursor.lastActiveTick = tick;
   }
 
-  const attackEvent = eventsForThisTick.find(
+  const attacks = eventsForThisTick.filter(
     (e): e is NpcAttackEvent =>
       e.type === EventType.NPC_ATTACK && e.npc.roomId === roomId,
   );
+
+  // The plugin sends an unidentified auto alongside every ball; show the ball.
+  const attackEvent =
+    attacks.find((e) => e.npcAttack.attack === NpcAttack.TOB_VERZIK_P3_BALL) ??
+    attacks[0];
 
   if (attackEvent !== undefined) {
     if (npc.stateByTick[tick] === null) {
