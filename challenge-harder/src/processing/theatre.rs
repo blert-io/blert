@@ -1032,6 +1032,19 @@ impl ChallengeProcessor for TheatreProcessor {
                 }
                 true
             }
+            event::Type::NpcAttack => {
+                if let Some(attack) = &event.npc_attack
+                    && attack.attack() == NpcAttack::TobVerzikP3Melee
+                {
+                    let tank = attack.target.as_ref();
+                    if let Some(index) = tank.and_then(|name| ctx.party_index(name))
+                        && let Some(player) = ctx.player_mut(index)
+                    {
+                        player.stats.tob_verzik_p3_melees += 1;
+                    }
+                }
+                true
+            }
 
             event::Type::TobMaidenCrabLeak => {
                 if let Some(npc) = &event.npc
@@ -1232,6 +1245,9 @@ impl ChallengeProcessor for TheatreProcessor {
                 }
                 true
             }
+            // TODO(frolv): This event is legacy as of plugin 0.9.22 and this
+            // handling should be removed once the server's min supported
+            // version advances past that.
             event::Type::TobVerzikAttackStyle => {
                 let Some(attack_style) = event.verzik_attack_style else {
                     return false;
