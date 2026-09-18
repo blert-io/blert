@@ -1151,11 +1151,10 @@ fn attach_actions<'a>(
                 // TODO(frolv): Remove this once patched in the plugin. Longer
                 // term, the entire pipeline up to web should be rewritten to
                 // support multiple NPC attacks per tick.
-                if attack.attack() == NpcAttack::TobVerzikP3Auto
-                    && npc
-                        .attack
-                        .as_ref()
-                        .is_some_and(|existing| existing.value.kind == NpcAttack::TobVerzikP3Ball)
+                if npc
+                    .attack
+                    .as_ref()
+                    .is_some_and(|existing| existing.value.kind == NpcAttack::TobVerzikP3Ball)
                 {
                     continue;
                 }
