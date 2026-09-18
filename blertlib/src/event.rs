@@ -8,7 +8,8 @@ use crate::actor::Actor;
 use crate::item::{EquipmentSlot, Item};
 use crate::tick::{Tick, Ticks};
 use crate::{
-    ColosseumHandicap, CombatStyle, NpcAttack, PartyIndex, PlayerAttack, PlayerSpell, Point, RoomId,
+    ColosseumHandicap, CombatStyle, NpcAttack, PartyIndex, PlayerAttack, PlayerSpell, Point,
+    RoomId, Source,
 };
 
 pub use crate::proto::event::colosseum_sol_dust::Direction as SolDustDirection;
@@ -26,6 +27,7 @@ pub use crate::proto::event::{VerzikPhase, XarpusPhase};
 #[derive(Debug, Clone)]
 pub struct Event {
     pub tick: Tick,
+    pub source: Source,
     pub kind: EventKind,
 }
 
