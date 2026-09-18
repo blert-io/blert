@@ -25,6 +25,14 @@ impl From<crate::Point> for Coords {
     }
 }
 
+impl TryFrom<Coords> for crate::Point {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(c: Coords) -> Result<crate::Point, Self::Error> {
+        Ok(crate::Point(u16::try_from(c.x)?, u16::try_from(c.y)?))
+    }
+}
+
 impl PlayerAttack {
     pub fn cooldown(self) -> crate::Ticks {
         // Every constructible `PlayerAttack` has a defined cooldown.
@@ -36,5 +44,13 @@ impl PlayerSpell {
     /// Returns whether the spell is cast on a target.
     pub fn is_targeted(self) -> bool {
         definitions::is_targeted(self as i32)
+    }
+}
+
+impl TryFrom<crate::Slot> for event::player::EquipmentSlot {
+    type Error = prost::UnknownEnumValue;
+
+    fn try_from(value: crate::Slot) -> Result<Self, Self::Error> {
+        Self::try_from(i32::from(value.0))
     }
 }
