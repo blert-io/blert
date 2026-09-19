@@ -18,6 +18,7 @@ export type BackgroundColor = {
 export type CustomState = {
   label?: string;
   iconUrl?: string;
+  iconScale?: number;
   fullText?: string;
 };
 

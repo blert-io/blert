@@ -5,6 +5,7 @@ import {
   BloatHandsDropEvent,
   BloatHandsSplatEvent,
   Coords,
+  EquipmentSlot,
   EventType,
   Npc,
   SkillLevel,
@@ -15,7 +16,9 @@ import {
 import { useCallback, useContext, useMemo } from 'react';
 
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  CustomStateEntry,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
@@ -38,6 +41,7 @@ import {
   useStageEvents,
 } from '@/utils/boss-room-state';
 import { inRect } from '@/utils/coords';
+import { getItemImageUrl } from '@/utils/item';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
@@ -80,6 +84,13 @@ type TickHands = {
   hands: Coords[];
 };
 const BLOAT_HAND_DROP_TICKS = 3;
+
+const DISPLAYED_AMULETS = new Set<number>([
+  // Phoenix necklace
+  11090,
+  // Salves
+  10588, 12018, 25278, 26782,
+]);
 
 export default function BloatPage() {
   const display = useDisplay();
@@ -232,6 +243,37 @@ export default function BloatPage() {
     return handsByTick;
   }, [handsDropEvents, handsSplatEvents, isLive]);
 
+  const customStates = useMemo(() => {
+    const entries: CustomStateEntry[] = [];
+
+    playerState.forEach((states, playerName) => {
+      states.forEach((state, tick) => {
+        if (state?.attack === undefined) {
+          return;
+        }
+
+        const amulet = state.equipment[EquipmentSlot.AMULET];
+        if (amulet === null || !DISPLAYED_AMULETS.has(amulet.id)) {
+          return;
+        }
+
+        entries.push({
+          playerName,
+          tick,
+          states: [
+            {
+              iconUrl: getItemImageUrl(amulet.id, amulet.name, 1),
+              iconScale: 0.8,
+              fullText: amulet.name,
+            },
+          ],
+        });
+      });
+    });
+
+    return entries;
+  }, [playerState]);
+
   const customEntitiesForTick = useCallback(
     (tick: number): CustomEntity[] => {
       const entities: CustomEntity[] = [...BARRIERS];
@@ -353,6 +395,7 @@ export default function BloatPage() {
           updateTickOnPage={setTick}
           npcs={npcState}
           bcf={bcf}
+          customStates={customStates}
           liveFollowing={following}
         />
       </div>
