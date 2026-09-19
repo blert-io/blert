@@ -22,6 +22,7 @@ import styles from './styles.module.scss';
 
 interface BossControlsProps {
   currentlyPlaying: boolean;
+  firstTick: number;
   totalTicks: number;
   currentTick: number;
   updateTick: Dispatch<SetStateAction<number>>;
@@ -36,6 +37,7 @@ interface BossControlsProps {
 export function BossPageControls(props: BossControlsProps) {
   const {
     currentlyPlaying,
+    firstTick,
     totalTicks,
     currentTick,
     updateTick,
@@ -44,7 +46,7 @@ export function BossPageControls(props: BossControlsProps) {
     following = false,
     onJumpToLive,
   } = props;
-  const maxTick = Math.max(1, totalTicks - 1);
+  const maxTick = Math.max(firstTick, totalTicks - 1);
 
   const display = useContext(DisplayContext);
   const { stalled } = useLiveChallenge();
@@ -80,9 +82,9 @@ export function BossPageControls(props: BossControlsProps) {
       if (scrubber.current) {
         event.preventDefault();
         if (event.deltaY > 0) {
-          updateTick((tick) => clamp(tick + 1, 1, maxTick));
+          updateTick((tick) => clamp(tick + 1, firstTick, maxTick));
         } else {
-          updateTick((tick) => clamp(tick - 1, 1, maxTick));
+          updateTick((tick) => clamp(tick - 1, firstTick, maxTick));
         }
       }
     };
@@ -92,7 +94,7 @@ export function BossPageControls(props: BossControlsProps) {
     return () => {
       current?.removeEventListener('wheel', onWheel);
     };
-  }, [maxTick, updateTick]);
+  }, [firstTick, maxTick, updateTick]);
 
   useEffect(() => {
     if (!inputFocused) {
@@ -114,9 +116,11 @@ export function BossPageControls(props: BossControlsProps) {
       ? splits
           .filter((split) => !split.unimportant)
           .map((split) => {
-            const boundedTick = clamp(split.tick, 1, maxTick);
+            const boundedTick = clamp(split.tick, firstTick, maxTick);
             const percent =
-              maxTick === 1 ? 0 : (boundedTick - 1) / (maxTick - 1);
+              maxTick === firstTick
+                ? 0
+                : (boundedTick - firstTick) / (maxTick - firstTick);
             const left = percent * (trackWidth - thumbWidth) + thumbWidth / 2;
             return (
               <div
@@ -146,8 +150,8 @@ export function BossPageControls(props: BossControlsProps) {
         const offsetX = e.clientX - rect.left;
         const percent = (offsetX - thumbWidth / 2) / (rect.width - thumbWidth);
         const tick = clamp(
-          Math.round(percent * (totalTicks - 1)) + 1,
-          1,
+          Math.round(percent * (totalTicks - firstTick)) + firstTick,
+          firstTick,
           totalTicks,
         );
         setHoverTick(tick);
@@ -158,7 +162,8 @@ export function BossPageControls(props: BossControlsProps) {
     ? () => setHoverTick(null)
     : undefined;
 
-  const progressPercent = (currentTick - 1) / Math.max(maxTick - 1, 1);
+  const progressPercent =
+    (currentTick - firstTick) / Math.max(maxTick - firstTick, 1);
   const progressPx =
     trackWidth > 0
       ? progressPercent * (trackWidth - thumbWidth) + thumbWidth / 2
@@ -178,7 +183,8 @@ export function BossPageControls(props: BossControlsProps) {
       {hoverTick !== null &&
         trackWidth > 0 &&
         (() => {
-          const snappedPercent = (hoverTick - 1) / Math.max(totalTicks - 1, 1);
+          const snappedPercent =
+            (hoverTick - firstTick) / Math.max(totalTicks - firstTick, 1);
           const snappedX =
             snappedPercent * (trackWidth - thumbWidth) + thumbWidth / 2;
           return (
@@ -205,7 +211,7 @@ export function BossPageControls(props: BossControlsProps) {
         type="range"
         id="timeline-scrubber"
         name="timeline-scrubber"
-        min={1}
+        min={firstTick}
         value={currentTick}
         ref={rangeRef}
         onMouseMove={handleScrubberMouseMove}
@@ -214,13 +220,13 @@ export function BossPageControls(props: BossControlsProps) {
           try {
             let newValue = parseInt(event.target.value);
             if (Number.isNaN(newValue)) {
-              newValue = 1;
+              newValue = firstTick;
             }
-            const clampedValue = clamp(newValue, 1, maxTick);
+            const clampedValue = clamp(newValue, firstTick, maxTick);
             updateTick(clampedValue);
             setValue(event.target.value);
           } catch {
-            updateTick(1);
+            updateTick(firstTick);
           }
         }}
         max={maxTick}
@@ -289,12 +295,12 @@ export function BossPageControls(props: BossControlsProps) {
             ) : (
               <button
                 className={styles.playbackButton}
-                disabled={currentTick === 1}
+                disabled={currentTick === firstTick}
                 onClick={() => {
-                  if (currentTick === 1) {
+                  if (currentTick === firstTick) {
                     return;
                   }
-                  updateTick(1);
+                  updateTick(firstTick);
                   updatePlayingState(false);
                 }}
               >
@@ -308,7 +314,7 @@ export function BossPageControls(props: BossControlsProps) {
                 type="number"
                 name="tick"
                 disabled={currentlyPlaying}
-                min={1}
+                min={firstTick}
                 onBlur={() => {
                   setInputFocused(false);
                 }}
@@ -316,13 +322,13 @@ export function BossPageControls(props: BossControlsProps) {
                   try {
                     let newValue = parseInt(event.target.value);
                     if (Number.isNaN(newValue)) {
-                      newValue = 1;
+                      newValue = firstTick;
                     }
-                    const clampedValue = clamp(newValue, 1, maxTick);
+                    const clampedValue = clamp(newValue, firstTick, maxTick);
                     updateTick(clampedValue);
                     setValue(event.target.value);
                   } catch {
-                    updateTick(1);
+                    updateTick(firstTick);
                   }
                 }}
                 onFocus={() => setInputFocused(true)}

@@ -108,7 +108,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     advanceTick,
     following,
     jumpToLive,
-  } = usePlayingState(totalTicks, isStreaming);
+  } = usePlayingState(0, totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -286,6 +286,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
 
       <BossPageControls
         currentlyPlaying={playing}
+        firstTick={0}
         totalTicks={totalTicks}
         currentTick={currentTick}
         updateTick={setTick}

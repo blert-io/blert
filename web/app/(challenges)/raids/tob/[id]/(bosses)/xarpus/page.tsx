@@ -94,7 +94,7 @@ export default function XarpusPage() {
     advanceTick,
     following,
     jumpToLive,
-  } = usePlayingState(totalTicks, isStreaming);
+  } = usePlayingState(1, totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -406,6 +406,7 @@ export default function XarpusPage() {
 
       <BossPageControls
         currentlyPlaying={playing}
+        firstTick={1}
         totalTicks={totalTicks}
         currentTick={currentTick}
         updateTick={setTick}

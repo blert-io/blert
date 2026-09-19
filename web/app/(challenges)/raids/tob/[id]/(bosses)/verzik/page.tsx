@@ -107,7 +107,7 @@ export default function VerzikPage() {
     advanceTick,
     following,
     jumpToLive,
-  } = usePlayingState(totalTicks, isStreaming);
+  } = usePlayingState(1, totalTicks, isStreaming);
 
   const mapDefinition = useMemo(() => {
     const pillarsThisTick: Coords[] = [];
@@ -635,6 +635,7 @@ export default function VerzikPage() {
 
       <BossPageControls
         currentlyPlaying={playing}
+        firstTick={1}
         totalTicks={totalTicks}
         currentTick={currentTick}
         updateTick={setTick}

@@ -131,7 +131,7 @@ export default function DelvePage({ params }: DelvePageProps) {
     advanceTick,
     following,
     jumpToLive,
-  } = usePlayingState(totalTicks, isStreaming);
+  } = usePlayingState(1, totalTicks, isStreaming);
 
   const orbsRow = useMemo(() => {
     const ballAttacks = new Set([
@@ -444,6 +444,7 @@ export default function DelvePage({ params }: DelvePageProps) {
 
       <BossPageControls
         currentlyPlaying={playing}
+        firstTick={1}
         totalTicks={totalTicks}
         currentTick={currentTick}
         updateTick={setTick}
