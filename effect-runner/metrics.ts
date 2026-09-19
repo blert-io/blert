@@ -67,6 +67,18 @@ const pollDuration = new Histogram({
   registers: [register],
 });
 
+const sweptEvents = new Counter({
+  name: 'effect_runner_swept_events_total',
+  help: 'Finished events deleted by the retention sweep',
+  registers: [register],
+});
+
+const lastSweepSuccess = new Gauge({
+  name: 'effect_runner_last_sweep_success_timestamp_seconds',
+  help: 'Unix time of the last successful retention sweep',
+  registers: [register],
+});
+
 export type AttemptOutcomeLabel =
   'delivered' | 'skipped' | 'failed' | 'retry' | 'error';
 
@@ -110,6 +122,12 @@ export function observePoll(durationMs: number): void {
 /** Counts a failed poll iteration. */
 export function recordPollError(): void {
   pollErrors.inc();
+}
+
+/** Records how many events a successful sweep deleted. */
+export function observeSweep(deleted: number): void {
+  sweptEvents.inc(deleted);
+  lastSweepSuccess.setToCurrentTime();
 }
 
 /**

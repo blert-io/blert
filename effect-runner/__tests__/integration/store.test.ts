@@ -36,6 +36,7 @@ async function insertStageEvent(createdAt?: Date): Promise<bigint> {
 
 async function insertDelivery(
   eventId: bigint,
+  handler: string,
   status: DeliveryStatus,
   nextAttemptAt: Date = new Date(),
 ): Promise<void> {
@@ -43,7 +44,7 @@ async function insertDelivery(
     INSERT INTO effect_deliveries
       (event_id, handler, message_key, status, attempts_remaining, next_attempt_at)
     VALUES
-      (${eventId}, ${HANDLER}, ${SINGLE_MESSAGE_KEY}, ${status}, 3, ${nextAttemptAt})
+      (${eventId}, ${handler}, ${SINGLE_MESSAGE_KEY}, ${status}, 3, ${nextAttemptAt})
   `;
 }
 
@@ -59,19 +60,25 @@ type PlannedRow = {
   attemptsRemaining: number;
 };
 
-async function selectPlan(eventId: bigint): Promise<PlannedRow[]> {
+async function selectPlan(
+  eventId: bigint,
+  handler: string,
+): Promise<PlannedRow[]> {
   return await sql<PlannedRow[]>`
     SELECT
       message_key AS "messageKey",
       status,
       attempts_remaining AS "attemptsRemaining"
     FROM effect_deliveries
-    WHERE event_id = ${eventId} AND handler = ${HANDLER}
+    WHERE event_id = ${eventId} AND handler = ${handler}
     ORDER BY message_key
   `;
 }
 
-async function selectDelivery(eventId: bigint): Promise<StoredDelivery> {
+async function selectDelivery(
+  eventId: bigint,
+  handler: string,
+): Promise<StoredDelivery> {
   const [row] = await sql<StoredDelivery[]>`
     SELECT
       status,
@@ -79,7 +86,7 @@ async function selectDelivery(eventId: bigint): Promise<StoredDelivery> {
       next_attempt_at AS "nextAttemptAt"
     FROM effect_deliveries
     WHERE event_id = ${eventId}
-      AND handler = ${HANDLER}
+      AND handler = ${handler}
       AND message_key = ${SINGLE_MESSAGE_KEY}
   `;
   return row;
@@ -124,21 +131,25 @@ describe('pollReadyEvents', () => {
     const uuid = crypto.randomUUID();
     const id = await insertEvent(EffectEventKind.CHALLENGE_FINISHED, { uuid });
 
-    const events = await store.pollReadyEvents([SUBSCRIPTION]);
+    const work = await store.pollReadyEvents([SUBSCRIPTION]);
 
-    expect(events).toHaveLength(1);
-    expect(events[0]).toEqual({
-      id,
-      kind: EffectEventKind.CHALLENGE_FINISHED,
-      subject: { uuid },
-      createdAt: expect.any(Date),
-    });
+    expect(work).toEqual([
+      {
+        event: {
+          id,
+          kind: EffectEventKind.CHALLENGE_FINISHED,
+          subject: { uuid },
+          createdAt: expect.any(Date),
+        },
+        handlers: [HANDLER],
+      },
+    ]);
   });
 
   it('returns nothing for an unregistered handler', async () => {
     await insertChallengeEvent();
-    const events = await store.pollReadyEvents([SUBSCRIPTION]);
-    expect(events).toEqual([]);
+    const work = await store.pollReadyEvents([SUBSCRIPTION]);
+    expect(work).toEqual([]);
   });
 
   it('excludes events created before the handler was registered', async () => {
@@ -146,10 +157,10 @@ describe('pollReadyEvents', () => {
     await store.registerSubscriptions([SUBSCRIPTION]);
     const after = await insertChallengeEvent();
 
-    const events = await store.pollReadyEvents([SUBSCRIPTION]);
+    const work = await store.pollReadyEvents([SUBSCRIPTION]);
 
-    expect(events.map((e) => e.id)).toEqual([after]);
-    expect(events.map((e) => e.id)).not.toContain(before);
+    expect(work.map(({ event }) => event.id)).toEqual([after]);
+    expect(work.map(({ event }) => event.id)).not.toContain(before);
   });
 
   it('applies the registration cutoff per subscribed kind', async () => {
@@ -163,35 +174,55 @@ describe('pollReadyEvents', () => {
     await store.registerSubscriptions([stageSubscription]);
     const after = await insertStageEvent();
 
-    const events = await store.pollReadyEvents([
-      SUBSCRIPTION,
-      stageSubscription,
-    ]);
+    const work = await store.pollReadyEvents([SUBSCRIPTION, stageSubscription]);
 
-    expect(events.map((e) => e.id)).toEqual([after]);
-    expect(events.map((e) => e.id)).not.toContain(before);
+    expect(work.map(({ event }) => event.id)).toEqual([after]);
+    expect(work.map(({ event }) => event.id)).not.toContain(before);
   });
 
   it('excludes events whose deliveries are all finished', async () => {
     await store.registerSubscriptions([SUBSCRIPTION]);
     const id = await insertChallengeEvent();
-    await insertDelivery(id, 'delivered');
+    await insertDelivery(id, HANDLER, 'delivered');
 
-    const events = await store.pollReadyEvents([SUBSCRIPTION]);
-
-    expect(events).toEqual([]);
+    const work = await store.pollReadyEvents([SUBSCRIPTION]);
+    expect(work).toEqual([]);
   });
 
   it('returns only events with a pending delivery which is due', async () => {
     await store.registerSubscriptions([SUBSCRIPTION]);
     const due = await insertChallengeEvent();
-    await insertDelivery(due, 'pending');
+    await insertDelivery(due, HANDLER, 'pending');
     const notDue = await insertChallengeEvent();
-    await insertDelivery(notDue, 'pending', new Date(Date.now() + 60_000));
+    await insertDelivery(
+      notDue,
+      HANDLER,
+      'pending',
+      new Date(Date.now() + 60_000),
+    );
 
-    const events = await store.pollReadyEvents([SUBSCRIPTION]);
+    const work = await store.pollReadyEvents([SUBSCRIPTION]);
+    expect(work.map(({ event }) => event.id)).toEqual([due]);
+  });
 
-    expect(events.map((e) => e.id)).toEqual([due]);
+  it('lists only the handlers with outstanding work for each event', async () => {
+    const finishedSubscription: Subscription = {
+      kind: EffectEventKind.CHALLENGE_FINISHED,
+      handler: 'finished-handler',
+    };
+    await store.registerSubscriptions([SUBSCRIPTION, finishedSubscription]);
+    const id = await insertChallengeEvent();
+    await insertDelivery(id, HANDLER, 'pending');
+    await insertDelivery(id, finishedSubscription.handler, 'delivered');
+
+    const work = await store.pollReadyEvents([
+      SUBSCRIPTION,
+      finishedSubscription,
+    ]);
+
+    expect(work.map(({ event, handlers }) => [event.id, handlers])).toEqual([
+      [id, [HANDLER]],
+    ]);
   });
 });
 
@@ -201,7 +232,7 @@ describe('insertPlan', () => {
 
     await store.insertPlan(id, HANDLER, ['a', 'b'], 3);
 
-    expect(await selectPlan(id)).toEqual([
+    expect(await selectPlan(id, HANDLER)).toEqual([
       { messageKey: 'a', status: 'pending', attemptsRemaining: 3 },
       { messageKey: 'b', status: 'pending', attemptsRemaining: 3 },
     ]);
@@ -212,7 +243,7 @@ describe('insertPlan', () => {
 
     await store.insertPlan(id, HANDLER, [], 3);
 
-    expect(await selectPlan(id)).toEqual([
+    expect(await selectPlan(id, HANDLER)).toEqual([
       { messageKey: EMPTY_KEY, status: 'skipped', attemptsRemaining: 0 },
     ]);
   });
@@ -227,7 +258,7 @@ describe('insertPlan', () => {
 
     await store.insertPlan(id, HANDLER, ['a', 'b', 'c'], 5);
 
-    expect(await selectPlan(id)).toEqual([
+    expect(await selectPlan(id, HANDLER)).toEqual([
       { messageKey: 'a', status: 'delivered', attemptsRemaining: 3 },
       { messageKey: 'b', status: 'pending', attemptsRemaining: 3 },
       { messageKey: 'c', status: 'pending', attemptsRemaining: 5 },
@@ -241,7 +272,7 @@ describe('markPlanFailed', () => {
 
     await store.markPlanFailed(id, HANDLER);
 
-    expect(await selectPlan(id)).toEqual([
+    expect(await selectPlan(id, HANDLER)).toEqual([
       { messageKey: EMPTY_KEY, status: 'failed', attemptsRemaining: 0 },
     ]);
   });
@@ -252,7 +283,7 @@ describe('markPlanFailed', () => {
 
     await store.markPlanFailed(id, HANDLER);
 
-    expect(await selectPlan(id)).toEqual([
+    expect(await selectPlan(id, HANDLER)).toEqual([
       { messageKey: EMPTY_KEY, status: 'skipped', attemptsRemaining: 0 },
     ]);
   });
@@ -261,7 +292,7 @@ describe('markPlanFailed', () => {
 describe('scheduleRetry', () => {
   it('reschedules a delivery with retries remaining', async () => {
     const id = await insertChallengeEvent();
-    await insertDelivery(id, 'pending', new Date(Date.now() - 60_000));
+    await insertDelivery(id, HANDLER, 'pending', new Date(Date.now() - 60_000));
 
     const [{ now: before }] = await sql<{ now: Date }[]>`SELECT NOW()`;
     const status = await store.scheduleRetry(
@@ -273,7 +304,7 @@ describe('scheduleRetry', () => {
     const [{ now: after }] = await sql<{ now: Date }[]>`SELECT NOW()`;
 
     expect(status).toBe('pending');
-    const row = await selectDelivery(id);
+    const row = await selectDelivery(id, HANDLER);
     expect(row.status).toBe('pending');
     expect(row.attemptsRemaining).toBe(2);
     expect(row.nextAttemptAt.getTime()).toBeGreaterThanOrEqual(
@@ -286,7 +317,7 @@ describe('scheduleRetry', () => {
 
   it('fails a delivery on its last attempt', async () => {
     const id = await insertChallengeEvent();
-    await insertDelivery(id, 'pending');
+    await insertDelivery(id, HANDLER, 'pending');
     await sql`UPDATE effect_deliveries SET attempts_remaining = 1`;
 
     const status = await store.scheduleRetry(
@@ -297,15 +328,15 @@ describe('scheduleRetry', () => {
     );
 
     expect(status).toBe('failed');
-    const row = await selectDelivery(id);
+    const row = await selectDelivery(id, HANDLER);
     expect(row.status).toBe('failed');
     expect(row.attemptsRemaining).toBe(0);
   });
 
   it('ignores a delivered item', async () => {
     const id = await insertChallengeEvent();
-    await insertDelivery(id, 'delivered');
-    const original = await selectDelivery(id);
+    await insertDelivery(id, HANDLER, 'delivered');
+    const original = await selectDelivery(id, HANDLER);
 
     const status = await store.scheduleRetry(
       id,
@@ -315,7 +346,7 @@ describe('scheduleRetry', () => {
     );
 
     expect(status).toBeNull();
-    expect(await selectDelivery(id)).toEqual(original);
+    expect(await selectDelivery(id, HANDLER)).toEqual(original);
   });
 
   it('returns null for a delivery which does not exist', async () => {
@@ -337,22 +368,22 @@ describe('markTerminal', () => {
     'marks a pending delivery as %s',
     async (status) => {
       const id = await insertChallengeEvent();
-      await insertDelivery(id, 'pending');
+      await insertDelivery(id, HANDLER, 'pending');
 
       await store.markTerminal(id, HANDLER, SINGLE_MESSAGE_KEY, status);
 
-      expect((await selectDelivery(id)).status).toBe(status);
+      expect((await selectDelivery(id, HANDLER)).status).toBe(status);
     },
   );
 
   it('ignores a previously terminated delivery', async () => {
     const id = await insertChallengeEvent();
-    await insertDelivery(id, 'failed');
-    const original = await selectDelivery(id);
+    await insertDelivery(id, HANDLER, 'failed');
+    const original = await selectDelivery(id, HANDLER);
 
     await store.markTerminal(id, HANDLER, SINGLE_MESSAGE_KEY, 'delivered');
 
-    expect(await selectDelivery(id)).toEqual(original);
+    expect(await selectDelivery(id, HANDLER)).toEqual(original);
   });
 });
 
@@ -361,7 +392,7 @@ describe('loadDeliveries', () => {
     const first = await insertChallengeEvent();
     await store.insertPlan(first, HANDLER, ['a', 'b'], 3);
     const second = await insertChallengeEvent();
-    await insertDelivery(second, 'delivered');
+    await insertDelivery(second, HANDLER, 'delivered');
 
     const rows = await store.loadDeliveries([first, second]);
 
@@ -398,9 +429,9 @@ describe('loadDeliveries', () => {
 
   it('excludes rows belonging to other events', async () => {
     const wanted = await insertChallengeEvent();
-    await insertDelivery(wanted, 'pending');
+    await insertDelivery(wanted, HANDLER, 'pending');
     const other = await insertChallengeEvent();
-    await insertDelivery(other, 'pending');
+    await insertDelivery(other, HANDLER, 'pending');
 
     const rows = await store.loadDeliveries([wanted]);
 
@@ -420,7 +451,7 @@ describe('oldestOutstanding', () => {
   it('returns null when no work is outstanding', async () => {
     await registerHandler();
     const id = await insertChallengeEvent();
-    await insertDelivery(id, 'delivered');
+    await insertDelivery(id, HANDLER, 'delivered');
 
     expect(await store.oldestOutstanding([SUBSCRIPTION])).toBeNull();
   });
@@ -429,7 +460,7 @@ describe('oldestOutstanding', () => {
     await registerHandler();
     const oldest = new Date('2026-02-01T00:00:00Z');
     const waiting = await insertChallengeEvent(oldest);
-    await insertDelivery(waiting, 'pending', FAR_FUTURE);
+    await insertDelivery(waiting, HANDLER, 'pending', FAR_FUTURE);
     await insertChallengeEvent(new Date('2026-03-01T00:00:00Z'));
 
     expect(await store.oldestOutstanding([SUBSCRIPTION])).toEqual(oldest);
@@ -441,10 +472,106 @@ describe('oldestOutstanding', () => {
     const finished = await insertChallengeEvent(
       new Date('2026-02-01T00:00:00Z'),
     );
-    await insertDelivery(finished, 'delivered');
+    await insertDelivery(finished, HANDLER, 'delivered');
     const outstanding = new Date('2026-03-01T00:00:00Z');
     await insertChallengeEvent(outstanding);
 
     expect(await store.oldestOutstanding([SUBSCRIPTION])).toEqual(outstanding);
+  });
+});
+
+describe('sweepEvents', () => {
+  const REGISTERED_AT = new Date('2026-08-15T00:00:00Z');
+  const CUTOFF = new Date('2026-09-08T00:00:00Z');
+  const BEFORE_CUTOFF = new Date('2026-09-05T00:00:00Z');
+  const AFTER_CUTOFF = new Date('2026-09-14T00:00:00Z');
+  const FAR_FUTURE = new Date('2038-01-19T03:14:08Z');
+
+  async function registerHandler(): Promise<void> {
+    await store.registerSubscriptions([SUBSCRIPTION]);
+    await sql`UPDATE effect_handlers SET registered_at = ${REGISTERED_AT}`;
+  }
+
+  async function remainingEvents(): Promise<bigint[]> {
+    const rows = await sql<{ id: bigint }[]>`
+      SELECT id FROM effect_events ORDER BY id
+    `;
+    return rows.map((row) => row.id);
+  }
+
+  it('deletes a finished event', async () => {
+    await registerHandler();
+    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(id, HANDLER, 'delivered');
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(1);
+    expect(await remainingEvents()).toEqual([]);
+    expect(await sql`SELECT 1 FROM effect_deliveries`).toHaveLength(0);
+  });
+
+  it('keeps an event newer than the cutoff', async () => {
+    await registerHandler();
+    const id = await insertChallengeEvent(AFTER_CUTOFF);
+    await insertDelivery(id, HANDLER, 'delivered');
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
+    expect(await remainingEvents()).toEqual([id]);
+  });
+
+  it('keeps an event with a pending delivery', async () => {
+    await registerHandler();
+    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(id, HANDLER, 'pending', FAR_FUTURE);
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
+    expect(await remainingEvents()).toEqual([id]);
+  });
+
+  it('keeps an event a subscribed handler has not yet planned', async () => {
+    await registerHandler();
+    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
+    expect(await remainingEvents()).toEqual([id]);
+  });
+
+  it('keeps an event with a failed delivery', async () => {
+    await registerHandler();
+    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(id, HANDLER, 'failed');
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
+    expect(await remainingEvents()).toEqual([id]);
+  });
+
+  it("deletes an unplanned event predating the handler's registration", async () => {
+    await registerHandler();
+    await insertChallengeEvent(new Date('2026-08-01T00:00:00Z'));
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(1);
+    expect(await remainingEvents()).toEqual([]);
+  });
+
+  it('does not consider subscriptions beyond those provided', async () => {
+    // A handler that previously existed and did work but was removed.
+    await store.registerSubscriptions([
+      { kind: EffectEventKind.CHALLENGE_FINISHED, handler: 'retired-handler' },
+    ]);
+    await registerHandler();
+    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(id, HANDLER, 'delivered');
+    await insertDelivery(id, 'retired-handler', 'pending');
+
+    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(1);
+    expect(await remainingEvents()).toEqual([]);
+  });
+
+  it('does nothing when called without subscriptions', async () => {
+    await registerHandler();
+    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(id, HANDLER, 'delivered');
+
+    expect(await store.sweepEvents([], CUTOFF)).toBe(0);
+    expect(await remainingEvents()).toEqual([id]);
   });
 });
