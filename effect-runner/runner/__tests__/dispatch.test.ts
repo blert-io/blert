@@ -3,7 +3,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import postgres from 'postgres';
 
 import { EffectEventKind } from '../../effects';
-import { Dispatcher, DispatcherOptions } from '../dispatch';
+import { Dispatcher } from '../dispatch';
 import { DeliveryRow, EffectStore } from '../store';
 import { EffectEvent, EffectHandler } from '../types';
 
@@ -28,14 +28,6 @@ function makeStore() {
 }
 
 type FakeStore = ReturnType<typeof makeStore>;
-
-function makeDispatcher(
-  store: FakeStore,
-  handlers: EffectHandler[],
-  options: DispatcherOptions = {},
-): Dispatcher {
-  return new Dispatcher(store as unknown as EffectStore, handlers, options);
-}
 
 function makeHandler(
   kind: EffectEventKind,
@@ -114,7 +106,9 @@ describe('backoff', () => {
     );
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(store.scheduleRetry).toHaveBeenCalledWith(
       event.id,
@@ -133,8 +127,13 @@ describe('backoff', () => {
       Promise.resolve({ status: 'retry', reason: 'r' }),
     );
 
-    await makeDispatcher(store, [handler]).dispatchBatch([
-      makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([
+      {
+        event: makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+        handlers: [handler.key],
+      },
     ]);
 
     expect(retryDelay(store)).toBe(100);
@@ -147,9 +146,14 @@ describe('backoff', () => {
       Promise.resolve({ status: 'retry', reason: 'r' }),
     );
 
-    await makeDispatcher(store, [handler], {
+    await new Dispatcher(store as unknown as EffectStore, [handler], {
       defaultBackoffMs: 50,
-    }).dispatchBatch([makeEvent(EffectEventKind.CHALLENGE_FINISHED)]);
+    }).dispatchBatch([
+      {
+        event: makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+        handlers: [handler.key],
+      },
+    ]);
 
     expect(retryDelay(store)).toBe(50);
   });
@@ -169,9 +173,14 @@ describe('backoff', () => {
       store.loadDeliveries.mockResolvedValue([
         makeRow({ attemptsRemaining: remaining }),
       ]);
-      await makeDispatcher(store, [handler], {
+      await new Dispatcher(store as unknown as EffectStore, [handler], {
         maxBackoffMs: 400,
-      }).dispatchBatch([makeEvent(EffectEventKind.CHALLENGE_FINISHED)]);
+      }).dispatchBatch([
+        {
+          event: makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+          handlers: [handler.key],
+        },
+      ]);
       delays.push(retryDelay(store));
     }
 
@@ -194,7 +203,9 @@ describe('outcomes', () => {
       );
       const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-      await makeDispatcher(store, [handler]).dispatchBatch([event]);
+      await new Dispatcher(store as unknown as EffectStore, [
+        handler,
+      ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
       expect(store.markTerminal).toHaveBeenCalledWith(
         event.id,
@@ -214,7 +225,9 @@ describe('outcomes', () => {
     );
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(store.scheduleRetry).toHaveBeenCalledTimes(1);
     expect(store.markTerminal).not.toHaveBeenCalled();
@@ -227,8 +240,13 @@ describe('outcomes', () => {
       Promise.reject(new Error('discord fell over')),
     );
 
-    await makeDispatcher(store, [handler]).dispatchBatch([
-      makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([
+      {
+        event: makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+        handlers: [handler.key],
+      },
     ]);
 
     expect(store.scheduleRetry).toHaveBeenCalledTimes(1);
@@ -248,7 +266,9 @@ describe('planning', () => {
     });
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(plan).toHaveBeenCalledTimes(1);
     expect(store.insertPlan).toHaveBeenCalledWith(
@@ -272,7 +292,9 @@ describe('planning', () => {
     });
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(store.insertPlan).toHaveBeenCalledWith(
       event.id,
@@ -296,7 +318,9 @@ describe('planning', () => {
       createdAt: new Date(Date.now() - 5_000),
     });
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(plan).not.toHaveBeenCalled();
     expect(store.insertPlan).toHaveBeenCalledWith(
@@ -318,8 +342,13 @@ describe('planning', () => {
       deliver,
     });
 
-    await makeDispatcher(store, [handler]).dispatchBatch([
-      makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([
+      {
+        event: makeEvent(EffectEventKind.CHALLENGE_FINISHED),
+        handlers: [handler.key],
+      },
     ]);
 
     expect(plan).not.toHaveBeenCalled();
@@ -343,23 +372,35 @@ describe('planning', () => {
     });
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(deliver).toHaveBeenCalledTimes(1);
     expect(deliver).toHaveBeenCalledWith(event, 'due');
   });
 
-  it('ignores events of unsubscribed kinds', async () => {
+  it('runs only the handlers with outstanding work for an event', async () => {
     const store = makeStore();
-    const plan = makePlan(['*']);
-    const handler = makeHandler(EffectEventKind.STAGE_FINISHED, { plan });
+    const outstandingPlan = makePlan(['*']);
+    const outstanding = makeHandler(EffectEventKind.CHALLENGE_FINISHED, {
+      key: 'outstanding',
+      plan: outstandingPlan,
+    });
+    const otherPlan = makePlan(['*']);
+    const other = makeHandler(EffectEventKind.CHALLENGE_FINISHED, {
+      key: 'other',
+      plan: otherPlan,
+    });
+    const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([
-      makeEvent(EffectEventKind.CHALLENGE_FINISHED),
-    ]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      outstanding,
+      other,
+    ]).dispatchBatch([{ event, handlers: [outstanding.key] }]);
 
-    expect(plan).not.toHaveBeenCalled();
-    expect(store.insertPlan).not.toHaveBeenCalled();
+    expect(outstandingPlan).toHaveBeenCalledTimes(1);
+    expect(otherPlan).not.toHaveBeenCalled();
   });
 
   it('isolates a handler throwing in its plan and fails it', async () => {
@@ -379,7 +420,10 @@ describe('planning', () => {
     });
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [broken, healthy]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      broken,
+      healthy,
+    ]).dispatchBatch([{ event, handlers: [broken.key, healthy.key] }]);
 
     expect(store.markPlanFailed).toHaveBeenCalledTimes(1);
     expect(store.markPlanFailed).toHaveBeenCalledWith(event.id, 'broken');
@@ -405,7 +449,9 @@ describe('planning', () => {
     });
     const event = makeEvent(EffectEventKind.CHALLENGE_FINISHED);
 
-    await makeDispatcher(store, [handler]).dispatchBatch([event]);
+    await new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([{ event, handlers: [handler.key] }]);
 
     expect(store.markPlanFailed).not.toHaveBeenCalled();
     expect(store.insertPlan).not.toHaveBeenCalled();
@@ -425,9 +471,11 @@ describe('store failures', () => {
     const first = makeEvent(EffectEventKind.CHALLENGE_FINISHED, { id: 1n });
     const second = makeEvent(EffectEventKind.CHALLENGE_FINISHED, { id: 2n });
 
-    const batch = makeDispatcher(store, [handler]).dispatchBatch([
-      first,
-      second,
+    const batch = new Dispatcher(store as unknown as EffectStore, [
+      handler,
+    ]).dispatchBatch([
+      { event: first, handlers: [handler.key] },
+      { event: second, handlers: [handler.key] },
     ]);
 
     await expect(batch).rejects.toThrow(AggregateError);

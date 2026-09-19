@@ -1,5 +1,4 @@
 import { isTransientDatabaseError } from '../db';
-import { EffectEventKind } from '../effects';
 import logger from '../log';
 import {
   AttemptOutcomeLabel,
@@ -8,7 +7,7 @@ import {
   recordDeliveryFailure,
   recordPlanError,
 } from '../metrics';
-import { DeliveryRow, EffectStore } from './store';
+import { DeliveryRow, EffectStore, OutstandingWork } from './store';
 import { DeliveryOutcome, EffectEvent, EffectHandler } from './types';
 
 const DEFAULT_ATTEMPTS = 3;
@@ -30,7 +29,7 @@ export type DispatcherOptions = {
 /** Runs subscribed handlers for events. */
 export class Dispatcher {
   private readonly store: EffectStore;
-  private readonly handlersByKind: Map<EffectEventKind, EffectHandler[]>;
+  private readonly handlersByKey: Map<string, EffectHandler>;
   private readonly defaultAttempts: number;
   private readonly defaultBackoffMs: number;
   private readonly maxBackoffMs: number;
@@ -44,34 +43,25 @@ export class Dispatcher {
     this.defaultAttempts = options.defaultAttempts ?? DEFAULT_ATTEMPTS;
     this.defaultBackoffMs = options.defaultBackoffMs ?? DEFAULT_BACKOFF_MS;
     this.maxBackoffMs = options.maxBackoffMs ?? MAX_BACKOFF_MS;
-    this.handlersByKind = new Map();
-
-    for (const handler of handlers) {
-      for (const kind of handler.kinds) {
-        const existing = this.handlersByKind.get(kind);
-        if (existing !== undefined) {
-          existing.push(handler);
-        } else {
-          this.handlersByKind.set(kind, [handler]);
-        }
-      }
-    }
+    this.handlersByKey = new Map(handlers.map((h) => [h.key, h]));
   }
 
   /**
    * Dispatches a batch of events to their subscribed handlers. Every event
    * and handler is attempted regardless of others failing.
    *
-   * @param events The events to dispatch.
+   * @param work The work to dispatch.
    * @throws AggregateError if any handler's delivery state could not be
    *     recorded; its `errors` hold each underlying failure.
    */
-  public async dispatchBatch(events: EffectEvent[]): Promise<void> {
-    if (events.length === 0) {
+  public async dispatchBatch(work: OutstandingWork[]): Promise<void> {
+    if (work.length === 0) {
       return;
     }
 
-    const deliveries = await this.store.loadDeliveries(events.map((e) => e.id));
+    const deliveries = await this.store.loadDeliveries(
+      work.map(({ event }) => event.id),
+    );
     const rowsByEvent = new Map<bigint, DeliveryRow[]>();
     for (const row of deliveries) {
       const rows = rowsByEvent.get(row.eventId);
@@ -83,18 +73,18 @@ export class Dispatcher {
     }
 
     const failures: unknown[] = [];
-    const queue = [...events];
+    const queue = [...work];
     const workers = Array.from(
       { length: Math.min(EVENT_CONCURRENCY, queue.length) },
       async () => {
         while (true) {
-          const event = queue.shift();
-          if (event === undefined) {
+          const next = queue.shift();
+          if (next === undefined) {
             return;
           }
-          const errors = await this.dispatchEvent(
-            event,
-            rowsByEvent.get(event.id) ?? [],
+          const errors = await this.dispatchWork(
+            next,
+            rowsByEvent.get(next.event.id) ?? [],
           );
           failures.push(...errors);
         }
@@ -111,29 +101,32 @@ export class Dispatcher {
   }
 
   /**
-   * Sends an event to every subscribed handler.
+   * Dispatches a work item to its handlers.
    * @returns The failures of any handler tasks which rejected.
    */
-  private async dispatchEvent(
-    event: EffectEvent,
+  private async dispatchWork(
+    { handlers, event }: OutstandingWork,
     deliveries: DeliveryRow[],
   ): Promise<unknown[]> {
-    const handlers = this.handlersByKind.get(event.kind) ?? [];
     const results = await Promise.allSettled(
-      handlers.map((handler) =>
-        this.runHandler(
+      handlers.map(async (name) => {
+        const handler = this.handlersByKey.get(name);
+        if (handler === undefined) {
+          throw new Error(`unknown handler ${name}`);
+        }
+        await this.runHandler(
           handler,
           event,
-          deliveries.filter((d) => d.handler === handler.key),
-        ),
-      ),
+          deliveries.filter((d) => d.handler === name),
+        );
+      }),
     );
 
     const failures: unknown[] = [];
     results.forEach((result, i) => {
       if (result.status === 'rejected') {
         logger.error('handler_task_error', {
-          handler: handlers[i].key,
+          handler: handlers[i],
           eventId: event.id.toString(),
           error:
             result.reason instanceof Error
