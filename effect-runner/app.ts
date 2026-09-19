@@ -12,7 +12,13 @@ import {
 import logger from './log';
 import { startMetricsListener } from './metrics';
 import { connect as connectRedis } from './redis';
-import { Dispatcher, EffectHandler, EffectStore, Poller } from './runner';
+import {
+  Dispatcher,
+  EffectHandler,
+  EffectStore,
+  Poller,
+  Sweeper,
+} from './runner';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -68,6 +74,9 @@ async function main(): Promise<void> {
     subscriptions,
     config.pollIntervalMs,
   );
+  const sweeper = new Sweeper(store, subscriptions);
+  await sweeper.start();
+
   poller.start();
 
   logger.info('effect_runner_started', {
@@ -91,7 +100,7 @@ async function main(): Promise<void> {
     forcedShutdown.unref();
 
     try {
-      await poller.stop();
+      await Promise.all([poller.stop(), sweeper.stop()]);
       await Promise.allSettled([redis.quit(), sql.end()]);
 
       const closed = new Promise<void>((resolve, reject) => {

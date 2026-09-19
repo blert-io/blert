@@ -1,3 +1,5 @@
+import postgres from 'postgres';
+
 import { Sql } from '../db';
 import { EffectEventKind } from '../effects';
 import { EMPTY_KEY, EffectEvent } from './types';
@@ -20,7 +22,62 @@ export type DeliveryRow = {
   nextAttemptAt: Date;
 };
 
+/** An event that requires processing from some handlers. */
+export type OutstandingWork = {
+  event: EffectEvent;
+  handlers: string[];
+};
+
 const BATCH_LIMIT = 100;
+
+/**
+ * Builds a subquery returning the handlers which have work to complete for an
+ * event as an array, or NULL if the event is full processed.
+ * The enclosing query must alias `effect_events` as `e`.
+ *
+ * An event is considered outstanding if it was created no earlier than the
+ * handler's subscription to its kind, and the handler has either not yet
+ * planned it or has a pending delivery for it.
+ *
+ * @param sql Client with which to build the fragment.
+ * @param subscriptions The event subscriptions to consider.
+ * @param dueOnly Only consider pending deliveries that are due.
+ */
+function handlersWithOutstandingWork(
+  sql: Sql,
+  subscriptions: Subscription[],
+  dueOnly: boolean,
+): postgres.Fragment {
+  const kinds = subscriptions.map((s) => s.kind);
+  const handlers = subscriptions.map((s) => s.handler);
+
+  return sql`
+    (
+      SELECT array_agg(sub.handler)
+      FROM unnest(
+        ${kinds}::smallint[],
+        ${handlers}::text[]
+      ) AS sub(kind, handler)
+      JOIN effect_handlers h
+        ON h.handler = sub.handler AND h.kind = sub.kind
+      WHERE sub.kind = e.kind
+        AND e.created_at >= h.registered_at
+        AND (
+          NOT EXISTS (
+            SELECT 1 FROM effect_deliveries d
+            WHERE d.event_id = e.id AND d.handler = sub.handler
+          )
+          OR EXISTS (
+            SELECT 1 FROM effect_deliveries d
+            WHERE d.event_id = e.id
+              AND d.handler = sub.handler
+              AND d.status = 'pending'
+              ${dueOnly ? sql`AND d.next_attempt_at <= NOW()` : sql``}
+          )
+        )
+    )
+  `;
+}
 
 export class EffectStore {
   private readonly sql: Sql;
@@ -55,48 +112,29 @@ export class EffectStore {
    */
   public async pollReadyEvents(
     subscriptions: Subscription[],
-  ): Promise<EffectEvent[]> {
+  ): Promise<OutstandingWork[]> {
     if (subscriptions.length === 0) {
       return [];
     }
 
-    const kinds = subscriptions.map((s) => s.kind);
-    const handlers = subscriptions.map((s) => s.handler);
-
-    return await this.sql<EffectEvent[]>`
+    const rows = await this.sql<(EffectEvent & { handlers: string[] })[]>`
       SELECT
         e.id,
         e.kind,
         e.subject,
-        e.created_at AS "createdAt"
+        e.created_at AS "createdAt",
+        work.handlers
       FROM effect_events e
-      WHERE EXISTS (
-        SELECT 1
-        FROM unnest(
-          ${kinds}::smallint[],
-          ${handlers}::text[]
-        ) AS sub(kind, handler)
-        JOIN effect_handlers h
-          ON h.handler = sub.handler AND h.kind = sub.kind
-        WHERE sub.kind = e.kind
-          AND e.created_at >= h.registered_at
-          AND (
-            NOT EXISTS (
-              SELECT 1 FROM effect_deliveries d
-              WHERE d.event_id = e.id AND d.handler = sub.handler
-            )
-            OR EXISTS (
-              SELECT 1 FROM effect_deliveries d
-              WHERE d.event_id = e.id
-                AND d.handler = sub.handler
-                AND d.status = 'pending'
-                AND d.next_attempt_at <= NOW()
-            )
-          )
-      )
+      CROSS JOIN LATERAL (
+        SELECT ${handlersWithOutstandingWork(this.sql, subscriptions, true)}
+          AS handlers
+      ) work
+      WHERE work.handlers IS NOT NULL
       ORDER BY e.id
       LIMIT ${BATCH_LIMIT}
     `;
+
+    return rows.map(({ handlers, ...event }) => ({ event, handlers }));
   }
 
   /**
@@ -113,38 +151,45 @@ export class EffectStore {
       return null;
     }
 
-    const kinds = subscriptions.map((s) => s.kind);
-    const handlers = subscriptions.map((s) => s.handler);
-
     const rows = await this.sql<{ createdAt: Date | null }[]>`
       SELECT MIN(e.created_at) AS "createdAt"
       FROM effect_events e
-      WHERE EXISTS (
-        SELECT 1
-        FROM unnest(
-          ${kinds}::smallint[],
-          ${handlers}::text[]
-        ) AS sub(kind, handler)
-        JOIN effect_handlers h
-          ON h.handler = sub.handler AND h.kind = sub.kind
-        WHERE sub.kind = e.kind
-          AND e.created_at >= h.registered_at
-          AND (
-            NOT EXISTS (
-              SELECT 1 FROM effect_deliveries d
-              WHERE d.event_id = e.id AND d.handler = sub.handler
-            )
-            OR EXISTS (
-              SELECT 1 FROM effect_deliveries d
-              WHERE d.event_id = e.id
-                AND d.handler = sub.handler
-                AND d.status = 'pending'
-            )
-          )
-      )
+      WHERE ${handlersWithOutstandingWork(this.sql, subscriptions, false)}
+        IS NOT NULL
     `;
 
     return rows[0]?.createdAt ?? null;
+  }
+
+  /**
+   * Deletes events created before `cutoff` which have no outstanding work for
+   * any of the given subscriptions. Events which have failed deliveries are
+   * also kept for inspection.
+   *
+   * @param subscriptions The event subscriptions to consider.
+   * @param cutoff Timestamp before which to delete.
+   * @returns The number of events deleted.
+   */
+  public async sweepEvents(
+    subscriptions: Subscription[],
+    cutoff: Date,
+  ): Promise<number> {
+    if (subscriptions.length === 0) {
+      return 0;
+    }
+
+    const result = await this.sql`
+      DELETE FROM effect_events e
+      WHERE e.created_at < ${cutoff}
+        AND ${handlersWithOutstandingWork(this.sql, subscriptions, false)}
+          IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM effect_deliveries d
+          WHERE d.event_id = e.id AND d.status = 'failed'
+        )
+    `;
+
+    return result.count;
   }
 
   /**
