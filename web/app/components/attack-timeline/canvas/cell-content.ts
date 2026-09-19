@@ -564,7 +564,7 @@ function drawCustomStates(
   let allDrawn = true;
 
   const first = states[0];
-  const iconSize = Math.floor(cellSize / 2);
+  const iconSize = Math.floor((cellSize / 2) * (first.iconScale ?? 1));
 
   if (first.iconUrl !== undefined) {
     allDrawn = drawCachedImage(ctx, imageCache, first.iconUrl, {
