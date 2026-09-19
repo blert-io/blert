@@ -208,12 +208,6 @@ export default function VerzikPage() {
         unimportant: tick !== challenge?.splits[SplitType.TOB_VERZIK_REDS],
       });
 
-      splits.push({
-        tick: attackableTick,
-        splitName: 'Attackable',
-        unimportant: true,
-      });
-
       const getVerzikHp = (tick: number) => {
         const event = eventsByTick[tick]?.find(
           (e) =>

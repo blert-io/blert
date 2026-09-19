@@ -124,6 +124,37 @@ export class TimelineDisplay {
   private computeDisplayData(): void {
     this.processEncounterPhases();
 
+    // Set reds splits before processing NPCs so that phases occurring on the
+    // same tick override them later.
+    const redsTicks = new Set<number>();
+    let verzikP3Start = Infinity;
+
+    for (const actor of this.resolver.getActors()) {
+      if (actor.type !== 'npc') {
+        continue;
+      }
+      if (Npc.isVerzikMatomenos(actor.npcId) && actor.spawnTick !== undefined) {
+        redsTicks.add(actor.spawnTick);
+      }
+      const p3 = this.resolver
+        .getNpcPhases(actor.id)
+        .find(({ phaseType }) => phaseType === 'TOB_VERZIK_P3');
+      if (p3 !== undefined) {
+        verzikP3Start = p3.tick + 6;
+      }
+    }
+
+    Array.from(redsTicks)
+      .sort((a, b) => a - b)
+      .forEach((tick, i) => {
+        this.splits.set(tick, i === 0 ? 'Reds' : `Reds ${i + 1}`);
+
+        const attackableTick = tick + 10;
+        if (attackableTick < verzikP3Start) {
+          this.splits.set(attackableTick, 'Attackable');
+        }
+      });
+
     for (const actor of this.resolver.getActors()) {
       if (actor.type === 'npc') {
         this.processNpc(actor);
@@ -242,13 +273,6 @@ export class TimelineDisplay {
     const phases = this.resolver.getNpcPhases(actor.id);
     if (phases.length > 0) {
       this.processNpcPhases(actor, phases);
-    }
-
-    if (Npc.isVerzikMatomenos(actor.npcId)) {
-      if (actor.spawnTick !== undefined) {
-        this.splits.set(actor.spawnTick, 'Reds');
-        this.splits.set(actor.spawnTick + 10, 'Attackable');
-      }
     }
   }
 
