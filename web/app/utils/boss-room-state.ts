@@ -80,14 +80,23 @@ export function useStableEvents<T extends Event>(
   return ref.current;
 }
 
-export const usePlayingState = (totalTicks: number, isStreaming = false) => {
+export const usePlayingState = (
+  firstTick: number,
+  totalTicks: number,
+  isStreaming = false,
+) => {
   const searchParams = useSearchParams();
-  const initialTick = Number.parseInt(searchParams.get('tick') ?? '1', 10);
-  const normalizedInitialTick = Number.isNaN(initialTick) ? 1 : initialTick;
-  const maxTick = Math.max(1, totalTicks - 1);
+  const initialTick = Number.parseInt(
+    searchParams.get('tick') ?? String(firstTick),
+    10,
+  );
+  const normalizedInitialTick = Number.isNaN(initialTick)
+    ? firstTick
+    : initialTick;
+  const maxTick = Math.max(firstTick, totalTicks - 1);
 
   const [currentTick, setCurrentTick] = useState(() =>
-    isStreaming ? maxTick : clamp(normalizedInitialTick, 1, maxTick),
+    isStreaming ? maxTick : clamp(normalizedInitialTick, firstTick, maxTick),
   );
   const [playing, setPlaying] = useState(false);
   const [following, setFollowing] = useState(isStreaming);
@@ -106,14 +115,14 @@ export const usePlayingState = (totalTicks: number, isStreaming = false) => {
           ? tickOrUpdater
           : tickOrUpdater(baseTick);
       const clampedTick = clamp(
-        Number.isNaN(nextTick) ? 1 : nextTick,
-        1,
+        Number.isNaN(nextTick) ? firstTick : nextTick,
+        firstTick,
         maxTick,
       );
       effectiveTickRef.current = clampedTick;
       setCurrentTick(clampedTick);
     },
-    [maxTick],
+    [firstTick, maxTick],
   );
 
   const advanceTick = useCallback(() => {
@@ -132,9 +141,9 @@ export const usePlayingState = (totalTicks: number, isStreaming = false) => {
     }
 
     setPlaying(false);
-    effectiveTickRef.current = 1;
-    setCurrentTick(1);
-  }, [maxTick, isStreaming]);
+    effectiveTickRef.current = firstTick;
+    setCurrentTick(firstTick);
+  }, [firstTick, maxTick, isStreaming]);
 
   const jumpToLive = useCallback(() => {
     effectiveTickRef.current = maxTick;
@@ -146,12 +155,12 @@ export const usePlayingState = (totalTicks: number, isStreaming = false) => {
   useEffect(() => {
     if (!following) {
       setCurrentTick((tick) => {
-        const clampedTick = clamp(tick, 1, maxTick);
+        const clampedTick = clamp(tick, firstTick, maxTick);
         effectiveTickRef.current = clampedTick;
         return clampedTick;
       });
     }
-  }, [following, maxTick]);
+  }, [following, firstTick, maxTick]);
 
   // Sync following with streaming state. When streaming stops, set
   // `currentTick` to the last tick of the stage so the scrubber stays in place.

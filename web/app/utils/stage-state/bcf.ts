@@ -1,5 +1,6 @@
 import {
   Challenge,
+  ChallengeType,
   Event,
   EventType,
   Npc,
@@ -158,7 +159,11 @@ export function toBcf(
     version: '1.0',
     name,
     description,
-    config: { totalTicks, rowOrder, startTick: 1 },
+    config: {
+      totalTicks,
+      rowOrder,
+      startTick: firstDisplayTick(challenge.type),
+    },
     timeline: { actors, ticks, phases: encounterPhases },
   };
 }
@@ -542,4 +547,22 @@ function getNyloBossPhaseType(npcId: NpcId): string | null {
   }
 
   return null;
+}
+
+function firstDisplayTick(type: ChallengeType): number {
+  switch (type) {
+    case ChallengeType.TOB:
+    case ChallengeType.COX:
+    case ChallengeType.TOA:
+    case ChallengeType.MOKHAIOTL:
+      return 1;
+
+    // Tick 0 of an Inferno or Colosseum wave shows the wave spawn.
+    case ChallengeType.COLOSSEUM:
+    case ChallengeType.INFERNO:
+      return 0;
+  }
+
+  const _exhaustive: never = type;
+  return 1;
 }

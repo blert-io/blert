@@ -181,7 +181,7 @@ export default function SotetsegPage() {
     advanceTick,
     following,
     jumpToLive,
-  } = usePlayingState(totalTicks, isStreaming);
+  } = usePlayingState(1, totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -396,6 +396,7 @@ export default function SotetsegPage() {
 
       <BossPageControls
         currentlyPlaying={playing}
+        firstTick={1}
         totalTicks={totalTicks}
         currentTick={currentTick}
         updateTick={setTick}

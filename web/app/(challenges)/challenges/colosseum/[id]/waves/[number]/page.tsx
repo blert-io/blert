@@ -125,7 +125,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     advanceTick,
     following,
     jumpToLive,
-  } = usePlayingState(totalTicks, isStreaming);
+  } = usePlayingState(0, totalTicks, isStreaming);
 
   const playerName = challenge?.party[0].username;
 
@@ -430,6 +430,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
 
       <BossPageControls
         currentlyPlaying={playing}
+        firstTick={0}
         totalTicks={totalTicks}
         currentTick={currentTick}
         updateTick={setTick}
