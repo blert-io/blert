@@ -103,6 +103,7 @@ export type MokhaiotlChallengeStats = {
   delve: number;
   maxCompletedDelve: number;
   larvaeLeaked: number;
+  avgDeepDelveTicks: number | null;
 };
 
 interface StageData {

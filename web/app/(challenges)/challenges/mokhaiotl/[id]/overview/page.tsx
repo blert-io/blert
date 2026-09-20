@@ -45,6 +45,17 @@ export default function Overview() {
         challenge.splits[SplitType.MOKHAIOTL_CHALLENGE] ?? 0,
       ),
     });
+
+    if (challenge.mokhaiotlStats.avgDeepDelveTicks !== null) {
+      extraInfo.push({
+        label: 'Deep delve pace',
+        icon: 'fas fa-gauge-high',
+        value: ticksToFormattedSeconds(
+          challenge.mokhaiotlStats.avgDeepDelveTicks,
+        ),
+        tooltip: 'Average time of completed delves past 8',
+      });
+    }
   }
 
   return (

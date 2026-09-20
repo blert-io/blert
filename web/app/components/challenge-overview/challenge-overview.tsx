@@ -33,6 +33,7 @@ export type ExtraOverviewInfo = {
   value: string | number | React.ReactNode;
   icon?: string;
   span?: number;
+  tooltip?: string;
 };
 
 interface ChallengeOverviewProps {
@@ -204,7 +205,16 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
                 info.span ? { gridColumn: `span ${info.span}` } : undefined
               }
             >
-              <div className={styles.statLabel}>{info.label}</div>
+              <div className={styles.statLabel}>
+                {info.label}
+                {info.tooltip !== undefined && (
+                  <i
+                    className={`fas fa-info-circle ${styles.statTooltip}`}
+                    data-tooltip-id={GLOBAL_TOOLTIP_ID}
+                    data-tooltip-content={info.tooltip}
+                  />
+                )}
+              </div>
               <div className={styles.statValue}>
                 {info.icon && <i className={info.icon} />}
                 <span>{info.value}</span>

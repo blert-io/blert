@@ -28,6 +28,22 @@ struct CustomData {
     delve_1_to_8_ticks: Option<Ticks>,
 }
 
+impl CustomData {
+    fn avg_deep_delve_ticks(&self) -> Option<Ticks> {
+        let (total, count) = self
+            .delves
+            .iter()
+            .filter(|delve| delve.stage == Stage::MokhaiotlDelve8plus)
+            .fold((Ticks(0), 0_u32), |(total, count), delve| {
+                (total + delve.challenge_ticks, count + 1)
+            });
+        if count == 0 {
+            return None;
+        }
+        Some((total + Ticks(count / 2)) / count)
+    }
+}
+
 /// Final state of a processed delve.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -238,16 +254,23 @@ impl ChallengeProcessor for MokhaiotlProcessor {
             }
         }
 
+        let avg_deep_delve_ticks = (completed && stage == Stage::MokhaiotlDelve8plus)
+            .then(|| self.data.avg_deep_delve_ticks())
+            .flatten()
+            .map(|ticks| ticks.0.cast_signed());
+
         txn.execute(
             "UPDATE mokhaiotl_challenge_stats
              SET delve = $1,
                  larvae_leaked = larvae_leaked + $2,
-                 max_completed_delve = COALESCE($3, max_completed_delve)
-             WHERE challenge_id = $4",
+                 max_completed_delve = COALESCE($3, max_completed_delve),
+                 avg_deep_delve_ticks = COALESCE($4, avg_deep_delve_ticks)
+             WHERE challenge_id = $5",
             &[
                 &delve.cast_signed(),
                 &self.current_delve.larvae_leaked.cast_signed(),
                 &completed.then_some(delve.cast_signed()),
+                &avg_deep_delve_ticks,
                 &txn.challenge_id(),
             ],
         )
@@ -521,6 +544,32 @@ mod tests {
             current_delve: DelveState::default(),
         };
         assert_eq!(uncapped.final_challenge_ticks(Ticks(3390)), Ticks(3390));
+    }
+
+    #[test]
+    fn deep_delve_average() {
+        let deep = CustomData {
+            delves: vec![
+                delve_data(Stage::MokhaiotlDelve8),
+                DelveData {
+                    challenge_ticks: Ticks(100),
+                    ..delve_data(Stage::MokhaiotlDelve8plus)
+                },
+                DelveData {
+                    delve: 10,
+                    challenge_ticks: Ticks(101),
+                    ..delve_data(Stage::MokhaiotlDelve8plus)
+                },
+            ],
+            delve_1_to_8_ticks: Some(Ticks(723)),
+        };
+        assert_eq!(deep.avg_deep_delve_ticks(), Some(Ticks(101)));
+
+        let shallow = CustomData {
+            delves: vec![delve_data(Stage::MokhaiotlDelve8)],
+            delve_1_to_8_ticks: Some(Ticks(741)),
+        };
+        assert_eq!(shallow.avg_deep_delve_ticks(), None);
     }
 
     #[test]

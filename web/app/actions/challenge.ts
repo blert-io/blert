@@ -484,8 +484,10 @@ export type BasicSortableFields = keyof Omit<
 export type SplitSortableFields = `splits:${SplitType}`;
 export type TobSortableFields =
   `tob:${keyof Pick<TobChallengeStats, 'xarpusHealing'>}`;
-export type MokhaiotlSortableFields =
-  `mok:${keyof Pick<MokhaiotlChallengeStats, 'maxCompletedDelve'>}`;
+export type MokhaiotlSortableFields = `mok:${keyof Pick<
+  MokhaiotlChallengeStats,
+  'maxCompletedDelve' | 'avgDeepDelveTicks'
+>}`;
 export type SortableFields =
   | BasicSortableFields
   | SplitSortableFields
@@ -500,8 +502,10 @@ export type TobQueryableField = `tob:${keyof Pick<
   | 'xarpusHealing'
   | 'verzikRedsCount'
 >}`;
-export type MokhaiotlQueryableField =
-  `mok:${keyof Pick<MokhaiotlChallengeStats, 'delve' | 'maxCompletedDelve'>}`;
+export type MokhaiotlQueryableField = `mok:${keyof Pick<
+  MokhaiotlChallengeStats,
+  'delve' | 'maxCompletedDelve' | 'avgDeepDelveTicks'
+>}`;
 export type QueryableField =
   | BasicSortableFields
   | SplitSortableFields

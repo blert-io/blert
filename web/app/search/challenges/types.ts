@@ -90,6 +90,8 @@ export const enum Column {
   MOKHAIOTL_DELVE_6_ENTRY,
   MOKHAIOTL_DELVE_7_ENTRY,
   MOKHAIOTL_DELVE_8_ENTRY,
+
+  MOKHAIOTL_AVG_DEEP_DELVE_TICKS,
 }
 
 export type SelectedColumn = {
