@@ -1,5 +1,6 @@
 //! A library for working with Blert's data format.
 #![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::too_many_lines))]
 
 mod actor;
 mod event;
@@ -8,6 +9,7 @@ mod objects;
 mod prayer;
 mod skill;
 mod tick;
+mod timeline;
 
 pub mod proto;
 pub use proto::event::ColosseumHandicap;
@@ -15,7 +17,7 @@ pub use proto::{NpcAttack, PlayerAttack, PlayerSpell};
 
 pub use actor::{
     Actor, DataSource, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcProperties, NpcState,
-    Nylo, NyloSpawn, PartyIndex, PlayerState, RoomId, Stats, VerzikCrab, VerzikCrabSpawn,
+    Nylo, NyloSpawn, PartyIndex, PlayerState, Players, RoomId, Stats, VerzikCrab, VerzikCrabSpawn,
 };
 pub use event::*;
 pub use item::{EquipmentSlot, Item, ItemDelta, Slot};
@@ -23,6 +25,7 @@ pub use objects::{ObjectKind, TickObjects};
 pub use prayer::{Prayer, PrayerBook, PrayerSet};
 pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
+pub use timeline::{TickState, Timeline};
 
 /// A location in the game world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
