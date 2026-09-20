@@ -138,19 +138,21 @@ describe('challenges filter URL round-trip', () => {
       ...defaultSearchFilters(),
       mokhaiotl: {
         maxCompletedDelve: [Comparator.GREATER_THAN_OR_EQUAL, 40],
+        avgDeepDelveTicks: [Comparator.LESS_THAN, 125],
       },
     };
     const result = roundTrip(filters);
-    expect(result.mokhaiotl.maxCompletedDelve).toEqual([
-      Comparator.GREATER_THAN_OR_EQUAL,
-      40,
-    ]);
+    expect(result.mokhaiotl).toEqual({
+      maxCompletedDelve: [Comparator.GREATER_THAN_OR_EQUAL, 40],
+      avgDeepDelveTicks: [Comparator.LESS_THAN, 125],
+    });
   });
 
   it('omits Mokhaiotl sub-filter params when null', () => {
     const filters = defaultSearchFilters();
     const params = filtersToUrlParams(filters);
     expect(params['mok.maxCompletedDelve']).toBeUndefined();
+    expect(params['mok.avgDeepDelveTicks']).toBeUndefined();
   });
 
   it('preserves options', () => {
@@ -244,9 +246,10 @@ describe('countActiveFilters', () => {
       mokhaiotl: {
         ...emptyMokhaiotlFilters(),
         maxCompletedDelve: [Comparator.GREATER_THAN_OR_EQUAL, 40],
+        avgDeepDelveTicks: [Comparator.LESS_THAN_OR_EQUAL, 140],
       },
     };
-    expect(countActiveFilters(filters)).toBe(2);
+    expect(countActiveFilters(filters)).toBe(3);
   });
 
   it('counts passthrough parameters', () => {

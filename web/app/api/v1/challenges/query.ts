@@ -247,7 +247,10 @@ export function parseChallengeQuery(
     }
   }
 
-  const mokhaiotlScalarParams = ['maxCompletedDelve'] as const;
+  const mokhaiotlScalarParams = [
+    'maxCompletedDelve',
+    'avgDeepDelveTicks',
+  ] as const;
   for (const field of mokhaiotlScalarParams) {
     const value = integerComparatorParam(searchParams, `mok.${field}`, 0, 1000);
     if (value !== undefined) {

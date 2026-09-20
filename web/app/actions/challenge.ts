@@ -531,6 +531,7 @@ export type ColosseumQuery = {
 
 export type MokhaiotlQuery = {
   maxCompletedDelve?: Comparator<number>;
+  avgDeepDelveTicks?: Comparator<number>;
 };
 
 export type SpawnQuery = {
@@ -775,6 +776,7 @@ function applyMokhaiotlFilters(
 ) {
   const statsColumns: Record<keyof MokhaiotlQuery, string> = {
     maxCompletedDelve: 'max_completed_delve',
+    avgDeepDelveTicks: 'avg_deep_delve_ticks',
   };
 
   let statsJoined = false;
