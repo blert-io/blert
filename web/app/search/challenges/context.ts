@@ -67,6 +67,7 @@ export type TobFilters = {
 
 export type MokhaiotlFilters = {
   maxCompletedDelve: [Comparator, number] | null;
+  avgDeepDelveTicks: [Comparator, number] | null;
 };
 
 function parseTobParam(tob: TobFilters, key: string, value: string): void {
@@ -102,7 +103,10 @@ function parseMokhaiotlParam(
   key: string,
   value: string,
 ): void {
-  const scalarFields: (keyof MokhaiotlFilters)[] = ['maxCompletedDelve'];
+  const scalarFields: (keyof MokhaiotlFilters)[] = [
+    'maxCompletedDelve',
+    'avgDeepDelveTicks',
+  ];
   const field = scalarFields.find((f) => f === key);
   if (field !== undefined) {
     const parsed = parseComparatorParam(value);
@@ -154,12 +158,16 @@ function countTobFilters(tob: TobFilters): number {
 export function emptyMokhaiotlFilters(): MokhaiotlFilters {
   return {
     maxCompletedDelve: null,
+    avgDeepDelveTicks: null,
   };
 }
 
 function countMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): number {
   let count = 0;
   if (mokhaiotl.maxCompletedDelve !== null) {
+    count++;
+  }
+  if (mokhaiotl.avgDeepDelveTicks !== null) {
     count++;
   }
   return count;
@@ -313,6 +321,7 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
 
   const mokhaiotlScalarFields: (keyof MokhaiotlFilters)[] = [
     'maxCompletedDelve',
+    'avgDeepDelveTicks',
   ];
   for (const field of mokhaiotlScalarFields) {
     const v = filters.mokhaiotl[field];

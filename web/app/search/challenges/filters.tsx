@@ -560,6 +560,13 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           min: 0,
         }).id,
       },
+      {
+        label: 'Deep delve pace',
+        value: def('Deep delve pace', {
+          path: 'mokhaiotl.avgDeepDelveTicks',
+          inputKind: 'time',
+        }).id,
+      },
     ],
   },
   {

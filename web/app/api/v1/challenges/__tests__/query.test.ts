@@ -152,6 +152,7 @@ describe('parseChallengeQuery', () => {
         'tob.xarpusHealing': '>100',
         'tob.verzikRedsCount': '<5',
         'mok.maxCompletedDelve': '30..50',
+        'mok.avgDeepDelveTicks': '<=120',
       }),
     ).toEqual({
       splits: new Map(),
@@ -163,7 +164,10 @@ describe('parseChallengeQuery', () => {
         xarpusHealing: ['>', 100],
         verzikRedsCount: ['<', 5],
       },
-      mokhaiotl: { maxCompletedDelve: ['range', [30, 50]] },
+      mokhaiotl: {
+        maxCompletedDelve: ['range', [30, 50]],
+        avgDeepDelveTicks: ['<=', 120],
+      },
     });
   });
 
