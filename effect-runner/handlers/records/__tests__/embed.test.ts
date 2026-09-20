@@ -79,6 +79,23 @@ describe('formatRecordEmbed', () => {
     });
   });
 
+  it('names the mode of an entry raid', () => {
+    const embed = formatRecordEmbed(
+      { ...CHALLENGE, mode: ChallengeMode.TOB_ENTRY, scale: 1 },
+      ['Dedion'],
+      {
+        splitType: SplitType.TOB_ENTRY_VERZIK_ROOM,
+        newTicks: 369,
+        previousRecord: null,
+        isTie: false,
+      },
+      BASE_URL,
+      TIMESTAMP,
+    );
+
+    expect(embed.title).toBe('New Record: Theatre of Blood (Entry) Verzik');
+  });
+
   it('omits the previous time from the first ever record', () => {
     const embed = formatRecordEmbed(
       CHALLENGE,
