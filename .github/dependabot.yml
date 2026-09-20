@@ -13,6 +13,21 @@ updates:
           - typescript-eslint
           - '@typescript-eslint/*'
 
+      # React, its typings, and the renderer bindings resolve to a single
+      # hoisted copy. Every package built against react constrains that.
+      # They are split into a group so they can all land together, without
+      # blocking other dependencies.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
+          - '@react-three/*'
+        update-types:
+          - minor
+          - patch
+
       npm-minor-patch:
         # Formatting and lint tooling is excluded from the group because a
         # bump usually requires a matching reformat or relint, which does not
@@ -24,6 +39,11 @@ updates:
           - '@eslint/*'
           - typescript-eslint
           - '@typescript-eslint/*'
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
+          - '@react-three/*'
         update-types:
           - minor
           - patch
