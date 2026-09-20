@@ -74,6 +74,9 @@ jobs:
           npm_config_fetch_retry_mintimeout: 20000
           npm_config_fetch_retry_maxtimeout: 120000
 
+      - name: Check dependency constraints
+        run: npm run check:deps
+
       - name: Build local dependencies
         run: |
           npm run -w bcf build

@@ -15,6 +15,7 @@
     "web/"
   ],
   "scripts": {
+    "check:deps": "node scripts/ci/check-peer-ranges.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "postinstall": "patch-package"
@@ -28,6 +29,7 @@
     "patch-package": "^8.0.1",
     "prettier": "^3.9.6",
     "protoc": "36.0.0",
+    "semver": "^7.8.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "~8.70.0"
   },
@@ -36,6 +38,8 @@
     "@wise-old-man/utils": "^4.0.22",
     "google-protobuf": "^4.0.2",
     "node-addon-api": "^8.9.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "ts-protoc-gen": "^0.15.0",
     "zod": "^4.5.4"
   }
