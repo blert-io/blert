@@ -101,7 +101,19 @@ function formatChallengeName(type: ChallengeType, mode: ChallengeMode): string {
   let name = challengeName(type);
 
   if (type === ChallengeType.TOB) {
-    name += ` ${mode === ChallengeMode.TOB_REGULAR ? '(Regular)' : '(Hard)'}`;
+    switch (mode) {
+      case ChallengeMode.TOB_ENTRY:
+        name += ' (Entry)';
+        break;
+      case ChallengeMode.TOB_REGULAR:
+        name += ' (Regular)';
+        break;
+      case ChallengeMode.TOB_HARD:
+        name += ' (Hard)';
+        break;
+      case ChallengeMode.NO_MODE:
+        break;
+    }
   }
 
   return name;

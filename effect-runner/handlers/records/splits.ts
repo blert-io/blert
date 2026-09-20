@@ -1,4 +1,10 @@
-import { SplitType, Stage, allSplitModes, splitToStage } from '@blert/common';
+import {
+  ChallengeMode,
+  SplitType,
+  Stage,
+  adjustSplitForMode,
+  splitToStage,
+} from '@blert/common';
 
 export const enum RecordTier {
   /**
@@ -80,14 +86,23 @@ export function trackedChallengeSplits(): readonly SplitType[] {
   return challengeSplits;
 }
 
-// Expand the generic tracked splits to every mode with each one's tier and
-// whether it is written at the end of a stage or of the challenge.
+const TRACKED_TOB_MODES = [ChallengeMode.TOB_REGULAR, ChallengeMode.TOB_HARD];
+
+function trackedModeSplits(split: SplitType): SplitType[] {
+  const variants = TRACKED_TOB_MODES.map((mode) =>
+    adjustSplitForMode(split, mode),
+  );
+  return [...new Set(variants)];
+}
+
+// Expand the generic tracked splits to each tracked mode with each one's tier
+// and whether it is written at the end of a stage or of the challenge.
 const splitTierMap = new Map<SplitType, RecordTier>();
 const stageSplits = new Map<Stage, SplitType[]>();
 const challengeSplits: SplitType[] = [];
 
 for (const config of TRACKED_SPLITS) {
-  for (const mode of allSplitModes(config.split)) {
+  for (const mode of trackedModeSplits(config.split)) {
     splitTierMap.set(mode, config.tier);
 
     const stage = splitToStage(mode);
