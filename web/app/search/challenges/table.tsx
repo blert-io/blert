@@ -271,6 +271,7 @@ const COLUMN_GROUPS: ColumnGroup[] = [
       Column.MOKHAIOTL_DELVE_8,
       Column.MOKHAIOTL_DELVE,
       Column.MOKHAIOTL_MAX_COMPLETED_DELVE,
+      Column.MOKHAIOTL_AVG_DEEP_DELVE_TICKS,
     ],
   },
 ];
@@ -694,17 +695,32 @@ const COLUMNS: Record<Column, ColumnInfo> = {
 
   [Column.MOKHAIOTL_DELVE]: {
     name: 'Mok - Delve',
-    fullName: 'Mokhaiotl Delve',
+    fullName: 'Last Delve',
     align: 'right',
     renderer: (challenge) => challenge.mokhaiotlStats?.delve ?? '-',
     toggleFields: includeStats,
   },
   [Column.MOKHAIOTL_MAX_COMPLETED_DELVE]: {
     name: 'Mok - Completed',
-    fullName: 'Mokhaiotl Completed',
+    fullName: 'Max Competed Delve',
     align: 'right',
     renderer: (challenge) => challenge.mokhaiotlStats?.maxCompletedDelve ?? '-',
     field: 'mok:maxCompletedDelve',
+    sortable: true,
+    toggleFields: includeStats,
+  },
+  [Column.MOKHAIOTL_AVG_DEEP_DELVE_TICKS]: {
+    name: 'Mok - Deep pace',
+    fullName: 'Deep Delve Pace',
+    align: 'right',
+    renderer: (challenge) => {
+      const ticks = challenge.mokhaiotlStats?.avgDeepDelveTicks ?? null;
+      if (ticks === null) {
+        return '-';
+      }
+      return ticksToFormattedSeconds(ticks);
+    },
+    field: 'mok:avgDeepDelveTicks',
     sortable: true,
     toggleFields: includeStats,
   },

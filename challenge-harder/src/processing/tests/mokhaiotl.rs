@@ -172,7 +172,7 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
     // Creation writes the stats row, the player, and an empty data file.
     let row = client
         .query_one(
-            "SELECT delve, larvae_leaked, max_completed_delve
+            "SELECT delve, larvae_leaked, max_completed_delve, avg_deep_delve_ticks
              FROM mokhaiotl_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],
         )
@@ -181,6 +181,7 @@ async fn verify_creation(client: &Object, uuid: Uuid, repository: &DataRepositor
     assert_eq!(row.get::<_, i32>(0), 8);
     assert_eq!(row.get::<_, Option<i32>>(1), Some(0));
     assert_eq!(row.get::<_, i32>(2), 0);
+    assert_eq!(row.get::<_, Option<i32>>(3), None);
 
     let row = client
         .query_one(
@@ -251,7 +252,7 @@ async fn verify_stage_rows(
     // The stage completed delve 8 with three leaked larvae.
     let row = client
         .query_one(
-            "SELECT delve, larvae_leaked, max_completed_delve
+            "SELECT delve, larvae_leaked, max_completed_delve, avg_deep_delve_ticks
              FROM mokhaiotl_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],
         )
@@ -260,6 +261,7 @@ async fn verify_stage_rows(
     assert_eq!(row.get::<_, i32>(0), 8);
     assert_eq!(row.get::<_, Option<i32>>(1), Some(3));
     assert_eq!(row.get::<_, i32>(2), 8);
+    assert_eq!(row.get::<_, Option<i32>>(3), None);
 
     // The stage is fully accurate, so all its splits are.
     let splits = client
