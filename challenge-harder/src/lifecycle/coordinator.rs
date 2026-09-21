@@ -13,7 +13,7 @@ use super::core::command::{
 };
 use super::core::deadline::LifecycleConfig;
 use super::core::state::Snapshot;
-use super::core::types::{MsgId, Uuid};
+use super::core::types::{ChallengeMode, MsgId, Uuid};
 use super::session::{SessionFinalizer, SessionResolution, SessionStore};
 use crate::metrics::{self, Decision, RequestAction};
 use crate::processing::StageProcessor;
@@ -26,6 +26,14 @@ pub enum CommandError {
     AlreadyInChallenge,
     #[error("the challenge shut down before applying the command")]
     Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum StartError {
+    #[error("the challenge was not allowed to start")]
+    Disallowed,
+    #[error("the challenge failed to start")]
+    Failed,
 }
 
 /// Local cache of the latest known state of every active challenge, fed by
@@ -293,8 +301,22 @@ impl Coordinator {
 
     /// Creates a new challenge for a party or joins an existing one, returning
     /// the challenge's state once the request has been applied.
-    /// `None` means the challenge shut down before the request could be processed.
-    pub async fn create_or_join_challenge(&self, request: CreateRequest) -> Option<Snapshot> {
+    pub async fn create_or_join_challenge(
+        &self,
+        request: CreateRequest,
+    ) -> Result<Snapshot, StartError> {
+        // Entry mode raids are not recorded.
+        if request.mode == ChallengeMode::TobEntry {
+            metrics::record_challenge_request(
+                RequestAction::Create,
+                request.challenge_type,
+                request.mode,
+                request.recording_type,
+                Decision::Rejected,
+            );
+            return Err(StartError::Disallowed);
+        }
+
         let session_uuid = match self
             .sessions
             .resolve(
@@ -330,7 +352,7 @@ impl Coordinator {
                     request.recording_type,
                     Decision::Error,
                 );
-                return None;
+                return Err(StartError::Failed);
             }
         };
 
@@ -341,7 +363,7 @@ impl Coordinator {
         .await
     }
 
-    async fn start_challenge(&self, create: Create) -> Option<Snapshot> {
+    async fn start_challenge(&self, create: Create) -> Result<Snapshot, StartError> {
         let (id, uuid, joined) = {
             // Hold off claim scans until the started challenge is registered,
             // so they cannot claim it away during its start.
@@ -364,7 +386,7 @@ impl Coordinator {
                         create.request.recording_type,
                         Decision::Error,
                     );
-                    return None;
+                    return Err(StartError::Failed);
                 }
             };
 
@@ -430,7 +452,7 @@ impl Coordinator {
             create.request.recording_type,
             decision,
         );
-        snapshot
+        snapshot.ok_or(StartError::Failed)
     }
 
     /// Reconnects a client to an active challenge, returning its current state.
@@ -946,14 +968,39 @@ mod tests {
             rx,
         );
 
-        assert!(
+        assert_eq!(
             coordinator
                 .create_or_join_challenge(create_command_for(1).request)
-                .await
-                .is_none(),
+                .await,
+            Err(StartError::Failed),
         );
 
         // A challenge cannot start without a session.
+        let claims = collector
+            .claim_unowned(16, &[])
+            .await
+            .expect("claim should succeed");
+        assert!(claims.is_empty(), "a challenge was started");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn entry_mode_start_is_disallowed() {
+        let collector = Collector::default();
+        let (_tx, rx) = watch::channel(false);
+        let coordinator = Coordinator::with_stores(
+            Arc::new(collector.clone()),
+            Arc::new(FakeStore::default()),
+            rx,
+        );
+
+        let mut request = create_command_for(3).request;
+        request.mode = ChallengeMode::TobEntry;
+
+        assert_eq!(
+            coordinator.create_or_join_challenge(request).await,
+            Err(StartError::Disallowed),
+        );
+
         let claims = collector
             .claim_unowned(16, &[])
             .await

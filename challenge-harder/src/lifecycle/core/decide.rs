@@ -86,6 +86,18 @@ fn join(state: &ChallengeState, join: &Join) -> Vec<LifecycleEvent> {
 
 #[allow(clippy::too_many_lines)]
 fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
+    // Entry mode tracking is disabled.
+    if update.mode == Some(ChallengeMode::TobEntry) {
+        // The open stage is left unsealed so that nothing recorded is kept.
+        let mut events: Vec<LifecycleEvent> = state
+            .clients
+            .keys()
+            .map(|&client_id| LifecycleEvent::ClientRemoved { client_id })
+            .collect();
+        events.push(LifecycleEvent::ChallengeTerminated);
+        return events;
+    }
+
     let mut events = Vec::new();
 
     if let Some(mode) = update.mode
@@ -1364,6 +1376,49 @@ mod tests {
         assert_eq!(
             decide(&state, &LifecycleConfig::default(), &cmd),
             vec![report(CLIENT_A, Stage::TobMaiden, StageStatus::Started)],
+        );
+    }
+
+    #[test]
+    fn entry_mode_update_terminates_without_sealing() {
+        let state = ChallengeState {
+            mode: ChallengeMode::NoMode,
+            party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+            stage: Stage::TobXarpus,
+            ..tob_state(vec![
+                (
+                    CLIENT_A,
+                    client(Stage::TobXarpus, StageStatus::Started, None),
+                ),
+                (
+                    CLIENT_B,
+                    client(Stage::TobXarpus, StageStatus::Entered, None),
+                ),
+            ])
+        };
+
+        let cmd = Command::Update(super::Update {
+            user_id: UserId(2),
+            client_id: CLIENT_B,
+            session_token: "tok2".into(),
+            mode: Some(ChallengeMode::TobEntry),
+            stage: Some(StageProgress {
+                stage: Stage::TobXarpus,
+                status: StageStatus::Started,
+            }),
+            party: Some(vec!["1Ogp".into()]),
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &cmd),
+            vec![
+                LifecycleEvent::ClientRemoved {
+                    client_id: CLIENT_A,
+                },
+                LifecycleEvent::ClientRemoved {
+                    client_id: CLIENT_B,
+                },
+                LifecycleEvent::ChallengeTerminated,
+            ],
         );
     }
 
