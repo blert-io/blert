@@ -508,9 +508,48 @@ button {
   --challenge-color: var(--blert-scale-5);
 }
 
+// Stage identity colors.
+//
+// An element tagged `data-stage="<slug>"` receives the stage's identity color
+// as `--stage-color`, with `--stage-color-text` for text, icons, and borders.
+//
+// Supported slugs: maiden, bloat, nylocas, sotetseg, xarpus, verzik
+//
+[data-stage] {
+  --stage-color-text: var(--stage-color);
+}
+
+[data-stage='maiden'] {
+  --stage-color: #e63946;
+}
+
+[data-stage='bloat'] {
+  --stage-color: #b8a46c;
+}
+
+[data-stage='nylocas'] {
+  --stage-color: #a8a8a8;
+}
+
+[data-stage='sotetseg'] {
+  --stage-color: #b22222;
+}
+
+[data-stage='xarpus'] {
+  --stage-color: #5d5da1;
+}
+
+[data-stage='verzik'] {
+  --stage-color: #7d3c98;
+}
+
 [data-theme='aero'] [data-challenge],
 [data-theme='aero'] [data-scale] {
   --challenge-color-text: color-mix(in srgb, var(--challenge-color) 72%, black);
+}
+
+[data-theme='aero'] [data-stage] {
+  --stage-color-text: color-mix(in srgb, var(--stage-color) 72%, black);
 }
 
 [data-theme='necropolis'] [data-challenge='tob'] {

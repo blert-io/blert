@@ -1,3 +1,4 @@
+import { PlayerSpell } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 import React from 'react';
@@ -5,6 +6,7 @@ import React from 'react';
 import Article from '@/components/article';
 import YoutubeEmbed from '@/components/youtube-embed';
 import GuideTags from '@/guides/guide-tags';
+import { SPELL_METADATA } from '@/utils/spell';
 
 import { MdxHashLink } from './mdx-hash-link';
 
@@ -23,6 +25,28 @@ function mdxHeading(level: 1 | 2 | 3 | 4 | 5 | 6) {
       </Article.Heading>
     );
   };
+}
+
+function Spell({ name }: { name: string }) {
+  const type =
+    PlayerSpell[
+      name.toUpperCase().replace(/-/g, '_') as keyof typeof PlayerSpell
+    ];
+  const metadata = SPELL_METADATA[type] ?? SPELL_METADATA[PlayerSpell.UNKNOWN];
+
+  return (
+    <span className={styles.spell}>
+      <Image
+        className={styles.spellIcon}
+        src={metadata.imageUrl}
+        alt={metadata.name}
+        width={14}
+        height={14}
+        unoptimized
+      />
+      {metadata.name}
+    </span>
+  );
 }
 
 export const guideComponents: GuideComponents = {
@@ -98,6 +122,7 @@ export const guideComponents: GuideComponents = {
   Link: Link as GuideComponents[string],
   YoutubeEmbed: YoutubeEmbed as GuideComponents[string],
   GuideTags: GuideTags as GuideComponents[string],
+  Spell,
   AuthorCredits: (props: { children?: React.ReactNode }) => (
     <span className={styles.authorCredits}>{props.children}</span>
   ),

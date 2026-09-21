@@ -3,7 +3,7 @@ import { GLOBAL_TOOLTIP_ID } from '../tooltip';
 
 import styles from './style.module.scss';
 
-export type ButtonVariant = 'primary' | 'danger';
+export type ButtonVariant = 'primary' | 'danger' | 'neutral';
 
 /** Shared appearance props for the button and its link twin. */
 export type ButtonStyleProps = {
