@@ -1052,7 +1052,8 @@ async fn issue(
                     stage,
                     recording_type: identity.recording_type,
                 })
-                .await;
+                .await
+                .ok();
             if let Some(snapshot) = &response {
                 *current_uuid.lock().expect("uuid slot poisoned") = Some(snapshot.uuid);
             }

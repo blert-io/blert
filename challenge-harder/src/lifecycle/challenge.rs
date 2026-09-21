@@ -16,7 +16,7 @@ use super::core::event::{Cause, JournalEntry, LifecycleEvent};
 use super::core::state::{
     ChallengeState, PhaseState, Processing, ProcessingState, PublishedClient, Snapshot, Trigger,
 };
-use super::core::types::{ClientId, JournalSeq, MsgId, Stage, Timestamp, Uuid};
+use super::core::types::{ChallengeMode, ClientId, JournalSeq, MsgId, Stage, Timestamp, Uuid};
 use super::session::SessionStore;
 use super::store::{StoreError, with_retries};
 use crate::metrics::{self, Decision, FinalizationPath, RunResult};
@@ -451,6 +451,18 @@ impl ActiveChallenge {
         if let Err(error) = self.append(&batch).await {
             tracing::error!(uuid = %self.state.uuid, %error, "journal_append_failed");
             return Err(error);
+        }
+
+        if let Command::Update(update) = cmd
+            && let Some(mode @ ChallengeMode::TobEntry) = update.mode
+        {
+            tracing::info!(
+                uuid = %self.state.uuid,
+                user_id = %update.user_id,
+                client_id = %update.client_id,
+                ?mode,
+                "challenge_update_invalid_mode",
+            );
         }
 
         let mut sealed = Vec::new();

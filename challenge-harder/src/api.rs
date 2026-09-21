@@ -14,7 +14,7 @@ use axum::routing::{get, post};
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
 
-use crate::lifecycle::coordinator::{CommandError, Coordinator};
+use crate::lifecycle::coordinator::{CommandError, Coordinator, StartError};
 use crate::lifecycle::core::command::{
     ClientStatus, ClientStatusChange, CreateRequest, Finish, Join, StageProgress, Update,
 };
@@ -188,11 +188,14 @@ async fn new_challenge(
     };
 
     match coordinator.create_or_join_challenge(request).await {
-        Some(p) => Json(ChallengeResponse::from(p)).into_response(),
-        None => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "challenge failed to start",
-        ),
+        Ok(p) => Json(ChallengeResponse::from(p)).into_response(),
+        Err(e) => {
+            let status = match e {
+                StartError::Disallowed => StatusCode::UNPROCESSABLE_ENTITY,
+                StartError::Failed => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            error_response(status, &e.to_string())
+        }
     }
 }
 
@@ -396,6 +399,27 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body, Value::Null);
+    }
+
+    #[tokio::test]
+    async fn disallowed_start_is_unprocessable() {
+        let router = test_router();
+        let (status, body) = post(
+            &router,
+            "/challenges/new",
+            &json!({
+                "userId": 3, "clientId": 30, "sessionToken": "tok3",
+                "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
+                "type": 1, "mode": 10, "party": ["1Ogp"], "stage": 10,
+                "recordingType": 1,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            body,
+            json!({ "error": { "message": "the challenge was not allowed to start" } }),
+        );
     }
 
     #[tokio::test]
