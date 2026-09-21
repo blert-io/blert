@@ -30,6 +30,12 @@
     --button-fill-text: #fff;
   }
 
+  &.neutral {
+    --button-color: var(--blert-font-color-secondary);
+    --button-color-base: var(--blert-font-color-secondary-base);
+    --button-fill-text: var(--blert-font-color-primary);
+  }
+
   &.simple {
     background: none;
     color: var(--button-color);

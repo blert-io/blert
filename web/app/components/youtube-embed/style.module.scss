@@ -1,0 +1,58 @@
+@use '@/mixins.scss' as *;
+
+.embed {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+.chapters {
+  @include styledScrollbar;
+  overflow-y: auto;
+  max-height: 260px;
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-divider-color);
+  border-top: none;
+  border-radius: 0 0 var(--blert-radius) var(--blert-radius);
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+    border-top: none;
+  }
+}
+
+.chapter {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--blert-font-color-primary);
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--blert-surface-light);
+  }
+
+  :global([data-theme='aero']) &:hover {
+    background: rgba(var(--blert-purple-base), 0.12);
+  }
+}
+
+.time {
+  flex: none;
+  min-width: 46px;
+  font:
+    12px var(--font-roboto-mono),
+    monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--blert-font-color-secondary);
+}
+
+.label {
+  font-size: 14px;
+}

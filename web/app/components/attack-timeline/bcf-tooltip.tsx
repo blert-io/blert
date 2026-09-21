@@ -12,12 +12,9 @@ import Image from 'next/image';
 import React, { createContext, useContext } from 'react';
 
 import Tooltip from '@/components/tooltip';
+import { SPELL_METADATA } from '@/utils/spell';
 
-import {
-  ATTACK_METADATA,
-  NPC_ATTACK_METADATA,
-  SPELL_METADATA,
-} from './attack-metadata';
+import { ATTACK_METADATA, NPC_ATTACK_METADATA } from './attack-metadata';
 import {
   AttackInfo,
   DeathInfo,

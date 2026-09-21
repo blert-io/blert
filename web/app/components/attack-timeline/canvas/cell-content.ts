@@ -9,6 +9,7 @@ import { PlayerAttack, PlayerSpell } from '@blert/common';
 
 import { getItemImageUrl } from '@/utils/item';
 import { simpleItemCache } from '@/utils/item-cache/simple';
+import { SPELL_METADATA } from '@/utils/spell';
 
 import {
   ATTACK_METADATA,
@@ -16,7 +17,6 @@ import {
   bcfToPlayerAttack,
   getDefaultWeaponId,
   NPC_ATTACK_METADATA,
-  SPELL_METADATA,
 } from '../attack-metadata';
 import { CustomState } from '../types';
 

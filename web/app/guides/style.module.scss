@@ -1,277 +1,272 @@
 @use '../mixins.scss' as *;
 
 .guides {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 2em 20px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    padding: 0;
+    padding: 1em 0;
+  }
+}
+
+.hero {
+  width: 100%;
+  gap: 20px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
+  font-size: 0.9em;
+  line-height: 1.6;
+
+  i {
+    color: var(--blert-purple);
+    font-size: 1.2em;
   }
 
-  .guidesHeader {
-    margin: 2em auto;
-    align-items: center;
-
-    h1 {
-      margin: 20px 0;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      font-size: 2.2em;
-
-      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-        font-size: 1.5em;
-      }
-
-      i {
-        color: var(--blert-purple);
-      }
-    }
-  }
-
-  .description {
-    max-width: 800px;
-    line-height: 1.6;
-
-    p {
-      margin: 1em 0;
-    }
-  }
-
-  .notice {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 20px;
-    padding: 12px 16px;
-    background: var(--blert-surface-dark);
-    border-radius: 6px;
-    font-size: 0.9em;
-
-    i {
-      color: var(--blert-purple);
-      font-size: 1.2em;
-    }
-
-    :global([data-theme='aero']) & {
-      @include aeroNotice;
-      border-radius: 5px;
-      color: var(--blert-font-color-primary);
-
-      i {
-        color: #1f7fd6;
-      }
-    }
-  }
-
-  .sectionTitle {
-    margin: 1.5em 0 1em;
-    font-size: 1.5em;
-  }
-
-  .usageLinks {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-    margin: 1em 0;
-
-    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-  }
-
-  .usageLink {
-    display: block;
-    text-decoration: none;
-    background: var(--blert-surface-dark);
-    border-radius: 8px;
-    padding: 16px 20px;
-    transition:
-      transform 0.2s ease-in-out,
-      box-shadow 0.2s ease-in-out,
-      background 0.2s ease-in-out;
-    border: 1px solid transparent;
+  a {
+    color: var(--blert-purple);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s ease;
 
     &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      background: var(--blert-panel-background-color);
-      border-color: rgba(var(--blert-purple-base), 0.3);
+      border-bottom-color: var(--blert-purple);
     }
 
-    .usageLinkContent {
-      display: flex;
-      align-items: flex-start;
-      gap: 16px;
-
-      i {
-        font-size: 1.4em;
-        color: var(--blert-purple);
-        margin-top: 2px;
-        flex-shrink: 0;
-      }
-
-      div {
-        flex: 1;
-
-        h4 {
-          margin: 0 0 6px 0;
-          font-size: 1em;
-          font-weight: 600;
-          color: var(--font-color);
-        }
-
-        p {
-          margin: 0;
-          font-size: 0.85em;
-          line-height: 1.4;
-          color: var(--blert-font-color-secondary);
-        }
-      }
-    }
-
-    :global([data-theme='aero']) & {
-      @include aeroWell;
+    i {
+      margin-left: 2px;
+      font-size: 14px;
     }
   }
 
-  .links {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 24px;
-    margin: 2em 0;
+  :global([data-theme='aero']) & {
+    @include aeroNotice;
+    border-radius: 5px;
+    color: var(--blert-font-color-primary);
 
-    .guideLink {
-      transition:
-        transform 0.2s ease-in-out,
-        box-shadow 0.2s ease-in-out;
-      text-decoration: none;
-      cursor: pointer;
-      background: var(--blert-panel-background-color);
-      border: 1px solid rgba(var(--blert-purple-base), 0.15);
-      border-radius: 12px;
-
-      &:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-        outline: 1px solid rgba(var(--blert-purple-base), 0.5);
-      }
-
-      .guideThumbnail {
-        margin: -10px -30px 10px;
-        padding: 20px;
-        background: var(--blert-surface-dark);
-        border-radius: 12px 12px 0 0;
-        text-align: center;
-
-        :global([data-theme='aero']) & {
-          background: transparent;
-
-          img {
-            filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
-              drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
-          }
-        }
-      }
-
-      .guideInfo {
-        h3 {
-          margin: 0 0 10px 0;
-        }
-
-        p {
-          margin: 0;
-          font-size: 0.9em;
-          line-height: 1.5;
-          color: var(--blert-font-color-secondary);
-        }
-      }
-    }
-
-    .guidePlaceholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--blert-surface-dark);
-      border: 2px dashed var(--blert-divider-color);
-      color: var(--blert-font-color-secondary);
-      opacity: 0.8;
-
-      p {
-        margin: 0;
-        font-style: italic;
-      }
+    i {
+      color: #1f7fd6;
     }
   }
 }
 
-.guidePanel {
-  flex-direction: column;
-  padding: 10px 30px;
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
-  h2 {
-    margin-top: 0;
+.titleIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(var(--blert-surface-dark-base), 0.6);
+  border: 1px solid rgba(var(--blert-purple-base), 0.2);
+  border-radius: 8px;
+  color: var(--blert-purple);
+  font-size: 22px;
+
+  :global([data-theme='aero']) & {
+    @include aeroIconPlate;
+    border-radius: 8px;
+  }
+}
+
+.title {
+  margin: 0;
+  max-width: 16ch;
+  font-size: clamp(34px, 5vw, 48px);
+  line-height: 0.98;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.featureCard {
+  @include panel;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+  padding: 24px 26px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--challenge-color-text, var(--blert-purple)) 15%,
+      transparent
+    );
+  color: inherit;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    border-color: color-mix(
+      in srgb,
+      var(--challenge-color-text, var(--blert-purple)) 30%,
+      transparent
+    );
   }
 
-  h3 {
-    margin: 0.8em 0 0.4em 0;
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 16px;
+    padding: 16px;
   }
 
-  a {
-    text-decoration: none;
+  :global([data-theme='aero']) & {
+    @include aeroWell;
 
     &:hover {
-      color: var(--blert-purple);
+      border-color: rgba(var(--blert-purple-base), 0.6);
+      box-shadow:
+        inset 0 1px 3px rgba(40, 90, 130, 0.16),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.6),
+        0 3px 10px rgba(60, 120, 165, 0.35);
     }
   }
+}
 
-  & > ul {
-    padding: 0;
-    margin: 0.25em 0;
-    list-style: none;
+.featureInfo {
+  flex: 1 1 300px;
+  min-width: 0;
+}
 
-    & > li {
-      line-height: 2em;
-      color: var(--blert-font-color-secondary);
+.featureTitle {
+  margin: 0 0 10px;
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--challenge-color-text, var(--blert-font-color-primary));
+}
 
-      ul {
-        list-style: none;
-        padding-left: 1.5em;
-      }
+.featureDesc {
+  margin: 0 0 16px;
+  max-width: 58ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--blert-font-color-secondary);
+}
 
-      li {
-        position: relative;
+.featureArt {
+  flex: 1 1 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: var(--blert-surface-dark);
+  border-radius: 6px;
 
-        &:before {
-          position: absolute;
-          left: -15px;
-          top: 0px;
-          content: '';
-          display: block;
-          border-left: 1px solid var(--blert-divider-color);
-          height: 1em;
-          border-bottom: 1px solid var(--blert-divider-color);
-          width: 10px;
-        }
+  :global([data-theme='aero']) & {
+    @include aeroWell(
+      linear-gradient(
+        to bottom,
+        rgba(226, 243, 252, 0.95),
+        rgba(180, 216, 238, 0.9)
+      )
+    );
 
-        &:after {
-          position: absolute;
-          left: -15px;
-          bottom: -7px;
-          content: '';
-          display: block;
-          border-left: 1px solid var(--blert-divider-color);
-          height: 100%;
-        }
-
-        &:last-child:after {
-          display: none;
-        }
-      }
+    img {
+      filter: drop-shadow(0 0 1px rgba(58, 22, 42, 0.95))
+        drop-shadow(0 0 8px rgba(150, 28, 40, 0.4));
     }
   }
+}
+
+.usageRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.usageRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--blert-surface-dark);
+  border: 1px solid var(--blert-divider-color);
+  border-radius: var(--blert-radius);
+  color: inherit;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  &:hover {
+    background: var(--blert-surface-light);
+    border-color: rgba(var(--blert-purple-base), 0.3);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+
+    &:hover {
+      border-color: rgba(var(--blert-purple-base), 0.5);
+    }
+  }
+}
+
+.usageIcon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  background: rgba(var(--blert-purple-base), 0.14);
+  color: var(--blert-purple);
+  font-size: 15px;
+
+  :global([data-theme='aero']) & {
+    @include aeroIconPlate;
+    border-radius: 5px;
+  }
+}
+
+.usageTitle {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.usageDesc {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--blert-font-color-secondary);
+}
+
+.terminator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--blert-divider-color);
+  font:
+    12px var(--font-roboto-mono),
+    monospace;
+  color: var(--blert-font-color-secondary);
+}
+
+.terminatorDot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px dashed var(--blert-divider-color);
 }
 
 .tags {
@@ -307,4 +302,26 @@
   color: var(--blert-font-color-secondary);
   font-size: 0.9em;
   font-style: italic;
+}
+
+.spell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(var(--blert-blue-base), 0.15);
+  color: var(--blert-blue);
+  font-weight: 500;
+  line-height: 1.4;
+  vertical-align: baseline;
+  white-space: nowrap;
+
+  // Outranks the article's blanket `img` rule, which blocks and margins images.
+  img.spellIcon {
+    display: inline-block;
+    margin: 0;
+    border-radius: 2px;
+    box-shadow: none;
+  }
 }

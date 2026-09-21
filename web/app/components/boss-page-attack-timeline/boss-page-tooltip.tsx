@@ -17,7 +17,6 @@ import {
   ATTACK_METADATA,
   CombatStyle,
   NPC_ATTACK_METADATA,
-  SPELL_METADATA,
 } from '@/components/attack-timeline/attack-metadata';
 import {
   AttackInfo,
@@ -53,6 +52,7 @@ import {
   toNpcActorId,
 } from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
+import { SPELL_METADATA } from '@/utils/spell';
 import { npcImageUrl } from '@/utils/url';
 
 import styles from './styles.module.scss';
