@@ -251,6 +251,15 @@ describe('inventory-setups', () => {
       expect(() => importSetup('true')).toThrow('Invalid setup data');
     });
 
+    it('should throw an error for non-JSON data', () => {
+      expect(() => importSetup('Trio SBS Mage')).toThrow(
+        'Invalid or unsupported setup import format',
+      );
+      expect(() => importSetup('{"setup":{"inv":[{"id":25739},')).toThrow(
+        'Invalid or unsupported setup import format',
+      );
+    });
+
     it('should throw an error for unsupported format', () => {
       expect(() => importSetup('{}')).toThrow(
         'Invalid or unsupported setup import format',
