@@ -13,7 +13,10 @@ use crate::lifecycle::core::types::{
 use crate::lifecycle::session::SessionFinalizer;
 use crate::processing::effects::EventKind;
 use crate::processing::session::SessionStatus;
-use crate::processing::{ChallengeInfo, PostgresSessionFinalizer, ProcessorConfig, challenge, db};
+use crate::processing::{
+    ChallengeInfo, PostgresSessionFinalizer, ProcessingRequest, ProcessingRun, ProcessorConfig,
+    challenge, db,
+};
 use crate::repository::{DataRepository, FilesystemBackend};
 
 #[tokio::test]
@@ -42,14 +45,20 @@ async fn empty_challenge_is_deleted_at_finish() {
         finished_unix_ms: None,
     };
 
-    let mut txn = db
-        .start_transaction(uuid, Trigger::Create { seq: JournalSeq(1) })
-        .await
-        .expect("create guard should pass");
-    let custom_data = challenge::create(&mut txn, &repository, ProcessorConfig::default(), &info)
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        },
+    )
+    .await
+    .expect("create guard should pass");
+    let custom_data = challenge::create(&mut run, &repository, ProcessorConfig::default())
         .await
         .expect("create should succeed");
-    txn.commit(&ProcessingPayload::None, custom_data.as_ref())
+    run.txn
+        .commit(&ProcessingPayload::None, custom_data.as_ref())
         .await
         .expect("create should commit");
 
@@ -81,14 +90,20 @@ async fn empty_challenge_is_deleted_at_finish() {
         finished_unix_ms: Some(1_785_772_401_243),
         ..info
     };
-    let mut txn = db
-        .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(2) })
-        .await
-        .expect("finish guard should pass");
-    challenge::finish(&mut txn, &repository, ProcessorConfig::default(), &info)
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Finish { seq: JournalSeq(2) },
+            challenge: info.clone(),
+        },
+    )
+    .await
+    .expect("finish guard should pass");
+    challenge::finish(&mut run, &repository, ProcessorConfig::default())
         .await
         .expect("finish should succeed");
-    txn.commit(&ProcessingPayload::None, None)
+    run.txn
+        .commit(&ProcessingPayload::None, None)
         .await
         .expect("finish should commit");
 
@@ -199,14 +214,20 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         finished_unix_ms: None,
     };
 
-    let mut txn = db
-        .start_transaction(uuid, Trigger::Create { seq: JournalSeq(1) })
-        .await
-        .expect("create guard should pass");
-    let custom_data = challenge::create(&mut txn, &repository, ProcessorConfig::default(), &info)
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        },
+    )
+    .await
+    .expect("create guard should pass");
+    let custom_data = challenge::create(&mut run, &repository, ProcessorConfig::default())
         .await
         .expect("create should succeed");
-    txn.commit(&ProcessingPayload::None, custom_data.as_ref())
+    run.txn
+        .commit(&ProcessingPayload::None, custom_data.as_ref())
         .await
         .expect("create should commit");
 
@@ -260,14 +281,20 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         finished_unix_ms: Some(1_785_859_016_486),
         ..info
     };
-    let mut txn = db
-        .start_transaction(uuid, Trigger::Finish { seq: JournalSeq(3) })
-        .await
-        .expect("finish guard should pass");
-    challenge::finish(&mut txn, &repository, ProcessorConfig::default(), &info)
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Finish { seq: JournalSeq(3) },
+            challenge: info.clone(),
+        },
+    )
+    .await
+    .expect("finish guard should pass");
+    challenge::finish(&mut run, &repository, ProcessorConfig::default())
         .await
         .expect("finish should succeed");
-    txn.commit(&ProcessingPayload::None, None)
+    run.txn
+        .commit(&ProcessingPayload::None, None)
         .await
         .expect("finish should commit");
 
@@ -423,19 +450,20 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         reported_times: None,
         finished_unix_ms: None,
     };
-    let mut txn = db
-        .start_transaction(newer, Trigger::Create { seq: JournalSeq(1) })
-        .await
-        .expect("create guard should pass");
-    let custom_data = challenge::create(
-        &mut txn,
-        &repository,
-        ProcessorConfig::default(),
-        &newer_info,
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: newer_info.clone(),
+        },
     )
     .await
-    .expect("create should succeed");
-    txn.commit(&ProcessingPayload::None, custom_data.as_ref())
+    .expect("create guard should pass");
+    let custom_data = challenge::create(&mut run, &repository, ProcessorConfig::default())
+        .await
+        .expect("create should succeed");
+    run.txn
+        .commit(&ProcessingPayload::None, custom_data.as_ref())
         .await
         .expect("create should commit");
 
@@ -445,19 +473,20 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         created_unix_ms: 1_785_772_101_000,
         ..newer_info.clone()
     };
-    let mut txn = db
-        .start_transaction(older, Trigger::Create { seq: JournalSeq(1) })
-        .await
-        .expect("create guard should pass");
-    let custom_data = challenge::create(
-        &mut txn,
-        &repository,
-        ProcessorConfig::default(),
-        &older_info,
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: older_info.clone(),
+        },
     )
     .await
-    .expect("create should succeed");
-    txn.commit(&ProcessingPayload::None, custom_data.as_ref())
+    .expect("create guard should pass");
+    let custom_data = challenge::create(&mut run, &repository, ProcessorConfig::default())
+        .await
+        .expect("create should succeed");
+    run.txn
+        .commit(&ProcessingPayload::None, custom_data.as_ref())
         .await
         .expect("create should commit");
 

@@ -24,17 +24,17 @@ use super::persist::{
     save_merge, save_splits, update_challenge_row, update_player_stats, update_players,
     write_queryable_events,
 };
-use super::{ChallengeInfo, Pipeline, StoredState};
+use super::{ChallengeInfo, Pipeline, ProcessingRun, StoredState, time};
 use super::{db, effects};
 
 /// Processes a stage's events from its recorded streams.
 pub async fn process(
     pipeline: &Pipeline,
-    txn: &db::Transaction,
-    challenge: &ChallengeInfo,
+    run: &mut ProcessingRun,
 ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
-    let (stream, stored) = gather(&pipeline.store, txn, challenge).await?;
+    let (stream, stored) = gather(&pipeline.store, run).await?;
 
+    let challenge = &run.request.challenge;
     let Some(mut processor) =
         super::processor_for(pipeline.config, challenge, stored.custom_data.as_ref())?
     else {
@@ -49,9 +49,11 @@ pub async fn process(
 
     let info = challenge.clone();
 
-    let (result, mut processor, stream) = tokio::task::spawn_blocking(move || {
-        let result = interpret(info, &stream, &mut *processor);
-        (result, processor, stream)
+    let (result, mut processor, stream) = time(&mut run.timings.interpret, || {
+        tokio::task::spawn_blocking(move || {
+            let result = interpret(info, &stream, &mut *processor);
+            (result, processor, stream)
+        })
     })
     .await
     .map_err(|error| ProcessingError {
@@ -59,25 +61,16 @@ pub async fn process(
         message: format!("interpret task failed: {error}"),
     })?;
 
-    persist(
-        pipeline,
-        txn,
-        &mut *processor,
-        challenge,
-        &stored,
-        result,
-        stream,
-    )
-    .await
+    persist(pipeline, run, &mut *processor, &stored, result, stream).await
 }
 
 /// Collects the recorded streams and stored challenge state a run requires.
 async fn gather(
     store: &Store,
-    txn: &db::Transaction,
-    challenge: &ChallengeInfo,
+    run: &mut ProcessingRun,
 ) -> Result<(Vec<ClientStageStream>, StoredState), ProcessingError> {
-    let stream = async {
+    let challenge = &run.request.challenge;
+    let stream = time(&mut run.timings.stream_read, || async {
         store
             .read_stage_stream(challenge.uuid, challenge.stage, challenge.stage_attempt)
             .await
@@ -85,12 +78,12 @@ async fn gather(
                 retriable: matches!(error, StoreError::Unavailable(_)),
                 message: error.to_string(),
             })
-    };
-    let stored = async {
-        load_database_state(txn, challenge)
+    });
+    let stored = time(&mut run.timings.state_load, || async {
+        load_database_state(&run.txn, challenge)
             .await
             .map_err(ProcessingError::from)
-    };
+    });
     tokio::try_join!(stream, stored)
 }
 
@@ -98,13 +91,13 @@ async fn gather(
 /// Returns the payload and custom data to be sent back to the challenge.
 async fn persist(
     pipeline: &Pipeline,
-    txn: &db::Transaction,
+    run: &mut ProcessingRun,
     processor: &mut dyn ChallengeProcessor,
-    challenge: &ChallengeInfo,
     stored: &StoredState,
     result: Result<InterpretOutput, InterpretError>,
     records: Vec<ClientStageStream>,
 ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
+    let challenge = &run.request.challenge;
     let payload = payload_from(&result);
     let capture_input = MergeCapture {
         uuid: challenge.uuid,
@@ -119,8 +112,7 @@ async fn persist(
         Ok(output) => output,
         Err(e) => {
             let custom_data =
-                handle_interpret_error(pipeline, txn, processor, challenge, &capture_input, e)
-                    .await?;
+                handle_interpret_error(pipeline, run, processor, &capture_input, e).await?;
             return Ok((payload, custom_data));
         }
     };
@@ -135,62 +127,72 @@ async fn persist(
         output.report.skipped_count > 0,
     );
 
-    let challenge_ticks = processor
-        .on_stage_finished(
-            txn,
+    let challenge_ticks = time(&mut run.timings.processor, || {
+        processor.on_stage_finished(
+            &run.txn,
             &pipeline.price_resolver,
             stored,
             &mut output.ctx,
             challenge.stage,
             &output.events,
         )
-        .await?;
+    })
+    .await?;
 
-    save_splits(
-        txn,
-        challenge,
-        output.ctx.splits(
-            output.events.accurate_until(),
-            output.events.status() == StageStatus::Completed,
-        ),
-        &stored.players,
-    )
+    time(&mut run.timings.writes, || {
+        save_splits(
+            &run.txn,
+            challenge,
+            output.ctx.splits(
+                output.events.accurate_until(),
+                output.events.status() == StageStatus::Completed,
+            ),
+            &stored.players,
+        )
+    })
     .await?;
 
     let capture = match &pipeline.capturer {
         Some(capturer) => {
-            capturer
-                .sample_capture(challenge, &output.report, &capture_input)
-                .await
+            time(&mut run.timings.repository, || {
+                capturer.sample_capture(challenge, &output.report, &capture_input)
+            })
+            .await
         }
         None => None,
     };
-    tokio::try_join!(
-        update_players(txn, challenge.stage, &output.ctx, &stored.players),
-        update_player_stats(txn, output.ctx.players(), &stored.players),
-        update_challenge_row(txn, challenge_ticks, output.ctx.deaths().len()),
-        write_merge(
-            txn,
-            challenge,
-            capture.as_ref(),
-            MergeOutcome::Merged {
-                report: &output.report,
-                events: &output.events,
-            },
+    time(&mut run.timings.writes, || async {
+        tokio::try_join!(
+            update_players(&run.txn, challenge.stage, &output.ctx, &stored.players),
+            update_player_stats(&run.txn, output.ctx.players(), &stored.players),
+            update_challenge_row(&run.txn, challenge_ticks, output.ctx.deaths().len()),
+            write_merge(
+                &run.txn,
+                challenge,
+                capture.as_ref(),
+                MergeOutcome::Merged {
+                    report: &output.report,
+                    events: &output.events,
+                },
+            )
         )
-    )?;
-
-    effects::emit(
-        txn,
-        &effects::Event::StageFinished {
-            uuid: challenge.uuid,
-            stage: challenge.stage,
-            attempt: challenge.stage_attempt,
-        },
-    )
+    })
     .await?;
 
-    write_challenge_data(pipeline, txn, processor, challenge, stored, output).await?;
+    time(&mut run.timings.writes, || async {
+        effects::emit(
+            &run.txn,
+            &effects::Event::StageFinished {
+                uuid: challenge.uuid,
+                stage: challenge.stage,
+                attempt: challenge.stage_attempt,
+            },
+        )
+        .await
+    })
+    .await?;
+
+    write_challenge_data(pipeline, run, processor, stored, output).await?;
     Ok((payload, processor.custom_data()))
 }
 
@@ -198,12 +200,12 @@ async fn persist(
 /// sent back to the challenge.
 async fn handle_interpret_error(
     pipeline: &Pipeline,
-    txn: &db::Transaction,
+    run: &mut ProcessingRun,
     processor: &mut dyn ChallengeProcessor,
-    challenge: &ChallengeInfo,
     capture: &MergeCapture,
     error: InterpretError,
 ) -> Result<Option<serde_json::Value>, ProcessingError> {
+    let challenge = &run.request.challenge;
     match error {
         InterpretError::NoData => {
             metrics::record_merge_outcome(metrics::MergeOutcome::NoData);
@@ -214,18 +216,26 @@ async fn handle_interpret_error(
             metrics::record_merge_outcome(metrics::MergeOutcome::BadData);
             let capture = match &pipeline.capturer {
                 Some(capturer) => {
-                    capturer
-                        .capture(challenge, CaptureReason::BadData, capture, &report.clients)
-                        .await
+                    time(&mut run.timings.repository, || {
+                        capturer.capture(
+                            challenge,
+                            CaptureReason::BadData,
+                            capture,
+                            &report.clients,
+                        )
+                    })
+                    .await
                 }
                 None => None,
             };
-            write_merge(
-                txn,
-                challenge,
-                capture.as_ref(),
-                MergeOutcome::BadData { report: &report },
-            )
+            time(&mut run.timings.writes, || {
+                write_merge(
+                    &run.txn,
+                    challenge,
+                    capture.as_ref(),
+                    MergeOutcome::BadData { report: &report },
+                )
+            })
             .await?;
             metrics::record_merge_report(challenge.stage, &report);
             Ok(processor.custom_data())
@@ -242,13 +252,22 @@ async fn handle_interpret_error(
             );
             let capture = match &pipeline.capturer {
                 Some(capturer) => {
-                    capturer
-                        .capture(challenge, CaptureReason::MergePanic, capture, &[])
-                        .await
+                    time(&mut run.timings.repository, || {
+                        capturer.capture(challenge, CaptureReason::MergePanic, capture, &[])
+                    })
+                    .await
                 }
                 None => None,
             };
-            write_merge(txn, challenge, capture.as_ref(), MergeOutcome::Panicked).await?;
+            time(&mut run.timings.writes, || {
+                write_merge(
+                    &run.txn,
+                    challenge,
+                    capture.as_ref(),
+                    MergeOutcome::Panicked,
+                )
+            })
+            .await?;
             Ok(None)
         }
     }
@@ -256,13 +275,16 @@ async fn handle_interpret_error(
 
 async fn write_challenge_data(
     pipeline: &Pipeline,
-    txn: &db::Transaction,
+    run: &mut ProcessingRun,
     processor: &mut dyn ChallengeProcessor,
-    challenge: &ChallengeInfo,
     stored: &StoredState,
     output: InterpretOutput,
 ) -> Result<(), ProcessingError> {
-    let queryable_events = write_queryable_events(txn, challenge, &output, &stored.players).await?;
+    let challenge = &run.request.challenge;
+    let queryable_events = time(&mut run.timings.writes, || {
+        write_queryable_events(&run.txn, challenge, &output, &stored.players)
+    })
+    .await?;
 
     let queryable_until = output.events.queryable_until();
     let events = output.into_kept_events();
@@ -294,7 +316,10 @@ async fn write_challenge_data(
         metrics::record_stage_events_write(result.is_ok());
         result
     };
-    tokio::try_join!(save_challenge_data, save_stage_events)?;
+    time(&mut run.timings.repository, || async {
+        tokio::try_join!(save_challenge_data, save_stage_events)
+    })
+    .await?;
 
     tracing::info!(
         uuid = %challenge.uuid,

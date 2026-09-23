@@ -14,23 +14,32 @@ use crate::repository::DataRepository;
 
 use super::challenge_processor::ChallengeContext;
 use super::persist::{save_splits, update_player_stats};
-use super::{ChallengeInfo, ProcessorConfig, StoredPlayerInfo, StoredState, db, effects, session};
+use super::{
+    ChallengeInfo, ProcessingRun, ProcessorConfig, StoredPlayerInfo, StoredState, db, effects,
+    session, time,
+};
 
 /// Initializes a new challenge, returning custom processor state to persist.
 pub async fn create(
-    txn: &mut db::Transaction,
+    run: &mut ProcessingRun,
     repository: &DataRepository,
     config: ProcessorConfig,
-    info: &ChallengeInfo,
 ) -> Result<Option<serde_json::Value>, ProcessingError> {
-    insert_challenge(txn, info).await?;
+    let info = &run.request.challenge;
+    time(&mut run.timings.writes, || {
+        insert_challenge(&mut run.txn, info)
+    })
+    .await?;
 
     let Some(mut processor) = super::processor_for(config, info, None)? else {
         return Ok(None);
     };
-    processor.on_create(txn).await?;
+    time(&mut run.timings.processor, || processor.on_create(&run.txn)).await?;
     if let Some(data) = processor.challenge_data() {
-        repository.save_challenge(info.uuid, &data).await?;
+        time(&mut run.timings.repository, || {
+            repository.save_challenge(info.uuid, &data)
+        })
+        .await?;
     }
     Ok(processor.custom_data())
 }
@@ -152,27 +161,33 @@ pub async fn update_mode(txn: &db::Transaction, mode: ChallengeMode) -> Result<(
 /// Finalizes a challenge, recording its outcome.
 /// A challenge without recorded data is deleted.
 pub async fn finish(
-    txn: &mut db::Transaction,
+    run: &mut ProcessingRun,
     repository: &DataRepository,
     config: ProcessorConfig,
-    info: &ChallengeInfo,
 ) -> Result<(), ProcessingError> {
-    let stored = load_database_state(txn, info).await?;
+    let info = &run.request.challenge;
+    let stored = time(&mut run.timings.state_load, || {
+        load_database_state(&run.txn, info)
+    })
+    .await?;
     let finish_time = info
         .finished_unix_ms
         .map(|ms| UNIX_EPOCH + Duration::from_millis(ms))
         .ok_or_else(|| db::Error::InvalidData("invalid finish without an end time".into()))?;
     if stored.challenge_ticks.is_zero() {
         tracing::info!(uuid = %info.uuid, "challenge_finished_no_data");
-        return delete_empty_challenge(txn, repository, info, &stored.players, finish_time).await;
+        return delete_empty_challenge(run, repository, &stored.players, finish_time).await;
     }
 
     let Some(mut processor) = super::processor_for(config, info, stored.custom_data.as_ref())?
     else {
-        tokio::try_join!(
-            finalize_challenge_row(txn, info, finish_time, stored.challenge_ticks, false),
-            session::update_end_time(txn, finish_time),
-        )?;
+        time(&mut run.timings.writes, || async {
+            tokio::try_join!(
+                finalize_challenge_row(&run.txn, info, finish_time, stored.challenge_ticks, false),
+                session::update_end_time(&run.txn, finish_time),
+            )
+        })
+        .await?;
         return Ok(());
     };
 
@@ -198,9 +213,21 @@ pub async fn finish(
     let full_recording = processor.has_fully_recorded_up_to(info.stage);
     let mut ctx = ChallengeContext::new(info.party.clone());
     tokio::try_join!(
-        finalize_challenge_row(txn, info, finish_time, challenge_ticks, full_recording),
-        session::update_end_time(txn, finish_time),
-        processor.on_finish(txn, &stored, &mut ctx, final_ticks),
+        time(&mut run.timings.writes, || async {
+            tokio::try_join!(
+                finalize_challenge_row(
+                    &run.txn,
+                    info,
+                    finish_time,
+                    challenge_ticks,
+                    full_recording
+                ),
+                session::update_end_time(&run.txn, finish_time),
+            )
+        }),
+        time(&mut run.timings.processor, || {
+            processor.on_finish(&run.txn, &stored, &mut ctx, final_ticks)
+        }),
     )?;
 
     let times_accurate = !info.party_changed
@@ -210,40 +237,61 @@ pub async fn finish(
             .is_some_and(|last| processor.has_fully_recorded_up_to(last))
         && info.status == ChallengeStatus::Completed;
 
-    tokio::try_join!(
-        save_splits(txn, info, ctx.splits(times_accurate), &stored.players),
-        update_player_stats(txn, ctx.players(), &stored.players),
-    )?;
+    time(&mut run.timings.writes, || async {
+        tokio::try_join!(
+            save_splits(&run.txn, info, ctx.splits(times_accurate), &stored.players),
+            update_player_stats(&run.txn, ctx.players(), &stored.players),
+        )
+    })
+    .await?;
 
-    effects::emit(txn, &effects::Event::ChallengeFinished { uuid: info.uuid }).await?;
+    time(&mut run.timings.writes, || async {
+        effects::emit(
+            &run.txn,
+            &effects::Event::ChallengeFinished { uuid: info.uuid },
+        )
+        .await
+    })
+    .await?;
 
     Ok(())
 }
 
 async fn delete_empty_challenge(
-    txn: &mut db::Transaction,
+    run: &mut ProcessingRun,
     repository: &DataRepository,
-    info: &ChallengeInfo,
     players: &[StoredPlayerInfo],
     finish_time: SystemTime,
 ) -> Result<(), ProcessingError> {
-    session::update_end_time(txn, finish_time).await?;
-    let delete_row = async { txn.delete_challenge().await.map_err(ProcessingError::from) };
-    let delete_data = async {
-        repository
-            .delete_challenge(info.uuid)
+    time(&mut run.timings.writes, || {
+        session::update_end_time(&run.txn, finish_time)
+    })
+    .await?;
+    let delete_row = time(&mut run.timings.writes, || async {
+        run.txn
+            .delete_challenge()
             .await
             .map_err(ProcessingError::from)
-    };
+    });
+    let delete_data = time(&mut run.timings.repository, || async {
+        repository
+            .delete_challenge(run.request.challenge.uuid)
+            .await
+            .map_err(ProcessingError::from)
+    });
     tokio::try_join!(delete_row, delete_data)?;
 
     let ids: Vec<i32> = players.iter().map(|player| player.id.0).collect();
-    txn.execute(
-        "UPDATE players SET total_recordings = total_recordings - 1 WHERE id = ANY($1)",
-        &[&ids],
-    )
-    .await
-    .map_err(db::Error::from)?;
+    time(&mut run.timings.writes, || async {
+        run.txn
+            .execute(
+                "UPDATE players SET total_recordings = total_recordings - 1 WHERE id = ANY($1)",
+                &[&ids],
+            )
+            .await
+            .map_err(db::Error::from)
+    })
+    .await?;
     Ok(())
 }
 
