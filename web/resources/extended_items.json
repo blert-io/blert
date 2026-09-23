@@ -22175,5 +22175,6 @@
   {"id":34599,"name":"Stray puppy","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":34600,"name":"Stray puppy","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":34601,"name":"Stray dog","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
-  {"id":34602,"name":"Stuffed dog","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0}
+  {"id":34602,"name":"Stuffed dog","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34603,"name":"Daeyalt essence","tradeable":false,"equipable":false,"stackable":true,"bankNote":true,"weight":0.0}
 ]
