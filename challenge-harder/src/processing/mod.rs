@@ -1,14 +1,14 @@
 //! Challenge processing pipeline.
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use blert::Ticks;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
+    ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload, Uuid,
 };
 use crate::metrics;
 use crate::price::PriceResolver;
@@ -159,6 +159,48 @@ impl Pipeline {
         self.capturer = Some(capturer);
         self
     }
+
+    async fn dispatch(
+        &self,
+        run: &mut ProcessingRun,
+    ) -> Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError> {
+        match run.request.trigger {
+            Trigger::Create { .. } => {
+                let custom_data = challenge::create(run, &self.repository, self.config).await?;
+                Ok((ProcessingPayload::None, custom_data))
+            }
+            Trigger::Recorder {
+                user_id,
+                recording_type,
+                ..
+            } => {
+                time(&mut run.timings.writes, || {
+                    challenge::add_recorder(&run.txn, user_id, recording_type)
+                })
+                .await?;
+                Ok((ProcessingPayload::None, None))
+            }
+            Trigger::StageStart { stage, .. } => {
+                time(&mut run.timings.writes, || {
+                    challenge::update_stage(&run.txn, stage)
+                })
+                .await?;
+                Ok((ProcessingPayload::None, None))
+            }
+            Trigger::Mode { mode, .. } => {
+                time(&mut run.timings.writes, || {
+                    challenge::update_mode(&run.txn, mode)
+                })
+                .await?;
+                Ok((ProcessingPayload::None, None))
+            }
+            Trigger::Finish { .. } => {
+                challenge::finish(run, &self.repository, self.config).await?;
+                Ok((ProcessingPayload::None, None))
+            }
+            Trigger::Stage { .. } => stage::process(self, run).await,
+        }
+    }
 }
 
 #[async_trait]
@@ -168,61 +210,114 @@ impl StageProcessor for Pipeline {
         request: ProcessingRequest,
     ) -> Result<ProcessingPayload, ProcessingError> {
         let uuid = request.challenge.uuid;
-        tracing::info!(
-            %uuid,
-            trigger = ?request.trigger,
-            "processing_started",
-        );
-        let started = Instant::now();
+        let trigger = request.trigger;
+        tracing::info!(%uuid, ?trigger, "processing_started");
 
-        let mut txn = match self.db.start_transaction(uuid, request.trigger).await {
-            Ok(txn) => txn,
+        let mut run = match ProcessingRun::start(&self.db, request).await {
+            Ok(run) => run,
             Err(db::Error::AlreadyApplied(payload)) => {
-                tracing::debug!(%uuid, seq = ?request.trigger.seq(), "processing_step_already_applied");
+                tracing::debug!(%uuid, seq = ?trigger.seq(), "processing_step_already_applied");
                 return Ok(payload);
             }
             Err(error) => return Err(error.into()),
         };
 
-        let (payload, custom_data) = match request.trigger {
-            Trigger::Create { .. } => {
-                let custom_data =
-                    challenge::create(&mut txn, &self.repository, self.config, &request.challenge)
-                        .await?;
-                (ProcessingPayload::None, custom_data)
-            }
-            Trigger::Recorder {
-                user_id,
-                recording_type,
-                ..
-            } => {
-                challenge::add_recorder(&txn, user_id, recording_type).await?;
-                (ProcessingPayload::None, None)
-            }
-            Trigger::StageStart { stage, .. } => {
-                challenge::update_stage(&txn, stage).await?;
-                (ProcessingPayload::None, None)
-            }
-            Trigger::Mode { mode, .. } => {
-                challenge::update_mode(&txn, mode).await?;
-                (ProcessingPayload::None, None)
-            }
-            Trigger::Finish { .. } => {
-                challenge::finish(&mut txn, &self.repository, self.config, &request.challenge)
-                    .await?;
-                (ProcessingPayload::None, None)
-            }
-            Trigger::Stage { .. } => stage::process(self, &txn, &request.challenge).await?,
+        let outcome = self.dispatch(&mut run).await;
+        run.finish(outcome).await
+    }
+}
+
+/// Time spent during each stage of a processing run.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct RunTimings {
+    transaction: Option<Duration>,
+    stream_read: Option<Duration>,
+    state_load: Option<Duration>,
+    interpret: Option<Duration>,
+    processor: Option<Duration>,
+    writes: Option<Duration>,
+    repository: Option<Duration>,
+    commit: Option<Duration>,
+}
+
+impl RunTimings {
+    fn log(&self, uuid: Uuid, trigger: Trigger, total: Duration, error: Option<&ProcessingError>) {
+        tracing::info!(
+            %uuid,
+            ?trigger,
+            total_ms = total.as_millis(),
+            transaction_ms = self.transaction.map(|duration| duration.as_millis()),
+            stream_read_ms = self.stream_read.map(|duration| duration.as_millis()),
+            state_load_ms = self.state_load.map(|duration| duration.as_millis()),
+            interpret_ms = self.interpret.map(|duration| duration.as_millis()),
+            processor_ms = self.processor.map(|duration| duration.as_millis()),
+            writes_ms = self.writes.map(|duration| duration.as_millis()),
+            repository_ms = self.repository.map(|duration| duration.as_millis()),
+            commit_ms = self.commit.map(|duration| duration.as_millis()),
+            error = error.map(|error| error.message.as_str()),
+            retriable = error.map(|error| error.retriable),
+            "processing_finished",
+        );
+    }
+}
+
+/// Runs `work`, adding the time it took to `slot`.
+async fn time<F: Future>(slot: &mut Option<Duration>, work: impl FnOnce() -> F) -> F::Output {
+    let started = Instant::now();
+    let output = work().await;
+    *slot = Some(slot.unwrap_or_default() + started.elapsed());
+    output
+}
+
+struct ProcessingRun {
+    request: ProcessingRequest,
+    txn: db::Transaction,
+    started: Instant,
+    timings: RunTimings,
+}
+
+impl ProcessingRun {
+    async fn start(db: &db::Postgres, request: ProcessingRequest) -> Result<Self, db::Error> {
+        let started = Instant::now();
+        let mut timings = RunTimings::default();
+        let txn = time(&mut timings.transaction, || {
+            db.start_transaction(request.challenge.uuid, request.trigger)
+        })
+        .await?;
+        Ok(ProcessingRun {
+            request,
+            txn,
+            started,
+            timings,
+        })
+    }
+
+    async fn finish(
+        mut self,
+        outcome: Result<(ProcessingPayload, Option<serde_json::Value>), ProcessingError>,
+    ) -> Result<ProcessingPayload, ProcessingError> {
+        let result = match outcome {
+            Ok((payload, custom_data)) => time(&mut self.timings.commit, || {
+                self.txn.commit(&payload, custom_data.as_ref())
+            })
+            .await
+            .map(|()| payload)
+            .map_err(ProcessingError::from),
+            Err(error) => Err(error),
         };
-        txn.commit(&payload, custom_data.as_ref()).await?;
 
-        if let Trigger::Stage { stage, .. } = request.trigger {
-            metrics::observe_stage_processing_duration(
-                stage,
-                started.elapsed().as_secs_f64() * 1000.0,
-            );
+        let total = self.started.elapsed();
+        if result.is_ok()
+            && let Trigger::Stage { stage, .. } = self.request.trigger
+        {
+            metrics::observe_stage_processing_duration(stage, total.as_secs_f64() * 1000.0);
         }
-
-        Ok(payload)
+        self.timings.log(
+            self.request.challenge.uuid,
+            self.request.trigger,
+            total,
+            result.as_ref().err(),
+        );
+        result
     }
 }
