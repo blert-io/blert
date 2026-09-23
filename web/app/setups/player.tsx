@@ -72,6 +72,7 @@ export function Player({ index, player }: PlayerProps) {
   const editingContext = useContext(SetupEditingContext);
   const { highlightedPlayerIndex } = useContext(SetupViewingContext);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const sendToast = useToast();
 
@@ -131,30 +132,33 @@ export function Player({ index, player }: PlayerProps) {
     ...EXPORT_MENU,
   ];
 
-  const handleImport = useCallback(async () => {
-    const clipboard = navigator.clipboard;
-    if (!clipboard || editingContext === null) {
-      return;
-    }
-
-    try {
-      const text = await clipboard.readText();
-      const setup = importSetup(text);
-      editingContext.updatePlayer(index, (prev) => ({
-        ...setup,
-        optional: prev.optional,
-      }));
-    } catch (error: unknown) {
-      if (error instanceof TranslateError) {
-        sendToast(
-          `Failed to import setup from clipboard: ${error.message}`,
-          'error',
-        );
-      } else {
-        sendToast('Failed to import setup from clipboard', 'error');
+  const handleImportPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      e.preventDefault();
+      if (editingContext === null) {
+        return;
       }
-    }
-  }, [sendToast, editingContext, index]);
+
+      try {
+        const setup = importSetup(e.clipboardData.getData('text'));
+        editingContext.updatePlayer(index, (prev) => ({
+          ...setup,
+          optional: prev.optional,
+        }));
+        setImportOpen(false);
+      } catch (error: unknown) {
+        if (error instanceof TranslateError) {
+          sendToast(
+            `Failed to import setup from clipboard: ${error.message}`,
+            'error',
+          );
+        } else {
+          sendToast('Failed to import setup from clipboard', 'error');
+        }
+      }
+    },
+    [sendToast, editingContext, index],
+  );
 
   return (
     <div
@@ -323,12 +327,28 @@ export function Player({ index, player }: PlayerProps) {
         <div className={styles.editActions}>
           <Button
             icon
-            onClick={() => void handleImport()}
-            tooltip="Import setup from clipboard"
+            onClick={() => setImportOpen(true)}
+            tooltip={importOpen ? undefined : 'Import setup from clipboard'}
           >
             <i className="fas fa-upload" />
             <span className="sr-only">Import setup from clipboard</span>
           </Button>
+          {importOpen && (
+            <div className={styles.importPopover}>
+              <textarea
+                aria-label="Paste setup"
+                autoFocus
+                placeholder="Paste setup here"
+                onBlur={() => setImportOpen(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setImportOpen(false);
+                  }
+                }}
+                onPaste={handleImportPaste}
+              />
+            </div>
+          )}
           <Button
             icon
             className={isOptional ? styles.active : undefined}

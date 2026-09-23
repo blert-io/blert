@@ -404,7 +404,12 @@ export function importSetup(data: string): GearSetupPlayer {
     throw new TranslateError('Empty setup data');
   }
 
-  const parsed: unknown = JSON.parse(data);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch {
+    throw new TranslateError('Invalid or unsupported setup import format');
+  }
   if (typeof parsed !== 'object' || parsed === null) {
     throw new TranslateError('Invalid setup data');
   }

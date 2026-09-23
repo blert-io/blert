@@ -1,3 +1,5 @@
+@use '@/mixins.scss' as *;
+
 .menuWrapper {
   position: fixed;
   z-index: 1000;
@@ -10,12 +12,7 @@
     position: relative;
   }
 
-  background-color: var(--blert-surface-dark);
-  border: 1px solid rgba(var(--blert-purple-base), 0.45);
-  border-radius: 5px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.55),
-    0 2px 8px rgba(0, 0, 0, 0.35);
+  @include floatingPanel;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -44,27 +41,9 @@
     border-top: none;
   }
 
-  // Aero: frosted glass at every menu depth. The frost lives on a pseudo
-  // element because backdrop-filter on the menu itself would make it the
-  // containing block for its fixed-position submenus, breaking the viewport
-  // coordinates they are placed with.
+  // Aero: frosted glass at every menu depth.
   :global([data-theme='aero']) & {
-    border-radius: 10px;
-    border: 1px solid rgba(120, 165, 200, 0.5);
-    background: linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.85),
-      rgba(224, 242, 252, 0.72)
-    );
-    box-shadow: 0 10px 28px rgba(60, 120, 165, 0.3);
-
-    &::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      z-index: -1;
-      backdrop-filter: blur(16px) saturate(1.4);
-    }
+    @include aeroFloatingPanel;
   }
 
   :global([data-theme='aero']) &.attachBottom {
