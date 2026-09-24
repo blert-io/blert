@@ -38,8 +38,8 @@
     "@wise-old-man/utils": "^4.0.24",
     "google-protobuf": "^4.0.3",
     "node-addon-api": "^8.9.2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "ts-protoc-gen": "^0.15.0",
     "zod": "^4.6.5"
   }
