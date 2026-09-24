@@ -3,7 +3,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Display, DisplayContext } from '@/display';
+import { DisplayContext } from '@/display';
 
 import styles from './style.module.scss';
 
@@ -18,13 +18,10 @@ export function TableOfContents(_props: TableOfContentsProps) {
   const router = useRouter();
 
   const [headings, setHeadings] = useState<Element[]>([]);
-  const [tocRight, setTocRight] = useState(0);
   const [activeHeading, setActiveHeading] = useState<Element | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeout = useRef<number | null>(null);
   const intersectionObserver = useRef<IntersectionObserver | null>(null);
-  const mutationObserver = useRef<MutationObserver | null>(null);
-  const rafId = useRef<number | null>(null);
 
   useEffect(() => {
     const findAndFilterHeadings = () => {
@@ -69,34 +66,30 @@ export function TableOfContents(_props: TableOfContentsProps) {
       setHeadings(headings);
     };
 
-    const onResize = () => {
-      findAndFilterHeadings();
-
-      const wrapper = document.getElementById('blert-article-wrapper');
-      if (window.innerWidth > Display.COMPACT_THRESHOLD && wrapper) {
-        setTocRight(window.innerWidth - wrapper.getBoundingClientRect().right);
-      }
-    };
-
-    onResize();
-    window.addEventListener('resize', onResize);
+    findAndFilterHeadings();
+    window.addEventListener('resize', findAndFilterHeadings);
 
     // Watch for dynamic content (e.g., Appendix mounted later).
+    let rafId: number | null = null;
+    const mutationObserver = new MutationObserver(() => {
+      // Debounce to next frame.
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(findAndFilterHeadings);
+    });
     const wrapper = document.getElementById('blert-article-wrapper');
-    if (wrapper && !mutationObserver.current) {
-      mutationObserver.current = new MutationObserver(() => {
-        // Debounce to next frame.
-        if (rafId.current) {
-          cancelAnimationFrame(rafId.current);
-        }
-        rafId.current = requestAnimationFrame(() => findAndFilterHeadings());
-      });
-      mutationObserver.current.observe(wrapper, {
-        childList: true,
-        subtree: true,
-      });
+    if (wrapper !== null) {
+      mutationObserver.observe(wrapper, { childList: true, subtree: true });
     }
-    return () => window.removeEventListener('resize', onResize);
+
+    return () => {
+      window.removeEventListener('resize', findAndFilterHeadings);
+      mutationObserver.disconnect();
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -195,13 +188,6 @@ export function TableOfContents(_props: TableOfContentsProps) {
 
     return () => {
       intersectionObserver.current?.disconnect();
-      if (mutationObserver.current) {
-        mutationObserver.current.disconnect();
-        mutationObserver.current = null;
-      }
-      if (rafId.current) {
-        cancelAnimationFrame(rafId.current);
-      }
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimeout.current) {
         clearTimeout(scrollTimeout.current);
@@ -253,7 +239,7 @@ export function TableOfContents(_props: TableOfContentsProps) {
   }
 
   return (
-    <nav className={styles.tableOfContents} style={{ right: tocRight }}>
+    <nav className={styles.tableOfContents}>
       <div className={styles.tocScroll}>
         <div className={styles.title}>On this page</div>
         {headings.map((heading, index) => {

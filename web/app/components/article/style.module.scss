@@ -1,25 +1,28 @@
-@use '../../mixins.scss' as *;
+@use 'sass:math';
+@use '@/mixins.scss' as *;
 
-$CONTENT_WIDTH_NORMAL: 1000px;
-$CONTENT_WIDTH_SMALL: 750px;
-$CONTENT_WIDTH_SMALLER: 600px;
-$FIXED_TOC_WIDTH: 360px;
-$FIXED_TOC_MARGIN: 40px;
+$CONTENT_WIDTH: 1000px;
+$TOC_WIDTH: 360px;
+$TOC_MIN_WIDTH: 240px;
+$TOC_GAP: 40px;
 
 .wrapper {
+  display: grid;
+  // Shrink both columns proportionally until the TOC reaches its minimum width.
+  grid-template-columns:
+    minmax(0, math.div($CONTENT_WIDTH, 1px) * 1fr)
+    minmax($TOC_MIN_WIDTH, math.div($TOC_WIDTH, 1px) * 1fr);
+  grid-template-areas: 'article toc';
+  column-gap: $TOC_GAP;
+  width: 100%;
+  max-width: $CONTENT_WIDTH + $TOC_GAP + $TOC_WIDTH;
   margin: 2rem 0;
-  width: $CONTENT_WIDTH_NORMAL + $FIXED_TOC_MARGIN + $FIXED_TOC_WIDTH;
-
-  @media (max-width: 1520px) {
-    width: $CONTENT_WIDTH_SMALL + $FIXED_TOC_MARGIN + $FIXED_TOC_WIDTH;
-  }
-
-  @media (max-width: 1280px) {
-    width: $CONTENT_WIDTH_SMALLER + $FIXED_TOC_MARGIN + $FIXED_TOC_WIDTH;
-  }
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'toc'
+      'article';
     margin: 1rem 0;
   }
 }
@@ -39,7 +42,7 @@ $FIXED_TOC_MARGIN: 40px;
   display: flex;
   flex-direction: column;
   padding: 3rem 3.5rem;
-  width: $CONTENT_WIDTH_NORMAL;
+  grid-area: article;
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(8px);
@@ -102,16 +105,7 @@ $FIXED_TOC_MARGIN: 40px;
     z-index: 1;
   }
 
-  @media (max-width: 1520px) {
-    width: $CONTENT_WIDTH_SMALL;
-  }
-
-  @media (max-width: 1280px) {
-    width: $CONTENT_WIDTH_SMALLER;
-  }
-
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    width: 100%;
     padding: 2rem 1.5rem;
     border-radius: 12px;
     align-items: center;
@@ -443,9 +437,10 @@ $FIXED_TOC_MARGIN: 40px;
 }
 
 .tableOfContents {
-  position: fixed;
-  top: 2rem;
-  width: $FIXED_TOC_WIDTH;
+  grid-area: toc;
+  align-self: start;
+  position: sticky;
+  top: calc(2rem + var(--email-banner-height, 0px));
   max-height: calc(100vh - 200px);
   overflow: hidden;
   display: flex;
@@ -461,7 +456,9 @@ $FIXED_TOC_MARGIN: 40px;
   box-shadow:
     0 10px 25px rgba(0, 0, 0, 0.15),
     0 0 0 1px rgba(var(--blert-purple-base), 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
 
   .tocScroll {
@@ -495,7 +492,6 @@ $FIXED_TOC_MARGIN: 40px;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
     position: static;
-    width: 100%;
     max-height: none;
     overflow: visible;
     margin-bottom: 2rem;
