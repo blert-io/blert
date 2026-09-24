@@ -1019,18 +1019,19 @@ type GuideCardItem = {
 
 const SHOWCASE_GUIDES: GuideCardItem[] = [
   {
-    title: 'ToB Plugin Setup',
-    description: 'Recommended RuneLite plugins and optimal settings',
-    href: '/guides/tob/plugins',
+    title: 'Humid Bloat',
+    description:
+      "How to use Humidify to attack Bloat while he's up without dying",
+    href: '/guides/tob/bloat/humid',
     guideType: 'Theatre of Blood',
-    updatedAt: new Date('2025-02-24'),
+    updatedAt: new Date('2026-09-20'),
   },
   {
     title: 'Trio Nylocas Waves',
     description: 'Complete strategy for 3-player teams',
     href: '/guides/tob/nylocas/trio',
     guideType: 'Theatre of Blood',
-    updatedAt: new Date('2025-02-24'),
+    updatedAt: new Date('2026-06-17'),
   },
 ];
 
