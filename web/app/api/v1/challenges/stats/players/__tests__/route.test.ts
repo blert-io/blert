@@ -1,133 +1,92 @@
-import { ChallengeMode, ChallengeType } from '@blert/common';
-import { RedisClientType } from 'redis';
+import { ChallengeType } from '@blert/common';
 
 jest.mock('@/actions/challenge', () => ({
   countUniquePlayers: jest.fn(),
 }));
-jest.mock('@/actions/redis');
+jest.mock('@/actions/player-challenges', () => ({
+  countUniquePlayersForType: jest.fn(),
+}));
 jest.mock('@/utils/metrics', () => ({
   observeHttpRequest: jest.fn(),
-  recordCacheResult: jest.fn(),
 }));
 
 import { countUniquePlayers } from '@/actions/challenge';
-import redis from '@/actions/redis';
+import { countUniquePlayersForType } from '@/actions/player-challenges';
 import { apiRequest } from '@/api/__tests__/request';
 import { GET } from '@/api/v1/challenges/stats/players/route';
-
-type MockRedisClient = {
-  get: jest.Mock;
-  set: jest.Mock;
-};
 
 const mockedCountUniquePlayers = countUniquePlayers as jest.MockedFunction<
   typeof countUniquePlayers
 >;
-const mockedRedis = redis as jest.MockedFunction<typeof redis>;
-
-function createMockClient(): MockRedisClient {
-  return {
-    get: jest.fn(),
-    set: jest.fn(),
-  };
-}
+const mockedCountUniquePlayersForType =
+  countUniquePlayersForType as jest.MockedFunction<
+    typeof countUniquePlayersForType
+  >;
 
 describe('GET /api/v1/challenges/stats/players', () => {
-  let mockClient: MockRedisClient;
-
-  beforeEach(() => {
-    mockClient = createMockClient();
-    mockClient.get.mockResolvedValue(null);
-    mockClient.set.mockResolvedValue('OK');
-    mockedRedis.mockResolvedValue(mockClient as unknown as RedisClientType);
-    mockedCountUniquePlayers.mockResolvedValue(42);
-  });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('caches requests with normalized type, mode, and scale filters', async () => {
-    const request = apiRequest('/api/v1/challenges/stats/players', {
-      scale: '5,3,5',
-      type: `${ChallengeType.COLOSSEUM},${ChallengeType.TOB}`,
-      mode: `${ChallengeMode.TOB_HARD},${ChallengeMode.TOB_REGULAR}`,
-    });
+  it('forwards single-type requests to the view count', async () => {
+    mockedCountUniquePlayersForType.mockResolvedValue(311);
 
-    const response = await GET(request);
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ count: 42 });
-
-    const expectedParams = new URLSearchParams({
-      mode: [ChallengeMode.TOB_REGULAR, ChallengeMode.TOB_HARD]
-        .sort((lhs, rhs) => lhs - rhs)
-        .join(','),
-      scale: '3,5',
-      type: [ChallengeType.TOB, ChallengeType.COLOSSEUM]
-        .sort((lhs, rhs) => lhs - rhs)
-        .join(','),
-    });
-    expectedParams.sort();
-    const expectedKey = `web:cache:challenges:stats:players:${expectedParams.toString()}`;
-
-    expect(mockClient.get).toHaveBeenCalledWith(expectedKey);
-    expect(mockClient.set).toHaveBeenCalledWith(
-      expectedKey,
-      JSON.stringify({ count: 42 }),
-      { EX: 3600 },
+    const response = await GET(
+      apiRequest('/api/v1/challenges/stats/players', {
+        type: String(ChallengeType.COLOSSEUM),
+      }),
     );
-  });
-
-  it('caches supported comparator filters with canonical keys', async () => {
-    const request = apiRequest('/api/v1/challenges/stats/players', {
-      type: String(ChallengeType.TOB),
-      scale: 'ge4',
-    });
-
-    const response = await GET(request);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ count: 42 });
-
-    const expectedParams = new URLSearchParams({
-      scale: '>=4',
-      type: `==${ChallengeType.TOB}`,
-    });
-    expectedParams.sort();
-    const expectedKey = `web:cache:challenges:stats:players:${expectedParams.toString()}`;
-
-    expect(mockClient.get).toHaveBeenCalledWith(expectedKey);
-    expect(mockClient.set).toHaveBeenCalledWith(
-      expectedKey,
-      JSON.stringify({ count: 42 }),
-      { EX: 3600 },
+    expect(response.headers.get('Cache-Control')).toBe(
+      'public, max-age=3600, stale-while-revalidate=86400',
     );
+    expect(await response.json()).toEqual({ count: 311 });
+    expect(mockedCountUniquePlayersForType).toHaveBeenCalledWith(
+      ChallengeType.COLOSSEUM,
+    );
+    expect(mockedCountUniquePlayers).not.toHaveBeenCalled();
   });
 
-  it('bypasses Redis when unsupported filters are present', async () => {
-    const request = apiRequest('/api/v1/challenges/stats/players', {
-      type: String(ChallengeType.TOB),
-      status: '1',
-    });
+  it('forwards requests with other filters to the on-demand count', async () => {
+    mockedCountUniquePlayers.mockResolvedValue(57);
 
-    const response = await GET(request);
+    const response = await GET(
+      apiRequest('/api/v1/challenges/stats/players', {
+        type: String(ChallengeType.TOB),
+        scale: '4',
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ count: 42 });
-    expect(mockedRedis).not.toHaveBeenCalled();
+    expect(response.headers.get('Cache-Control')).toBeNull();
+    expect(await response.json()).toEqual({ count: 57 });
+    expect(mockedCountUniquePlayers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: ['==', ChallengeType.TOB],
+        scale: ['==', 4],
+      }),
+    );
+    expect(mockedCountUniquePlayersForType).not.toHaveBeenCalled();
   });
 
-  it('bypasses Redis for unsupported namespaced filters', async () => {
-    const request = apiRequest('/api/v1/challenges/stats/players', {
-      type: String(ChallengeType.TOB),
-      'split:28': 'le600',
-    });
+  it('forwards multi-type requests to the on-demand count', async () => {
+    mockedCountUniquePlayers.mockResolvedValue(1264);
 
-    const response = await GET(request);
+    const response = await GET(
+      apiRequest('/api/v1/challenges/stats/players', {
+        type: `${ChallengeType.INFERNO},${ChallengeType.MOKHAIOTL}`,
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ count: 42 });
-    expect(mockedRedis).not.toHaveBeenCalled();
+    expect(response.headers.get('Cache-Control')).toBeNull();
+    expect(await response.json()).toEqual({ count: 1264 });
+    expect(mockedCountUniquePlayers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: ['in', [ChallengeType.INFERNO, ChallengeType.MOKHAIOTL]],
+      }),
+    );
+    expect(mockedCountUniquePlayersForType).not.toHaveBeenCalled();
   });
 });
