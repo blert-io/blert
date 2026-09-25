@@ -1040,7 +1040,7 @@ export function GuidesCard() {
 
   const fetchSetups = useCallback(async () => {
     try {
-      const res = await fetch('/api/setups?limit=2&sort=score');
+      const res = await fetch('/api/setups?limit=2&sort=score&state=published');
       const data = (await res.json()) as { setups: SetupListItem[] };
       setSetups(
         data.setups.map((setup) => ({

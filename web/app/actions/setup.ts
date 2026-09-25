@@ -855,6 +855,10 @@ export async function getSetupRevisions(
 
 /**
  * Gets a paginated list of setups matching the given filters.
+ *
+ * Only published setups are visible to users other than their author.
+ * Without a `state` filter, all accessible setups are returned.
+ *
  * @param filter Filter criteria for the setups.
  * @param cursor Pagination cursor for the next page.
  * @param limit Maximum number of setups to return.
@@ -867,35 +871,19 @@ export async function getSetups(
 ): Promise<SetupList> {
   const conditions: postgres.Fragment[] = [];
 
-  let state: SetupState | undefined;
-  let author: number | undefined;
-
   const user = await getSignedInUser();
-  if (user !== null) {
-    if (filter.state !== undefined) {
-      state = filter.state;
-      if (state !== 'published') {
-        author = user.id;
-      }
-    } else {
-      // No state filter, show only the user's own setups.
-      author = user.id;
-    }
+  if (user === null) {
+    conditions.push(sql`s.state = 'published'`);
   } else {
-    // No user logged in, show only published setups.
-    state = 'published';
+    conditions.push(sql`(s.state = 'published' OR s.author_id = ${user.id})`);
   }
 
-  if (state !== undefined) {
-    conditions.push(sql`s.state = ${state}`);
+  if (filter.state !== undefined) {
+    conditions.push(sql`s.state = ${filter.state}`);
   }
 
-  if (filter.author !== undefined && author === undefined) {
-    author = filter.author;
-  }
-
-  if (author !== undefined) {
-    conditions.push(sql`s.author_id = ${author}`);
+  if (filter.author !== undefined) {
+    conditions.push(sql`s.author_id = ${filter.author}`);
   }
 
   if (filter.challenge !== undefined) {
