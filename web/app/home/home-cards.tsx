@@ -574,8 +574,6 @@ type LeaderboardCardProps = {
   challengeType: SupportedChallenge;
 };
 
-const CAROUSEL_WIDTH = 320;
-
 function Leaderboard({
   leaderboard,
   challengeType,
@@ -600,9 +598,6 @@ function Leaderboard({
               href={challengeUrl(challengeType, entry.uuid)}
               className={styles.leaderboardEntry}
             >
-              <div className={styles.date}>
-                {isClient && <ReactTimeago date={entry.date} />}
-              </div>
               <div className={styles.topRow}>
                 <div className={styles.rank}>
                   <span
@@ -629,6 +624,9 @@ function Leaderboard({
                       <i className="fas fa-users" />+{entry.tieCount}
                     </span>
                   )}
+                </div>
+                <div className={styles.date}>
+                  {isClient && <ReactTimeago date={entry.date} />}
                 </div>
               </div>
               <div className={styles.partyInfo}>
@@ -759,11 +757,10 @@ function LeaderboardCard({ challengeType }: LeaderboardCardProps) {
         ),
       }}
     >
-      <div className={styles.carousel}>
+      <div className={styles.leaderboards}>
         {hasMultipleScales ? (
           leaderboards.length > 0 ? (
             <Carousel
-              maxItemWidth={CAROUSEL_WIDTH}
               autoCycle
               cycleDuration={11300}
               showArrows={false}
