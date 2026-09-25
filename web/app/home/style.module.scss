@@ -894,7 +894,9 @@
   }
 }
 
-.carousel {
+.leaderboards {
+  width: 100%;
+  max-width: 320px;
   margin: 0 auto;
 }
 
@@ -1089,7 +1091,6 @@
 }
 
 .leaderboardEntry {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1109,19 +1110,19 @@
     transform: translateX(4px);
   }
 
+  .topRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
   .date {
-    position: absolute;
-    top: 10px;
-    right: 14px;
+    margin-left: auto;
+    white-space: nowrap;
     font-size: 0.8em;
     color: var(--blert-font-color-secondary);
     opacity: 0.8;
-  }
-
-  .topRow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
   }
 
   .rank {
