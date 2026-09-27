@@ -16,10 +16,11 @@ pub enum ObjectKind {
 
     MokhaiotlRock,
     MokhaiotlSplat,
+    MokhaiotlShockwave,
 }
 
 /// The set of objects present in the world on a tick.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TickObjects(BTreeMap<ObjectKind, BTreeMap<Point, Source>>);
 
 impl TickObjects {
@@ -87,6 +88,11 @@ impl TickObjects {
         for point in points {
             map.remove(&point);
         }
+    }
+
+    /// Removes every object of `kind`.
+    pub fn clear(&mut self, kind: ObjectKind) {
+        self.0.remove(&kind);
     }
 }
 
@@ -180,5 +186,28 @@ mod tests {
         assert!(objects.contains_kind(ObjectKind::MokhaiotlSplat));
         assert!(!objects.contains_kind(ObjectKind::MokhaiotlRock));
         assert_eq!(objects.iter_of(ObjectKind::MokhaiotlSplat).count(), 1);
+    }
+
+    #[test]
+    fn tick_objects_clear() {
+        let mut objects = TickObjects::default();
+        objects.insert(
+            ObjectKind::ColosseumReentryPrimaryPool,
+            Source::Client(ClientId(3)),
+            [Point(1816, 3116), Point(1818, 3112)],
+        );
+        objects.insert(
+            ObjectKind::ColosseumReentrySecondaryPool,
+            Source::Client(ClientId(3)),
+            [Point(1817, 3111)],
+        );
+
+        objects.clear(ObjectKind::ColosseumReentryPrimaryPool);
+
+        assert!(!objects.contains_kind(ObjectKind::ColosseumReentryPrimaryPool));
+        assert_eq!(
+            objects.iter().collect::<Vec<_>>(),
+            [(ObjectKind::ColosseumReentrySecondaryPool, Point(1817, 3111))]
+        );
     }
 }

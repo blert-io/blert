@@ -48,7 +48,7 @@ impl Tick {
 
     /// Returns an iterator over all ticks prior to this one.
     #[inline]
-    pub fn up_to(self) -> impl Iterator<Item = Self> + Clone {
+    pub fn up_to(self) -> impl DoubleEndedIterator<Item = Self> + Clone {
         (0..self.0).map(Self)
     }
 
@@ -115,6 +115,14 @@ impl Sub<Tick> for Tick {
 
     fn sub(self, rhs: Tick) -> Ticks {
         Ticks(self.0.saturating_sub(rhs.0))
+    }
+}
+
+impl TryFrom<i32> for Tick {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(tick: i32) -> Result<Self, Self::Error> {
+        u32::try_from(tick).map(Self)
     }
 }
 
@@ -405,6 +413,13 @@ mod tests {
     #[should_panic(expected = "tick count is small")]
     fn tick_from_usize_too_large() {
         let _ = Tick::from_usize(u32::MAX as usize + 1);
+    }
+
+    #[test]
+    fn tick_from_i32() {
+        assert_eq!(Tick::try_from(7), Ok(Tick(7)));
+        assert_eq!(Tick::try_from(0), Ok(Tick(0)));
+        assert!(Tick::try_from(-1).is_err());
     }
 
     #[test]

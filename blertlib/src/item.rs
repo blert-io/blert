@@ -2,6 +2,11 @@
 
 pub use crate::proto::event::player::EquipmentSlot;
 
+/// OSRS item IDs.
+pub mod id {
+    include!(concat!(env!("OUT_DIR"), "/item_id.rs"));
+}
+
 pub(crate) const EQUIPMENT_SLOTS: usize = EquipmentSlot::Quiver as usize + 1;
 
 /// A stack of an item.
