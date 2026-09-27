@@ -1622,3 +1622,6 @@ fn resolve_attack_style(
     attack.attack = resolved;
     Ok(Some(attack_tick))
 }
+
+#[cfg(test)]
+mod tests;
