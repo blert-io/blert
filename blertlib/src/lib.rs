@@ -4,13 +4,13 @@
 
 mod actor;
 mod event;
-mod item;
 mod objects;
 mod prayer;
 mod skill;
 mod tick;
 mod timeline;
 
+pub mod item;
 pub mod proto;
 pub use proto::event::ColosseumHandicap;
 pub use proto::{NpcAttack, PlayerAttack, PlayerSpell};
@@ -25,7 +25,10 @@ pub use objects::{ObjectKind, TickObjects};
 pub use prayer::{Prayer, PrayerBook, PrayerSet};
 pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
-pub use timeline::{TickState, Timeline};
+pub use timeline::{
+    BuildRejection, BuildWarning, FieldError, RawActor, RejectionReason, TickState, Timeline,
+    TimelineBuilder,
+};
 
 /// A location in the game world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

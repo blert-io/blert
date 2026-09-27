@@ -7,6 +7,12 @@ use crate::event::Event;
 use crate::objects::TickObjects;
 use crate::tick::{Tick, Ticks};
 
+mod builder;
+
+pub use builder::{
+    BuildRejection, BuildWarning, FieldError, RawActor, RejectionReason, TimelineBuilder,
+};
+
 /// A `Timeline` represents a challenge stage as observed by one or more clients.
 /// It is a nonempty, chronological sequence of ticks, each storing the state of
 /// the world on that tick alongside the events that occurred.
@@ -17,13 +23,8 @@ pub struct Timeline {
 
 impl Timeline {
     /// Creates a timeline spanning to `last_tick` without any state or events.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `last_tick` is 0.
     #[must_use]
     pub fn vacant(last_tick: Tick) -> Self {
-        assert!(last_tick.0 > 0);
         Self {
             states: vec![None; last_tick.as_usize() + 1],
         }
@@ -73,6 +74,13 @@ impl Timeline {
             .filter_map(|(tick, state)| Some((Tick::from_usize(tick), state.as_mut()?)))
     }
 
+    /// Returns an iterator over the events occurring on `tick`.
+    pub fn events_for_tick(&self, tick: Tick) -> impl Iterator<Item = &Event> {
+        self.get_state(tick)
+            .into_iter()
+            .flat_map(|state| state.events.iter())
+    }
+
     /// Moves every recorded tick and its events forward by `offset` ticks,
     /// growing the timeline by that length and leaving vacant ticks at the
     /// start.
@@ -90,7 +98,7 @@ impl Timeline {
 }
 
 /// The state of the world on a single tick alongside the events that occurred.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TickState {
     pub players: Players,
     pub npcs: BTreeMap<RoomId, NpcState>,
@@ -180,6 +188,17 @@ mod tests {
                 .collect::<Vec<_>>(),
             [(Tick(1), 1), (Tick(3), 1)]
         );
+
+        assert_eq!(
+            timeline.events_for_tick(Tick(3)).collect::<Vec<_>>(),
+            [&Event::synthetic(EventKind::BloatDown(BloatDown {
+                down_number: 1,
+                up_ticks: Ticks(2),
+            }))]
+        );
+        assert_eq!(timeline.events_for_tick(Tick(1)).count(), 1);
+        assert_eq!(timeline.events_for_tick(Tick(2)).count(), 0);
+        assert_eq!(timeline.events_for_tick(Tick(4)).count(), 0);
     }
 
     #[test]

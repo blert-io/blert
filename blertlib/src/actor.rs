@@ -36,13 +36,12 @@ pub enum Actor {
 }
 
 /// The states of each player in the challenge on a tick.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Players {
     states: Vec<Option<PlayerState>>,
 }
 
 impl Players {
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn empty(party_size: usize) -> Self {
         Self {
             states: vec![None; party_size],
@@ -97,7 +96,7 @@ impl IndexMut<PartyIndex> for Players {
 }
 
 /// A party member's state on a tick.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerState {
     pub source: Source,
     pub position: Point,
@@ -132,7 +131,7 @@ pub enum DataSource {
 }
 
 /// An NPC's state on a tick.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NpcState {
     pub source: Source,
     pub npc_id: u32,
@@ -142,14 +141,14 @@ pub struct NpcState {
     pub properties: Option<NpcProperties>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NpcProperties {
     MaidenCrab(MaidenCrab),
     Nylo(Nylo),
     VerzikCrab(VerzikCrab),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaidenCrab {
     pub spawn: MaidenCrabSpawn,
     pub position: MaidenCrabPosition,
@@ -158,7 +157,7 @@ pub struct MaidenCrab {
     pub scuffed: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Nylo {
     pub wave: u32,
     pub big: bool,
@@ -166,7 +165,7 @@ pub struct Nylo {
     pub spawn: NyloSpawn,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NyloSpawn {
     Split(Option<RoomId>),
     West,
@@ -175,7 +174,7 @@ pub enum NyloSpawn {
     Unknown,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerzikCrab {
     pub phase: VerzikPhase,
     pub spawn: VerzikCrabSpawn,

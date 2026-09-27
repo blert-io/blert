@@ -24,7 +24,7 @@ pub use crate::proto::event::{VerzikPhase, XarpusPhase};
 /// different to "state", which represents server-authoritative facts about the
 /// game world. This distinction is not made in the wire format, which sends
 /// every game observation as an event; only a subset of those are defined here.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
     pub source: Source,
     pub kind: EventKind,
@@ -54,7 +54,7 @@ impl Event {
 ///
 /// In addition to only defining a subset of wire events, these payloads omit
 /// wire fields that are trivially derivable from world state.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventKind {
     /// A player has died.
     /// Typically sent on the tick on which the player's HP reaches zero, but
@@ -92,7 +92,6 @@ pub enum EventKind {
     VerzikDawnPickedUp(Point),
     VerzikDawnHit(VerzikDawnHit),
     VerzikBounce(VerzikBounce),
-    VerzikAttackStyle(AttackStyle),
     VerzikHeal(VerzikHeal),
 
     HandicapChoice(HandicapChoice),
@@ -103,7 +102,6 @@ pub enum EventKind {
     SolPools(Vec<Point>),
     SolLasers(SolLaserPhase),
 
-    MokhaiotlAttackStyle(AttackStyle),
     MokhaiotlOrb(MokhaiotlOrb),
     MokhaiotlLarvaLeak(MokhaiotlLarvaLeak),
 
@@ -128,12 +126,12 @@ impl EventKind {
             }
             Self::VerzikDawnHit(hit) => hit.attack_tick = remap(hit.attack_tick),
             Self::VerzikBounce(bounce) => bounce.attack_tick = remap(bounce.attack_tick),
-            Self::VerzikAttackStyle(style) | Self::MokhaiotlAttackStyle(style) => {
-                style.attack_tick = remap(style.attack_tick);
-            }
             Self::TotemHeal(heal) => heal.start_tick = remap(heal.start_tick),
             Self::SolGrapple(grapple) => grapple.attack_tick = remap(grapple.attack_tick),
-            Self::MokhaiotlOrb(orb) => orb.spawn_tick = remap(orb.spawn_tick),
+            Self::MokhaiotlOrb(orb) => {
+                orb.spawn_tick = remap(orb.spawn_tick);
+                orb.end_tick = remap(orb.end_tick);
+            }
             Self::PlayerDeath(_)
             | Self::PlayerAttack(_)
             | Self::PlayerSpell(_)
@@ -170,7 +168,7 @@ impl EventKind {
 }
 
 /// An attack performed by a player.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayerAttacked {
     pub player: PartyIndex,
     pub attack: PlayerAttack,
@@ -222,13 +220,17 @@ pub struct NyloWave {
     pub nylos_alive: u8,
 }
 
+impl NyloWave {
+    pub const LAST_WAVE: u8 = 31;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Maze {
     Maze66 = 0,
     Maze33 = 1,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SoteMazePivots {
     pub maze: Maze,
     pub overworld: Vec<Point>,
@@ -242,7 +244,7 @@ pub struct SoteMazeEnd {
 }
 
 /// The lifecycle of an exhumed, emitted after it despawns.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XarpusExhumed {
     pub position: Point,
     pub spawn_tick: Tick,
@@ -281,14 +283,6 @@ pub struct VerzikBounce {
     /// Number of players adjacent to or under Verzik. Always set.
     pub players_in_range: u8,
     pub bounced: Option<PartyIndex>,
-}
-
-/// Identifies the style of a previous NPC attack.
-// TODO(frolv): Replace disjoint uses of this with a generic attack style event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AttackStyle {
-    pub attack_tick: Tick,
-    pub style: CombatStyle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -333,6 +327,7 @@ pub struct MokhaiotlOrb {
     pub source_point: Point,
     pub style: CombatStyle,
     pub spawn_tick: Tick,
+    pub end_tick: Tick,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -395,38 +390,6 @@ mod tests {
             }
         );
 
-        let mut verzik_style = EventKind::VerzikAttackStyle(AttackStyle {
-            attack_tick: Tick(200),
-            style: CombatStyle::Ranged,
-        });
-        verzik_style.remap_ticks(|tick| tick + Ticks(27));
-        let EventKind::VerzikAttackStyle(verzik_style) = verzik_style else {
-            unreachable!();
-        };
-        assert_eq!(
-            verzik_style,
-            AttackStyle {
-                attack_tick: Tick(227),
-                style: CombatStyle::Ranged,
-            }
-        );
-
-        let mut mokhaiotl_style = EventKind::MokhaiotlAttackStyle(AttackStyle {
-            attack_tick: Tick(16),
-            style: CombatStyle::Magic,
-        });
-        mokhaiotl_style.remap_ticks(|tick| tick - Ticks(9));
-        let EventKind::MokhaiotlAttackStyle(mokhaiotl_style) = mokhaiotl_style else {
-            unreachable!();
-        };
-        assert_eq!(
-            mokhaiotl_style,
-            AttackStyle {
-                attack_tick: Tick(7),
-                style: CombatStyle::Magic,
-            }
-        );
-
         let mut totem_heal = EventKind::TotemHeal(TotemHeal {
             totem: RoomId(12),
             target: RoomId(5),
@@ -470,6 +433,7 @@ mod tests {
             source_point: Point(1310, 9570),
             style: CombatStyle::Melee,
             spawn_tick: Tick(33),
+            end_tick: Tick(38),
         });
         orb.remap_ticks(|tick| tick + Ticks(67));
         let EventKind::MokhaiotlOrb(orb) = orb else {
@@ -482,6 +446,7 @@ mod tests {
                 source_point: Point(1310, 9570),
                 style: CombatStyle::Melee,
                 spawn_tick: Tick(100),
+                end_tick: Tick(105),
             }
         );
 

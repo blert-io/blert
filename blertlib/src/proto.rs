@@ -54,3 +54,23 @@ impl TryFrom<crate::Slot> for event::player::EquipmentSlot {
         Self::try_from(i32::from(value.0))
     }
 }
+
+impl From<event::attack_style::Style> for crate::CombatStyle {
+    fn from(style: event::attack_style::Style) -> Self {
+        match style {
+            event::attack_style::Style::Melee => Self::Melee,
+            event::attack_style::Style::Range => Self::Ranged,
+            event::attack_style::Style::Mage => Self::Magic,
+        }
+    }
+}
+
+impl From<event::npc::nylo::Style> for crate::CombatStyle {
+    fn from(style: event::npc::nylo::Style) -> Self {
+        match style {
+            event::npc::nylo::Style::Melee => Self::Melee,
+            event::npc::nylo::Style::Range => Self::Ranged,
+            event::npc::nylo::Style::Mage => Self::Magic,
+        }
+    }
+}
