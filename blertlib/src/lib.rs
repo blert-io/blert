@@ -11,6 +11,7 @@ mod tick;
 mod timeline;
 
 pub mod item;
+pub mod npc;
 pub mod proto;
 pub use proto::event::ColosseumHandicap;
 pub use proto::{NpcAttack, PlayerAttack, PlayerSpell};

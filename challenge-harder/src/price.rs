@@ -22,7 +22,7 @@ pub enum PriceError {
     #[error("price request failed: {0}")]
     Request(String),
     #[error("no price data for item {0}")]
-    MissingItem(i32),
+    MissingItem(u32),
 }
 
 /// OSRS wiki price response format.
@@ -38,7 +38,7 @@ struct ItemPrice {
 }
 
 struct PriceMap {
-    prices: HashMap<i32, u64>,
+    prices: HashMap<u32, u64>,
     fetched: Instant,
 }
 
@@ -73,7 +73,7 @@ impl PriceResolver {
 
     /// Fills the cache with known prices.
     #[cfg_attr(not(test), expect(dead_code))]
-    pub fn populate(&self, prices: impl IntoIterator<Item = (i32, u64)>) {
+    pub fn populate(&self, prices: impl IntoIterator<Item = (u32, u64)>) {
         *self.prices.lock().expect("price map lock") = Some(PriceMap {
             prices: prices.into_iter().collect(),
             fetched: Instant::now(),
@@ -106,7 +106,7 @@ impl PriceResolver {
 
     /// Returns the current price of an item, refreshing a stale cache first.
     /// The wait is bounded by the configured fetch timeout.
-    pub async fn get_price(&self, item_id: i32) -> Result<u64, PriceError> {
+    pub async fn get_price(&self, item_id: u32) -> Result<u64, PriceError> {
         if let Some(result) = self.cached_price(item_id) {
             return result;
         }
@@ -131,7 +131,7 @@ impl PriceResolver {
             .is_some_and(|map| map.fetched.elapsed() < CACHE_TTL)
     }
 
-    fn cached_price(&self, item_id: i32) -> Option<Result<u64, PriceError>> {
+    fn cached_price(&self, item_id: u32) -> Option<Result<u64, PriceError>> {
         let guard = self.prices.lock().expect("price map lock");
         match guard.as_ref() {
             Some(map) if map.fetched.elapsed() < CACHE_TTL => {
@@ -141,14 +141,14 @@ impl PriceResolver {
         }
     }
 
-    fn lookup(prices: &HashMap<i32, u64>, item_id: i32) -> Result<u64, PriceError> {
+    fn lookup(prices: &HashMap<u32, u64>, item_id: u32) -> Result<u64, PriceError> {
         prices
             .get(&item_id)
             .copied()
             .ok_or(PriceError::MissingItem(item_id))
     }
 
-    async fn fetch_all(&self) -> Result<HashMap<i32, u64>, PriceError> {
+    async fn fetch_all(&self) -> Result<HashMap<u32, u64>, PriceError> {
         let request = axum::http::Request::get(format!("{}/latest", self.endpoint))
             .header(axum::http::header::USER_AGENT, USER_AGENT)
             .body(Full::<Bytes>::default())

@@ -1085,7 +1085,7 @@ mod tests {
         let boss = |tick: Tick| fixtures::NpcEvent {
             tick,
             stage: Stage::TobNylocas,
-            npc_id: crate::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
+            npc_id: blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
             room_id: 1001,
             ..Default::default()
         };
@@ -1171,11 +1171,11 @@ mod tests {
                                     occurrences: vec![
                                         report::NpcOccurrence {
                                             tick: Tick(5),
-                                            npc_id: crate::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
+                                            npc_id: blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
                                         },
                                         report::NpcOccurrence {
                                             tick: Tick(20),
-                                            npc_id: crate::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
+                                            npc_id: blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
                                         },
                                     ],
                                 }],

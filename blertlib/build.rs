@@ -7,6 +7,7 @@ fn main() -> Result<()> {
     generate_item_ids()?;
     generate_attack_definitions()?;
     generate_spell_definitions()?;
+    generate_npc_definitions()?;
 
     let proto_dir = "../proto";
     println!("cargo:rerun-if-changed={proto_dir}");
@@ -154,4 +155,89 @@ fn constant_name(name: &str) -> Option<String> {
     } else {
         Some(result.to_string())
     }
+}
+
+/// Generates NPC ID constants and a definition table from the canonical JSON.
+fn generate_npc_definitions() -> Result<()> {
+    const DEFINITIONS_FILE: &str = "../proto/npc_definitions.json";
+
+    #[derive(PartialEq)]
+    struct Definition {
+        full_name: String,
+        short_name: String,
+        canonical_id: u64,
+        size: u64,
+    }
+
+    println!("cargo:rerun-if-changed={DEFINITIONS_FILE}");
+
+    let data = std::fs::read_to_string(DEFINITIONS_FILE)?;
+    let definitions: serde_json::Value =
+        serde_json::from_str(&data).map_err(std::io::Error::other)?;
+
+    let mut ids = Vec::new();
+    let mut groups: Vec<(Definition, Vec<u64>)> = Vec::new();
+    for definition in definitions.as_array().into_iter().flatten() {
+        let (
+            Some(name),
+            Some(id),
+            Some(full_name),
+            Some(short_name),
+            Some(canonical_id),
+            Some(size),
+        ) = (
+            definition["name"].as_str(),
+            definition["id"].as_u64(),
+            definition["fullName"].as_str(),
+            definition["shortName"].as_str(),
+            definition["canonicalId"].as_u64(),
+            definition["size"].as_u64(),
+        )
+        else {
+            return Err(std::io::Error::other("npc definition missing fields"));
+        };
+        ids.push((id, name.to_string()));
+        let definition = Definition {
+            full_name: full_name.to_string(),
+            short_name: short_name.to_string(),
+            canonical_id,
+            size,
+        };
+        match groups
+            .iter_mut()
+            .find(|(existing, _)| *existing == definition)
+        {
+            Some((_, group)) => group.push(id),
+            None => groups.push((definition, vec![id])),
+        }
+    }
+    ids.sort_by_key(|&(id, _)| id);
+
+    let mut out = String::from("pub mod id {\n");
+    for (id, name) in ids {
+        writeln!(out, "    pub const {name}: u32 = {id};").map_err(std::io::Error::other)?;
+    }
+    out.push_str(
+        "}\n\n\
+         /// Returns the definition of an NPC.\n\
+         #[must_use]\n\
+         pub const fn definition(npc_id: u32) -> Option<&'static Definition> {\n    match npc_id {\n",
+    );
+    for (definition, group) in groups {
+        let patterns = group
+            .iter()
+            .map(u64::to_string)
+            .collect::<Vec<_>>()
+            .join(" | ");
+        writeln!(
+            out,
+            "        {patterns} => Some(&Definition {{\n            full_name: {:?},\n            short_name: {:?},\n            canonical_id: {},\n            size: {},\n        }}),",
+            definition.full_name, definition.short_name, definition.canonical_id, definition.size
+        )
+        .map_err(std::io::Error::other)?;
+    }
+    out.push_str("        _ => None,\n    }\n}\n");
+
+    let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
+    std::fs::write(Path::new(&out_dir).join("npc_definitions.rs"), out)
 }

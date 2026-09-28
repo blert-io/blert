@@ -4,7 +4,8 @@ use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use async_trait::async_trait;
-use blert::{Tick, Ticks};
+use blert::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
+use blert::{Tick, Ticks, npc};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -18,8 +19,6 @@ use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
 use crate::merging::MergedEvents;
 use crate::metrics;
-use crate::npc;
-use crate::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, Coords, NpcAttack, challenge_data, event};
 

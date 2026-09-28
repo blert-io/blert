@@ -11,7 +11,6 @@ mod item;
 mod lifecycle;
 mod merging;
 mod metrics;
-mod npc;
 mod players;
 mod prayer;
 mod price;

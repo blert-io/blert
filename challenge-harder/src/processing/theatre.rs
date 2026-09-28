@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use async_trait::async_trait;
-use blert::{Tick, Ticks};
+use blert::{CombatStyle, Tick, Ticks, npc};
 use serde::{Deserialize, Serialize};
 
 use super::challenge_processor::{
@@ -17,7 +17,6 @@ use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
 use crate::merging::MergedEvents;
-use crate::npc;
 use crate::price::PriceResolver;
 use crate::proto::event::attack_style::Style as AttackStyle;
 use crate::proto::event::npc::maiden_crab::Spawn as MaidenCrabSpawn;
@@ -153,7 +152,7 @@ struct NylocasState {
     stalled_waves: Vec<u32>,
     split_styles: NylocasStyles,
     boss_styles: NylocasStyles,
-    prev_boss_style: Option<NyloStyle>,
+    prev_boss_style: Option<CombatStyle>,
 }
 
 const NUM_SOTETSEG_MAZE_PIVOTS: usize = 8;
@@ -549,16 +548,16 @@ impl TheatreProcessor {
         self.bloat.wave_number += 1;
     }
 
-    fn update_nylocas_boss_style(&mut self, style: NyloStyle) {
+    fn update_nylocas_boss_style(&mut self, style: CombatStyle) {
         if self
             .nylocas
             .prev_boss_style
             .is_none_or(|prev| prev != style)
         {
             match style {
-                NyloStyle::Mage => self.nylocas.boss_styles.mage += 1,
-                NyloStyle::Range => self.nylocas.boss_styles.ranged += 1,
-                NyloStyle::Melee => self.nylocas.boss_styles.melee += 1,
+                CombatStyle::Magic => self.nylocas.boss_styles.mage += 1,
+                CombatStyle::Ranged => self.nylocas.boss_styles.ranged += 1,
+                CombatStyle::Melee => self.nylocas.boss_styles.melee += 1,
             }
         }
         self.nylocas.prev_boss_style = Some(style);
@@ -1316,7 +1315,7 @@ impl ChallengeProcessor for TheatreProcessor {
         for chin in &self.chins_thrown {
             if let Entry::Vacant(entry) = chin_prices.entry(chin.weapon_id) {
                 let price = price_resolver
-                    .get_price(chin.weapon_id.cast_signed())
+                    .get_price(chin.weapon_id)
                     .await
                     .map_or(0, |price| i32::try_from(price).unwrap_or(i32::MAX));
                 entry.insert(price);
@@ -1735,7 +1734,7 @@ mod tests {
                     name: "1Ogp",
                     party_index: Some(0),
                     attack: PlayerAttack::ElderMaul,
-                    weapon_id: crate::item::id::ELDER_MAUL,
+                    weapon_id: blert::item::id::ELDER_MAUL,
                     distance_to_target: 1,
                     target: maiden,
                 }),
@@ -1746,7 +1745,7 @@ mod tests {
                     name: "WWWWWWWWWWQQ",
                     party_index: Some(1),
                     attack: PlayerAttack::ChinBlack,
-                    weapon_id: crate::item::id::BLACK_CHINCHOMPA,
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
                     distance_to_target: 5,
                     target: crab,
                 }),
@@ -1757,7 +1756,7 @@ mod tests {
                     name: "WWWWWWWWWWQQ",
                     party_index: Some(1),
                     attack: PlayerAttack::ChinBlack,
-                    weapon_id: crate::item::id::BLACK_CHINCHOMPA,
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
                     distance_to_target: 5,
                     target: crab,
                 }),
@@ -1768,7 +1767,7 @@ mod tests {
                     name: "WWWWWWWWWWQQ",
                     party_index: Some(1),
                     attack: PlayerAttack::ChinBlack,
-                    weapon_id: crate::item::id::BLACK_CHINCHOMPA,
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
                     distance_to_target: 3,
                     target: crab,
                 }),
@@ -1779,7 +1778,7 @@ mod tests {
                     name: "1Ogp",
                     party_index: Some(0),
                     attack: PlayerAttack::ScytheUncharged,
-                    weapon_id: crate::item::id::SCYTHE_OF_VITUR_UNCHARGED,
+                    weapon_id: blert::item::id::SCYTHE_OF_VITUR_UNCHARGED,
                     distance_to_target: 1,
                     target: maiden,
                 }),
@@ -1798,7 +1797,7 @@ mod tests {
             vec![
                 ChinThrow {
                     party_index: 1,
-                    weapon_id: crate::item::id::BLACK_CHINCHOMPA.cast_unsigned(),
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
                 };
                 3
             ],
@@ -2146,7 +2145,7 @@ mod tests {
                 melee: 3,
             },
         );
-        assert_eq!(processor.nylocas.prev_boss_style, Some(NyloStyle::Mage));
+        assert_eq!(processor.nylocas.prev_boss_style, Some(CombatStyle::Magic));
     }
 
     #[test]

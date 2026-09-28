@@ -308,7 +308,7 @@ pub struct PlayerAttackEvent<'a> {
     pub name: &'a str,
     pub party_index: Option<u32>,
     pub attack: PlayerAttack,
-    pub weapon_id: i32,
+    pub weapon_id: u32,
     pub distance_to_target: i32,
     pub target: Option<event::Npc>,
 }
@@ -331,7 +331,7 @@ pub fn player_attack_event(options: PlayerAttackEvent<'_>) -> Event {
         r#type: options.attack as i32,
         weapon: (options.weapon_id != 0).then_some(event::player::EquippedItem {
             slot: event::player::EquipmentSlot::Weapon as i32,
-            id: options.weapon_id.cast_unsigned(),
+            id: options.weapon_id,
             quantity: 1,
         }),
         target: options.target,

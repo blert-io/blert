@@ -2,7 +2,8 @@
 
 #![cfg_attr(not(test), expect(dead_code))]
 
-use crate::npc;
+use blert::npc;
+
 use crate::proto::event::player::EquipmentSlot;
 use crate::proto::{NpcAttack, PlayerAttack, event};
 use crate::skill::SkillLevel;
@@ -589,10 +590,10 @@ fn score_attacks<A: PartialEq + Copy>(
 #[cfg(test)]
 mod tests {
     #![expect(clippy::float_cmp, reason = "scoring constants are controlled")]
-    use blert::Tick;
+    use blert::{Tick, item};
 
     use super::*;
-    use crate::item::{self, ItemDelta};
+    use crate::item::ItemDelta;
     use crate::lifecycle::core::types::Stage;
     use crate::merging::fixtures;
     use crate::prayer::{Prayer, PrayerBook, PrayerSet};
@@ -642,7 +643,7 @@ mod tests {
         tick: Tick,
         name: &str,
         attack: PlayerAttack,
-        weapon_id: i32,
+        weapon_id: u32,
         target: Option<u64>,
     ) -> Event {
         fixtures::player_attack_event(fixtures::PlayerAttackEvent {

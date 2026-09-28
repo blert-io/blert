@@ -4,9 +4,9 @@ use std::collections::BTreeSet;
 use std::panic::{self, AssertUnwindSafe};
 use std::time::Instant;
 
-use blert::Tick;
+use blert::{Tick, item};
 
-use crate::item::{self, ItemDelta};
+use crate::item::ItemDelta;
 use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
 use crate::merging::{self, MergeReport, MergedEvents};
 use crate::metrics;
@@ -194,7 +194,7 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
             .iter()
             .filter_map(|&raw| ItemDelta::parse(raw).ok())
             .find_map(|delta| match delta {
-                ItemDelta::Add(s, id, _) if s == slot => Some(id),
+                ItemDelta::Add(s, id, _) if s == slot => Some(id.cast_unsigned()),
                 ItemDelta::Add(..) | ItemDelta::Remove(..) => None,
             })
     };
@@ -354,7 +354,14 @@ mod tests {
             &update_with_deltas(
                 "1Ogp",
                 0,
-                vec![ItemDelta::Add(EquipmentSlot::Torso, item::id::TORVA_PLATEBODY, 1).to_raw()],
+                vec![
+                    ItemDelta::Add(
+                        EquipmentSlot::Torso,
+                        item::id::TORVA_PLATEBODY.cast_signed(),
+                        1,
+                    )
+                    .to_raw(),
+                ],
             ),
         );
         track_event(
@@ -362,7 +369,14 @@ mod tests {
             &update_with_deltas(
                 "1Ogp",
                 0,
-                vec![ItemDelta::Add(EquipmentSlot::Torso, item::id::BANDOS_CHESTPLATE, 1).to_raw()],
+                vec![
+                    ItemDelta::Add(
+                        EquipmentSlot::Torso,
+                        item::id::BANDOS_CHESTPLATE.cast_signed(),
+                        1,
+                    )
+                    .to_raw(),
+                ],
             ),
         );
         let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
@@ -378,7 +392,12 @@ mod tests {
                 "1Ogp",
                 0,
                 vec![
-                    ItemDelta::Remove(EquipmentSlot::Torso, item::id::TORVA_PLATEBODY, 1).to_raw(),
+                    ItemDelta::Remove(
+                        EquipmentSlot::Torso,
+                        item::id::TORVA_PLATEBODY.cast_signed(),
+                        1,
+                    )
+                    .to_raw(),
                 ],
             ),
         );
