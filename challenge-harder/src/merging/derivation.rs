@@ -2,10 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use blert::{Tick, Ticks};
+use blert::{Tick, Ticks, npc};
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId};
-use crate::npc;
 use crate::proto::event::sote_maze::Maze;
 use crate::proto::{Coords, Event, Stage, event};
 

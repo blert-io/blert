@@ -458,8 +458,9 @@ fn check_exclusive_event_types(
 
 #[cfg(test)]
 mod tests {
+    use blert::item;
+
     use super::*;
-    use crate::item;
     use crate::lifecycle::core::types::ChallengeMode;
     use crate::merging::ChallengeInfo;
     use crate::merging::fixtures::{self, NpcEvent};

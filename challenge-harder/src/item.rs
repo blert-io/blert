@@ -2,12 +2,6 @@
 
 use crate::proto::event::player::EquipmentSlot;
 
-/// OSRS item IDs.
-pub mod id {
-    #![allow(dead_code)]
-    include!(concat!(env!("OUT_DIR"), "/item_id.rs"));
-}
-
 /// An `ItemDelta` represents a change in the quantity of an item in some
 /// container, such as a player's inventory or equipment.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -92,16 +86,5 @@ mod tests {
             ItemDelta::Remove(EquipmentSlot::Head, 11665, 75).to_raw(),
             0x0000_2d91_0000_004b,
         );
-    }
-
-    #[test]
-    fn generated_ids_match_known_items() {
-        assert_eq!(id::BANDOS_CHESTPLATE, 11832);
-        assert_eq!(id::TORVA_PLATEBODY, 26384);
-        assert_eq!(id::SANGUINE_TORVA_PLATEBODY, 28256);
-        assert_eq!(id::OATHPLATE_CHEST, 30753);
-        assert_eq!(id::RADIANT_OATHPLATE_CHEST, 30779);
-        assert_eq!(id::VOID_MELEE_HELM, 11665);
-        assert_eq!(id::VOID_MELEE_HELM_OR, 26477);
     }
 }

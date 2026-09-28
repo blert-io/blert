@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use async_trait::async_trait;
+use blert::npc::id::{JAVELIN_COLOSSUS, MANTICORE, SERPENT_SHAMAN, SHOCKWAVE_COLOSSUS};
 use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +20,6 @@ use crate::lifecycle::core::types::{
 };
 use crate::merging::MergedEvents;
 use crate::metrics;
-use crate::npc::id::{JAVELIN_COLOSSUS, MANTICORE, SERPENT_SHAMAN, SHOCKWAVE_COLOSSUS};
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, Coords, challenge_data, event};
 

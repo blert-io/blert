@@ -1,8 +1,7 @@
 //! Post-merge event fiddling.
 
-use blert::Tick;
+use blert::{Tick, npc};
 
-use crate::npc;
 use crate::proto::{Stage, event};
 use crate::skill::SkillLevel;
 
