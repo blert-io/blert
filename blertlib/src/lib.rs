@@ -14,7 +14,7 @@ pub mod item;
 pub mod npc;
 pub mod proto;
 pub use proto::event::ColosseumHandicap;
-pub use proto::{NpcAttack, PlayerAttack, PlayerSpell};
+pub use proto::{ChallengeMode, NpcAttack, PlayerAttack, PlayerSpell, Stage};
 
 pub use actor::{
     Actor, DataSource, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcProperties, NpcState,

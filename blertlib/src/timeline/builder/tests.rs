@@ -3,19 +3,21 @@ use crate::event::{
     MokhaiotlOrbSource, SolDustDirection, SolGrappleOutcome, SolLaserPhase, VerzikPhase,
     XarpusPhase,
 };
-use crate::item;
+use crate::{ChallengeMode, Stage, item};
 
 #[test]
 fn builder_ingest_returns_none_if_all_rejected() {
     let mut builder = TimelineBuilder::new(
         ClientId(7),
+        Stage::TobBloat,
+        ChallengeMode::TobRegular,
         vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
         Some(Tick(120)),
     );
 
     let mut update = proto::Event {
         tick: 121,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         x_coord: 3298,
         y_coord: 4442,
         ..Default::default()
@@ -37,7 +39,7 @@ fn builder_ingest_returns_none_if_all_rejected() {
     });
     let mut attack = proto::Event {
         tick: 123,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         x_coord: 3298,
         y_coord: 4444,
         ..Default::default()
@@ -83,9 +85,41 @@ fn builder_ingest_returns_none_if_all_rejected() {
 }
 
 #[test]
+fn builder_ingest_rejects_event_from_another_stage() {
+    let mut builder = TimelineBuilder::new(
+        ClientId(13),
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec!["Dedion".to_string()],
+        None,
+    );
+
+    let mut phase = proto::Event {
+        tick: 125,
+        stage: Stage::TobVerzik as i32,
+        ..Default::default()
+    };
+    phase.set_type(proto::event::Type::TobVerzikPhase);
+    phase.verzik_phase = Some(proto::event::VerzikPhase::VerzikP2 as i32);
+
+    assert_eq!(builder.ingest([phase]), None);
+    assert!(builder.timeline().is_none());
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [BuildRejection {
+            tick: Tick(125),
+            kind: proto::event::Type::TobVerzikPhase,
+            reason: RejectionReason::WrongStage(Stage::TobVerzik),
+        }]
+    );
+}
+
+#[test]
 fn builder_ingest_drops_action_without_actor() {
     let mut builder = TimelineBuilder::new(
         ClientId(9),
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
         vec![
             "Sacolyn".to_string(),
             "715".to_string(),
@@ -97,7 +131,7 @@ fn builder_ingest_drops_action_without_actor() {
 
     let mut scythe = proto::Event {
         tick: 385,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3164,
         y_coord: 4312,
         ..Default::default()
@@ -135,13 +169,15 @@ fn builder_ingest_drops_action_without_actor() {
 fn builder_ingest_player_update() {
     let mut builder = TimelineBuilder::new(
         ClientId(9),
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
         vec!["Sacolyn".to_string(), "1Ogp".to_string()],
         None,
     );
 
     let mut primary_snapshot = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -177,7 +213,7 @@ fn builder_ingest_player_update() {
     });
     let mut secondary_snapshot = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3295,
         y_coord: 4254,
         ..Default::default()
@@ -201,7 +237,7 @@ fn builder_ingest_player_update() {
     });
     let mut primary_update = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -255,13 +291,15 @@ fn builder_ingest_player_update() {
 fn builder_ingest_reverts_last_seen_when_cleared() {
     let mut builder = TimelineBuilder::new(
         ClientId(9),
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
         vec!["Sacolyn".to_string(), "1Ogp".to_string()],
         None,
     );
 
     let mut snapshot = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -297,7 +335,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
     });
     let mut first = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -320,7 +358,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
     });
     let mut second = proto::Event {
         tick: 2,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4252,
         ..Default::default()
@@ -375,11 +413,17 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
 
 #[test]
 fn builder_ingest_npc_spawn() {
-    let mut builder = TimelineBuilder::new(ClientId(3), vec!["Caps lock13".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(3),
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
+        vec!["Caps lock13".to_string()],
+        None,
+    );
 
     let mut spawn = proto::Event {
         tick: 4,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3281,
         y_coord: 4248,
         ..Default::default()
@@ -433,11 +477,17 @@ fn builder_ingest_npc_spawn() {
 
 #[test]
 fn builder_ingest_maiden_blood_splats() {
-    let mut builder = TimelineBuilder::new(ClientId(4), vec!["aSaradomin".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(4),
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec!["aSaradomin".to_string()],
+        None,
+    );
 
     let mut splats = proto::Event {
         tick: 39,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         ..Default::default()
     };
     splats.set_type(proto::event::Type::TobMaidenBloodSplats);
@@ -471,7 +521,7 @@ fn builder_ingest_maiden_blood_splats() {
 
     let mut out_of_domain = proto::Event {
         tick: 40,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         ..Default::default()
     };
     out_of_domain.set_type(proto::event::Type::TobMaidenBloodSplats);
@@ -498,11 +548,17 @@ fn builder_ingest_maiden_blood_splats() {
 
 #[test]
 fn builder_ingest_verzik_yellows() {
-    let mut builder = TimelineBuilder::new(ClientId(11), vec!["LC8".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(11),
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
+        vec!["LC8".to_string()],
+        None,
+    );
 
     let mut yellows = proto::Event {
         tick: 463,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     yellows.set_type(proto::event::Type::TobVerzikYellows);
@@ -526,7 +582,7 @@ fn builder_ingest_verzik_yellows() {
 
     let mut none = proto::Event {
         tick: 385,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     none.set_type(proto::event::Type::TobVerzikYellows);
@@ -539,11 +595,17 @@ fn builder_ingest_verzik_yellows() {
 
 #[test]
 fn builder_ingest_mokhaiotl_shockwave() {
-    let mut builder = TimelineBuilder::new(ClientId(2), vec!["Dedion".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(2),
+        Stage::MokhaiotlDelve8plus,
+        ChallengeMode::NoMode,
+        vec!["Dedion".to_string()],
+        None,
+    );
 
     let mut shockwave = proto::Event {
         tick: 139,
-        stage: proto::Stage::MokhaiotlDelve8plus as i32,
+        stage: Stage::MokhaiotlDelve8plus as i32,
         ..Default::default()
     };
     shockwave.set_type(proto::event::Type::MokhaiotlShockwave);
@@ -673,7 +735,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
 
     let mut missing_mokhaiotl_shockwave = proto::Event {
         tick: 108,
-        stage: proto::Stage::MokhaiotlDelve8plus as i32,
+        stage: Stage::MokhaiotlDelve8plus as i32,
         ..Default::default()
     };
     missing_mokhaiotl_shockwave.set_type(proto::event::Type::MokhaiotlShockwave);
@@ -692,11 +754,17 @@ fn builder_ingest_mokhaiotl_shockwave() {
 
 #[test]
 fn builder_ingest_colosseum_reentry_pools() {
-    let mut builder = TimelineBuilder::new(ClientId(6), vec!["Sacolyn".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(6),
+        Stage::ColosseumWave12,
+        ChallengeMode::NoMode,
+        vec!["Sacolyn".to_string()],
+        None,
+    );
 
     let mut existing = proto::Event {
         tick: 1,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     existing.set_type(proto::event::Type::ColosseumReentryPools);
@@ -742,7 +810,7 @@ fn builder_ingest_colosseum_reentry_pools() {
 
     let mut shrunk = proto::Event {
         tick: 5,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     shrunk.set_type(proto::event::Type::ColosseumReentryPools);
@@ -776,10 +844,16 @@ fn builder_ingest_colosseum_reentry_pools() {
     assert!(state.objects.is_empty());
     assert_eq!(builder.rejections().count(), 0);
 
-    let mut builder = TimelineBuilder::new(ClientId(6), vec!["Sacolyn".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(6),
+        Stage::ColosseumWave5,
+        ChallengeMode::NoMode,
+        vec!["Sacolyn".to_string()],
+        None,
+    );
     let mut out_of_domain = proto::Event {
         tick: 46,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         ..Default::default()
     };
     out_of_domain.set_type(proto::event::Type::ColosseumReentryPools);
@@ -807,11 +881,17 @@ fn builder_ingest_colosseum_reentry_pools() {
 
 #[test]
 fn builder_ingest_mokhaiotl_objects() {
-    let mut builder = TimelineBuilder::new(ClientId(8), vec!["LC8".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(8),
+        Stage::MokhaiotlDelve8plus,
+        ChallengeMode::NoMode,
+        vec!["LC8".to_string()],
+        None,
+    );
 
     let mut splats = proto::Event {
         tick: 37,
-        stage: proto::Stage::MokhaiotlDelve8plus as i32,
+        stage: Stage::MokhaiotlDelve8plus as i32,
         ..Default::default()
     };
     splats.set_type(proto::event::Type::MokhaiotlObjects);
@@ -826,7 +906,7 @@ fn builder_ingest_mokhaiotl_objects() {
     });
     let mut splat = proto::Event {
         tick: 38,
-        stage: proto::Stage::MokhaiotlDelve8plus as i32,
+        stage: Stage::MokhaiotlDelve8plus as i32,
         ..Default::default()
     };
     splat.set_type(proto::event::Type::MokhaiotlObjects);
@@ -838,7 +918,7 @@ fn builder_ingest_mokhaiotl_objects() {
     });
     let mut rock = proto::Event {
         tick: 39,
-        stage: proto::Stage::MokhaiotlDelve8plus as i32,
+        stage: Stage::MokhaiotlDelve8plus as i32,
         ..Default::default()
     };
     rock.set_type(proto::event::Type::MokhaiotlObjects);
@@ -894,7 +974,7 @@ fn builder_ingest_mokhaiotl_objects() {
 
     let mut missing_mokhaiotl_objects = proto::Event {
         tick: 42,
-        stage: proto::Stage::MokhaiotlDelve8plus as i32,
+        stage: Stage::MokhaiotlDelve8plus as i32,
         ..Default::default()
     };
     missing_mokhaiotl_objects.set_type(proto::event::Type::MokhaiotlObjects);
@@ -913,11 +993,17 @@ fn builder_ingest_mokhaiotl_objects() {
 
 #[test]
 fn builder_ingest_sote_maze_tiles() {
-    let mut builder = TimelineBuilder::new(ClientId(6), vec!["Yieldofin".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(6),
+        Stage::TobSotetseg,
+        ChallengeMode::TobRegular,
+        vec!["Yieldofin".to_string()],
+        None,
+    );
 
     let mut first = proto::Event {
         tick: 71,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     first.set_type(proto::event::Type::TobSoteMazePath);
@@ -930,7 +1016,7 @@ fn builder_ingest_sote_maze_tiles() {
     });
     let mut second = proto::Event {
         tick: 72,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     second.set_type(proto::event::Type::TobSoteMazePath);
@@ -961,11 +1047,17 @@ fn builder_ingest_sote_maze_tiles() {
 
 #[test]
 fn builder_ingest_sote_maze_pivots() {
-    let mut builder = TimelineBuilder::new(ClientId(6), vec!["Yieldofin".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(6),
+        Stage::TobSotetseg,
+        ChallengeMode::TobRegular,
+        vec!["Yieldofin".to_string()],
+        None,
+    );
 
     let mut overworld = proto::Event {
         tick: 94,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     overworld.set_type(proto::event::Type::TobSoteMazePath);
@@ -1011,11 +1103,17 @@ fn builder_ingest_sote_maze_pivots() {
     );
     assert_eq!(builder.rejections().count(), 0);
 
-    let mut builder = TimelineBuilder::new(ClientId(11), vec!["Caywu".to_string()], None);
+    let mut builder = TimelineBuilder::new(
+        ClientId(11),
+        Stage::TobSotetseg,
+        ChallengeMode::TobRegular,
+        vec!["Caywu".to_string()],
+        None,
+    );
 
     let mut underworld = proto::Event {
         tick: 91,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     underworld.set_type(proto::event::Type::TobSoteMazePath);
@@ -1063,13 +1161,13 @@ fn builder_ingest_sote_maze_pivots() {
 
     let mut missing_sote_maze = proto::Event {
         tick: 95,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     missing_sote_maze.set_type(proto::event::Type::TobSoteMazePath);
     let mut missing_pivots = proto::Event {
         tick: 96,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     missing_pivots.set_type(proto::event::Type::TobSoteMazePath);
@@ -1106,13 +1204,15 @@ fn builder_ingest_sote_maze_pivots() {
 fn builder_ingest_attack_style() {
     let mut builder = TimelineBuilder::new(
         ClientId(2),
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
         vec!["Sacolyn".to_string(), "1Ogp".to_string()],
         None,
     );
 
     let mut verzik = proto::Event {
         tick: 271,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3165,
         y_coord: 4311,
         ..Default::default()
@@ -1127,7 +1227,7 @@ fn builder_ingest_attack_style() {
     });
     let mut auto = proto::Event {
         tick: 271,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3165,
         y_coord: 4311,
         ..Default::default()
@@ -1148,7 +1248,7 @@ fn builder_ingest_attack_style() {
 
     let mut style = proto::Event {
         tick: 273,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     style.set_type(proto::event::Type::TobVerzikAttackStyle);
@@ -1194,7 +1294,7 @@ fn builder_ingest_attack_style() {
 
     let mut unmatched = proto::Event {
         tick: 280,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     unmatched.set_type(proto::event::Type::TobVerzikAttackStyle);
@@ -1219,13 +1319,15 @@ fn builder_ingest_attack_style() {
 fn builder_ingest_attack_reference() {
     let mut builder = TimelineBuilder::new(
         ClientId(2),
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
         vec!["Sacolyn".to_string(), "1Ogp".to_string()],
         None,
     );
 
     let mut verzik_cabbage = proto::Event {
         tick: 83,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -1240,7 +1342,7 @@ fn builder_ingest_attack_reference() {
     });
     let mut cabbage = proto::Event {
         tick: 83,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -1258,7 +1360,7 @@ fn builder_ingest_attack_reference() {
     });
     let mut bounce_chance = proto::Event {
         tick: 83,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     bounce_chance.set_type(proto::event::Type::TobVerzikBounce);
@@ -1270,7 +1372,7 @@ fn builder_ingest_attack_reference() {
     });
     let mut verzik_bounce = proto::Event {
         tick: 215,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -1285,7 +1387,7 @@ fn builder_ingest_attack_reference() {
     });
     let mut bounce = proto::Event {
         tick: 215,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -1303,7 +1405,7 @@ fn builder_ingest_attack_reference() {
     });
     let mut bounced = proto::Event {
         tick: 216,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     bounced.set_type(proto::event::Type::TobVerzikBounce);
@@ -1373,6 +1475,8 @@ fn builder_ingest_attack_reference() {
 
     let mut builder = TimelineBuilder::new(
         ClientId(2),
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
         vec!["Sacolyn".to_string(), "1Ogp".to_string()],
         None,
     );
@@ -1391,12 +1495,17 @@ fn builder_ingest_attack_reference() {
 #[test]
 fn extract_player_state_snapshot() {
     let party = vec!["Sacolyn".to_string(), "1Ogp".to_string()];
-    let timeline = Timeline::vacant(Tick(6));
+    let timeline = Timeline::vacant(
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
+        party.clone(),
+        Tick(6),
+    );
     let last_seen_actors = HashMap::new();
 
     let mut snapshot = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -1503,7 +1612,7 @@ fn extract_player_state_snapshot() {
 
     let mut secondary = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3295,
         y_coord: 4254,
         ..Default::default()
@@ -1584,7 +1693,7 @@ fn extract_player_state_snapshot() {
 
     let mut missing_player = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -1603,7 +1712,7 @@ fn extract_player_state_snapshot() {
 
     let mut unknown_player = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3295,
         y_coord: 4254,
         ..Default::default()
@@ -1642,7 +1751,7 @@ fn extract_player_state_snapshot() {
 
     let mut missing_stat = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -1676,7 +1785,7 @@ fn extract_player_state_snapshot() {
 
     let mut unknown_data_source = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3296,
         y_coord: 4254,
         ..Default::default()
@@ -1713,7 +1822,7 @@ fn extract_player_state_snapshot() {
 
     let mut unknown_slot = proto::Event {
         tick: 0,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3295,
         y_coord: 4254,
         ..Default::default()
@@ -1744,7 +1853,12 @@ fn extract_player_state_snapshot() {
 #[test]
 fn extract_player_state_update_from_last_seen_tick() {
     let party = vec!["Sacolyn".to_string(), "1Ogp".to_string()];
-    let mut timeline = Timeline::vacant(Tick(400));
+    let mut timeline = Timeline::vacant(
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
+        party.clone(),
+        Tick(400),
+    );
     let mut players = Players::empty(2);
     players[PartyIndex::from_usize(0)] = Some(PlayerState {
         source: Source::Client(ClientId(9)),
@@ -1823,7 +1937,7 @@ fn extract_player_state_update_from_last_seen_tick() {
 
     let mut swap = proto::Event {
         tick: 24,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3301,
         y_coord: 4248,
         ..Default::default()
@@ -1914,7 +2028,7 @@ fn extract_player_state_update_from_last_seen_tick() {
 
     let mut ammo = proto::Event {
         tick: 306,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3298,
         y_coord: 4249,
         ..Default::default()
@@ -1970,12 +2084,17 @@ fn extract_player_state_update_from_last_seen_tick() {
 
 #[test]
 fn extract_npc_state_spawn() {
-    let timeline = Timeline::vacant(Tick(6));
+    let timeline = Timeline::vacant(
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
+        vec!["TobDataEgirl".to_string()],
+        Tick(6),
+    );
     let last_seen_actors = HashMap::new();
 
     let mut spawn = proto::Event {
         tick: 4,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3281,
         y_coord: 4248,
         ..Default::default()
@@ -2016,7 +2135,7 @@ fn extract_npc_state_spawn() {
 
     let mut missing_npc = proto::Event {
         tick: 5,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3282,
         y_coord: 4248,
         ..Default::default()
@@ -2029,7 +2148,7 @@ fn extract_npc_state_spawn() {
 
     let mut unknown_style = proto::Event {
         tick: 4,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3281,
         y_coord: 4248,
         ..Default::default()
@@ -2065,7 +2184,12 @@ fn extract_npc_state_update_last_seen_tick() {
         style: CombatStyle::Ranged,
         spawn: NyloSpawn::West,
     });
-    let mut timeline = Timeline::vacant(Tick(6));
+    let mut timeline = Timeline::vacant(
+        Stage::TobNylocas,
+        ChallengeMode::TobRegular,
+        vec!["TobDataEgirl".to_string()],
+        Tick(6),
+    );
     timeline.set_state(
         Tick(4),
         TickState {
@@ -2089,7 +2213,7 @@ fn extract_npc_state_update_last_seen_tick() {
 
     let mut update = proto::Event {
         tick: 6,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         x_coord: 3283,
         y_coord: 4248,
         ..Default::default()
@@ -2128,7 +2252,7 @@ fn convert_player_attack() {
 
     let mut scythe = proto::Event {
         tick: 385,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3164,
         y_coord: 4312,
         ..Default::default()
@@ -2168,7 +2292,7 @@ fn convert_player_attack() {
 
     let mut invalid_target = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4322,
         ..Default::default()
@@ -2206,7 +2330,7 @@ fn convert_player_attack() {
 
     let mut unknown_player = proto::Event {
         tick: 1,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4322,
         ..Default::default()
@@ -2241,7 +2365,7 @@ fn convert_player_attack() {
 
     let mut missing_attack = proto::Event {
         tick: 386,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3164,
         y_coord: 4317,
         ..Default::default()
@@ -2258,7 +2382,7 @@ fn convert_player_attack() {
 
     let mut missing_player = proto::Event {
         tick: 390,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3168,
         y_coord: 4310,
         ..Default::default()
@@ -2291,7 +2415,7 @@ fn convert_player_death() {
 
     let mut death = proto::Event {
         tick: 129,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         x_coord: 3173,
         y_coord: 4443,
         ..Default::default()
@@ -2308,7 +2432,7 @@ fn convert_player_death() {
 
     let mut unknown_player = proto::Event {
         tick: 133,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         x_coord: 3168,
         y_coord: 4447,
         ..Default::default()
@@ -2328,7 +2452,7 @@ fn convert_player_death() {
 
     let mut missing_player = proto::Event {
         tick: 129,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         x_coord: 3173,
         y_coord: 4443,
         ..Default::default()
@@ -2351,7 +2475,7 @@ fn convert_player_spell() {
 
     let mut spellbook_swap = proto::Event {
         tick: 63,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3168,
         y_coord: 4389,
         ..Default::default()
@@ -2376,7 +2500,7 @@ fn convert_player_spell() {
 
     let mut vengeance_other = proto::Event {
         tick: 54,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3170,
         y_coord: 4392,
         ..Default::default()
@@ -2403,7 +2527,7 @@ fn convert_player_spell() {
 
     let mut unknown_target = proto::Event {
         tick: 68,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3167,
         y_coord: 4385,
         ..Default::default()
@@ -2434,7 +2558,7 @@ fn convert_player_spell() {
 
     let mut unknown_player = proto::Event {
         tick: 114,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3167,
         y_coord: 4387,
         ..Default::default()
@@ -2458,7 +2582,7 @@ fn convert_player_spell() {
 
     let mut missing_spell = proto::Event {
         tick: 21,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3169,
         y_coord: 4382,
         ..Default::default()
@@ -2480,7 +2604,7 @@ fn convert_npc_death() {
 
     let mut death = proto::Event {
         tick: 250,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3164,
         y_coord: 4315,
         ..Default::default()
@@ -2503,7 +2627,7 @@ fn convert_npc_death() {
 
     let mut missing_npc = proto::Event {
         tick: 269,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3170,
         y_coord: 4313,
         ..Default::default()
@@ -2516,7 +2640,7 @@ fn convert_npc_death() {
 
     let mut invalid_x = proto::Event {
         tick: 250,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: -4,
         y_coord: 4315,
         ..Default::default()
@@ -2539,7 +2663,7 @@ fn convert_npc_death() {
 
     let mut invalid_y = proto::Event {
         tick: 269,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3170,
         y_coord: 70_000,
         ..Default::default()
@@ -2567,7 +2691,7 @@ fn convert_npc_attack() {
 
     let mut mage = proto::Event {
         tick: 284,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -2594,7 +2718,7 @@ fn convert_npc_attack() {
 
     let mut cabbage = proto::Event {
         tick: 288,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -2621,7 +2745,7 @@ fn convert_npc_attack() {
 
     let mut unknown_target = proto::Event {
         tick: 312,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -2652,7 +2776,7 @@ fn convert_npc_attack() {
 
     let mut missing_npc = proto::Event {
         tick: 308,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -2669,7 +2793,7 @@ fn convert_npc_attack() {
 
     let mut missing_attack = proto::Event {
         tick: 288,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3167,
         y_coord: 4313,
         ..Default::default()
@@ -2693,7 +2817,7 @@ fn convert_maiden_crab_leak() {
 
     let mut leak = proto::Event {
         tick: 83,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         x_coord: 3168,
         y_coord: 4444,
         ..Default::default()
@@ -2713,7 +2837,7 @@ fn convert_maiden_crab_leak() {
 
     let mut missing_npc = proto::Event {
         tick: 78,
-        stage: proto::Stage::TobMaiden as i32,
+        stage: Stage::TobMaiden as i32,
         x_coord: 3167,
         y_coord: 4442,
         ..Default::default()
@@ -2731,7 +2855,7 @@ fn convert_bloat_down() {
 
     let mut down = proto::Event {
         tick: 41,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         x_coord: 3294,
         y_coord: 4451,
         ..Default::default()
@@ -2751,7 +2875,7 @@ fn convert_bloat_down() {
 
     let mut missing_bloat_down = proto::Event {
         tick: 41,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         x_coord: 3294,
         y_coord: 4451,
         ..Default::default()
@@ -2769,7 +2893,7 @@ fn convert_bloat_up() {
 
     let mut up = proto::Event {
         tick: 74,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         x_coord: 3296,
         y_coord: 4451,
         ..Default::default()
@@ -2787,7 +2911,7 @@ fn convert_bloat_hands_drop() {
 
     let mut hands = proto::Event {
         tick: 74,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         ..Default::default()
     };
     hands.set_type(proto::event::Type::TobBloatHandsDrop);
@@ -2833,7 +2957,7 @@ fn convert_bloat_hands_drop() {
 
     let mut missing_bloat_hands = proto::Event {
         tick: 78,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         ..Default::default()
     };
     missing_bloat_hands.set_type(proto::event::Type::TobBloatHandsDrop);
@@ -2844,7 +2968,7 @@ fn convert_bloat_hands_drop() {
 
     let mut invalid_bloat_hands = proto::Event {
         tick: 78,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         ..Default::default()
     };
     invalid_bloat_hands.set_type(proto::event::Type::TobBloatHandsDrop);
@@ -2881,7 +3005,7 @@ fn convert_bloat_hands_splat() {
 
     let mut hands = proto::Event {
         tick: 77,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         ..Default::default()
     };
     hands.set_type(proto::event::Type::TobBloatHandsSplat);
@@ -2927,7 +3051,7 @@ fn convert_bloat_hands_splat() {
 
     let mut invalid_bloat_hands = proto::Event {
         tick: 81,
-        stage: proto::Stage::TobBloat as i32,
+        stage: Stage::TobBloat as i32,
         ..Default::default()
     };
     invalid_bloat_hands.set_type(proto::event::Type::TobBloatHandsSplat);
@@ -2964,7 +3088,7 @@ fn convert_nylo_wave_spawn() {
 
     let mut spawn = proto::Event {
         tick: 76,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
     spawn.set_type(proto::event::Type::TobNyloWaveSpawn);
@@ -2983,7 +3107,7 @@ fn convert_nylo_wave_spawn() {
 
     let mut missing_nylo_wave = proto::Event {
         tick: 84,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
     missing_nylo_wave.set_type(proto::event::Type::TobNyloWaveSpawn);
@@ -2994,7 +3118,7 @@ fn convert_nylo_wave_spawn() {
 
     let mut invalid_wave = proto::Event {
         tick: 84,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
     invalid_wave.set_type(proto::event::Type::TobNyloWaveSpawn);
@@ -3013,7 +3137,7 @@ fn convert_nylo_wave_spawn() {
 
     let mut invalid_nylos_alive = proto::Event {
         tick: 92,
-        stage: proto::Stage::TobNylocas as i32,
+        stage: Stage::TobNylocas as i32,
         ..Default::default()
     };
     invalid_nylos_alive.set_type(proto::event::Type::TobNyloWaveSpawn);
@@ -3037,7 +3161,7 @@ fn convert_sote_maze_proc() {
 
     let mut proc = proto::Event {
         tick: 63,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     proc.set_type(proto::event::Type::TobSoteMazeProc);
@@ -3052,7 +3176,7 @@ fn convert_sote_maze_proc() {
 
     let mut invalid_maze = proto::Event {
         tick: 159,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     invalid_maze.set_type(proto::event::Type::TobSoteMazeProc);
@@ -3070,7 +3194,7 @@ fn convert_sote_maze_proc() {
 
     let mut missing_sote_maze = proto::Event {
         tick: 63,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     missing_sote_maze.set_type(proto::event::Type::TobSoteMazeProc);
@@ -3086,7 +3210,7 @@ fn convert_sote_maze_end() {
 
     let mut valid = proto::Event {
         tick: 194,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     valid.set_type(proto::event::Type::TobSoteMazeEnd);
@@ -3105,7 +3229,7 @@ fn convert_sote_maze_end() {
 
     let mut no_chosen = proto::Event {
         tick: 94,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     no_chosen.set_type(proto::event::Type::TobSoteMazeEnd);
@@ -3123,7 +3247,7 @@ fn convert_sote_maze_end() {
 
     let mut unknown_chosen = proto::Event {
         tick: 91,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     unknown_chosen.set_type(proto::event::Type::TobSoteMazeEnd);
@@ -3146,7 +3270,7 @@ fn convert_sote_maze_end() {
 
     let mut bad_maze = proto::Event {
         tick: 194,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     bad_maze.set_type(proto::event::Type::TobSoteMazeEnd);
@@ -3165,7 +3289,7 @@ fn convert_sote_maze_end() {
 
     let mut missing_maze = proto::Event {
         tick: 94,
-        stage: proto::Stage::TobSotetseg as i32,
+        stage: Stage::TobSotetseg as i32,
         ..Default::default()
     };
     missing_maze.set_type(proto::event::Type::TobSoteMazeEnd);
@@ -3181,7 +3305,7 @@ fn convert_xarpus_phase() {
 
     let mut phase = proto::Event {
         tick: 259,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3168,
         y_coord: 4385,
         ..Default::default()
@@ -3195,7 +3319,7 @@ fn convert_xarpus_phase() {
 
     let mut invalid_xarpus_phase = proto::Event {
         tick: 119,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3168,
         y_coord: 4385,
         ..Default::default()
@@ -3212,7 +3336,7 @@ fn convert_xarpus_phase() {
 
     let mut missing_xarpus_phase = proto::Event {
         tick: 119,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3168,
         y_coord: 4385,
         ..Default::default()
@@ -3230,7 +3354,7 @@ fn convert_xarpus_exhumed() {
 
     let mut exhumed = proto::Event {
         tick: 22,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3164,
         y_coord: 4386,
         ..Default::default()
@@ -3252,7 +3376,7 @@ fn convert_xarpus_exhumed() {
 
     let mut missing_xarpus_exhumed = proto::Event {
         tick: 30,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3168,
         y_coord: 4382,
         ..Default::default()
@@ -3265,7 +3389,7 @@ fn convert_xarpus_exhumed() {
 
     let mut spawn_after_despawn = proto::Event {
         tick: 38,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3165,
         y_coord: 4387,
         ..Default::default()
@@ -3285,7 +3409,7 @@ fn convert_xarpus_exhumed() {
 
     let mut heal_before_spawn = proto::Event {
         tick: 30,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3168,
         y_coord: 4382,
         ..Default::default()
@@ -3310,7 +3434,7 @@ fn convert_xarpus_splat() {
 
     let mut xarpus = proto::Event {
         tick: 103,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3167,
         y_coord: 4387,
         ..Default::default()
@@ -3330,7 +3454,7 @@ fn convert_xarpus_splat() {
 
     let mut bounce = proto::Event {
         tick: 103,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3167,
         y_coord: 4387,
         ..Default::default()
@@ -3350,7 +3474,7 @@ fn convert_xarpus_splat() {
 
     let mut unknown_source = proto::Event {
         tick: 153,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3174,
         y_coord: 4384,
         ..Default::default()
@@ -3370,7 +3494,7 @@ fn convert_xarpus_splat() {
 
     let mut missing_bounce_from = proto::Event {
         tick: 108,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3172,
         y_coord: 4382,
         ..Default::default()
@@ -3387,7 +3511,7 @@ fn convert_xarpus_splat() {
 
     let mut invalid_bounce_from = proto::Event {
         tick: 108,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3172,
         y_coord: 4382,
         ..Default::default()
@@ -3407,7 +3531,7 @@ fn convert_xarpus_splat() {
 
     let mut invalid_source = proto::Event {
         tick: 103,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3167,
         y_coord: 4387,
         ..Default::default()
@@ -3427,7 +3551,7 @@ fn convert_xarpus_splat() {
 
     let mut missing_xarpus_splat = proto::Event {
         tick: 108,
-        stage: proto::Stage::TobXarpus as i32,
+        stage: Stage::TobXarpus as i32,
         x_coord: 3172,
         y_coord: 4382,
         ..Default::default()
@@ -3445,7 +3569,7 @@ fn convert_verzik_phase() {
 
     let mut phase = proto::Event {
         tick: 104,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     phase.set_type(proto::event::Type::TobVerzikPhase);
@@ -3457,7 +3581,7 @@ fn convert_verzik_phase() {
 
     let mut invalid_verzik_phase = proto::Event {
         tick: 327,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     invalid_verzik_phase.set_type(proto::event::Type::TobVerzikPhase);
@@ -3472,7 +3596,7 @@ fn convert_verzik_phase() {
 
     let mut missing_verzik_phase = proto::Event {
         tick: 104,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     missing_verzik_phase.set_type(proto::event::Type::TobVerzikPhase);
@@ -3488,7 +3612,7 @@ fn convert_verzik_dawn_drop() {
 
     let mut dropped = proto::Event {
         tick: 7,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4322,
         ..Default::default()
@@ -3502,7 +3626,7 @@ fn convert_verzik_dawn_drop() {
 
     let mut picked_up = proto::Event {
         tick: 8,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4322,
         ..Default::default()
@@ -3516,7 +3640,7 @@ fn convert_verzik_dawn_drop() {
 
     let mut missing_verzik_dawn_drop = proto::Event {
         tick: 18,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3162,
         y_coord: 4317,
         ..Default::default()
@@ -3534,7 +3658,7 @@ fn convert_verzik_dawn_hit() {
 
     let mut hit = proto::Event {
         tick: 3,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4323,
         ..Default::default()
@@ -3556,7 +3680,7 @@ fn convert_verzik_dawn_hit() {
 
     let mut unknown_player = proto::Event {
         tick: 7,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4323,
         ..Default::default()
@@ -3577,7 +3701,7 @@ fn convert_verzik_dawn_hit() {
 
     let mut attack_after_tick = proto::Event {
         tick: 13,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4323,
         ..Default::default()
@@ -3597,7 +3721,7 @@ fn convert_verzik_dawn_hit() {
 
     let mut missing_verzik_dawn = proto::Event {
         tick: 19,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3166,
         y_coord: 4323,
         ..Default::default()
@@ -3620,7 +3744,7 @@ fn convert_verzik_bounce() {
 
     let mut bounced = proto::Event {
         tick: 178,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     bounced.set_type(proto::event::Type::TobVerzikBounce);
@@ -3641,7 +3765,7 @@ fn convert_verzik_bounce() {
 
     let mut no_bounce = proto::Event {
         tick: 165,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     no_bounce.set_type(proto::event::Type::TobVerzikBounce);
@@ -3662,7 +3786,7 @@ fn convert_verzik_bounce() {
 
     let mut invalid_npc_attack_tick = proto::Event {
         tick: 136,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     invalid_npc_attack_tick.set_type(proto::event::Type::TobVerzikBounce);
@@ -3682,7 +3806,7 @@ fn convert_verzik_bounce() {
 
     let mut attack_after_tick = proto::Event {
         tick: 342,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     attack_after_tick.set_type(proto::event::Type::TobVerzikBounce);
@@ -3701,7 +3825,7 @@ fn convert_verzik_bounce() {
 
     let mut invalid_players_in_range = proto::Event {
         tick: 161,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     invalid_players_in_range.set_type(proto::event::Type::TobVerzikBounce);
@@ -3721,7 +3845,7 @@ fn convert_verzik_bounce() {
 
     let mut unknown_bounced_player = proto::Event {
         tick: 290,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     unknown_bounced_player.set_type(proto::event::Type::TobVerzikBounce);
@@ -3741,7 +3865,7 @@ fn convert_verzik_bounce() {
 
     let mut missing_verzik_bounce = proto::Event {
         tick: 169,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         ..Default::default()
     };
     missing_verzik_bounce.set_type(proto::event::Type::TobVerzikBounce);
@@ -3761,7 +3885,7 @@ fn convert_verzik_heal() {
 
     let mut heal = proto::Event {
         tick: 491,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3170,
         y_coord: 4308,
         ..Default::default()
@@ -3781,7 +3905,7 @@ fn convert_verzik_heal() {
 
     let mut unknown_amount = proto::Event {
         tick: 465,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3176,
         y_coord: 4312,
         ..Default::default()
@@ -3801,7 +3925,7 @@ fn convert_verzik_heal() {
 
     let mut invalid_heal_amount = proto::Event {
         tick: 465,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3176,
         y_coord: 4312,
         ..Default::default()
@@ -3821,7 +3945,7 @@ fn convert_verzik_heal() {
 
     let mut unknown_player = proto::Event {
         tick: 491,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3170,
         y_coord: 4308,
         ..Default::default()
@@ -3841,7 +3965,7 @@ fn convert_verzik_heal() {
 
     let mut missing_verzik_heal = proto::Event {
         tick: 465,
-        stage: proto::Stage::TobVerzik as i32,
+        stage: Stage::TobVerzik as i32,
         x_coord: 3176,
         y_coord: 4312,
         ..Default::default()
@@ -3859,7 +3983,7 @@ fn convert_handicap_choice() {
 
     let mut choice = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave3 as i32,
+        stage: Stage::ColosseumWave3 as i32,
         ..Default::default()
     };
     choice.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3883,7 +4007,7 @@ fn convert_handicap_choice() {
 
     let mut invalid_handicap = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         ..Default::default()
     };
     invalid_handicap.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3903,7 +4027,7 @@ fn convert_handicap_choice() {
 
     let mut invalid_handicap_options = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave6 as i32,
+        stage: Stage::ColosseumWave6 as i32,
         ..Default::default()
     };
     invalid_handicap_options.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3923,7 +4047,7 @@ fn convert_handicap_choice() {
 
     let mut two_handicap_options = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave9 as i32,
+        stage: Stage::ColosseumWave9 as i32,
         ..Default::default()
     };
     two_handicap_options.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3942,7 +4066,7 @@ fn convert_handicap_choice() {
 
     let mut handicap_not_offered = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave7 as i32,
+        stage: Stage::ColosseumWave7 as i32,
         ..Default::default()
     };
     handicap_not_offered.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3961,7 +4085,7 @@ fn convert_handicap_choice() {
 
     let mut missing_handicap = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave2 as i32,
+        stage: Stage::ColosseumWave2 as i32,
         ..Default::default()
     };
     missing_handicap.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3977,7 +4101,7 @@ fn convert_handicap_choice() {
 
     let mut missing_handicap_options = proto::Event {
         tick: 0,
-        stage: proto::Stage::ColosseumWave1 as i32,
+        stage: Stage::ColosseumWave1 as i32,
         ..Default::default()
     };
     missing_handicap_options.set_type(proto::event::Type::ColosseumHandicapChoice);
@@ -3994,7 +4118,7 @@ fn convert_doom_applied() {
 
     let mut doom = proto::Event {
         tick: 14,
-        stage: proto::Stage::ColosseumWave4 as i32,
+        stage: Stage::ColosseumWave4 as i32,
         x_coord: 1823,
         y_coord: 3103,
         ..Default::default()
@@ -4012,7 +4136,7 @@ fn convert_totem_heal() {
 
     let mut heal = proto::Event {
         tick: 89,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         x_coord: 1819,
         y_coord: 3112,
         ..Default::default()
@@ -4046,7 +4170,7 @@ fn convert_totem_heal() {
 
     let mut start_after_end = proto::Event {
         tick: 95,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         x_coord: 1819,
         y_coord: 3112,
         ..Default::default()
@@ -4077,7 +4201,7 @@ fn convert_totem_heal() {
 
     let mut missing_source = proto::Event {
         tick: 101,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         x_coord: 1819,
         y_coord: 3112,
         ..Default::default()
@@ -4103,7 +4227,7 @@ fn convert_totem_heal() {
 
     let mut missing_target = proto::Event {
         tick: 113,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         x_coord: 1819,
         y_coord: 3112,
         ..Default::default()
@@ -4129,7 +4253,7 @@ fn convert_totem_heal() {
 
     let mut missing_colosseum_totem_heal = proto::Event {
         tick: 221,
-        stage: proto::Stage::ColosseumWave5 as i32,
+        stage: Stage::ColosseumWave5 as i32,
         x_coord: 1819,
         y_coord: 3112,
         ..Default::default()
@@ -4147,7 +4271,7 @@ fn convert_sol_dust() {
 
     let mut trident_1 = proto::Event {
         tick: 14,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3108,
         ..Default::default()
@@ -4166,7 +4290,7 @@ fn convert_sol_dust() {
 
     let mut trident_2 = proto::Event {
         tick: 210,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3103,
         ..Default::default()
@@ -4185,7 +4309,7 @@ fn convert_sol_dust() {
 
     let mut shield_1 = proto::Event {
         tick: 49,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3107,
         ..Default::default()
@@ -4202,7 +4326,7 @@ fn convert_sol_dust() {
 
     let mut shield_2 = proto::Event {
         tick: 55,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3107,
         ..Default::default()
@@ -4219,7 +4343,7 @@ fn convert_sol_dust() {
 
     let mut missing_direction = proto::Event {
         tick: 21,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3108,
         ..Default::default()
@@ -4238,7 +4362,7 @@ fn convert_sol_dust() {
 
     let mut invalid_direction = proto::Event {
         tick: 28,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3108,
         ..Default::default()
@@ -4258,7 +4382,7 @@ fn convert_sol_dust() {
 
     let mut invalid_pattern = proto::Event {
         tick: 42,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3107,
         ..Default::default()
@@ -4278,7 +4402,7 @@ fn convert_sol_dust() {
 
     let mut missing_colosseum_sol_dust = proto::Event {
         tick: 80,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3105,
         ..Default::default()
@@ -4296,7 +4420,7 @@ fn convert_sol_grapple() {
 
     let mut parried = proto::Event {
         tick: 130,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1819,
         y_coord: 3108,
         ..Default::default()
@@ -4318,7 +4442,7 @@ fn convert_sol_grapple() {
 
     let mut hit = proto::Event {
         tick: 104,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1823,
         y_coord: 3107,
         ..Default::default()
@@ -4340,7 +4464,7 @@ fn convert_sol_grapple() {
 
     let mut attack_after_tick = proto::Event {
         tick: 175,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1826,
         y_coord: 3109,
         ..Default::default()
@@ -4360,7 +4484,7 @@ fn convert_sol_grapple() {
 
     let mut invalid_target = proto::Event {
         tick: 207,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1822,
         y_coord: 3109,
         ..Default::default()
@@ -4381,7 +4505,7 @@ fn convert_sol_grapple() {
 
     let mut invalid_outcome = proto::Event {
         tick: 136,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1829,
         y_coord: 3110,
         ..Default::default()
@@ -4402,7 +4526,7 @@ fn convert_sol_grapple() {
 
     let mut missing_colosseum_sol_grapple = proto::Event {
         tick: 194,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         x_coord: 1819,
         y_coord: 3106,
         ..Default::default()
@@ -4420,7 +4544,7 @@ fn convert_sol_pools() {
 
     let mut pools = proto::Event {
         tick: 34,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     pools.set_type(proto::event::Type::ColosseumSolPools);
@@ -4446,7 +4570,7 @@ fn convert_sol_pools() {
 
     let mut invalid_pools = proto::Event {
         tick: 173,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     invalid_pools.set_type(proto::event::Type::ColosseumSolPools);
@@ -4463,7 +4587,7 @@ fn convert_sol_pools() {
 
     let mut missing_pools = proto::Event {
         tick: 62,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     missing_pools.set_type(proto::event::Type::ColosseumSolPools);
@@ -4475,7 +4599,7 @@ fn convert_sol_pools() {
 
     let mut missing_colosseum_sol_pools = proto::Event {
         tick: 107,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     missing_colosseum_sol_pools.set_type(proto::event::Type::ColosseumSolPools);
@@ -4491,7 +4615,7 @@ fn convert_sol_lasers() {
 
     let mut scan = proto::Event {
         tick: 43,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     scan.set_type(proto::event::Type::ColosseumSolLasers);
@@ -4505,7 +4629,7 @@ fn convert_sol_lasers() {
 
     let mut shot = proto::Event {
         tick: 47,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     shot.set_type(proto::event::Type::ColosseumSolLasers);
@@ -4519,7 +4643,7 @@ fn convert_sol_lasers() {
 
     let mut invalid_phase = proto::Event {
         tick: 79,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     invalid_phase.set_type(proto::event::Type::ColosseumSolLasers);
@@ -4534,7 +4658,7 @@ fn convert_sol_lasers() {
 
     let mut missing_colosseum_sol_lasers = proto::Event {
         tick: 83,
-        stage: proto::Stage::ColosseumWave12 as i32,
+        stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
     missing_colosseum_sol_lasers.set_type(proto::event::Type::ColosseumSolLasers);
@@ -4550,7 +4674,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut ranged = proto::Event {
         tick: 13,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     ranged.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4574,7 +4698,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut melee = proto::Event {
         tick: 19,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     melee.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4598,7 +4722,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut from_ball = proto::Event {
         tick: 34,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     from_ball.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4622,7 +4746,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut invalid_source = proto::Event {
         tick: 33,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     invalid_source.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4643,7 +4767,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut missing_source_point = proto::Event {
         tick: 47,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     missing_source_point.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4663,7 +4787,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut invalid_source_point = proto::Event {
         tick: 48,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     invalid_source_point.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4684,7 +4808,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut invalid_style = proto::Event {
         tick: 51,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     invalid_style.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4705,7 +4829,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut start_after_end = proto::Event {
         tick: 57,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     start_after_end.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4725,7 +4849,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut end_after_tick = proto::Event {
         tick: 71,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     end_after_tick.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4745,7 +4869,7 @@ fn convert_mokhaiotl_orb() {
 
     let mut missing_mokhaiotl_orb = proto::Event {
         tick: 72,
-        stage: proto::Stage::MokhaiotlDelve2 as i32,
+        stage: Stage::MokhaiotlDelve2 as i32,
         ..Default::default()
     };
     missing_mokhaiotl_orb.set_type(proto::event::Type::MokhaiotlOrb);
@@ -4761,7 +4885,7 @@ fn convert_mokhaiotl_larva_leak() {
 
     let mut leak = proto::Event {
         tick: 78,
-        stage: proto::Stage::MokhaiotlDelve8 as i32,
+        stage: Stage::MokhaiotlDelve8 as i32,
         ..Default::default()
     };
     leak.set_type(proto::event::Type::MokhaiotlLarvaLeak);
@@ -4779,7 +4903,7 @@ fn convert_mokhaiotl_larva_leak() {
 
     let mut missing_mokhaiotl_larva_leak = proto::Event {
         tick: 93,
-        stage: proto::Stage::MokhaiotlDelve8 as i32,
+        stage: Stage::MokhaiotlDelve8 as i32,
         ..Default::default()
     };
     missing_mokhaiotl_larva_leak.set_type(proto::event::Type::MokhaiotlLarvaLeak);
@@ -4795,7 +4919,7 @@ fn convert_inferno_wave_start() {
 
     let mut start = proto::Event {
         tick: 0,
-        stage: proto::Stage::InfernoWave21 as i32,
+        stage: Stage::InfernoWave21 as i32,
         ..Default::default()
     };
     start.set_type(proto::event::Type::InfernoWaveStart);
@@ -4810,7 +4934,7 @@ fn convert_inferno_wave_start() {
 
     let mut missing_inferno_wave_start = proto::Event {
         tick: 0,
-        stage: proto::Stage::InfernoWave34 as i32,
+        stage: Stage::InfernoWave34 as i32,
         ..Default::default()
     };
     missing_inferno_wave_start.set_type(proto::event::Type::InfernoWaveStart);
