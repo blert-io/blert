@@ -17,7 +17,8 @@ use crate::proto::event::Type;
 use crate::skill::SkillLevel;
 use crate::tick::{Tick, Ticks};
 use crate::{
-    ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PlayerAttack, Point, Source, proto,
+    ChallengeMode, ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PlayerAttack, Point,
+    Source, Stage, proto,
 };
 
 use super::{TickState, Timeline};
@@ -36,6 +37,8 @@ pub struct BuildRejection {
 pub enum RejectionReason {
     /// The event has an unknown wire type.
     UnknownType(i32),
+    /// The event is from a different stage than the timeline's recording.
+    WrongStage(Stage),
     /// The event is missing one or more required fields for its type.
     MissingPayload(&'static str),
     /// The value of a required field could not be represented.
@@ -87,6 +90,8 @@ pub enum RawActor {
 #[derive(Debug)]
 pub struct TimelineBuilder {
     client_id: ClientId,
+    stage: Stage,
+    mode: ChallengeMode,
     party: Vec<String>,
     reported_last_tick: Option<Tick>,
     events: BTreeMap<Tick, Vec<proto::Event>>,
@@ -103,13 +108,23 @@ impl TimelineBuilder {
     /// If the stream is complete, `reported_last_tick` indicates the total
     /// length of the recorded timeline.
     #[must_use]
-    pub fn new(client_id: ClientId, party: Vec<String>, reported_last_tick: Option<Tick>) -> Self {
+    pub fn new(
+        client_id: ClientId,
+        stage: Stage,
+        mode: ChallengeMode,
+        party: Vec<String>,
+        reported_last_tick: Option<Tick>,
+    ) -> Self {
+        let timeline = reported_last_tick.map(|t| Timeline::vacant(stage, mode, party.clone(), t));
+
         Self {
             client_id,
+            stage,
+            mode,
             party,
             reported_last_tick,
             events: BTreeMap::new(),
-            timeline: reported_last_tick.map(Timeline::vacant),
+            timeline,
             last_seen_actors: HashMap::new(),
             rejections: BTreeMap::new(),
             warnings: BTreeMap::new(),
@@ -128,53 +143,7 @@ impl TimelineBuilder {
     /// rejection list for inspection.
     pub fn ingest(&mut self, events: impl IntoIterator<Item = proto::Event>) -> Option<Tick> {
         let start = self.add_raw_events(events)?;
-        let last_tick = self
-            .reported_last_tick
-            .or_else(|| self.events.keys().next_back().copied())?;
-
-        let mut timeline = self
-            .timeline
-            .take()
-            .unwrap_or_else(|| Timeline::vacant(last_tick));
-        if timeline.last_tick() < last_tick {
-            timeline.states.resize(last_tick.as_usize() + 1, None);
-        }
-
-        let mut changed: Option<Tick> = None;
-        let mut pending = self.events.split_off(&start);
-        self.last_seen_actors.retain(|actor, last| {
-            if *last < start {
-                return true;
-            }
-            let last_seen = start.up_to().rev().find(|tick| {
-                timeline.get_state(*tick).is_some_and(|state| match actor {
-                    Actor::Player(index) => state.players.get(*index).is_some(),
-                    Actor::Npc(room_id) => state.npcs.contains_key(room_id),
-                })
-            });
-            match last_seen {
-                Some(tick) => {
-                    *last = tick;
-                    true
-                }
-                None => false,
-            }
-        });
-        for (&tick, events) in &pending {
-            self.rejections.remove(&tick);
-            self.warnings.remove(&tick);
-            let mut builder = TickBuilder::new(tick, self, &mut timeline);
-            for event in events {
-                builder.process_event(event);
-            }
-            if let Some(modified) = builder.finish() {
-                changed = Some(changed.map_or(modified, |changed| changed.min(modified)));
-            }
-        }
-        self.events.append(&mut pending);
-        self.timeline = Some(timeline);
-
-        changed
+        self.ingest_from(start)
     }
 
     // Returns every rejection recorded by the builder.
@@ -220,6 +189,19 @@ impl TimelineBuilder {
             if legacy_objects {
                 self.legacy_objects = true;
             }
+
+            if event.stage() != self.stage {
+                self.rejections
+                    .entry(tick)
+                    .or_default()
+                    .push(BuildRejection {
+                        tick,
+                        kind: event.r#type(),
+                        reason: RejectionReason::WrongStage(event.stage()),
+                    });
+                continue;
+            }
+
             if self.reported_last_tick.is_some_and(|last| tick > last) {
                 self.rejections
                     .entry(tick)
@@ -237,6 +219,55 @@ impl TimelineBuilder {
         }
 
         start
+    }
+
+    fn ingest_from(&mut self, start: Tick) -> Option<Tick> {
+        let last_tick = self
+            .reported_last_tick
+            .or_else(|| self.events.keys().next_back().copied())?;
+
+        let mut timeline = self.timeline.take().unwrap_or_else(|| {
+            Timeline::vacant(self.stage, self.mode, self.party.clone(), last_tick)
+        });
+        if timeline.last_tick() < last_tick {
+            timeline.states.resize(last_tick.as_usize() + 1, None);
+        }
+
+        let mut changed: Option<Tick> = None;
+        let mut pending = self.events.split_off(&start);
+        self.last_seen_actors.retain(|actor, last| {
+            if *last < start {
+                return true;
+            }
+            let last_seen = start.up_to().rev().find(|tick| {
+                timeline.get_state(*tick).is_some_and(|state| match actor {
+                    Actor::Player(index) => state.players.get(*index).is_some(),
+                    Actor::Npc(room_id) => state.npcs.contains_key(room_id),
+                })
+            });
+            match last_seen {
+                Some(tick) => {
+                    *last = tick;
+                    true
+                }
+                None => false,
+            }
+        });
+        for (&tick, events) in &pending {
+            self.rejections.remove(&tick);
+            self.warnings.remove(&tick);
+            let mut builder = TickBuilder::new(tick, self, &mut timeline);
+            for event in events {
+                builder.process_event(event);
+            }
+            if let Some(modified) = builder.finish() {
+                changed = Some(changed.map_or(modified, |changed| changed.min(modified)));
+            }
+        }
+        self.events.append(&mut pending);
+        self.timeline = Some(timeline);
+
+        changed
     }
 }
 

@@ -6,6 +6,7 @@ use crate::actor::{NpcState, Players, RoomId};
 use crate::event::Event;
 use crate::objects::TickObjects;
 use crate::tick::{Tick, Ticks};
+use crate::{ChallengeMode, Stage};
 
 mod builder;
 
@@ -18,16 +19,40 @@ pub use builder::{
 /// the world on that tick alongside the events that occurred.
 #[derive(Debug, Clone)]
 pub struct Timeline {
+    stage: Stage,
+    mode: ChallengeMode,
+    party: Vec<String>,
     states: Vec<Option<TickState>>,
 }
 
 impl Timeline {
     /// Creates a timeline spanning to `last_tick` without any state or events.
     #[must_use]
-    pub fn vacant(last_tick: Tick) -> Self {
+    pub fn vacant(stage: Stage, mode: ChallengeMode, party: Vec<String>, last_tick: Tick) -> Self {
         Self {
+            stage,
+            mode,
+            party,
             states: vec![None; last_tick.as_usize() + 1],
         }
+    }
+
+    /// Returns the stage recorded by the timeline.
+    #[must_use]
+    pub fn stage(&self) -> Stage {
+        self.stage
+    }
+
+    /// Returns the mode of the challenge.
+    #[must_use]
+    pub fn mode(&self) -> ChallengeMode {
+        self.mode
+    }
+
+    /// Returns the challenge's party in orb order.
+    #[must_use]
+    pub fn party(&self) -> &[String] {
+        &self.party
     }
 
     /// Returns the highest tick number represented by the timeline.
@@ -116,7 +141,12 @@ mod tests {
 
     #[test]
     fn timeline_tick_access() {
-        let mut timeline = Timeline::vacant(Tick(3));
+        let mut timeline = Timeline::vacant(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec!["TobDataEgirl".to_string()],
+            Tick(3),
+        );
         assert_eq!(timeline.last_tick(), Tick(3));
         assert!(
             Tick(3)
@@ -204,7 +234,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "index out of bounds")]
     fn timeline_set_beyond_last_tick() {
-        let mut timeline = Timeline::vacant(Tick(3));
+        let mut timeline = Timeline::vacant(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec!["TobDataEgirl".to_string()],
+            Tick(3),
+        );
         timeline.set_state(
             Tick(4),
             TickState {
@@ -218,7 +253,12 @@ mod tests {
 
     #[test]
     fn timeline_shift() {
-        let mut timeline = Timeline::vacant(Tick(5));
+        let mut timeline = Timeline::vacant(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec!["TobDataEgirl".to_string()],
+            Tick(5),
+        );
         timeline.set_state(
             Tick(2),
             TickState {
