@@ -37,7 +37,7 @@ import {
   CustomRow,
   CustomState,
   StateProvider,
-} from '@/components/attack-timeline/bcf-renderer';
+} from '@/components/attack-timeline';
 import KeyPrayers from '@/components/key-prayers';
 import PlayerSkill from '@/components/player-skill';
 import Tooltip from '@/components/tooltip';

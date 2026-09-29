@@ -13,7 +13,9 @@ import {
   duplicateActor,
   insertTicks,
   pasteCells,
+  placeAction,
   removeTicks,
+  removeAction,
   removeActor,
   removeCell,
   setCell,
@@ -88,6 +90,11 @@ const MAUL_SPEC: BCFAction = {
   type: 'attack',
   attackType: 'ELDER_MAUL_SPEC',
   weaponId: 21003,
+};
+
+const VENGEANCE: BCFAction = {
+  type: 'spell',
+  spellType: 'VENGEANCE',
 };
 
 const VERZIK_AUTO: BCFAction = {
@@ -584,6 +591,158 @@ describe('removeCell', () => {
     const before = structuredClone(bcf);
 
     removeCell(bcf, 'p1', 5);
+    expect(bcf).toEqual(before);
+  });
+});
+
+describe('placeAction', () => {
+  it('creates a cell and tick entry when neither exists', () => {
+    const result = placeAction(makeChart(), 'p1', 5, SCYTHE);
+
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 5, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+    ]);
+  });
+
+  it('adds an action of a new type to an existing cell', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, { actions: [VENGEANCE] });
+
+    const result = placeAction(bcf, 'p1', 5, SCYTHE);
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 5, cells: [{ actorId: 'p1', actions: [VENGEANCE, SCYTHE] }] },
+    ]);
+  });
+
+  it('replaces an existing action of the same type', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, {
+      actions: [SCYTHE, VENGEANCE],
+    });
+
+    const result = placeAction(bcf, 'p1', 5, DAWN_SPEC);
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      {
+        tick: 5,
+        cells: [{ actorId: 'p1', actions: [VENGEANCE, DAWN_SPEC] }],
+      },
+    ]);
+  });
+
+  it('does not modify the rest of the state', () => {
+    let bcf = setCell(makeChart(), 'verzik', 19, { actions: [VERZIK_AUTO] });
+    bcf = setCell(bcf, 'p1', 19, {
+      actions: [SCYTHE],
+      state: { specEnergy: 100 },
+    });
+
+    const result = placeAction(bcf, 'p1', 19, DAWN_SPEC);
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      {
+        tick: 19,
+        cells: [
+          { actorId: 'verzik', actions: [VERZIK_AUTO] },
+          {
+            actorId: 'p1',
+            actions: [DAWN_SPEC],
+            state: { specEnergy: 100 },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('is unaffected by later modification of the given action', () => {
+    const action = { ...SCYTHE };
+    const bcf = placeAction(makeChart(), 'p1', 5, action);
+
+    action.attackType = 'CHALLY_SWIPE';
+    expect(bcf.timeline.ticks[0].cells[0].actions).toEqual([SCYTHE]);
+  });
+
+  it('throws if the tick is out of bounds', () => {
+    expect(() => placeAction(makeChart(), 'p1', 30, SCYTHE)).toThrow(
+      'out of bounds',
+    );
+  });
+
+  it('throws if the actor cannot perform the action', () => {
+    expect(() => placeAction(makeChart(), 'p1', 5, VERZIK_AUTO)).toThrow(
+      'player actor p1 cannot perform "npcAttack"',
+    );
+  });
+
+  it('does not modify the input document', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, { actions: [SCYTHE] });
+    const before = structuredClone(bcf);
+
+    placeAction(bcf, 'p1', 5, DAWN_SPEC);
+    expect(bcf).toEqual(before);
+  });
+});
+
+describe('removeAction', () => {
+  it('removes one action, keeping the rest of the cell', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, {
+      actions: [VENGEANCE, SCYTHE],
+    });
+
+    const result = removeAction(bcf, 'p1', 5, 1);
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 5, cells: [{ actorId: 'p1', actions: [VENGEANCE] }] },
+    ]);
+  });
+
+  it('removes the cell when its last action is removed', () => {
+    let bcf = setCell(makeChart(), 'verzik', 19, { actions: [VERZIK_AUTO] });
+    bcf = setCell(bcf, 'p1', 19, { actions: [SCYTHE] });
+
+    const result = removeAction(bcf, 'p1', 19, 0);
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 19, cells: [{ actorId: 'verzik', actions: [VERZIK_AUTO] }] },
+    ]);
+  });
+
+  it('drops the tick entry when the removed cell was its last', () => {
+    let bcf = setCell(makeChart(), 'p1', 5, { actions: [SCYTHE] });
+    bcf = setCell(bcf, 'p1', 10, { actions: [SCYTHE] });
+
+    const result = removeAction(bcf, 'p1', 5, 0);
+    expectValid(result);
+    expect(result.timeline.ticks.map((t) => t.tick)).toEqual([10]);
+  });
+
+  it('throws when the actor has no cell on the tick', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, { actions: [SCYTHE] });
+
+    expect(() => removeAction(bcf, 'p2', 5, 0)).toThrow(
+      'No cell for p2 at tick 5',
+    );
+    expect(() => removeAction(bcf, 'p1', 6, 0)).toThrow(
+      'No cell for p1 at tick 6',
+    );
+  });
+
+  it('throws when the index is not one of the cell’s actions', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, { actions: [SCYTHE] });
+
+    expect(() => removeAction(bcf, 'p1', 5, 1)).toThrow(
+      'Cell for p1 at tick 5 has no action 1',
+    );
+    expect(() => removeAction(bcf, 'p1', 5, -1)).toThrow(
+      'Cell for p1 at tick 5 has no action -1',
+    );
+  });
+
+  it('does not modify the input document', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, { actions: [SCYTHE] });
+    const before = structuredClone(bcf);
+
+    removeAction(bcf, 'p1', 5, 0);
     expect(bcf).toEqual(before);
   });
 });

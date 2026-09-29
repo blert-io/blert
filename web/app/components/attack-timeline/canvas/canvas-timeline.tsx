@@ -16,6 +16,7 @@ import {
 import {
   ControllerData,
   ControllerLayout,
+  InteractionHandler,
   TimelineController,
   TileInfo,
 } from './timeline-controller';
@@ -38,6 +39,7 @@ export type CanvasTimelineProps = {
   showInventoryTags: boolean;
   tooltipId: string;
   onTickSelect?: (tick: number) => void;
+  interactionHandler?: InteractionHandler;
   scrollContainerRef?: React.RefObject<HTMLElement | null>;
 };
 
@@ -84,6 +86,7 @@ export const CanvasTimeline = memo(function CanvasTimeline({
   showInventoryTags,
   tooltipId,
   onTickSelect,
+  interactionHandler,
   scrollContainerRef,
 }: CanvasTimelineProps) {
   const columnWidth = cellSize + CELL_GAP;
@@ -137,6 +140,7 @@ export const CanvasTimeline = memo(function CanvasTimeline({
     showInventoryTags,
     customRowContent,
     onTickSelect,
+    interactionHandler,
     tooltipId,
   };
 

@@ -178,6 +178,10 @@ button.legendParticipant {
   overflow-y: visible;
   width: 100%;
 
+  &.wrapped {
+    overflow-x: hidden;
+  }
+
   .row {
     display: flex;
     width: 100%;

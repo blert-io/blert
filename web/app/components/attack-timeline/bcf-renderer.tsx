@@ -7,6 +7,7 @@ import HorizontalScrollable from '@/components/horizontal-scrollable';
 
 import { BcfTooltip, BCF_TOOLTIP_ID } from './bcf-tooltip';
 import { CanvasTimeline } from './canvas/canvas-timeline';
+import { InteractionHandler } from './canvas/timeline-controller';
 import { defaultRowOrder, TimelineDisplay } from './display-utils';
 import {
   ActionEvaluator,
@@ -30,15 +31,6 @@ import {
 } from './types';
 
 import styles from './bcf-renderer.module.scss';
-
-export type {
-  ActionEvaluation,
-  ActionEvaluator,
-  ActionOutline,
-  CustomRow,
-  CustomState,
-  StateProvider,
-} from './types';
 
 export type BcfRendererProps = {
   bcf: BlertChartFormat;
@@ -64,6 +56,9 @@ export type BcfRendererProps = {
 
   /** Callback for when a tick is selected. */
   onTickSelect?: (tick: number) => void;
+
+  /** Receives pointer events over the timeline's cells and tick headers. */
+  interactionHandler?: InteractionHandler;
 
   /** Minimum columns before auto-scroll activates. Default: 15. */
   scrollMinColumns?: number;
@@ -99,6 +94,7 @@ export function BcfRenderer({
   scrollMinColumns = DEFAULT_SCROLL_MIN_COLUMNS,
   scrollVisibleColumns = DEFAULT_SCROLL_VISIBLE_COLUMNS,
   tooltipId,
+  interactionHandler,
   onActorSelect,
   onTickSelect,
   liveFollowing = false,
@@ -385,7 +381,11 @@ export function BcfRenderer({
           ))}
         </div>
         <HorizontalScrollable
-          className={styles.scrollable}
+          className={
+            shouldScroll
+              ? styles.scrollable
+              : `${styles.scrollable} ${styles.wrapped}`
+          }
           customRef={scrollableRef}
           disable={!shouldScroll}
         >
@@ -408,6 +408,7 @@ export function BcfRenderer({
             letterMode={letterMode}
             showInventoryTags={showInventoryTags}
             tooltipId={effectiveTooltipId}
+            interactionHandler={interactionHandler}
             onTickSelect={onTickSelect}
             scrollContainerRef={scrollableRef}
           />
