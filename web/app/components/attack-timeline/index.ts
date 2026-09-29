@@ -1,11 +1,6 @@
 export {
-  type ActionEvaluation,
-  type ActionEvaluator,
-  type ActionOutline,
   BcfRenderer as default,
   type BcfRendererProps as AttackTimelineProps,
-  type CustomRow,
-  type StateProvider,
 } from './bcf-renderer';
 
 export {
@@ -13,4 +8,14 @@ export {
   CombatStyle,
   getAttackStyle,
 } from './attack-metadata';
-export type { CustomState, TimelineSplit } from './types';
+export type { HitTestResult } from './canvas/hit-test';
+export type { InteractionHandler } from './canvas/timeline-controller';
+export type {
+  ActionEvaluation,
+  ActionEvaluator,
+  ActionOutline,
+  CustomRow,
+  CustomState,
+  StateProvider,
+  TimelineSplit,
+} from './types';

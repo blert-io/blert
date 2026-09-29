@@ -20,6 +20,24 @@ export type TileInfo = {
   logicalWidth: number;
 };
 
+/**
+ * Receives pointer events over the timeline, pairing each with the cell or tick
+ * header under the pointer.
+ *
+ * From a press until its release, move events and the release event are
+ * delivered even when the pointer leaves the canvas.
+ */
+export type InteractionHandler = {
+  onPointerDown?: (hit: HitTestResult | null, event: PointerEvent) => void;
+  onPointerMove?: (hit: HitTestResult | null, event: PointerEvent) => void;
+  onPointerUp?: (hit: HitTestResult | null, event: PointerEvent) => void;
+  /**
+   * Callback invoked on each `hit` target change returning the CSS cursor value
+   * to display over it. `undefined` uses the default cursor.
+   */
+  cursor?: (hit: HitTestResult | null) => string | undefined;
+};
+
 export type ControllerData = {
   resolver: BCFResolver;
   display: TimelineDisplay;
@@ -29,6 +47,7 @@ export type ControllerData = {
   showInventoryTags: boolean;
   customRowContent: Map<string, Set<number>>;
   onTickSelect?: (tick: number) => void;
+  interactionHandler?: InteractionHandler;
   tooltipId: string;
 };
 
@@ -37,6 +56,21 @@ export type ControllerLayout = {
   cellSize: number;
   rowOrder: string[];
 };
+
+type ResolvedHit = {
+  hit: HitTestResult | null;
+  tileIndex: number;
+  canvas: HTMLCanvasElement;
+};
+
+function isSameHover(hover: TimelineHover, hit: HitTestResult): boolean {
+  if (hover.type !== hit.type || hover.tick !== hit.tick) {
+    return false;
+  }
+  return (
+    hover.type !== 'cell' || hit.type !== 'cell' || hover.rowId === hit.rowId
+  );
+}
 
 /**
  * Imperative controller for the canvas timeline.
@@ -56,6 +90,7 @@ export class TimelineController {
   private themeObserver: MutationObserver | null = null;
 
   private hover: [TimelineHover, number] | null = null;
+  private cursor = 'default';
   private lastMouseEvent: MouseEvent | null = null;
   private scrollContainer: HTMLElement | null = null;
   private tooltipAnchors: [HTMLDivElement, HTMLDivElement] | null = null;
@@ -79,16 +114,16 @@ export class TimelineController {
    */
   setCanvases(canvases: HTMLCanvasElement[]): void {
     for (const canvas of this.canvases) {
-      canvas.removeEventListener('mousemove', this.onMouseMove);
-      canvas.removeEventListener('mouseleave', this.onMouseLeave);
-      canvas.removeEventListener('click', this.onClick);
+      this.removeListeners(canvas);
     }
 
     this.canvases = canvases;
 
     for (const canvas of this.canvases) {
-      canvas.addEventListener('mousemove', this.onMouseMove);
-      canvas.addEventListener('mouseleave', this.onMouseLeave);
+      canvas.addEventListener('pointermove', this.onPointerMove);
+      canvas.addEventListener('pointerleave', this.onPointerLeave);
+      canvas.addEventListener('pointerdown', this.onPointerDown);
+      canvas.addEventListener('pointerup', this.onPointerUp);
       canvas.addEventListener('click', this.onClick);
     }
 
@@ -133,9 +168,7 @@ export class TimelineController {
   /** Cleans up event listeners and cancels pending work. */
   destroy(): void {
     for (const canvas of this.canvases) {
-      canvas.removeEventListener('mousemove', this.onMouseMove);
-      canvas.removeEventListener('mouseleave', this.onMouseLeave);
-      canvas.removeEventListener('click', this.onClick);
+      this.removeListeners(canvas);
     }
     this.canvases = [];
     this.setScrollContainer(null);
@@ -400,6 +433,14 @@ export class TimelineController {
     }
   }
 
+  private removeListeners(canvas: HTMLCanvasElement): void {
+    canvas.removeEventListener('pointermove', this.onPointerMove);
+    canvas.removeEventListener('pointerleave', this.onPointerLeave);
+    canvas.removeEventListener('pointerdown', this.onPointerDown);
+    canvas.removeEventListener('pointerup', this.onPointerUp);
+    canvas.removeEventListener('click', this.onClick);
+  }
+
   private tileIndexForCanvas(canvas: EventTarget): number {
     return this.canvases.indexOf(canvas as HTMLCanvasElement);
   }
@@ -422,24 +463,23 @@ export class TimelineController {
     };
   }
 
-  private onMouseMove = (e: MouseEvent): void => {
-    this.lastMouseEvent = e;
-    const tileIndex = this.tileIndexForCanvas(e.currentTarget!);
-    if (tileIndex === -1) {
-      return;
-    }
-
-    const layout = this.tileLayout(tileIndex);
-    if (layout === null) {
-      return;
-    }
-
+  private resolvePointer(e: PointerEvent): ResolvedHit | null {
     const canvas = e.currentTarget as HTMLCanvasElement;
-    this.handleHitTest(
-      hitTest(e.offsetX, e.offsetY, layout),
-      tileIndex,
-      canvas,
-    );
+    if (canvas.hasPointerCapture(e.pointerId)) {
+      return this.resolveHitAtPoint(e.clientX, e.clientY);
+    }
+    return this.resolveHit(canvas, e.clientX, e.clientY);
+  }
+
+  private onPointerMove = (e: PointerEvent): void => {
+    this.lastMouseEvent = e;
+    const resolved = this.resolvePointer(e);
+    if (resolved === null) {
+      this.clearHover();
+    } else {
+      this.handleHitTest(resolved.hit, resolved.tileIndex, resolved.canvas);
+    }
+    this.data?.interactionHandler?.onPointerMove?.(resolved?.hit ?? null, e);
   };
 
   private handleHitTest(
@@ -450,25 +490,15 @@ export class TimelineController {
     const prev = this.hover;
 
     if (result === null) {
-      if (prev !== null) {
-        this.hover = null;
-        this.markDirty(prev[1]);
-        this.hideTooltipAnchor();
-      }
-      canvas.style.cursor = 'default';
+      this.clearHover();
+      canvas.style.cursor = this.cursor;
       return;
     }
 
-    // Check if hover is unchanged.
     if (prev !== null) {
       const [prevHover, prevTile] = prev;
-      if (prevHover.type === result.type && prevHover.tick === result.tick) {
-        if (result.type === 'tick-header') {
-          return;
-        }
-        if (prevHover.type === 'cell' && prevHover.rowId === result.rowId) {
-          return;
-        }
+      if (isSameHover(prevHover, result)) {
+        return;
       }
       if (prevTile !== tileIndex) {
         this.markDirty(prevTile);
@@ -489,23 +519,86 @@ export class TimelineController {
         result.rowId,
         tooltipType,
       );
-      canvas.style.cursor = 'default';
     } else {
       this.hideTooltipAnchor();
-      canvas.style.cursor =
-        this.data?.onTickSelect !== undefined ? 'pointer' : 'default';
     }
+
+    this.cursor = this.cursorFor(result);
+    canvas.style.cursor = this.cursor;
   }
 
-  private onMouseLeave = (): void => {
-    this.lastMouseEvent = null;
-    const prev = this.hover;
-    if (prev !== null) {
-      this.hover = null;
-      this.markDirty(prev[1]);
+  private cursorFor(hit: HitTestResult | null): string {
+    const cursor = this.data?.interactionHandler?.cursor?.(hit);
+    if (cursor !== undefined) {
+      return cursor;
     }
+    if (hit?.type === 'tick-header' && this.data?.onTickSelect !== undefined) {
+      return 'pointer';
+    }
+    return 'default';
+  }
+
+  private clearHover(): void {
+    const prev = this.hover;
+    if (prev === null) {
+      return;
+    }
+    this.hover = null;
+    this.markDirty(prev[1]);
     this.hideTooltipAnchor();
+    this.cursor = this.cursorFor(null);
+  }
+
+  private onPointerLeave = (): void => {
+    this.lastMouseEvent = null;
+    this.clearHover();
   };
+
+  private onPointerDown = (e: PointerEvent): void => {
+    const handler = this.data?.interactionHandler;
+    if (handler === undefined) {
+      return;
+    }
+    const hit = this.resolvePointer(e)?.hit ?? null;
+    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    handler.onPointerDown?.(hit, e);
+  };
+
+  private onPointerUp = (e: PointerEvent): void => {
+    const handler = this.data?.interactionHandler;
+    if (handler === undefined) {
+      return;
+    }
+    handler.onPointerUp?.(this.resolvePointer(e)?.hit ?? null, e);
+  };
+
+  private resolveHit(
+    canvas: HTMLCanvasElement,
+    clientX: number,
+    clientY: number,
+  ): ResolvedHit | null {
+    const tileIndex = this.tileIndexForCanvas(canvas);
+    const layout = this.tileLayout(tileIndex);
+    if (layout === null) {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const hit = hitTest(clientX - rect.left, clientY - rect.top, layout);
+    return { hit, tileIndex, canvas };
+  }
+
+  /** Resolves the hit on whichever tile is under a point, if any. */
+  private resolveHitAtPoint(
+    clientX: number,
+    clientY: number,
+  ): ResolvedHit | null {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!(el instanceof HTMLCanvasElement) || !this.canvases.includes(el)) {
+      return null;
+    }
+    return this.resolveHit(el, clientX, clientY);
+  }
 
   private onScroll = (): void => {
     if (this.lastMouseEvent === null) {
@@ -513,32 +606,14 @@ export class TimelineController {
     }
 
     const { clientX, clientY } = this.lastMouseEvent;
-    const el = document.elementFromPoint(clientX, clientY);
-    const tileIndex =
-      el instanceof HTMLCanvasElement ? this.tileIndexForCanvas(el) : -1;
-
-    if (tileIndex === -1) {
+    const resolved = this.resolveHitAtPoint(clientX, clientY);
+    if (resolved === null) {
       // Cursor is no longer over a canvas tile.
-      const prev = this.hover;
-      if (prev !== null) {
-        this.hover = null;
-        this.markDirty(prev[1]);
-      }
-      this.hideTooltipAnchor();
+      this.clearHover();
       return;
     }
 
-    const canvas = this.canvases[tileIndex];
-    const rect = canvas.getBoundingClientRect();
-    const offsetX = clientX - rect.left;
-    const offsetY = clientY - rect.top;
-
-    const layout = this.tileLayout(tileIndex);
-    if (layout === null) {
-      return;
-    }
-
-    this.handleHitTest(hitTest(offsetX, offsetY, layout), tileIndex, canvas);
+    this.handleHitTest(resolved.hit, resolved.tileIndex, resolved.canvas);
   };
 
   private onClick = (e: MouseEvent): void => {

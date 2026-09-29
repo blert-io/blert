@@ -130,6 +130,10 @@ export class ImageCache {
   }
 
   private startLoad(url: string, retriesLeft = MAX_RETRIES): void {
+    if (typeof Image === 'undefined') {
+      return;
+    }
+
     const img = new Image();
 
     if (url.startsWith('http')) {

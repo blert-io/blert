@@ -1,6 +1,7 @@
 /** Pure mutation functions over BCF documents.  */
 
 import {
+  BCFAction,
   BCFActor,
   BCFCell,
   BCFPhase,
@@ -92,23 +93,52 @@ function rows(bcf: BlertChartFormat): string[] {
   return bcf.config.rowOrder?.slice() ?? bcf.timeline.actors.map((a) => a.id);
 }
 
+type CellLocation = {
+  /** Position in the tick's array, or where a new entry would be inserted. */
+  tickIndex: number;
+  /** The current entry at `tickIndex`. */
+  entry: BCFTick | null;
+  /** Position of the actor's cell within `entry` if one exists. */
+  cellIndex: number | null;
+};
+
+function locate(ticks: BCFTick[], actorId: string, tick: number): CellLocation {
+  const tickIndex = lowerBound(ticks, tick);
+  if (tickIndex === ticks.length || ticks[tickIndex].tick !== tick) {
+    return { tickIndex, entry: null, cellIndex: null };
+  }
+
+  const entry = ticks[tickIndex];
+  const cellIndex = entry.cells.findIndex((c) => c.actorId === actorId);
+  return { tickIndex, entry, cellIndex: cellIndex === -1 ? null : cellIndex };
+}
+
 function setUnchecked(
   ticks: BCFTick[],
   actorId: string,
   tick: number,
   cell: BCFCell,
 ): void {
-  const index = lowerBound(ticks, tick);
-  if (index < ticks.length && ticks[index].tick === tick) {
-    const { cells } = ticks[index];
-    const cellIndex = cells.findIndex((c) => c.actorId === actorId);
-    if (cellIndex === -1) {
-      cells.push(cell);
-    } else {
-      cells[cellIndex] = cell;
-    }
+  const { tickIndex, entry, cellIndex } = locate(ticks, actorId, tick);
+  if (entry === null) {
+    ticks.splice(tickIndex, 0, { tick, cells: [cell] });
+  } else if (cellIndex === null) {
+    entry.cells.push(cell);
   } else {
-    ticks.splice(index, 0, { tick, cells: [cell] });
+    entry.cells[cellIndex] = cell;
+  }
+}
+
+function dropCell(
+  ticks: BCFTick[],
+  tickIndex: number,
+  entry: BCFTick,
+  cellIndex: number,
+): void {
+  if (entry.cells.length === 1) {
+    ticks.splice(tickIndex, 1);
+  } else {
+    entry.cells.splice(cellIndex, 1);
   }
 }
 
@@ -359,14 +389,39 @@ export function setCell(
   return next;
 }
 
-/** A rectangular region of cells. */
-export type CellRegion = {
-  actorIds: string[];
-  /** First tick in the region. */
-  startTick: number;
-  /** Last tick in the region, inclusive. */
-  endTick: number;
-};
+/**
+ * Adds `action` to the cell for `actorId` at `tick`, replacing any action of
+ * the same type already there. Creates the cell and tick entry as needed.
+ *
+ * @throws Error if `tick` is outside `[0, totalTicks)`, if `actorId` does not
+ *   reference an actor in the document, or if the action does not fit the
+ *   actor.
+ */
+export function placeAction(
+  bcf: BlertChartFormat,
+  actorId: string,
+  tick: number,
+  action: BCFAction,
+): BlertChartFormat {
+  assertTick(bcf, tick);
+  assertCompatibleCell(bcf, actorId, tick, { actions: [action] });
+
+  const next = structuredClone(bcf);
+  const { ticks } = next.timeline;
+  const placed = structuredClone(action);
+
+  const { entry, cellIndex } = locate(ticks, actorId, tick);
+  if (entry !== null && cellIndex !== null) {
+    const cell = entry.cells[cellIndex];
+    cell.actions = [
+      ...(cell.actions ?? []).filter((a) => a.type !== placed.type),
+      placed,
+    ];
+  } else {
+    setUnchecked(ticks, actorId, tick, { actorId, actions: [placed] });
+  }
+  return next;
+}
 
 /** Removes the cell for `actorId` at `tick`, if present. */
 export function removeCell(
@@ -377,25 +432,57 @@ export function removeCell(
   const next = structuredClone(bcf);
   const { ticks } = next.timeline;
 
-  const index = lowerBound(ticks, tick);
-  if (index === ticks.length || ticks[index].tick !== tick) {
-    return next;
+  const { tickIndex, entry, cellIndex } = locate(ticks, actorId, tick);
+  if (entry !== null && cellIndex !== null) {
+    dropCell(ticks, tickIndex, entry, cellIndex);
   }
-
-  const { cells } = ticks[index];
-  const cellIndex = cells.findIndex((c) => c.actorId === actorId);
-  if (cellIndex === -1) {
-    return next;
-  }
-
-  if (cells.length === 1) {
-    ticks.splice(index, 1);
-  } else {
-    cells.splice(cellIndex, 1);
-  }
-
   return next;
 }
+
+/**
+ * Removes the action at `index` from the cell for `actorId` at `tick`,
+ * removing the enclosing cell if it is empty.
+ *
+ * @throws Error if there is no cell for `actorId` at `tick`, or if `index` is
+ *   not one of its actions.
+ */
+export function removeAction(
+  bcf: BlertChartFormat,
+  actorId: string,
+  tick: number,
+  index: number,
+): BlertChartFormat {
+  const next = structuredClone(bcf);
+  const { ticks } = next.timeline;
+
+  const { tickIndex, entry, cellIndex } = locate(ticks, actorId, tick);
+  if (entry === null || cellIndex === null) {
+    throw new Error(`No cell for ${actorId} at tick ${tick}`);
+  }
+
+  const cell = entry.cells[cellIndex];
+  const actions = cell.actions ?? [];
+  if (index < 0 || index >= actions.length) {
+    throw new Error(
+      `Cell for ${actorId} at tick ${tick} has no action ${index}`,
+    );
+  }
+
+  actions.splice(index, 1);
+  if (actions.length === 0) {
+    dropCell(ticks, tickIndex, entry, cellIndex);
+  }
+  return next;
+}
+
+/** A rectangular region of cells. */
+export type CellRegion = {
+  actorIds: string[];
+  /** First tick in the region. */
+  startTick: number;
+  /** Last tick in the region, inclusive. */
+  endTick: number;
+};
 
 /** Removes every cell within `region`. */
 export function clearCells(
