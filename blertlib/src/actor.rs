@@ -3,7 +3,7 @@ use std::ops::{Index, IndexMut};
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item};
 use crate::prayer::PrayerSet;
 use crate::skill::SkillLevel;
-use crate::{CombatStyle, Point, Source, VerzikPhase};
+use crate::{CombatStyle, Point, Rect, Source, VerzikPhase};
 
 pub use crate::proto::event::npc::maiden_crab::{
     Position as MaidenCrabPosition, Spawn as MaidenCrabSpawn,
@@ -135,7 +135,7 @@ pub enum DataSource {
 pub struct NpcState {
     pub source: Source,
     pub npc_id: u32,
-    pub position: Point,
+    pub position: Rect,
     pub hitpoints: SkillLevel,
     pub prayers: PrayerSet,
     pub properties: Option<NpcProperties>,

@@ -8,8 +8,8 @@ use crate::actor::Actor;
 use crate::item::{EquipmentSlot, Item};
 use crate::tick::{Tick, Ticks};
 use crate::{
-    ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PartyIndex, PlayerAttack, PlayerSpell,
-    Point, RoomId, Source,
+    ChallengeMode, ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PartyIndex, PlayerAttack,
+    PlayerSpell, Point, RoomId, Source,
 };
 
 pub use crate::proto::event::colosseum_sol_dust::Direction as SolDustDirection;
@@ -222,6 +222,26 @@ pub struct NyloWave {
 
 impl NyloWave {
     pub const LAST_WAVE: u8 = 31;
+
+    const CAP_INCREASE_WAVE: u8 = 20;
+
+    /// Returns the room cap of a specific wave.
+    #[must_use]
+    pub fn room_cap(mode: ChallengeMode, wave: u8) -> u8 {
+        if wave >= Self::CAP_INCREASE_WAVE {
+            24
+        } else if mode == ChallengeMode::TobHard {
+            15
+        } else {
+            12
+        }
+    }
+
+    /// Returns the room cap of this wave.
+    #[must_use]
+    pub fn current_cap(&self, mode: ChallengeMode) -> u8 {
+        Self::room_cap(mode, self.wave)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -249,6 +269,23 @@ pub struct XarpusExhumed {
     pub position: Point,
     pub spawn_tick: Tick,
     pub heal_ticks: Vec<Tick>,
+}
+
+impl XarpusExhumed {
+    /// Returns the amount an exhumed heals Xarpus per splat.
+    #[must_use]
+    pub fn heal_amount(mode: ChallengeMode, scale: usize) -> u32 {
+        match (scale, mode) {
+            (1, ChallengeMode::TobHard) => 21,
+            (1, _) => 20,
+            (2, ChallengeMode::TobHard) => 14,
+            (2, _) => 16,
+            (3, _) => 12,
+            (4, _) => 9,
+            (5, _) => 8,
+            _ => 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

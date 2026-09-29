@@ -17,14 +17,14 @@ use crate::proto::event::Type;
 use crate::skill::SkillLevel;
 use crate::tick::{Tick, Ticks};
 use crate::{
-    ChallengeMode, ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PlayerAttack, Point,
-    Source, Stage, proto,
+    ChallengeMode, ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PlayerAttack, Point, Rect,
+    Source, Stage, npc, proto,
 };
 
-use super::{TickState, Timeline};
+use super::{Recording, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
-/// timeline construction.
+/// construction of a recording.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildRejection {
     pub tick: Tick,
@@ -37,7 +37,7 @@ pub struct BuildRejection {
 pub enum RejectionReason {
     /// The event has an unknown wire type.
     UnknownType(i32),
-    /// The event is from a different stage than the timeline's recording.
+    /// The event is from a different stage than the recording.
     WrongStage(Stage),
     /// The event is missing one or more required fields for its type.
     MissingPayload(&'static str),
@@ -52,7 +52,7 @@ pub enum RejectionReason {
     Inconsistent(&'static str),
     /// The event references an actor's past attack which does not exist.
     AttackNotFound,
-    /// The timeline was constructed with a known length, but the event falls
+    /// The recording was constructed with a known length, but the event falls
     /// beyond it.
     BeyondLastTick,
 }
@@ -83,30 +83,30 @@ pub enum RawActor {
     Npc(u64),
 }
 
-/// A builder for constructing a [`Timeline`] from a stream of events.
+/// A builder for constructing a [`Recording`] from a stream of events.
 ///
 /// A builder can either run as a single pass over a complete stream, or ingest
 /// events incrementally in batches.
 #[derive(Debug)]
-pub struct TimelineBuilder {
+pub struct RecordingBuilder {
     client_id: ClientId,
     stage: Stage,
     mode: ChallengeMode,
     party: Vec<String>,
     reported_last_tick: Option<Tick>,
     events: BTreeMap<Tick, Vec<proto::Event>>,
-    timeline: Option<Timeline>,
+    recording: Option<Recording>,
     last_seen_actors: HashMap<Actor, Tick>,
     rejections: BTreeMap<Tick, Vec<BuildRejection>>,
     warnings: BTreeMap<Tick, Vec<BuildWarning>>,
     legacy_objects: bool,
 }
 
-impl TimelineBuilder {
+impl RecordingBuilder {
     /// Creates a new builder to process events recorded by `client_id` in a
     /// stage of a challenge with the given `party`.
     /// If the stream is complete, `reported_last_tick` indicates the total
-    /// length of the recorded timeline.
+    /// length of the recording.
     #[must_use]
     pub fn new(
         client_id: ClientId,
@@ -115,7 +115,8 @@ impl TimelineBuilder {
         party: Vec<String>,
         reported_last_tick: Option<Tick>,
     ) -> Self {
-        let timeline = reported_last_tick.map(|t| Timeline::vacant(stage, mode, party.clone(), t));
+        let recording =
+            reported_last_tick.map(|t| Recording::vacant(stage, mode, party.clone(), t));
 
         Self {
             client_id,
@@ -124,7 +125,7 @@ impl TimelineBuilder {
             party,
             reported_last_tick,
             events: BTreeMap::new(),
-            timeline,
+            recording,
             last_seen_actors: HashMap::new(),
             rejections: BTreeMap::new(),
             warnings: BTreeMap::new(),
@@ -132,11 +133,11 @@ impl TimelineBuilder {
         }
     }
 
-    /// Processes the provided raw events into the timeline, constructing state.
+    /// Processes the provided raw events into the recording, constructing state.
     ///
     /// Returns the earliest modified tick as a result of processing the batch.
     /// If the batch was a pure append, this will be the first tick beyond the
-    /// timeline's original length. Events that retroactively modify state will
+    /// recording's original length. Events that retroactively modify state will
     /// shift it earlier. A batch which did not modify any state returns `None`.
     ///
     /// Events that are rejected have their results recorded in the builder's
@@ -156,16 +157,16 @@ impl TimelineBuilder {
         self.warnings.values().flatten()
     }
 
-    /// Returns a reference to the builder's partially-constructed timeline.
+    /// Returns a reference to the builder's partially-constructed recording.
     #[must_use]
-    pub fn timeline(&self) -> Option<&Timeline> {
-        self.timeline.as_ref()
+    pub fn recording(&self) -> Option<&Recording> {
+        self.recording.as_ref()
     }
 
-    /// Consumes the builder, returning its final timeline.
+    /// Consumes the builder, returning its final recording.
     #[must_use]
-    pub fn into_timeline(self) -> Option<Timeline> {
-        self.timeline
+    pub fn into_recording(self) -> Option<Recording> {
+        self.recording
     }
 
     /// Stores a batch of raw events, returning the earliest tick within them,
@@ -226,12 +227,10 @@ impl TimelineBuilder {
             .reported_last_tick
             .or_else(|| self.events.keys().next_back().copied())?;
 
-        let mut timeline = self.timeline.take().unwrap_or_else(|| {
-            Timeline::vacant(self.stage, self.mode, self.party.clone(), last_tick)
+        let mut recording = self.recording.take().unwrap_or_else(|| {
+            Recording::vacant(self.stage, self.mode, self.party.clone(), last_tick)
         });
-        if timeline.last_tick() < last_tick {
-            timeline.states.resize(last_tick.as_usize() + 1, None);
-        }
+        recording.extend_to(last_tick);
 
         let mut changed: Option<Tick> = None;
         let mut pending = self.events.split_off(&start);
@@ -240,7 +239,7 @@ impl TimelineBuilder {
                 return true;
             }
             let last_seen = start.up_to().rev().find(|tick| {
-                timeline.get_state(*tick).is_some_and(|state| match actor {
+                recording.get_state(*tick).is_some_and(|state| match actor {
                     Actor::Player(index) => state.players.get(*index).is_some(),
                     Actor::Npc(room_id) => state.npcs.contains_key(room_id),
                 })
@@ -256,7 +255,7 @@ impl TimelineBuilder {
         for (&tick, events) in &pending {
             self.rejections.remove(&tick);
             self.warnings.remove(&tick);
-            let mut builder = TickBuilder::new(tick, self, &mut timeline);
+            let mut builder = TickBuilder::new(tick, self, &mut recording);
             for event in events {
                 builder.process_event(event);
             }
@@ -265,7 +264,7 @@ impl TimelineBuilder {
             }
         }
         self.events.append(&mut pending);
-        self.timeline = Some(timeline);
+        self.recording = Some(recording);
 
         changed
     }
@@ -279,18 +278,18 @@ struct TickBuilder<'a> {
     processed: usize,
     changed: Option<Tick>,
     attack_references: Vec<Event>,
-    timeline: &'a mut Timeline,
+    recording: &'a mut Recording,
     last_seen_actors: &'a mut HashMap<Actor, Tick>,
     rejections: &'a mut BTreeMap<Tick, Vec<BuildRejection>>,
     warnings: &'a mut BTreeMap<Tick, Vec<BuildWarning>>,
 }
 
 impl<'a> TickBuilder<'a> {
-    fn new(tick: Tick, builder: &'a mut TimelineBuilder, timeline: &'a mut Timeline) -> Self {
+    fn new(tick: Tick, builder: &'a mut RecordingBuilder, recording: &'a mut Recording) -> Self {
         let mut objects = if tick == Tick(0) {
             TickObjects::default()
         } else {
-            timeline
+            recording
                 .get_state(tick.pred())
                 .map_or_else(TickObjects::default, |previous| previous.objects.clone())
         };
@@ -317,7 +316,7 @@ impl<'a> TickBuilder<'a> {
             processed: 0,
             changed: None,
             attack_references: Vec::new(),
-            timeline,
+            recording,
             last_seen_actors: &mut builder.last_seen_actors,
             rejections: &mut builder.rejections,
             warnings: &mut builder.warnings,
@@ -351,7 +350,7 @@ impl<'a> TickBuilder<'a> {
                 match extract_player_state(
                     self.client_id,
                     self.party,
-                    self.timeline,
+                    self.recording,
                     self.last_seen_actors,
                     event,
                 ) {
@@ -368,8 +367,12 @@ impl<'a> TickBuilder<'a> {
             }
 
             Type::NpcSpawn | Type::NpcUpdate => {
-                match extract_npc_state(self.client_id, self.timeline, self.last_seen_actors, event)
-                {
+                match extract_npc_state(
+                    self.client_id,
+                    self.recording,
+                    self.last_seen_actors,
+                    event,
+                ) {
                     Ok((room_id, state)) => {
                         self.state.npcs.insert(room_id, state);
                         if kind == Type::NpcSpawn {
@@ -590,7 +593,7 @@ impl<'a> TickBuilder<'a> {
 
             // Modifies a past attack.
             Type::TobVerzikAttackStyle | Type::MokhaiotlAttackStyle => {
-                match resolve_attack_style(self.timeline, event) {
+                match resolve_attack_style(self.recording, event) {
                     Ok(Some(attack_tick)) => {
                         self.changed = Some(
                             self.changed
@@ -682,7 +685,7 @@ impl<'a> TickBuilder<'a> {
         }
     }
 
-    /// Finalizes the tick's state, inserting it into the timeline.
+    /// Finalizes the tick's state, inserting it into the recording.
     /// Returns the earliest tick whose state was modified.
     fn finish(mut self) -> Option<Tick> {
         let tick = self.tick;
@@ -708,7 +711,7 @@ impl<'a> TickBuilder<'a> {
             let (kind, found) = match &event.kind {
                 EventKind::VerzikDawnHit(hit) => (
                     Type::TobVerzikDawn,
-                    self.timeline.events_for_tick(hit.attack_tick).any(|e| {
+                    self.recording.events_for_tick(hit.attack_tick).any(|e| {
                         matches!(
                             &e.kind,
                             EventKind::PlayerAttack(attack)
@@ -739,7 +742,7 @@ impl<'a> TickBuilder<'a> {
                         if bounce.attack_tick == tick {
                             events.iter().any(p2_attack)
                         } else {
-                            self.timeline
+                            self.recording
                                 .events_for_tick(bounce.attack_tick)
                                 .any(p2_attack)
                         },
@@ -747,13 +750,15 @@ impl<'a> TickBuilder<'a> {
                 }
                 EventKind::SolGrapple(grapple) => (
                     Type::ColosseumSolGrapple,
-                    self.timeline.events_for_tick(grapple.attack_tick).any(|e| {
-                        matches!(
-                            &e.kind,
-                            EventKind::NpcAttack(attack)
-                                if attack.attack == NpcAttack::ColosseumHereditBreak
-                        )
-                    }),
+                    self.recording
+                        .events_for_tick(grapple.attack_tick)
+                        .any(|e| {
+                            matches!(
+                                &e.kind,
+                                EventKind::NpcAttack(attack)
+                                    if attack.attack == NpcAttack::ColosseumHereditBreak
+                            )
+                        }),
                 ),
                 _ => unreachable!(),
             };
@@ -783,10 +788,10 @@ impl<'a> TickBuilder<'a> {
         for &room_id in self.state.npcs.keys() {
             self.last_seen_actors.insert(Actor::Npc(room_id), tick);
         }
-        let previous = self.timeline.states[tick.as_usize()].replace(self.state);
-        if self.timeline.states[tick.as_usize()] != previous {
+        if self.recording.get_state(tick) != Some(&self.state) {
             self.changed = Some(self.changed.map_or(tick, |changed| changed.min(tick)));
         }
+        self.recording.set_state(tick, self.state);
         self.changed
     }
 }
@@ -794,7 +799,7 @@ impl<'a> TickBuilder<'a> {
 fn extract_player_state(
     client_id: ClientId,
     party: &[String],
-    timeline: &Timeline,
+    recording: &Recording,
     last_seen_actors: &HashMap<Actor, Tick>,
     event: &proto::Event,
 ) -> Result<(PartyIndex, PlayerState), RejectionReason> {
@@ -811,7 +816,7 @@ fn extract_player_state(
     } else {
         last_seen_actors
             .get(&Actor::Player(index))
-            .and_then(|last| timeline.get_state(*last))
+            .and_then(|last| recording.get_state(*last))
             .and_then(|state| state.players.get(index))
             .map_or([None; EQUIPMENT_SLOTS], |prior| prior.equipment)
     };
@@ -867,7 +872,7 @@ fn extract_player_state(
 
 fn extract_npc_state(
     client_id: ClientId,
-    timeline: &Timeline,
+    recording: &Recording,
     last_seen_actors: &HashMap<Actor, Tick>,
     event: &proto::Event,
 ) -> Result<(RoomId, NpcState), RejectionReason> {
@@ -875,7 +880,7 @@ fn extract_npc_state(
     let room_id = RoomId(npc.room_id);
     let prior = last_seen_actors
         .get(&Actor::Npc(room_id))
-        .and_then(|last| timeline.get_state(*last))
+        .and_then(|last| recording.get_state(*last))
         .and_then(|state| state.npcs.get(&room_id));
 
     let npc_id = if npc.id == 0 {
@@ -883,7 +888,11 @@ fn extract_npc_state(
     } else {
         npc.id
     };
-    let position = parse_point(event)?;
+
+    // TODO(frolv): Send size from the plugin.
+    let size = npc::definition(npc_id).map_or(1, |definition| definition.size);
+    let position = Rect::square(parse_point(event)?, size);
+
     let properties = match &npc.r#type {
         None | Some(proto::event::npc::Type::Basic(())) => {
             prior.and_then(|prior| prior.properties.clone())
@@ -1554,7 +1563,7 @@ fn parse_maze(maze: &proto::event::SoteMaze) -> Result<Maze, RejectionReason> {
 }
 
 fn resolve_attack_style(
-    timeline: &mut Timeline,
+    recording: &mut Recording,
     event: &proto::Event,
 ) -> Result<Option<Tick>, RejectionReason> {
     let kind = event.r#type();
@@ -1602,7 +1611,7 @@ fn resolve_attack_style(
         _ => unreachable!("only attack style events are passed in"),
     };
 
-    let (attack, unresolved) = timeline
+    let (attack, unresolved) = recording
         .get_state_mut(attack_tick)
         .and_then(|state| {
             state.events.iter_mut().find_map(|e| match &mut e.kind {

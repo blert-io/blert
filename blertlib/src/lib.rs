@@ -27,17 +27,65 @@ pub use prayer::{Prayer, PrayerBook, PrayerSet};
 pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
 pub use timeline::{
-    BuildRejection, BuildWarning, FieldError, RawActor, RejectionReason, TickState, Timeline,
-    TimelineBuilder,
+    BuildRejection, BuildWarning, FieldError, RawActor, Recording, RecordingBuilder,
+    RejectionReason, TickState, Timeline,
 };
 
 /// A location in the game world.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point(pub u16, pub u16);
 
+impl Point {
+    /// Returns the Chebyshev distance between two points.
+    #[must_use]
+    pub fn distance(self, other: Self) -> u16 {
+        let dx = self.0.abs_diff(other.0);
+        let dy = self.1.abs_diff(other.1);
+        dx.max(dy)
+    }
+}
+
 impl std::fmt::Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{})", self.0, self.1)
+    }
+}
+
+/// A rectangular area of the game world anchored at its southwest tile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Rect {
+    pub point: Point,
+    pub width: u16,
+    pub height: u16,
+}
+
+impl Rect {
+    /// Creates a square area of `size` anchored at `point`.
+    #[must_use]
+    pub fn square(point: Point, size: u16) -> Self {
+        Self {
+            point,
+            width: size,
+            height: size,
+        }
+    }
+
+    /// Returns the point inside the rectangle nearest to `point`.
+    #[must_use]
+    pub fn clamp(self, point: Point) -> Point {
+        let max_x = self.point.0.saturating_add(self.width.saturating_sub(1));
+        let max_y = self.point.1.saturating_add(self.height.saturating_sub(1));
+        Point(
+            point.0.clamp(self.point.0, max_x),
+            point.1.clamp(self.point.1, max_y),
+        )
+    }
+
+    /// Returns the Chebyshev distance from `point` to the nearest tile of the
+    /// rectangle, or 0 if it is inside.
+    #[must_use]
+    pub fn distance(self, point: Point) -> u16 {
+        self.clamp(point).distance(point)
     }
 }
 
@@ -156,5 +204,24 @@ mod tests {
         );
         assert!(Point::try_from(proto::Coords { x: -1, y: 0 }).is_err());
         assert!(Point::try_from(proto::Coords { x: 0, y: 65536 }).is_err());
+    }
+
+    #[test]
+    fn rect_distance_to_point() {
+        let verzik_p1 = Rect::square(Point(3166, 4323), 5);
+        assert_eq!(verzik_p1.distance(Point(3164, 4317)), 6);
+        assert_eq!(verzik_p1.distance(Point(3168, 4320)), 3);
+        assert_eq!(verzik_p1.distance(Point(3167, 4322)), 1);
+
+        let athanatos = Rect::square(Point(3171, 4316), 3);
+        assert_eq!(athanatos.distance(Point(3173, 4314)), 2);
+
+        let matomenos = Rect::square(Point(3161, 4312), 2);
+        assert_eq!(matomenos.distance(Point(3165, 4315)), 3);
+
+        let verzik_p3 = Rect::square(Point(3165, 4311), 7);
+        assert_eq!(verzik_p3.distance(Point(3168, 4318)), 1);
+        assert_eq!(verzik_p3.distance(Point(3164, 4314)), 1);
+        assert_eq!(verzik_p3.distance(Point(3169, 4315)), 0);
     }
 }

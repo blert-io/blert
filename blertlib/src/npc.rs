@@ -15,7 +15,7 @@ pub struct Definition {
     pub full_name: &'static str,
     pub short_name: &'static str,
     pub canonical_id: u32,
-    pub size: u32,
+    pub size: u16,
 }
 
 #[must_use]
