@@ -7,7 +7,7 @@ use crate::{ChallengeMode, Stage, item};
 
 #[test]
 fn builder_ingest_returns_none_if_all_rejected() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(7),
         Stage::TobBloat,
         ChallengeMode::TobRegular,
@@ -66,7 +66,7 @@ fn builder_ingest_returns_none_if_all_rejected() {
     });
 
     assert_eq!(builder.ingest([update, attack]), None);
-    assert_eq!(builder.timeline().unwrap().last_tick(), Tick(120));
+    assert_eq!(builder.recording().unwrap().last_tick(), Tick(120));
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [
@@ -86,7 +86,7 @@ fn builder_ingest_returns_none_if_all_rejected() {
 
 #[test]
 fn builder_ingest_rejects_event_from_another_stage() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(13),
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -103,7 +103,7 @@ fn builder_ingest_rejects_event_from_another_stage() {
     phase.verzik_phase = Some(proto::event::VerzikPhase::VerzikP2 as i32);
 
     assert_eq!(builder.ingest([phase]), None);
-    assert!(builder.timeline().is_none());
+    assert!(builder.recording().is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -116,7 +116,7 @@ fn builder_ingest_rejects_event_from_another_stage() {
 
 #[test]
 fn builder_ingest_drops_action_without_actor() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(9),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -158,7 +158,7 @@ fn builder_ingest_drops_action_without_actor() {
     });
 
     assert_eq!(builder.ingest([scythe]), Some(Tick(385)));
-    let state = builder.timeline().unwrap().get_state(Tick(385)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(385)).unwrap();
     assert!(state.players.is_empty());
     assert!(state.events.is_empty());
     assert_eq!(builder.rejections().count(), 0);
@@ -167,7 +167,7 @@ fn builder_ingest_drops_action_without_actor() {
 
 #[test]
 fn builder_ingest_player_update() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(9),
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -263,8 +263,8 @@ fn builder_ingest_player_update() {
         builder.ingest([primary_snapshot, secondary_snapshot, primary_update]),
         Some(Tick(0))
     );
-    let timeline = builder.timeline().unwrap();
-    let first = timeline.get_state(Tick(0)).unwrap();
+    let recording = builder.recording().unwrap();
+    let first = recording.get_state(Tick(0)).unwrap();
     assert_eq!(
         first
             .players
@@ -274,7 +274,7 @@ fn builder_ingest_player_update() {
         [PartyIndex::from_usize(0), PartyIndex::from_usize(1)]
     );
     assert!(first.events.is_empty());
-    let second = timeline.get_state(Tick(1)).unwrap();
+    let second = recording.get_state(Tick(1)).unwrap();
     assert_eq!(
         second.players.iter().collect::<Vec<_>>(),
         [(
@@ -289,7 +289,7 @@ fn builder_ingest_player_update() {
 
 #[test]
 fn builder_ingest_reverts_last_seen_when_cleared() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(9),
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -385,7 +385,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
         Some(Tick(0))
     );
     let equipment = builder
-        .timeline()
+        .recording()
         .unwrap()
         .get_state(Tick(0))
         .unwrap()
@@ -395,10 +395,10 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
         .equipment;
 
     assert_eq!(builder.ingest([first]), None);
-    let timeline = builder.timeline().unwrap();
+    let recording = builder.recording().unwrap();
     for tick in [Tick(1), Tick(2)] {
         assert_eq!(
-            timeline
+            recording
                 .get_state(tick)
                 .unwrap()
                 .players
@@ -413,7 +413,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
 
 #[test]
 fn builder_ingest_npc_spawn() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(3),
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -444,7 +444,7 @@ fn builder_ingest_npc_spawn() {
     });
 
     assert_eq!(builder.ingest([spawn]), Some(Tick(4)));
-    let state = builder.timeline().unwrap().get_state(Tick(4)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(4)).unwrap();
     assert_eq!(
         state.npcs,
         BTreeMap::from([(
@@ -452,7 +452,7 @@ fn builder_ingest_npc_spawn() {
             NpcState {
                 source: Source::Client(ClientId(3)),
                 npc_id: 8343,
-                position: Point(3281, 4248),
+                position: Rect::square(Point(3281, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
                 properties: Some(NpcProperties::Nylo(Nylo {
@@ -477,7 +477,7 @@ fn builder_ingest_npc_spawn() {
 
 #[test]
 fn builder_ingest_maiden_blood_splats() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(4),
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -501,7 +501,7 @@ fn builder_ingest_maiden_blood_splats() {
     ];
 
     assert_eq!(builder.ingest([splats]), Some(Tick(39)));
-    let state = builder.timeline().unwrap().get_state(Tick(39)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(39)).unwrap();
     assert_eq!(
         state
             .objects
@@ -532,7 +532,7 @@ fn builder_ingest_maiden_blood_splats() {
     ];
 
     assert_eq!(builder.ingest([out_of_domain]), None);
-    assert!(builder.timeline().unwrap().get_state(Tick(40)).is_none());
+    assert!(builder.recording().unwrap().get_state(Tick(40)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -548,7 +548,7 @@ fn builder_ingest_maiden_blood_splats() {
 
 #[test]
 fn builder_ingest_verzik_yellows() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(11),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -569,7 +569,7 @@ fn builder_ingest_verzik_yellows() {
     ];
 
     assert_eq!(builder.ingest([yellows]), Some(Tick(463)));
-    let state = builder.timeline().unwrap().get_state(Tick(463)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(463)).unwrap();
     assert_eq!(
         state
             .objects
@@ -588,14 +588,14 @@ fn builder_ingest_verzik_yellows() {
     none.set_type(proto::event::Type::TobVerzikYellows);
 
     assert_eq!(builder.ingest([none]), Some(Tick(385)));
-    let state = builder.timeline().unwrap().get_state(Tick(385)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(385)).unwrap();
     assert!(state.objects.is_empty());
     assert_eq!(builder.rejections().count(), 0);
 }
 
 #[test]
 fn builder_ingest_mokhaiotl_shockwave() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(2),
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
@@ -668,7 +668,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
     });
 
     assert_eq!(builder.ingest([shockwave]), Some(Tick(139)));
-    let state = builder.timeline().unwrap().get_state(Tick(139)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(139)).unwrap();
     assert_eq!(
         state
             .objects
@@ -741,7 +741,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
     missing_mokhaiotl_shockwave.set_type(proto::event::Type::MokhaiotlShockwave);
 
     assert_eq!(builder.ingest([missing_mokhaiotl_shockwave]), None);
-    assert!(builder.timeline().unwrap().get_state(Tick(108)).is_none());
+    assert!(builder.recording().unwrap().get_state(Tick(108)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -754,7 +754,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
 
 #[test]
 fn builder_ingest_colosseum_reentry_pools() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(6),
         Stage::ColosseumWave12,
         ChallengeMode::NoMode,
@@ -785,7 +785,7 @@ fn builder_ingest_colosseum_reentry_pools() {
     });
 
     assert_eq!(builder.ingest([existing]), Some(Tick(1)));
-    let state = builder.timeline().unwrap().get_state(Tick(1)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(1)).unwrap();
     assert_eq!(
         state
             .objects
@@ -840,11 +840,11 @@ fn builder_ingest_colosseum_reentry_pools() {
     });
 
     assert_eq!(builder.ingest([shrunk]), Some(Tick(5)));
-    let state = builder.timeline().unwrap().get_state(Tick(5)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(5)).unwrap();
     assert!(state.objects.is_empty());
     assert_eq!(builder.rejections().count(), 0);
 
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(6),
         Stage::ColosseumWave5,
         ChallengeMode::NoMode,
@@ -865,7 +865,7 @@ fn builder_ingest_colosseum_reentry_pools() {
     });
 
     assert_eq!(builder.ingest([out_of_domain]), None);
-    assert!(builder.timeline().unwrap().get_state(Tick(46)).is_none());
+    assert!(builder.recording().unwrap().get_state(Tick(46)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -881,7 +881,7 @@ fn builder_ingest_colosseum_reentry_pools() {
 
 #[test]
 fn builder_ingest_mokhaiotl_objects() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(8),
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
@@ -930,9 +930,9 @@ fn builder_ingest_mokhaiotl_objects() {
     });
 
     assert_eq!(builder.ingest([splats, splat, rock]), Some(Tick(37)));
-    let timeline = builder.timeline().unwrap();
+    let recording = builder.recording().unwrap();
     assert_eq!(
-        timeline
+        recording
             .get_state(Tick(37))
             .unwrap()
             .objects
@@ -944,7 +944,7 @@ fn builder_ingest_mokhaiotl_objects() {
         ]
     );
     assert_eq!(
-        timeline
+        recording
             .get_state(Tick(38))
             .unwrap()
             .objects
@@ -957,7 +957,7 @@ fn builder_ingest_mokhaiotl_objects() {
         ]
     );
     assert_eq!(
-        timeline
+        recording
             .get_state(Tick(39))
             .unwrap()
             .objects
@@ -980,7 +980,7 @@ fn builder_ingest_mokhaiotl_objects() {
     missing_mokhaiotl_objects.set_type(proto::event::Type::MokhaiotlObjects);
 
     assert_eq!(builder.ingest([missing_mokhaiotl_objects]), None);
-    assert!(builder.timeline().unwrap().get_state(Tick(42)).is_none());
+    assert!(builder.recording().unwrap().get_state(Tick(42)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -993,7 +993,7 @@ fn builder_ingest_mokhaiotl_objects() {
 
 #[test]
 fn builder_ingest_sote_maze_tiles() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(6),
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -1029,14 +1029,14 @@ fn builder_ingest_sote_maze_tiles() {
     });
 
     assert_eq!(builder.ingest([first, second]), Some(Tick(71)));
-    let timeline = builder.timeline().unwrap();
-    let state = timeline.get_state(Tick(71)).unwrap();
+    let recording = builder.recording().unwrap();
+    let state = recording.get_state(Tick(71)).unwrap();
     assert_eq!(
         state.objects.iter().collect::<Vec<_>>(),
         [(ObjectKind::SoteMazeTiles, Point(11, 0))]
     );
     assert!(state.events.is_empty());
-    let state = timeline.get_state(Tick(72)).unwrap();
+    let state = recording.get_state(Tick(72)).unwrap();
     assert_eq!(
         state.objects.iter().collect::<Vec<_>>(),
         [(ObjectKind::SoteMazeTiles, Point(10, 1))]
@@ -1047,7 +1047,7 @@ fn builder_ingest_sote_maze_tiles() {
 
 #[test]
 fn builder_ingest_sote_maze_pivots() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(6),
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -1079,7 +1079,7 @@ fn builder_ingest_sote_maze_pivots() {
     });
 
     assert_eq!(builder.ingest([overworld]), Some(Tick(94)));
-    let state = builder.timeline().unwrap().get_state(Tick(94)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(94)).unwrap();
     assert!(state.objects.is_empty());
     assert_eq!(
         state.events,
@@ -1103,7 +1103,7 @@ fn builder_ingest_sote_maze_pivots() {
     );
     assert_eq!(builder.rejections().count(), 0);
 
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(11),
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -1135,7 +1135,7 @@ fn builder_ingest_sote_maze_pivots() {
     });
 
     assert_eq!(builder.ingest([underworld]), Some(Tick(91)));
-    let state = builder.timeline().unwrap().get_state(Tick(91)).unwrap();
+    let state = builder.recording().unwrap().get_state(Tick(91)).unwrap();
     assert!(state.objects.is_empty());
     assert_eq!(
         state.events,
@@ -1180,9 +1180,9 @@ fn builder_ingest_sote_maze_pivots() {
     });
 
     assert_eq!(builder.ingest([missing_sote_maze, missing_pivots]), None);
-    let timeline = builder.timeline().unwrap();
-    assert!(timeline.get_state(Tick(95)).is_none());
-    assert!(timeline.get_state(Tick(96)).is_none());
+    let recording = builder.recording().unwrap();
+    assert!(recording.get_state(Tick(95)).is_none());
+    assert!(recording.get_state(Tick(96)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [
@@ -1202,7 +1202,7 @@ fn builder_ingest_sote_maze_pivots() {
 
 #[test]
 fn builder_ingest_attack_style() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(2),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -1258,9 +1258,9 @@ fn builder_ingest_attack_style() {
     });
 
     assert_eq!(builder.ingest([style.clone()]), Some(Tick(271)));
-    let timeline = builder.timeline().unwrap();
+    let recording = builder.recording().unwrap();
     assert_eq!(
-        timeline.get_state(Tick(271)).unwrap().events,
+        recording.get_state(Tick(271)).unwrap().events,
         [Event::recorded(
             ClientId(2),
             EventKind::NpcAttack(NpcAttacked {
@@ -1270,13 +1270,13 @@ fn builder_ingest_attack_style() {
             })
         )]
     );
-    assert!(timeline.get_state(Tick(273)).unwrap().events.is_empty());
+    assert!(recording.get_state(Tick(273)).unwrap().events.is_empty());
     assert_eq!(builder.rejections().count(), 0);
 
     assert_eq!(builder.ingest([style]), None);
     assert_eq!(
         builder
-            .timeline()
+            .recording()
             .unwrap()
             .get_state(Tick(271))
             .unwrap()
@@ -1304,7 +1304,7 @@ fn builder_ingest_attack_style() {
     });
 
     assert_eq!(builder.ingest([unmatched]), None);
-    assert!(builder.timeline().unwrap().get_state(Tick(280)).is_none());
+    assert!(builder.recording().unwrap().get_state(Tick(280)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -1317,7 +1317,7 @@ fn builder_ingest_attack_style() {
 
 #[test]
 fn builder_ingest_attack_reference() {
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(2),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -1427,9 +1427,9 @@ fn builder_ingest_attack_reference() {
         ]),
         Some(Tick(83))
     );
-    let timeline = builder.timeline().unwrap();
+    let recording = builder.recording().unwrap();
     assert_eq!(
-        timeline.get_state(Tick(83)).unwrap().events,
+        recording.get_state(Tick(83)).unwrap().events,
         [
             Event::recorded(
                 ClientId(2),
@@ -1450,7 +1450,7 @@ fn builder_ingest_attack_reference() {
         ]
     );
     assert_eq!(
-        timeline.get_state(Tick(215)).unwrap().events,
+        recording.get_state(Tick(215)).unwrap().events,
         [Event::recorded(
             ClientId(2),
             EventKind::NpcAttack(NpcAttacked {
@@ -1461,7 +1461,7 @@ fn builder_ingest_attack_reference() {
         )]
     );
     assert_eq!(
-        timeline.get_state(Tick(216)).unwrap().events,
+        recording.get_state(Tick(216)).unwrap().events,
         [Event::recorded(
             ClientId(2),
             EventKind::VerzikBounce(VerzikBounce {
@@ -1473,7 +1473,7 @@ fn builder_ingest_attack_reference() {
     );
     assert_eq!(builder.rejections().count(), 0);
 
-    let mut builder = TimelineBuilder::new(
+    let mut builder = RecordingBuilder::new(
         ClientId(2),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -1481,7 +1481,7 @@ fn builder_ingest_attack_reference() {
         None,
     );
     assert_eq!(builder.ingest([verzik_bounce, bounced]), Some(Tick(215)));
-    assert!(builder.timeline().unwrap().get_state(Tick(216)).is_none());
+    assert!(builder.recording().unwrap().get_state(Tick(216)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
         [BuildRejection {
@@ -1495,7 +1495,7 @@ fn builder_ingest_attack_reference() {
 #[test]
 fn extract_player_state_snapshot() {
     let party = vec!["Sacolyn".to_string(), "1Ogp".to_string()];
-    let timeline = Timeline::vacant(
+    let recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         party.clone(),
@@ -1540,7 +1540,13 @@ fn extract_player_state_snapshot() {
         ..Default::default()
     });
     assert_eq!(
-        extract_player_state(ClientId(9), &party, &timeline, &last_seen_actors, &snapshot),
+        extract_player_state(
+            ClientId(9),
+            &party,
+            &recording,
+            &last_seen_actors,
+            &snapshot
+        ),
         Ok((
             PartyIndex::from_usize(0),
             PlayerState {
@@ -1638,7 +1644,7 @@ fn extract_player_state_snapshot() {
         extract_player_state(
             ClientId(9),
             &party,
-            &timeline,
+            &recording,
             &last_seen_actors,
             &secondary
         ),
@@ -1703,7 +1709,7 @@ fn extract_player_state_snapshot() {
         extract_player_state(
             ClientId(9),
             &party,
-            &timeline,
+            &recording,
             &last_seen_actors,
             &missing_player
         ),
@@ -1739,7 +1745,7 @@ fn extract_player_state_snapshot() {
         extract_player_state(
             ClientId(9),
             &party,
-            &timeline,
+            &recording,
             &last_seen_actors,
             &unknown_player
         ),
@@ -1776,7 +1782,7 @@ fn extract_player_state_snapshot() {
         extract_player_state(
             ClientId(9),
             &party,
-            &timeline,
+            &recording,
             &last_seen_actors,
             &missing_stat
         ),
@@ -1810,7 +1816,7 @@ fn extract_player_state_snapshot() {
         extract_player_state(
             ClientId(9),
             &party,
-            &timeline,
+            &recording,
             &last_seen_actors,
             &unknown_data_source
         ),
@@ -1839,7 +1845,7 @@ fn extract_player_state_snapshot() {
         extract_player_state(
             ClientId(9),
             &party,
-            &timeline,
+            &recording,
             &last_seen_actors,
             &unknown_slot
         ),
@@ -1853,7 +1859,7 @@ fn extract_player_state_snapshot() {
 #[test]
 fn extract_player_state_update_from_last_seen_tick() {
     let party = vec!["Sacolyn".to_string(), "1Ogp".to_string()];
-    let mut timeline = Timeline::vacant(
+    let mut recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         party.clone(),
@@ -1924,7 +1930,7 @@ fn extract_player_state_update_from_last_seen_tick() {
             magic: SkillLevel::from_raw(7_340_131),
         }),
     });
-    timeline.set_state(
+    recording.set_state(
         Tick(0),
         TickState {
             players,
@@ -1959,7 +1965,7 @@ fn extract_player_state_update_from_last_seen_tick() {
         ..Default::default()
     });
     assert_eq!(
-        extract_player_state(ClientId(9), &party, &timeline, &last_seen_actors, &swap),
+        extract_player_state(ClientId(9), &party, &recording, &last_seen_actors, &swap),
         Ok((
             PartyIndex::from_usize(0),
             PlayerState {
@@ -2050,7 +2056,7 @@ fn extract_player_state_update_from_last_seen_tick() {
         ..Default::default()
     });
     let (index, state) =
-        extract_player_state(ClientId(9), &party, &timeline, &last_seen_actors, &ammo).unwrap();
+        extract_player_state(ClientId(9), &party, &recording, &last_seen_actors, &ammo).unwrap();
     assert_eq!(index, PartyIndex::from_usize(0));
     assert_eq!(state.position, Point(3298, 4249));
     assert_eq!(
@@ -2084,7 +2090,7 @@ fn extract_player_state_update_from_last_seen_tick() {
 
 #[test]
 fn extract_npc_state_spawn() {
-    let timeline = Timeline::vacant(
+    let recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         vec!["TobDataEgirl".to_string()],
@@ -2114,13 +2120,13 @@ fn extract_npc_state_spawn() {
         })),
     });
     assert_eq!(
-        extract_npc_state(ClientId(3), &timeline, &last_seen_actors, &spawn),
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &spawn),
         Ok((
             RoomId(48416),
             NpcState {
                 source: Source::Client(ClientId(3)),
                 npc_id: 8343,
-                position: Point(3281, 4248),
+                position: Rect::square(Point(3281, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
                 properties: Some(NpcProperties::Nylo(Nylo {
@@ -2142,7 +2148,7 @@ fn extract_npc_state_spawn() {
     };
     missing_npc.set_type(proto::event::Type::NpcUpdate);
     assert_eq!(
-        extract_npc_state(ClientId(3), &timeline, &last_seen_actors, &missing_npc),
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &missing_npc),
         Err(RejectionReason::MissingPayload("npc"))
     );
 
@@ -2168,7 +2174,7 @@ fn extract_npc_state_spawn() {
         })),
     });
     assert_eq!(
-        extract_npc_state(ClientId(3), &timeline, &last_seen_actors, &unknown_style),
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &unknown_style),
         Err(RejectionReason::InvalidField {
             field: "npc.nylo.style",
             error: FieldError::OutOfDomain("7".to_string()),
@@ -2184,13 +2190,13 @@ fn extract_npc_state_update_last_seen_tick() {
         style: CombatStyle::Ranged,
         spawn: NyloSpawn::West,
     });
-    let mut timeline = Timeline::vacant(
+    let mut recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         vec!["TobDataEgirl".to_string()],
         Tick(6),
     );
-    timeline.set_state(
+    recording.set_state(
         Tick(4),
         TickState {
             players: Players::empty(1),
@@ -2199,7 +2205,7 @@ fn extract_npc_state_update_last_seen_tick() {
                 NpcState {
                     source: Source::Client(ClientId(3)),
                     npc_id: 8343,
-                    position: Point(3281, 4248),
+                    position: Rect::square(Point(3281, 4248), 1),
                     hitpoints: SkillLevel::from_raw(524_296),
                     prayers: PrayerSet::from_raw(0),
                     properties: Some(nylo.clone()),
@@ -2227,13 +2233,13 @@ fn extract_npc_state_update_last_seen_tick() {
         r#type: Some(proto::event::npc::Type::Basic(())),
     });
     assert_eq!(
-        extract_npc_state(ClientId(3), &timeline, &last_seen_actors, &update),
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
         Ok((
             RoomId(48416),
             NpcState {
                 source: Source::Client(ClientId(3)),
                 npc_id: 8343,
-                position: Point(3283, 4248),
+                position: Rect::square(Point(3283, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
                 properties: Some(nylo),
