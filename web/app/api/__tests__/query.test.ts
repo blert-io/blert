@@ -348,9 +348,33 @@ describe('spawnQueryValue', () => {
     ]);
   });
 
-  it('rejects a clause outside the search type', () => {
+  it('infers a challenge type from a LoS tool link, ignoring its player', () => {
+    expect(
+      spawnQueryValue('https://los.colosim.com/?17091.19144m.#3080', null),
+    ).toEqual([
+      {
+        stage: null,
+        values: [553, 2670],
+        tiles: [],
+        player: null,
+        match: 'contains',
+      },
+      ChallengeType.COLOSSEUM,
+    ]);
+  });
+
+  it('rejects a clause contradicting the search type', () => {
     expect(() =>
       spawnQueryValue('npc:bat@1.28', ChallengeType.COLOSSEUM),
+    ).toThrow(InvalidQueryError);
+  });
+
+  it('rejects a LoS tool link contradicting the search type', () => {
+    expect(() =>
+      spawnQueryValue(
+        'https://ifreedive-osrs.github.io/?16172.22051.',
+        ChallengeType.COLOSSEUM,
+      ),
     ).toThrow(InvalidQueryError);
   });
 
@@ -372,6 +396,7 @@ describe('spawnQueryValue', () => {
     'stage:104;npc:bat@1.28',
     'player:1818.3112;npc:bat@1.28',
     'npc:shaman@2258.5330',
+    'https://colosseum.example.net/?24161.',
   ])('rejects %s', (value) => {
     expect(() => spawnQueryValue(value, null)).toThrow(InvalidQueryError);
   });

@@ -16,6 +16,7 @@ import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 import { CustomState } from '@/components/attack-timeline';
 import BossFightOverview, {
   IdleTicksContent,
+  SpawnContent,
 } from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
   CustomStateEntry,
@@ -102,6 +103,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }, [challengeId, waveNumber, router]);
 
   const waveIndex = validWaveNumber(waveNumber) ? waveNumber - 1 : 0;
+  const stage = Stage.COLOSSEUM_WAVE_1 + waveIndex;
   const {
     challenge,
     eventsByTick,
@@ -113,7 +115,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     loading,
     isLive,
     isStreaming,
-  } = useStageEvents<ColosseumChallenge>(Stage.COLOSSEUM_WAVE_1 + waveIndex);
+  } = useStageEvents<ColosseumChallenge>(stage);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -346,34 +348,38 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }
 
   const sections = [];
-  if (waveInfo !== undefined) {
+  if (waveInfo !== undefined || handicapsSoFar.length > 0) {
     sections.push({
-      title: 'Handicaps This Wave',
+      title: 'Handicaps',
       content: (
-        <div className={styles.handicapOptions}>
-          {waveInfo.options.map((option) => (
-            <div className={styles.handicapOption} key={option}>
-              <ColosseumHandicap
-                handicap={option}
-                dimmed={option !== waveInfo.handicap}
-              />
+        <div className={styles.handicaps}>
+          {waveInfo !== undefined && (
+            <div className={styles.handicapRow}>
+              <span className={styles.handicapLabel}>This wave</span>
+              <div className={styles.handicapOptions}>
+                {waveInfo.options.map((option) => (
+                  <div className={styles.handicapOption} key={option}>
+                    <ColosseumHandicap
+                      handicap={option}
+                      dimmed={option !== waveInfo.handicap}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      ),
-    });
-  }
-
-  if (handicapsSoFar.length > 0) {
-    sections.push({
-      title: 'All Active Handicaps',
-      content: (
-        <div className={styles.handicapOptions}>
-          {handicapsSoFar.map((handicap) => (
-            <div className={styles.handicapOption} key={handicap}>
-              <ColosseumHandicap handicap={handicap} />
+          )}
+          {handicapsSoFar.length > 0 && (
+            <div className={styles.handicapRow}>
+              <span className={styles.handicapLabel}>Active</span>
+              <div className={styles.handicapOptions}>
+                {handicapsSoFar.map((handicap) => (
+                  <div className={styles.handicapOption} key={handicap}>
+                    <ColosseumHandicap handicap={handicap} />
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
         </div>
       ),
     });
@@ -384,6 +390,20 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     sections.push({
       title: 'Idle Ticks',
       content: <IdleTicksContent count={idleTickCount} />,
+    });
+  }
+
+  const spawn = challenge.spawns[stage];
+  if (spawn !== undefined) {
+    sections.push({
+      title: 'Spawn',
+      content: (
+        <SpawnContent
+          type={ChallengeType.COLOSSEUM}
+          stage={stage}
+          spawn={spawn}
+        />
+      ),
     });
   }
 

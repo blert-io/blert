@@ -17,7 +17,12 @@ import {
   parseAggregation,
   parseSort,
 } from '@/actions/query';
-import { encodePlayerTile, encodeSpawn, encodeTile } from '@/utils/spawn-index';
+import {
+  decodeLosToolUrl,
+  encodePlayerTile,
+  encodeSpawn,
+  encodeTile,
+} from '@/utils/spawn-index';
 import { NextSearchParams } from '@/utils/url';
 
 /**
@@ -607,6 +612,18 @@ export function spawnQueryValue(
       );
     }
     challenge = implied;
+  }
+
+  if (value.startsWith('http')) {
+    const link = decodeLosToolUrl(value);
+    if (link === null) {
+      throw new InvalidQueryError(`spawn: Invalid LoS tool link ${value}`);
+    }
+    implies(link.type, value);
+    for (const npc of link.npcs) {
+      query.values.push(encodeSpawn(npc)!.value);
+    }
+    return [query, challenge];
   }
 
   for (const clause of value.split(';')) {
