@@ -1,0 +1,69 @@
+.cell {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 11rem;
+  height: 2rem;
+  padding: 0 0.65rem;
+  border: 1px solid rgba(var(--blert-purple-base), 0.35);
+  border-radius: 5px;
+  background: rgba(var(--blert-purple-base), 0.12);
+  font-size: 0.85rem;
+  white-space: nowrap;
+
+  i {
+    position: relative;
+    top: 1px;
+    font-size: 0.7rem;
+    color: var(--blert-purple);
+  }
+
+  &.none {
+    border-color: var(--blert-divider-color);
+    background: var(--blert-surface-light);
+    color: var(--blert-font-color-secondary);
+
+    i {
+      color: inherit;
+    }
+  }
+}
+
+.tick,
+.meta {
+  font-family: var(--font-roboto-mono), monospace;
+}
+
+.separator,
+.empty {
+  color: var(--blert-font-color-secondary);
+}
+
+.separator {
+  font-size: 0.7rem;
+}
+
+.empty {
+  font-size: 0.85rem;
+}
+
+.action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.3rem 0 0.35rem;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 5px;
+  background: var(--blert-surface-light);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 0.7rem;
+  color: var(--blert-font-color-secondary);
+}

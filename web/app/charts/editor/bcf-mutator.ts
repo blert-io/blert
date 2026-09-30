@@ -7,7 +7,7 @@ import {
   BCFPhase,
   BCFTick,
   BlertChartFormat,
-  actorTypeForAction,
+  actorTypeSupportsAction,
 } from '@blert/bcf';
 
 function lowerBound(ticks: BCFTick[], tick: number): number {
@@ -66,8 +66,7 @@ function assertCompatibleCell(
   }
 
   for (const action of cell.actions ?? []) {
-    const required = actorTypeForAction(action.type);
-    if (required !== null && required !== actor.type) {
+    if (!actorTypeSupportsAction(actor.type, action.type)) {
       throw new Error(
         `${actor.type} actor ${actorId} cannot perform "${action.type}"`,
       );

@@ -1,16 +1,6 @@
 import { BCFResolver } from '@blert/bcf';
-import { PlayerAttack, PlayerSpell } from '@blert/common';
 
-import { getItemImageUrl } from '@/utils/item';
-import { simpleItemCache } from '@/utils/item-cache/simple';
-import { SPELL_METADATA } from '@/utils/spell';
-
-import {
-  bcfToNpcAttack,
-  bcfToPlayerAttack,
-  getDefaultWeaponId,
-  NPC_ATTACK_METADATA,
-} from '../attack-metadata';
+import { getActionMetadata } from '../attack-metadata';
 
 const MAX_RETRIES = 2;
 
@@ -75,40 +65,9 @@ export class ImageCache {
         }
 
         for (const action of cell.actions) {
-          switch (action.type) {
-            case 'attack': {
-              const attackType = bcfToPlayerAttack(action.attackType);
-              const weaponId =
-                action.weaponId ??
-                getDefaultWeaponId(attackType ?? PlayerAttack.UNKNOWN);
-              if (weaponId !== undefined) {
-                urls.add(
-                  getItemImageUrl(
-                    weaponId,
-                    action.weaponName ?? simpleItemCache.getItemName(weaponId),
-                    1,
-                  ),
-                );
-              }
-              break;
-            }
-            case 'spell': {
-              const spellType =
-                PlayerSpell[action.spellType as keyof typeof PlayerSpell];
-              const meta = SPELL_METADATA[spellType];
-              if (meta !== undefined) {
-                urls.add(meta.imageUrl);
-              }
-              break;
-            }
-            case 'npcAttack': {
-              const npcAttack = bcfToNpcAttack(action.attackType);
-              const meta = NPC_ATTACK_METADATA[npcAttack];
-              if (meta !== undefined) {
-                urls.add(meta.imageUrl);
-              }
-              break;
-            }
+          const { imageUrl } = getActionMetadata(action);
+          if (imageUrl !== undefined) {
+            urls.add(imageUrl);
           }
         }
       }

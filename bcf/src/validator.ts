@@ -49,13 +49,14 @@ const VERSION_ACTION_TYPES: Record<BCFVersion, VersionActionTypes> = {
 };
 
 /**
- * The type of actor which can perform `action`, or `null` if the action is not
- * known or restricted to one actor type.
+ * Returns the type of actor which can perform `action`.
+ * Returns `null` if the action is not restricted to one actor type or if the
+ * action does not exist in `version`.
  */
 export function actorTypeForAction(
   action: string,
   version: BCFVersion = LATEST_VERSION,
-): 'player' | 'npc' | null {
+): BCFActor['type'] | null {
   const { playerActions, npcActions } = VERSION_ACTION_TYPES[version];
   const type = action as BCFAction['type'];
 
@@ -66,6 +67,20 @@ export function actorTypeForAction(
     return 'npc';
   }
   return null;
+}
+
+/**
+ * Returns whether an actor of `actorType` can perform actions of `actionType`.
+ * Action types that don't exist in `version` are always supported for forward
+ * compatibility.
+ */
+export function actorTypeSupportsAction(
+  actorType: BCFActor['type'],
+  actionType: string,
+  version: BCFVersion = LATEST_VERSION,
+): boolean {
+  const required = actorTypeForAction(actionType, version);
+  return required === null || required === actorType;
 }
 
 const LATEST_BY_MAJOR_VERSION: Record<number, BCFVersion> =
@@ -251,11 +266,11 @@ class SemanticValidator {
   private readonly actors = new Map<string, BCFActor['type']>();
   private readonly npcLifecycles = new Map<string, NpcLifecycle>();
 
-  private readonly actionTypes: VersionActionTypes;
+  private readonly version: BCFVersion;
 
   constructor(doc: BlertChartFormatLax, version: BCFVersion) {
     this.doc = doc;
-    this.actionTypes = VERSION_ACTION_TYPES[version];
+    this.version = version;
   }
 
   validate(): ValidationError[] {
@@ -495,27 +510,14 @@ class SemanticValidator {
       const action = actions[k];
       const path = `/timeline/ticks/${tickIndex}/cells/${cellIndex}/actions/${k}`;
 
-      // Only validate actor-type constraints for known action types.
-      // Unknown action types are allowed for any actor.
-      if (cellActorType !== undefined) {
-        const actionType = action.type as BCFAction['type'];
-        if (
-          this.actionTypes.npcActions.has(actionType) &&
-          cellActorType !== 'npc'
-        ) {
-          this.error(
-            path,
-            `${cellActorType} actor cannot perform "${action.type}" action`,
-          );
-        } else if (
-          this.actionTypes.playerActions.has(actionType) &&
-          cellActorType !== 'player'
-        ) {
-          this.error(
-            path,
-            `${cellActorType} actor cannot perform "${action.type}" action`,
-          );
-        }
+      if (
+        cellActorType !== undefined &&
+        !actorTypeSupportsAction(cellActorType, action.type, this.version)
+      ) {
+        this.error(
+          path,
+          `${cellActorType} actor cannot perform "${action.type}" action`,
+        );
       }
 
       if (actionTypes.has(action.type)) {

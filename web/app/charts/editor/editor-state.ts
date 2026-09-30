@@ -146,19 +146,23 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       return { ...state, focus: action.focus };
 
     case 'move-focus': {
-      if (state.focus === null) {
-        return state;
-      }
-
       const bcf = currentDocument(state);
       const rowOrder = bcf.config.rowOrder ?? [];
+      const [first, last] = displayWindow(bcf);
+
+      if (state.focus === null) {
+        if (rowOrder.length === 0) {
+          return state;
+        }
+        return { ...state, focus: { actorId: rowOrder[0], tick: first } };
+      }
+
       const row = rowOrder.indexOf(state.focus.actorId);
       if (row === -1) {
         return state;
       }
 
       const nextRow = clamp(row + action.rows, 0, rowOrder.length - 1);
-      const [first, last] = displayWindow(bcf);
       const tick = clamp(state.focus.tick + action.ticks, first, last);
       if (nextRow === row && tick === state.focus.tick) {
         return state;

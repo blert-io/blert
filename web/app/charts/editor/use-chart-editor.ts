@@ -12,7 +12,7 @@ export type ChartEditor = {
   state: EditorState;
   dispatch: (action: EditorAction) => void;
   update: (
-    potato: (bcf: BlertChartFormat) => BlertChartFormat,
+    mutate: (bcf: BlertChartFormat) => BlertChartFormat,
     coalesce?: string,
   ) => void;
 };

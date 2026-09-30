@@ -1,4 +1,14 @@
-import { NpcAttack, PlayerAttack, attackDefinitions } from '@blert/common';
+import { BCFAction, BCFAttackAction } from '@blert/bcf';
+import {
+  NpcAttack,
+  PlayerAttack,
+  PlayerSpell,
+  attackDefinitions,
+} from '@blert/common';
+
+import { getItemImageUrl } from '@/utils/item';
+import { simpleItemCache } from '@/utils/item-cache/simple';
+import { SPELL_METADATA } from '@/utils/spell';
 
 export const enum CombatStyle {
   MELEE,
@@ -1256,4 +1266,65 @@ const DEFAULT_WEAPON_IDS = new Map<PlayerAttack, number>(
  */
 export function getDefaultWeaponId(type: PlayerAttack): number | undefined {
   return DEFAULT_WEAPON_IDS.get(type);
+}
+
+function weaponForAttack(
+  attack: BCFAttackAction,
+): { id: number; name: string } | null {
+  const type = bcfToPlayerAttack(attack.attackType);
+  const id = attack.weaponId ?? getDefaultWeaponId(type);
+  if (id === undefined) {
+    return null;
+  }
+  return { id, name: attack.weaponName ?? simpleItemCache.getItemName(id) };
+}
+
+/** Returns the image URL of the weapon used by `attack`. */
+export function getWeaponImageUrl(attack: BCFAttackAction): string {
+  const weapon = weaponForAttack(attack);
+  if (weapon !== null) {
+    return getItemImageUrl(weapon.id, weapon.name, 1);
+  }
+
+  switch (bcfToPlayerAttack(attack.attackType)) {
+    case PlayerAttack.PUNCH:
+      return '/images/combat/punch.webp';
+    case PlayerAttack.KICK:
+      return '/images/combat/kick.webp';
+    default:
+      return '/images/huh.png';
+  }
+}
+
+export type ActionMetadata = {
+  name: string;
+  imageUrl?: string;
+};
+
+/** Returns the name and, if it has one, the image of `action`. */
+export function getActionMetadata(action: BCFAction): ActionMetadata {
+  switch (action.type) {
+    case 'attack':
+      return {
+        name: weaponForAttack(action)?.name ?? action.attackType,
+        imageUrl: getWeaponImageUrl(action),
+      };
+    case 'spell': {
+      const type = PlayerSpell[action.spellType as keyof typeof PlayerSpell];
+      const meta = SPELL_METADATA[type] ?? SPELL_METADATA[PlayerSpell.UNKNOWN];
+      return { name: meta.name, imageUrl: meta.imageUrl };
+    }
+    case 'utility':
+      return { name: action.utilityType };
+    case 'death':
+      return { name: 'Death', imageUrl: '/images/combat/skull.webp' };
+    case 'npcAttack':
+      return {
+        name: action.attackType,
+        imageUrl:
+          NPC_ATTACK_METADATA[bcfToNpcAttack(action.attackType)].imageUrl,
+      };
+    case 'npcPhase':
+      return { name: action.phaseType };
+  }
 }

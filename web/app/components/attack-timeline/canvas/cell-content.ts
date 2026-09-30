@@ -7,7 +7,6 @@ import {
 } from '@blert/bcf';
 import { PlayerAttack, PlayerSpell } from '@blert/common';
 
-import { getItemImageUrl } from '@/utils/item';
 import { simpleItemCache } from '@/utils/item-cache/simple';
 import { SPELL_METADATA } from '@/utils/spell';
 
@@ -15,7 +14,7 @@ import {
   ATTACK_METADATA,
   bcfToNpcAttack,
   bcfToPlayerAttack,
-  getDefaultWeaponId,
+  getWeaponImageUrl,
   NPC_ATTACK_METADATA,
 } from '../attack-metadata';
 import { CustomState } from '../types';
@@ -37,23 +36,6 @@ const BARRAGES = new Set<PlayerAttack>([
   PlayerAttack.TRIDENT_BARRAGE,
   PlayerAttack.UNKNOWN_BARRAGE,
 ]);
-
-function weaponImageUrl(type: PlayerAttack, attack: BCFAttackAction): string {
-  const weaponId = attack.weaponId ?? getDefaultWeaponId(type);
-  if (weaponId !== undefined) {
-    const name = attack.weaponName ?? simpleItemCache.getItemName(weaponId);
-    return getItemImageUrl(weaponId, name, 1);
-  }
-
-  switch (type) {
-    case PlayerAttack.PUNCH:
-      return '/images/combat/punch.webp';
-    case PlayerAttack.KICK:
-      return '/images/combat/kick.webp';
-    default:
-      return '/images/huh.png';
-  }
-}
 
 function attackOverlayUrl(
   attack: BCFAttackAction,
@@ -224,7 +206,7 @@ function drawWeapon(
   blunder: boolean,
   showInventoryTags: boolean,
 ): boolean {
-  const url = weaponImageUrl(attackType, attack);
+  const url = getWeaponImageUrl(attack);
   const img = imageCache.get(url);
   if (img === undefined) {
     return false;
