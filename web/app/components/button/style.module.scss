@@ -33,7 +33,7 @@
   &.neutral {
     --button-color: var(--blert-font-color-secondary);
     --button-color-base: var(--blert-font-color-secondary-base);
-    --button-fill-text: var(--blert-font-color-primary);
+    --button-fill-text: #fff;
   }
 
   &.simple {

@@ -36,6 +36,23 @@
   }
 }
 
+.handicaps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.handicapRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.handicapLabel {
+  color: var(--blert-font-color-secondary);
+  font-size: 0.8em;
+}
+
 .handicapOptions {
   display: flex;
   flex-wrap: wrap;

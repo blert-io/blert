@@ -3,3 +3,4 @@ export {
   type BossFightOverviewSection,
 } from './boss-fight-overview';
 export { IdleTicksContent } from './idle-ticks-content';
+export { SpawnContent } from './spawn-content';

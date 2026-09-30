@@ -5,7 +5,6 @@ import {
   Stage,
   stageName,
 } from '@blert/common';
-import Link from 'next/link';
 import {
   Dispatch,
   SetStateAction,
@@ -21,7 +20,7 @@ import Menu, { MenuItem } from '@/components/menu';
 import TickInput from '@/components/tick-input';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { oxford } from '@/utils/copy';
-import { queryString } from '@/utils/url';
+import { decodeLosToolUrl } from '@/utils/spawn-index';
 
 import {
   DateRangeFilter,
@@ -1309,24 +1308,28 @@ function describeSpawn(value: string): { label: string; summary: string } {
   let tiles = 0;
   let player = false;
 
-  for (const clause of value.split(';')) {
-    const [key, value] = clause.split(':');
-    switch (key) {
-      case 'stage':
-        if (/^\d+$/.test(value)) {
-          label = stageName(parseInt(value, 10));
-        }
-        break;
-      case 'npc':
-      case 'value':
-        npcs++;
-        break;
-      case 'tile':
-        tiles++;
-        break;
-      case 'player':
-        player = true;
-        break;
+  if (value.startsWith('http')) {
+    npcs = decodeLosToolUrl(value)?.npcs.length ?? 0;
+  } else {
+    for (const clause of value.split(';')) {
+      const [key, value] = clause.split(':');
+      switch (key) {
+        case 'stage':
+          if (/^\d+$/.test(value)) {
+            label = stageName(parseInt(value, 10));
+          }
+          break;
+        case 'npc':
+        case 'value':
+          npcs++;
+          break;
+        case 'tile':
+          tiles++;
+          break;
+        case 'player':
+          player = true;
+          break;
+      }
     }
   }
 
@@ -1361,13 +1364,9 @@ function SpawnFilters({
             label={label}
             onRemove={() => onChange(spawns.toSpliced(i, 1))}
           >
-            <Link
-              className={styles.spawnLink}
-              href={`/tools/spawns?${queryString({ spawn })}`}
-            >
+            <div className={styles.spawnLink}>
               <span>{summary}</span>
-              <i className="fas fa-chevron-right" aria-hidden />
-            </Link>
+            </div>
           </FilterField>
         );
       })}

@@ -17,6 +17,7 @@ import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview, {
   BossFightOverviewSection,
   IdleTicksContent,
+  SpawnContent,
 } from '@/components/boss-fight-overview';
 import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
@@ -241,6 +242,20 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     overviewSections.push({
       title: 'Idle Ticks',
       content: <IdleTicksContent count={idleTickCount} />,
+    });
+  }
+
+  const spawn = challenge.spawns[stage];
+  if (spawn !== undefined) {
+    overviewSections.push({
+      title: 'Spawn',
+      content: (
+        <SpawnContent
+          type={ChallengeType.INFERNO}
+          stage={stage}
+          spawn={spawn}
+        />
+      ),
     });
   }
 

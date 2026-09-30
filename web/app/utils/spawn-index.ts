@@ -7,6 +7,12 @@ import {
   isInfernoStage,
 } from '@blert/common';
 
+type LosTool = {
+  host: string;
+  npcTypes: number[];
+  playerHash: boolean;
+};
+
 type Arena = {
   type: ChallengeType;
   base: Coords;
@@ -16,6 +22,7 @@ type Arena = {
   spawnTiles: Coords[];
   /** Every value a spawn on a spawn tile can have, by local tile bits. */
   tileSpawns: Map<number, number[]>;
+  losTool: LosTool;
 };
 
 const COLOSSEUM_ARENA: Arena = {
@@ -44,6 +51,11 @@ const COLOSSEUM_ARENA: Arena = {
     { x: 1824, y: 3099 },
   ],
   tileSpawns: new Map(),
+  losTool: {
+    host: 'los.colosim.com',
+    npcTypes: [1, 2, 4, 6],
+    playerHash: true,
+  },
 };
 
 const INFERNO_ARENA: Arena = {
@@ -70,6 +82,11 @@ const INFERNO_ARENA: Arena = {
     { x: 2280, y: 5346 },
   ],
   tileSpawns: new Map(),
+  losTool: {
+    host: 'ifreedive-osrs.github.io',
+    npcTypes: [1, 2, 5, 6, 7],
+    playerHash: false,
+  },
 };
 
 for (const arena of [COLOSSEUM_ARENA, INFERNO_ARENA]) {
@@ -240,6 +257,90 @@ export function encodePlayerTile(tile: Coords): {
   const arena = arenaAt(tile);
   const local = arena === null ? tile : toLocal(arena, tile.x, tile.y);
   return { type: arena?.type ?? null, value: (local.y << 8) | local.x };
+}
+
+export type LosToolSpawn = {
+  type: ChallengeType;
+  npcs: SpawnedNpc[];
+  player: Coords | null;
+};
+
+const LOS_TOOL_MOB_REGEX = /^(\d{2})(\d{2})(\d+)[A-Za-z]*$/;
+
+/**
+ * Parses a colosim or ifreedive spawn URL.
+ * @param link The LoS tool URL.
+ * @returns The parsed spawn, or null if the URL does not contain one.
+ */
+export function decodeLosToolUrl(
+  link: string,
+): Omit<LosToolSpawn, 'player'> | null {
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return null;
+  }
+
+  const arena = [COLOSSEUM_ARENA, INFERNO_ARENA].find(
+    (arena) => arena.losTool.host === url.host,
+  );
+  if (arena === undefined) {
+    return null;
+  }
+
+  const npcs: SpawnedNpc[] = [];
+  for (const token of url.search.slice(1).split('.')) {
+    const match = LOS_TOOL_MOB_REGEX.exec(token);
+    if (match === null) {
+      continue;
+    }
+    const type = arena.losTool.npcTypes.indexOf(Number(match[3]));
+    const tile = toWorld(arena, Number(match[1]), Number(match[2]));
+    if (type !== -1 && inArena(arena, tile)) {
+      npcs.push({ npcId: arena.npcTypes[type], ...tile });
+    }
+  }
+
+  return { type: arena.type, npcs };
+}
+
+/**
+ * Builds a colosim or ifreedive link to a spawn.
+ * @param spawn The spawn to show in the LoS tool.
+ * @returns The constructed URL, or null if the challenge type is not supported.
+ */
+export function encodeLosToolUrl(spawn: LosToolSpawn): string | null {
+  const arena = arenaForType(spawn.type);
+  if (arena === null) {
+    return null;
+  }
+
+  let url = `https://${arena.losTool.host}/?`;
+  for (const npc of spawn.npcs) {
+    const local = toLocal(arena, npc.x, npc.y);
+    const type = arena.losTool.npcTypes[arena.npcTypes.indexOf(npc.npcId)];
+    url +=
+      `${String(local.x).padStart(2, '0')}` +
+      `${String(local.y).padStart(2, '0')}${type}.`;
+  }
+  if (arena.losTool.playerHash && spawn.player !== null) {
+    url += `#${encodePlayerTile(spawn.player).value}`;
+  }
+  return url;
+}
+
+/**
+ * Builds the value of a `spawn` search parameter.
+ * @param stage Stage in which the NPCs spawn.
+ * @param npcs NPCs the spawn must contain.
+ * @returns The parameter value.
+ */
+export function spawnQueryParam(stage: Stage, npcs: SpawnedNpc[]): string {
+  const clauses = npcs.map(
+    (npc) => `npc:${NPC_ALIASES[npc.npcId][0]}@${npc.x}.${npc.y}`,
+  );
+  return [`stage:${stage}`, ...clauses].join(';');
 }
 
 function packSpawn(x: number, y: number, type: number = 0): number {

@@ -460,18 +460,8 @@
     color: var(--blert-purple);
   }
 
-  &:hover {
-    background: rgba(var(--blert-purple-base), 0.1);
-    border-color: rgba(var(--blert-purple-base), 0.2);
-  }
-
   :global([data-theme='aero']) & {
     @include aeroField;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.8);
-      border-color: rgba(74, 154, 216, 0.7);
-    }
   }
 }
 
