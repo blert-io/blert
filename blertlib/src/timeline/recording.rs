@@ -2,7 +2,7 @@ use crate::event::Event;
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, Stage};
 
-use super::TickState;
+use super::{TickState, Timeline, finalize};
 
 /// A `Recording` represents a mutable model of a challenge stage as observed by
 /// one or more clients. It is a nonempty, chronological sequence of ticks, each
@@ -122,6 +122,25 @@ impl Recording {
                 event.kind.remap_ticks(|tick| tick + offset);
             }
         }
+    }
+
+    /// Finalizes the recording into a [`Timeline`].
+    #[must_use]
+    pub fn finalize(mut self) -> Timeline {
+        finalize::finalize_from(self.stage, self.mode, &mut self.states, Tick(0));
+        Timeline {
+            stage: self.stage,
+            mode: self.mode,
+            party: self.party,
+            states: self.states,
+        }
+    }
+
+    /// Finalizes a copy of the recording into a [`Timeline`], leaving the
+    /// recording as it is.
+    #[must_use]
+    pub fn snapshot(&self) -> Timeline {
+        self.clone().finalize()
     }
 }
 
