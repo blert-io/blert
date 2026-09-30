@@ -9,6 +9,7 @@ import { BcfTooltip, BCF_TOOLTIP_ID } from './bcf-tooltip';
 import { CanvasTimeline } from './canvas/canvas-timeline';
 import { InteractionHandler } from './canvas/timeline-controller';
 import { defaultRowOrder, TimelineDisplay } from './display-utils';
+import { OverlayContext } from './overlay';
 import {
   ActionEvaluator,
   CELL_GAP,
@@ -77,6 +78,12 @@ export type BcfRendererProps = {
    * timeline detects manual horizontal scrolling and pauses auto-follow.
    */
   liveFollowing?: boolean;
+
+  /**
+   * Overlays to place over the timeline's cells.
+   * Must be `CellOverlay` elements.
+   */
+  children?: React.ReactNode;
 };
 
 export function BcfRenderer({
@@ -98,6 +105,7 @@ export function BcfRenderer({
   onActorSelect,
   onTickSelect,
   liveFollowing = false,
+  children,
 }: BcfRendererProps) {
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
 
@@ -395,23 +403,25 @@ export function BcfRenderer({
               className={styles.columnActiveIndicator}
             />
           )}
-          <CanvasTimeline
-            resolver={resolver}
-            display={display}
-            rowOrder={rowOrder}
-            numRows={numRows}
-            ticksPerRow={ticksPerRow}
-            cellSize={cellSize}
-            actionEvaluator={actionEvaluator}
-            stateProvider={stateProvider}
-            customRows={customRowsMap}
-            letterMode={letterMode}
-            showInventoryTags={showInventoryTags}
-            tooltipId={effectiveTooltipId}
-            interactionHandler={interactionHandler}
-            onTickSelect={onTickSelect}
-            scrollContainerRef={scrollableRef}
-          />
+          <OverlayContext.Provider value={children ?? null}>
+            <CanvasTimeline
+              resolver={resolver}
+              display={display}
+              rowOrder={rowOrder}
+              numRows={numRows}
+              ticksPerRow={ticksPerRow}
+              cellSize={cellSize}
+              actionEvaluator={actionEvaluator}
+              stateProvider={stateProvider}
+              customRows={customRowsMap}
+              letterMode={letterMode}
+              showInventoryTags={showInventoryTags}
+              tooltipId={effectiveTooltipId}
+              interactionHandler={interactionHandler}
+              onTickSelect={onTickSelect}
+              scrollContainerRef={scrollableRef}
+            />
+          </OverlayContext.Provider>
         </HorizontalScrollable>
         {liveFollowing && scrolledAwayFromLive && (
           <button

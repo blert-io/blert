@@ -11,6 +11,8 @@ export type ButtonStyleProps = {
   /** Renders as a small square tile without chrome. */
   icon?: boolean;
   simple?: boolean;
+  /** Styled as a flat button for a toolbar strip. */
+  toolbar?: boolean;
   variant?: ButtonVariant;
   fontSize?: string | number;
 };
@@ -26,6 +28,9 @@ export function buttonClassName(props: ButtonStyleProps): string {
   }
   if (props.icon) {
     className += ` ${styles.iconButton}`;
+  }
+  if (props.toolbar) {
+    className += ` ${styles.toolbar}`;
   }
   return className;
 }

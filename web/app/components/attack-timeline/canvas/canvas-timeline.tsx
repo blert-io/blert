@@ -4,6 +4,7 @@ import { BCFResolver } from '@blert/bcf';
 import { memo, useEffect, useMemo, useRef } from 'react';
 
 import { TimelineDisplay } from '../display-utils';
+import { OverlayPlane } from '../overlay';
 import {
   ActionEvaluator,
   CELL_GAP,
@@ -295,6 +296,17 @@ export const CanvasTimeline = memo(function CanvasTimeline({
               return cells;
             });
           })}
+
+          <OverlayPlane
+            startTick={rowTiles[0].startTick}
+            endTick={
+              rowTiles[rowTiles.length - 1].startTick +
+              rowTiles[rowTiles.length - 1].tickCount -
+              1
+            }
+            rowOrder={rowOrder}
+            cellSize={cellSize}
+          />
         </div>
       ))}
     </>

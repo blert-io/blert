@@ -378,15 +378,14 @@ describe('move-focus', () => {
     expect(end.focus).toEqual({ actorId: 'p1', tick: 29 });
   });
 
-  it('does nothing if nothing is focused', () => {
+  it('focuses the first displayed cell if nothing is focused', () => {
     const state = initialState({
       version: '1.0',
-      config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
       timeline: { actors: [VERZIK, P1], ticks: [] },
     });
-    expect(reduce(state, { type: 'move-focus', rows: 1, ticks: 1 })).toBe(
-      state,
-    );
+    const next = reduce(state, { type: 'move-focus', rows: 1, ticks: 5 });
+    expect(next.focus).toEqual({ actorId: 'verzik', tick: 1 });
   });
 });
 

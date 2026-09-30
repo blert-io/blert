@@ -1,0 +1,45 @@
+.brush {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.label {
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--blert-font-color-secondary);
+}
+
+.empty {
+  font-size: 0.85rem;
+  color: var(--blert-font-color-secondary);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 6px;
+  background: var(--blert-surface-light);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.meta {
+  font-family: var(--font-roboto-mono), monospace;
+  font-size: 0.7rem;
+  color: var(--blert-font-color-secondary);
+}

@@ -1,0 +1,68 @@
+@use '@/mixins.scss' as *;
+
+.field {
+  height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 5px;
+  background: none;
+  color: var(--blert-font-color-primary);
+  font: inherit;
+  font-size: 0.9rem;
+
+  &::placeholder {
+    color: var(--blert-font-color-secondary);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: rgba(var(--blert-purple-base), 0.9);
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroField(6px);
+  }
+}
+
+.name {
+  width: 17rem;
+  font-weight: 600;
+}
+
+.ticks {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.85rem;
+
+  .field {
+    width: 4.5rem;
+  }
+}
+
+.cellSize {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--blert-font-color-secondary);
+  font-size: 0.85rem;
+
+  i {
+    font-size: 0.75rem;
+  }
+
+  input {
+    width: 6.5rem;
+    accent-color: var(--blert-purple);
+  }
+}
+
+.readout {
+  min-width: 2.5rem;
+  font-family: var(--font-roboto-mono), monospace;
+}
+
+.spacer {
+  flex: 1;
+}

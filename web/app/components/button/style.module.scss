@@ -75,6 +75,25 @@
     background: rgba(var(--button-color-base), 0.12);
   }
 
+  &.toolbar {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--blert-font-color-secondary);
+
+    &:not(:disabled):hover {
+      background: var(--blert-surface-light);
+      border-color: rgba(var(--blert-purple-base), 0.3);
+      color: var(--blert-font-color-primary);
+    }
+
+    &[aria-pressed='true'] {
+      background: rgba(var(--blert-purple-base), 0.1);
+      border-color: rgba(var(--blert-purple-base), 0.3);
+      color: var(--blert-purple);
+    }
+  }
+
   // Aero: glossy pill material.
   :global([data-theme='aero']) & {
     --button-radius: 8px;
@@ -153,6 +172,22 @@
       &:not(:disabled):hover {
         background: rgba(214, 236, 250, 0.9);
         box-shadow: none;
+      }
+    }
+
+    // Office chrome
+    &.toolbar {
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+      text-shadow: none;
+
+      &:not(:disabled):hover {
+        @include aeroToolbarHover;
+      }
+
+      &[aria-pressed='true'] {
+        @include aeroToolbarActive;
       }
     }
   }

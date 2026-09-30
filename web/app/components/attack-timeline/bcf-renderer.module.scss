@@ -277,6 +277,12 @@ button.legendParticipant {
   }
 }
 
+.overlayPlane {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .columnActiveIndicator {
   position: absolute;
   top: 0;

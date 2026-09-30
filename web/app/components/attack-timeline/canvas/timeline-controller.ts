@@ -549,9 +549,10 @@ export class TimelineController {
     this.cursor = this.cursorFor(null);
   }
 
-  private onPointerLeave = (): void => {
+  private onPointerLeave = (e: PointerEvent): void => {
     this.lastMouseEvent = null;
     this.clearHover();
+    this.data?.interactionHandler?.onPointerMove?.(null, e);
   };
 
   private onPointerDown = (e: PointerEvent): void => {
