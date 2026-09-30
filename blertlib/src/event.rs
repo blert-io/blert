@@ -225,6 +225,54 @@ impl NyloWave {
 
     const CAP_INCREASE_WAVE: u8 = 20;
 
+    const PRINKIPAS_WAVES: [u8; 3] = [10, 20, 30];
+    const NATURAL_STALLS: [Ticks; 31] = [
+        Ticks(4),
+        Ticks(4),
+        Ticks(4),
+        Ticks(4),
+        Ticks(16),
+        Ticks(4),
+        Ticks(12),
+        Ticks(4),
+        Ticks(12),
+        Ticks(8),
+        Ticks(8),
+        Ticks(8),
+        Ticks(8),
+        Ticks(8),
+        Ticks(8),
+        Ticks(4),
+        Ticks(12),
+        Ticks(8),
+        Ticks(12),
+        Ticks(16),
+        Ticks(8),
+        Ticks(12),
+        Ticks(8),
+        Ticks(8),
+        Ticks(8),
+        Ticks(4),
+        Ticks(8),
+        Ticks(4),
+        Ticks(4),
+        Ticks(4),
+        Ticks(0),
+    ];
+
+    /// Returns the natural stall for a specific wave.
+    #[must_use]
+    pub fn natural_stall(mode: ChallengeMode, wave: u8) -> Ticks {
+        if mode == ChallengeMode::TobHard && Self::PRINKIPAS_WAVES.contains(&wave) {
+            return Ticks(16);
+        }
+        usize::from(wave)
+            .checked_sub(1)
+            .and_then(|index| Self::NATURAL_STALLS.get(index))
+            .copied()
+            .unwrap_or_default()
+    }
+
     /// Returns the room cap of a specific wave.
     #[must_use]
     pub fn room_cap(mode: ChallengeMode, wave: u8) -> u8 {
