@@ -671,6 +671,10 @@ export function attackDefinitionJsonToProto(
     def.setAnimationFrameMax(json.animationFrameMax);
   }
 
+  if (json.attackerGraphicIds !== undefined) {
+    def.setAttackerGraphicIdsList(json.attackerGraphicIds);
+  }
+
   switch (json.category) {
     case 'MELEE':
       def.setCategory(AttackDefinition.Category.MELEE);
@@ -855,6 +859,10 @@ function attackDefinitionToJson(
   }
   if (attackDefinition.hasAnimationFrameMax()) {
     json.animationFrameMax = attackDefinition.getAnimationFrameMax();
+  }
+
+  if (attackDefinition.getAttackerGraphicIdsList().length > 0) {
+    json.attackerGraphicIds = attackDefinition.getAttackerGraphicIdsList();
   }
 
   return json;

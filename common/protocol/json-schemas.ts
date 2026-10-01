@@ -148,6 +148,7 @@ export const attackDefinitionSchema = z.object({
   continuousAnimation: z.boolean().optional(),
   animationFrameMin: z.number().int().nonnegative().optional(),
   animationFrameMax: z.number().int().nonnegative().optional(),
+  attackerGraphicIds: z.array(z.number().int()).optional(),
   category: attackCategorySchema,
 });
 
