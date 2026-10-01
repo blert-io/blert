@@ -1053,6 +1053,15 @@ describe('round-trip conversion', () => {
             startCycleOffset: 41,
           },
         },
+        {
+          protoId: 112,
+          name: 'Dark Demonbane',
+          weaponIds: [21006],
+          animationIds: [8977],
+          attackerGraphicIds: [1869],
+          cooldown: 5,
+          category: 'MAGIC',
+        },
       ],
       requestId: 1,
     };
@@ -1062,7 +1071,7 @@ describe('round-trip conversion', () => {
 
     expect(resultJson.type).toBe(originalJson.type);
     expect(resultJson.requestId).toBe(originalJson.requestId);
-    expect(resultJson.attackDefinitions).toHaveLength(2);
+    expect(resultJson.attackDefinitions).toHaveLength(3);
 
     const originalDef = originalJson.attackDefinitions![0];
     const resultDef = resultJson.attackDefinitions![0];
@@ -1071,9 +1080,13 @@ describe('round-trip conversion', () => {
     expect(resultDef.name).toBe(originalDef.name);
     expect(resultDef.weaponIds).toEqual(originalDef.weaponIds);
     expect(resultDef.category).toBe(originalDef.category);
+    expect(resultDef.attackerGraphicIds).toBeUndefined();
 
     // Check projectile on second definition
     expect(resultJson.attackDefinitions![1].projectile?.id).toBe(1120);
+
+    // Check attacker graphics on third definition
+    expect(resultJson.attackDefinitions![2].attackerGraphicIds).toEqual([1869]);
   });
 
   it('preserves spell definitions through JSON -> Proto -> JSON', () => {
