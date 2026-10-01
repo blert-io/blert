@@ -782,7 +782,7 @@ fn killed_run_respawns_on_resume() {
     let journal = collector.journal(uuid);
     assert_eq!(journal.last().unwrap().event, started(7));
     assert_eq!(first.requests().len(), 3);
-    assert!(collector.challenge_updates(uuid).is_empty());
+    assert_eq!(collector.challenge_updates(uuid), []);
     assert!(collector.removed_streams(uuid).is_empty());
 
     // A new server resumes and the journal's unfinished run respawns without
@@ -840,7 +840,7 @@ fn killed_run_respawns_on_resume() {
         tokio::time::sleep(Duration::from_secs(1)).await;
     });
 
-    assert!(third.requests().is_empty());
+    assert_eq!(third.requests(), []);
     assert_eq!(collector.challenge_updates(uuid), expected_updates);
     assert_eq!(collector.removed_streams(uuid), expected_removed);
 }
@@ -875,7 +875,7 @@ fn final_processing_concludes_exactly_once_on_resume() {
             .iter()
             .any(|e| matches!(e.event, LifecycleEvent::ChallengeTerminated)),
     );
-    assert!(collector.challenge_updates(uuid).is_empty());
+    assert_eq!(collector.challenge_updates(uuid), []);
     assert!(!collector.is_deleted(uuid));
 
     // Resume and finish processing.

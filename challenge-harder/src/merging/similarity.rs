@@ -589,7 +589,6 @@ fn score_attacks<A: PartialEq + Copy>(
 
 #[cfg(test)]
 mod tests {
-    #![expect(clippy::float_cmp, reason = "scoring constants are controlled")]
     use blert::{Tick, item};
 
     use super::*;

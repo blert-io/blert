@@ -654,10 +654,9 @@ mod tests {
             with_dynamic_duo.extra_wave_npcs(Stage::ColosseumWave7),
             [SHOCKWAVE_COLOSSUS],
         );
-        assert!(
-            with_dynamic_duo
-                .extra_wave_npcs(Stage::ColosseumWave9)
-                .is_empty()
+        assert_eq!(
+            with_dynamic_duo.extra_wave_npcs(Stage::ColosseumWave9),
+            [] as [u32; 0]
         );
 
         let without_dynamic_duo = ColosseumProcessor {
@@ -671,15 +670,13 @@ mod tests {
             wave_handicap_options: Vec::new(),
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
-        assert!(
-            without_dynamic_duo
-                .extra_wave_npcs(Stage::ColosseumWave7)
-                .is_empty()
+        assert_eq!(
+            without_dynamic_duo.extra_wave_npcs(Stage::ColosseumWave7),
+            [] as [u32; 0]
         );
-        assert!(
-            without_dynamic_duo
-                .extra_wave_npcs(Stage::ColosseumWave9)
-                .is_empty()
+        assert_eq!(
+            without_dynamic_duo.extra_wave_npcs(Stage::ColosseumWave9),
+            [] as [u32; 0]
         );
     }
 

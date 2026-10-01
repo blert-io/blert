@@ -2473,7 +2473,7 @@ async fn stage_streams_read_in_order_skipping_invalid_records() {
         .read_stage_stream(Uuid::new_v4(), Stage::TobMaiden, None)
         .await
         .expect("missing stream should read");
-    assert!(missing.is_empty());
+    assert_eq!(missing, []);
 
     let mut connection = store.pool.get().await.unwrap();
     let _: () = connection.del(&key).await.unwrap();

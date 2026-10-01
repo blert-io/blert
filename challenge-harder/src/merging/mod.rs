@@ -1362,8 +1362,8 @@ mod tests {
             .map(|event| event.nylo_wave.unwrap().wave)
             .collect();
         assert_eq!(waves, vec![2]);
-        assert!(merged.events_for_tick(Tick(6)).is_empty());
-        assert!(merged.events_for_tick(Tick(18)).is_empty());
+        assert_eq!(merged.events_for_tick(Tick(6)), []);
+        assert_eq!(merged.events_for_tick(Tick(18)), []);
     }
 
     #[test]

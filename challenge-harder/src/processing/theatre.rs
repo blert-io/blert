@@ -2519,7 +2519,7 @@ mod tests {
             ],
         );
         assert_eq!(processor.verzik.red_spawn_ticks, vec![Tick(174), Tick(218)]);
-        assert!(processor.verzik.missing_attack_ticks.is_empty());
+        assert_eq!(processor.verzik.missing_attack_ticks, []);
 
         let attack = |tick: Tick| {
             events
