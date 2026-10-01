@@ -160,7 +160,7 @@ fn builder_ingest_drops_action_without_actor() {
     assert_eq!(builder.ingest([scythe]), Some(Tick(385)));
     let state = builder.recording().unwrap().get_state(Tick(385)).unwrap();
     assert!(state.players.is_empty());
-    assert!(state.events.is_empty());
+    assert_eq!(state.events, []);
     assert_eq!(builder.rejections().count(), 0);
     assert_eq!(builder.warnings().count(), 0);
 }
@@ -273,7 +273,7 @@ fn builder_ingest_player_update() {
             .collect::<Vec<_>>(),
         [PartyIndex::from_usize(0), PartyIndex::from_usize(1)]
     );
-    assert!(first.events.is_empty());
+    assert_eq!(first.events, []);
     let second = recording.get_state(Tick(1)).unwrap();
     assert_eq!(
         second.players.iter().collect::<Vec<_>>(),
@@ -282,7 +282,7 @@ fn builder_ingest_player_update() {
             first.players.get(PartyIndex::from_usize(0)).unwrap()
         )]
     );
-    assert!(second.events.is_empty());
+    assert_eq!(second.events, []);
     assert_eq!(builder.rejections().count(), 0);
     assert_eq!(builder.warnings().count(), 0);
 }
@@ -1035,13 +1035,13 @@ fn builder_ingest_sote_maze_tiles() {
         state.objects.iter().collect::<Vec<_>>(),
         [(ObjectKind::SoteMazeTiles, Point(11, 0))]
     );
-    assert!(state.events.is_empty());
+    assert_eq!(state.events, []);
     let state = recording.get_state(Tick(72)).unwrap();
     assert_eq!(
         state.objects.iter().collect::<Vec<_>>(),
         [(ObjectKind::SoteMazeTiles, Point(10, 1))]
     );
-    assert!(state.events.is_empty());
+    assert_eq!(state.events, []);
     assert_eq!(builder.rejections().count(), 0);
 }
 
@@ -1270,7 +1270,7 @@ fn builder_ingest_attack_style() {
             })
         )]
     );
-    assert!(recording.get_state(Tick(273)).unwrap().events.is_empty());
+    assert_eq!(recording.get_state(Tick(273)).unwrap().events, []);
     assert_eq!(builder.rejections().count(), 0);
 
     assert_eq!(builder.ingest([style]), None);

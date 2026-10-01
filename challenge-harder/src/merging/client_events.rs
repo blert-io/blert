@@ -939,7 +939,7 @@ mod tests {
         };
         assert_eq!(pivots.len(), 1);
         assert_eq!(pivots[0].maze, Maze::Maze33);
-        assert!(pivots[0].underworld.is_empty());
+        assert_eq!(pivots[0].underworld, []);
         assert_eq!(
             pivots[0].overworld,
             vec![

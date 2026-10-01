@@ -443,8 +443,6 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
 
 #[cfg(test)]
 mod tests {
-    #![expect(clippy::float_cmp, reason = "scores come from controlled mock scorers")]
-
     use std::collections::BTreeMap;
 
     use blert::Tick;
