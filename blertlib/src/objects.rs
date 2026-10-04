@@ -43,6 +43,14 @@ impl TickObjects {
             .flat_map(|(kind, points)| points.keys().map(move |point| (*kind, *point)))
     }
 
+    /// Returns an iterator over each kind of object present on this tick.
+    pub fn kinds(&self) -> impl Iterator<Item = ObjectKind> + '_ {
+        self.0
+            .iter()
+            .filter(|(_, points)| !points.is_empty())
+            .map(|(kind, _)| *kind)
+    }
+
     /// Returns an iterator over each object of `kind` on this tick.
     pub fn iter_of(&self, kind: ObjectKind) -> impl Iterator<Item = Point> + '_ {
         self.0
@@ -143,6 +151,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             [Point(3, 4)]
         );
+        assert_eq!(
+            objects.kinds().collect::<Vec<_>>(),
+            [ObjectKind::MokhaiotlRock, ObjectKind::MokhaiotlSplat]
+        );
     }
 
     #[test]
@@ -186,6 +198,10 @@ mod tests {
         assert!(objects.contains_kind(ObjectKind::MokhaiotlSplat));
         assert!(!objects.contains_kind(ObjectKind::MokhaiotlRock));
         assert_eq!(objects.iter_of(ObjectKind::MokhaiotlSplat).count(), 1);
+        assert_eq!(
+            objects.kinds().collect::<Vec<_>>(),
+            [ObjectKind::MokhaiotlSplat]
+        );
     }
 
     #[test]

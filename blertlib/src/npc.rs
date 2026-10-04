@@ -220,3 +220,16 @@ pub fn is_verzik_matomenos(npc_id: u32) -> bool {
         id::VERZIK_MATOMENOS_ENTRY | id::VERZIK_MATOMENOS_REGULAR | id::VERZIK_MATOMENOS_HARD
     )
 }
+
+#[must_use]
+pub fn is_mokhaiotl_larva(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::DEMONIC_LARVA
+            | id::DEMONIC_RANGE_LARVA
+            | id::DEMONIC_MAGIC_LARVA
+            | id::DEMONIC_MELEE_LARVA
+            | id::GIANT_DEMONIC_RANGE_LARVA
+            | id::GIANT_DEMONIC_MAGIC_LARVA
+    )
+}

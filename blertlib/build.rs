@@ -12,7 +12,10 @@ fn main() -> Result<()> {
     let proto_dir = "../proto";
     println!("cargo:rerun-if-changed={proto_dir}");
 
-    prost_build::Config::new().compile_protos(&[&format!("{proto_dir}/event.proto")], &[proto_dir])
+    let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
+    prost_build::Config::new()
+        .file_descriptor_set_path(Path::new(&out_dir).join("blert_descriptor.bin"))
+        .compile_protos(&[&format!("{proto_dir}/event.proto")], &[proto_dir])
 }
 
 /// Generates attack metadata from the canonical JSON.
@@ -26,23 +29,40 @@ fn generate_attack_definitions() -> Result<()> {
 
     let mut entries = Vec::new();
     for definition in definitions.as_array().into_iter().flatten() {
-        let (Some(id), Some(cooldown)) = (
+        let (Some(id), Some(cooldown), Some(category)) = (
             definition["protoId"].as_i64(),
             definition["cooldown"].as_i64(),
+            definition["category"].as_str(),
         ) else {
             return Err(std::io::Error::other("attack definition missing fields"));
         };
-        entries.push((id, cooldown));
+        let style = match category {
+            "MELEE" => "Melee",
+            "RANGED" => "Ranged",
+            "MAGIC" => "Magic",
+            _ => return Err(std::io::Error::other("unknown attack category")),
+        };
+        entries.push((id, cooldown, style));
     }
-    entries.sort_by_key(|&(id, _)| id);
+    entries.sort_by_key(|&(id, _, _)| id);
 
     let mut out = String::from(
         "// Generated from the attack definitions JSON.\n\n\
          /// Returns an attack's cooldown in ticks.\n\
          pub const fn cooldown(id: i32) -> Option<u32> {\n    match id {\n",
     );
-    for (id, cooldown) in entries {
+    for &(id, cooldown, _) in &entries {
         writeln!(out, "        {id} => Some({cooldown}),").map_err(std::io::Error::other)?;
+    }
+    out.push_str("        _ => None,\n    }\n}\n");
+
+    out.push_str(
+        "\n/// Returns an attack's combat style.\n\
+         pub const fn style(id: i32) -> Option<crate::CombatStyle> {\n    match id {\n",
+    );
+    for &(id, _, style) in &entries {
+        writeln!(out, "        {id} => Some(crate::CombatStyle::{style}),")
+            .map_err(std::io::Error::other)?;
     }
     out.push_str("        _ => None,\n    }\n}\n");
 

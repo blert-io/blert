@@ -6,9 +6,10 @@ use crate::actor::{NpcState, Players, RoomId, Rsn};
 use crate::event::Event;
 use crate::objects::TickObjects;
 use crate::tick::Tick;
-use crate::{ChallengeMode, Stage};
+use crate::{ChallengeMode, Stage, proto};
 
 mod builder;
+mod encode;
 mod finalize;
 mod recording;
 
@@ -112,6 +113,16 @@ impl Timeline {
                 .map(|tick| recording.get_state(tick).cloned()),
         );
         finalize::finalize_from(self.stage, self.mode, &mut self.states, start);
+    }
+
+    /// Encodes the full timeline as wire events in tick order.
+    pub fn to_proto(&self) -> impl Iterator<Item = proto::Event> {
+        self.to_proto_from(Tick(0))
+    }
+
+    /// Encodes the timeline from `start` onward as wire events in tick order.
+    pub fn to_proto_from(&self, start: Tick) -> impl Iterator<Item = proto::Event> {
+        encode::encode_from(self, start)
     }
 }
 

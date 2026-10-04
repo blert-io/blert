@@ -14,7 +14,7 @@ pub use crate::proto::event::npc::maiden_crab::{
 pub use crate::proto::event::npc::verzik_crab::Spawn as VerzikCrabSpawn;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PartyIndex(u8);
+pub struct PartyIndex(pub(crate) u8);
 
 impl PartyIndex {
     pub(crate) fn from_usize(index: usize) -> Self {

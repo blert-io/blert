@@ -38,6 +38,11 @@ impl PlayerAttack {
         // Every constructible `PlayerAttack` has a defined cooldown.
         crate::Ticks(definitions::cooldown(self as i32).unwrap_or(0))
     }
+
+    /// Returns the attack's combat style.
+    pub fn style(self) -> Option<crate::CombatStyle> {
+        definitions::style(self as i32)
+    }
 }
 
 impl PlayerSpell {
@@ -71,6 +76,26 @@ impl From<event::npc::nylo::Style> for crate::CombatStyle {
             event::npc::nylo::Style::Melee => Self::Melee,
             event::npc::nylo::Style::Range => Self::Ranged,
             event::npc::nylo::Style::Mage => Self::Magic,
+        }
+    }
+}
+
+impl From<crate::CombatStyle> for event::attack_style::Style {
+    fn from(style: crate::CombatStyle) -> Self {
+        match style {
+            crate::CombatStyle::Melee => Self::Melee,
+            crate::CombatStyle::Ranged => Self::Range,
+            crate::CombatStyle::Magic => Self::Mage,
+        }
+    }
+}
+
+impl From<crate::CombatStyle> for event::npc::nylo::Style {
+    fn from(style: crate::CombatStyle) -> Self {
+        match style {
+            crate::CombatStyle::Melee => Self::Melee,
+            crate::CombatStyle::Ranged => Self::Range,
+            crate::CombatStyle::Magic => Self::Mage,
         }
     }
 }
