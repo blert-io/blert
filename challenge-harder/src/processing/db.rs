@@ -8,6 +8,7 @@ use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, Server
 use rustls::crypto::{CryptoProvider, aws_lc_rs, verify_tls12_signature, verify_tls13_signature};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
+use tokio_postgres::error::SqlState;
 use tokio_postgres_rustls::MakeRustlsConnect;
 
 use crate::lifecycle::core::state::Trigger;
@@ -22,6 +23,9 @@ pub enum Error {
     /// A database operation failed.
     #[error("database: {0}")]
     Database(String),
+    /// The database rejected the data in a statement.
+    #[error("database rejected: {0}")]
+    Rejected(String),
     /// The data stored in the database is invalid.
     #[error("invalid data: {0}")]
     InvalidData(String),
@@ -31,9 +35,18 @@ impl From<tokio_postgres::Error> for Error {
     fn from(error: tokio_postgres::Error) -> Self {
         // The top-level Display is just a kind ("db error"); the Postgres
         // message lives in the source.
-        match std::error::Error::source(&error) {
-            Some(source) => Error::Database(format!("{error}: {source}")),
-            None => Error::Database(error.to_string()),
+        let message = match std::error::Error::source(&error) {
+            Some(source) => format!("{error}: {source}"),
+            None => error.to_string(),
+        };
+        match error.code() {
+            Some(code)
+                if code.code().starts_with("22")
+                    || (code.code().starts_with("23") && *code != SqlState::UNIQUE_VIOLATION) =>
+            {
+                Error::Rejected(message)
+            }
+            _ => Error::Database(message),
         }
     }
 }
@@ -796,7 +809,7 @@ mod tests {
             .await
             .expect("guard should pass");
         let result = txn.commit(&ProcessingPayload::None, None).await;
-        assert!(matches!(result, Err(Error::Database(_))));
+        assert!(matches!(result, Err(Error::Rejected(_))));
 
         let client = db.pool.get().await.expect("client");
         client
@@ -805,11 +818,70 @@ mod tests {
             .expect("pooled connection should be usable");
     }
 
+    #[tokio::test]
+    async fn postgres_errors_classify_by_sqlstate() {
+        let Some(db) = test_database().await else {
+            return;
+        };
+
+        let txn = db.begin().await.expect("transaction");
+        let error = txn
+            .execute(
+                "INSERT INTO players (username, normalized_username) VALUES ($1, $2)",
+                &[
+                    &"<col=ff0000>WWWWWWWWWWQQ</col>",
+                    &"<col=ff0000>wwwwwwwwwwqq</col>",
+                ],
+            )
+            .await
+            .expect_err("invalid username");
+        assert!(matches!(Error::from(error), Error::Rejected(_)));
+        drop(txn);
+
+        let uuid = Uuid::new_v4();
+        let party_hash = uuid.simple().to_string();
+        let txn = db.begin().await.expect("transaction");
+        txn.execute(
+            "INSERT INTO challenge_sessions
+               (uuid, challenge_type, challenge_mode, scale, party_hash, start_time)
+             VALUES ($1, $2, $3, $4, $5, now())",
+            &[
+                &uuid,
+                &1_i16,
+                &(ChallengeMode::TobHard as i16),
+                &5_i16,
+                &party_hash,
+            ],
+        )
+        .await
+        .expect("first session insert");
+        let error = txn
+            .execute(
+                "INSERT INTO challenge_sessions
+                   (uuid, challenge_type, challenge_mode, scale, party_hash, start_time)
+                 VALUES ($1, $2, $3, $4, $5, now())",
+                &[
+                    &uuid,
+                    &1_i16,
+                    &(ChallengeMode::TobHard as i16),
+                    &5_i16,
+                    &party_hash,
+                ],
+            )
+            .await
+            .expect_err("unique violation");
+        assert!(matches!(Error::from(error), Error::Database(_)));
+    }
+
     #[test]
     fn errors_map_to_processing_errors() {
         let error: ProcessingError = Error::Database("connection refused".into()).into();
         assert!(error.retriable);
         assert_eq!(error.message, "database: connection refused");
+
+        let error: ProcessingError = Error::Rejected("value too long".into()).into();
+        assert!(!error.retriable);
+        assert_eq!(error.message, "database rejected: value too long");
 
         let error: ProcessingError = Error::InvalidData("bad status".into()).into();
         assert!(!error.retriable);

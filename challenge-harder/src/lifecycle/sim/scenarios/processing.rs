@@ -326,6 +326,123 @@ async fn non_retriable_failure_gives_up_immediately() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn create_exhaustion_skips_later_processing_runs() {
+    let processor = ScriptedProcessor::new(vec![
+        ProcessingAttempt::Resolve(0, Err(retriable_failure())),
+        ProcessingAttempt::Resolve(0, Err(retriable_failure())),
+    ]);
+    let result = run_with(options(&processor), solo_maiden_wipe(6_000)).await;
+
+    let (uuid, journal) = result.only_challenge();
+    assert_eq!(
+        journal[2..],
+        vec![
+            entry(
+                2,
+                0,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(0)
+            ),
+            entry(
+                3,
+                0,
+                processing(0),
+                LifecycleEvent::ProcessingFailed {
+                    trigger: JournalSeq(0),
+                    error: retriable_failure(),
+                },
+            ),
+            entry(
+                4,
+                10,
+                cmd(2),
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TobMaiden,
+                },
+            ),
+            entry(
+                5,
+                10,
+                cmd(2),
+                reported(1, Stage::TobMaiden, StageStatus::Started)
+            ),
+            entry(
+                6,
+                1_000,
+                cmd(3),
+                reported(1, Stage::TobMaiden, StageStatus::Wiped)
+            ),
+            entry(
+                7,
+                1_000,
+                cmd(3),
+                LifecycleEvent::StageSealed {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                    forced: false,
+                },
+            ),
+            entry(
+                8,
+                3_000,
+                Cause::Deadline(DeadlineKind::ProcessingDue),
+                started(0)
+            ),
+            entry(
+                9,
+                3_000,
+                processing(0),
+                LifecycleEvent::ProcessingFailed {
+                    trigger: JournalSeq(0),
+                    error: retriable_failure(),
+                },
+            ),
+            entry(
+                10,
+                6_000,
+                cmd(4),
+                LifecycleEvent::ClientFinished {
+                    client_id: client_id(1),
+                    definitive: true,
+                    soft: false,
+                    times: None,
+                },
+            ),
+            entry(11, 6_000, cmd(4), LifecycleEvent::ChallengeTerminated),
+        ],
+    );
+
+    let triggers: Vec<Trigger> = processor.requests().iter().map(|r| r.trigger).collect();
+    assert_eq!(
+        triggers,
+        vec![
+            Trigger::Create { seq: JournalSeq(0) },
+            Trigger::Create { seq: JournalSeq(0) },
+        ],
+    );
+
+    assert_eq!(
+        result.updates,
+        vec![
+            (
+                uuid,
+                ChallengeServerUpdate::StageEnd {
+                    stage: Stage::TobMaiden,
+                    attempt: None,
+                },
+            ),
+            (uuid, ChallengeServerUpdate::Finish),
+        ],
+    );
+    assert_eq!(
+        result.removed.get(&uuid),
+        Some(&BTreeSet::from([(Stage::TobMaiden, None)])),
+    );
+    assert!(result.deleted.contains(&uuid));
+    assert_eq!(result.only_status(), ChallengeStatus::Wiped);
+}
+
+#[tokio::test(start_paused = true)]
 async fn finalization_waits_for_processing_to_finish_after_termination() {
     let processor = ScriptedProcessor::new(vec![
         no_payload(),

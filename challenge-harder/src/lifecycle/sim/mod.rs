@@ -1292,6 +1292,8 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
         let mut outstanding = HashSet::new();
         let mut attempts: HashMap<JournalSeq, u32> = HashMap::new();
         let mut finish_seq = None;
+        let mut create_seq = None;
+        let mut create_exhausted = false;
         let mut joined = HashSet::new();
         let mut stage = None;
         let mut terminated = false;
@@ -1316,6 +1318,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                     ..
                 } => {
                     stage = Some(*initial_stage);
+                    create_seq = Some(entry.seq);
                     trigger_seqs.insert(entry.seq);
                     outstanding.insert(entry.seq);
                 }
@@ -1352,6 +1355,10 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                         trigger_seqs.contains(trigger),
                         "processing entry references no trigger: {uuid}",
                     );
+                    assert!(
+                        !create_exhausted,
+                        "processing started after create was exhausted: {uuid}",
+                    );
                     *attempts.entry(*trigger).or_default() += 1;
                 }
                 LifecycleEvent::ProcessingFinished { trigger, .. } => {
@@ -1370,6 +1377,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                         || attempts.get(trigger).copied().unwrap_or(0) >= max_attempts;
                     if exhausted {
                         outstanding.remove(trigger);
+                        create_exhausted |= create_seq == Some(*trigger);
                     }
                 }
                 LifecycleEvent::ProcessingTimedOut { trigger } => {
@@ -1379,6 +1387,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                     );
                     if attempts.get(trigger).copied().unwrap_or(0) >= max_attempts {
                         outstanding.remove(trigger);
+                        create_exhausted |= create_seq == Some(*trigger);
                     }
                 }
                 _ => {}

@@ -209,6 +209,10 @@ pub struct Processing {
     completed: Vec<Trigger>,
     /// Whether the challenge's finish trigger has been queued.
     finish_queued: bool,
+    /// Set if the challenge's create run exhausted its attempts. Every later
+    /// processing run depends on the challenge existing, so none of them run
+    /// if set.
+    create_exhausted: bool,
     /// Status derived from the most recently processed outcome.
     status: Option<ChallengeStatus>,
 }
@@ -221,6 +225,7 @@ impl Processing {
             pending: VecDeque::new(),
             completed: Vec::new(),
             finish_queued: false,
+            create_exhausted: false,
             status: None,
         }
     }
@@ -232,6 +237,10 @@ impl Processing {
         }
         if matches!(trigger, Trigger::Finish { .. }) {
             self.finish_queued = true;
+        }
+        if self.create_exhausted {
+            self.completed.push(trigger);
+            return;
         }
         let queued = QueuedTrigger { trigger, info };
         if self.active.is_none() {
@@ -282,10 +291,17 @@ impl Processing {
                     run.state = ProcessingState::Idle { since: at };
                     return;
                 }
+                if matches!(run.trigger, Trigger::Create { .. }) {
+                    self.create_exhausted = true;
+                }
             }
         }
 
         self.completed.push(run.trigger);
+        if self.create_exhausted {
+            let skipped = self.pending.drain(..).map(|queued| queued.trigger);
+            self.completed.extend(skipped);
+        }
         self.active = self
             .pending
             .pop_front()
@@ -787,6 +803,107 @@ mod tests {
             processing.completed,
             vec![Trigger::Finish { seq: JournalSeq(4) }]
         );
+        assert!(processing.settled());
+    }
+
+    #[test]
+    fn processing_create_exhausted_completes_pending_triggers_without_running() {
+        let mut processing = Processing::new(config(2));
+        processing.push(
+            Trigger::Create { seq: JournalSeq(1) },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(100),
+        );
+        processing.push(
+            Trigger::Recorder {
+                seq: JournalSeq(2),
+                user_id: UserId(41),
+                recording_type: RecordingType::Participant,
+            },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(200),
+        );
+        processing.push(
+            trigger(5, Stage::TobMaiden),
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(300),
+        );
+
+        processing.start(JournalSeq(1), Timestamp::from_millis(150));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(400),
+            Err(error(true)),
+        );
+        processing.start(JournalSeq(1), Timestamp::from_millis(3_400));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(3_500),
+            Err(error(true)),
+        );
+
+        assert_eq!(processing.active(), None);
+        assert_eq!(
+            processing.completed,
+            vec![
+                Trigger::Create { seq: JournalSeq(1) },
+                Trigger::Recorder {
+                    seq: JournalSeq(2),
+                    user_id: UserId(41),
+                    recording_type: RecordingType::Participant,
+                },
+                trigger(5, Stage::TobMaiden),
+            ],
+        );
+        assert!(processing.settled());
+    }
+
+    #[test]
+    fn processing_triggers_when_create_exhausted_complete_without_running() {
+        let mut processing = Processing::new(config(3));
+        processing.push(
+            Trigger::Create { seq: JournalSeq(2) },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(110),
+        );
+        processing.start(JournalSeq(2), Timestamp::from_millis(120));
+        processing.finish(
+            ChallengeType::Tob,
+            Timestamp::from_millis(250),
+            Err(error(false)),
+        );
+
+        processing.push(
+            Trigger::StageStart {
+                seq: JournalSeq(6),
+                stage: Stage::TobBloat,
+            },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(900),
+        );
+        processing.push(
+            Trigger::Finish {
+                seq: JournalSeq(11),
+            },
+            ChallengeState::default().challenge_info(),
+            Timestamp::from_millis(1_700),
+        );
+
+        assert_eq!(processing.active(), None);
+        assert_eq!(
+            processing.completed,
+            vec![
+                Trigger::Create { seq: JournalSeq(2) },
+                Trigger::StageStart {
+                    seq: JournalSeq(6),
+                    stage: Stage::TobBloat,
+                },
+                Trigger::Finish {
+                    seq: JournalSeq(11),
+                },
+            ],
+        );
+        assert!(processing.finish_queued());
         assert!(processing.settled());
     }
 
