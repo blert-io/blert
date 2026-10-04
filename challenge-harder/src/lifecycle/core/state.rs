@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use blert::Rsn;
 use serde::{Deserialize, Serialize};
 
 use core::time::Duration;
@@ -424,7 +425,7 @@ pub struct Snapshot {
     pub stage: Stage,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stage_attempt: Option<u32>,
-    pub party: Vec<String>,
+    pub party: Vec<Rsn>,
     pub phase: ChallengePhase,
     pub status: ChallengeStatus,
     /// Last inbox message the challenge has processed, whether or not it had
@@ -457,7 +458,7 @@ pub struct ChallengeState {
     pub created_unix_ms: u64,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
-    pub party: Vec<String>,
+    pub party: Vec<Rsn>,
     /// A player left partway through.
     pub party_changed: bool,
     pub phase: PhaseState,

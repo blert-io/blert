@@ -1,5 +1,7 @@
 //! Normal stage progression scenarios.
 
+use blert::Rsn;
+
 use super::*;
 use crate::lifecycle::sim::run;
 
@@ -21,7 +23,7 @@ async fn solo_colosseum_wipe_full_trace() {
                     session_uuid,
                     challenge_type: ChallengeType::Colosseum,
                     mode: ChallengeMode::NoMode,
-                    party: vec!["aSaradomin".into()],
+                    party: vec![Rsn::try_from("aSaradomin").unwrap()],
                     stage: Stage::ColosseumWave1,
                 },
             ),

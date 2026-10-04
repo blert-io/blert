@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use blert::Rsn;
 use serde_json::json;
 
 use crate::lifecycle::core::state::Trigger;
@@ -35,7 +36,7 @@ async fn empty_challenge_is_deleted_at_finish() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Mokhaiotl,
         mode: ChallengeMode::NoMode,
-        party: vec![player.clone()],
+        party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::MokhaiotlDelve1,
         stage_attempt: None,
@@ -204,7 +205,7 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Mokhaiotl,
         mode: ChallengeMode::NoMode,
-        party: vec![player.clone()],
+        party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::MokhaiotlDelve8,
         stage_attempt: None,
@@ -441,7 +442,7 @@ async fn finalization_corrects_the_session_start_to_its_earliest_challenge() {
         session_uuid,
         challenge_type: ChallengeType::Mokhaiotl,
         mode: ChallengeMode::NoMode,
-        party: vec![player.clone()],
+        party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::MokhaiotlDelve1,
         stage_attempt: None,

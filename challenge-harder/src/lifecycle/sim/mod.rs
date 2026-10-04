@@ -16,6 +16,7 @@ use std::slice;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use blert::Rsn;
 use tokio::time::Instant;
 
 use tokio::sync::{mpsc, watch};
@@ -48,13 +49,13 @@ pub enum Action {
     Start {
         challenge_type: ChallengeType,
         mode: ChallengeMode,
-        party: Vec<String>,
+        party: Vec<Rsn>,
         stage: Stage,
     },
     Update {
         mode: Option<ChallengeMode>,
         stage: Option<StageProgress>,
-        party: Option<Vec<String>>,
+        party: Option<Vec<Rsn>>,
     },
     Finish {
         times: Option<ReportedTimes>,
@@ -284,8 +285,8 @@ type MarkedStages = BTreeMap<Uuid, BTreeSet<(Stage, Option<u32>)>>;
 type RemovedStreams = BTreeMap<Uuid, BTreeSet<(Stage, Option<u32>)>>;
 
 /// Identity of a party for routing, built from its raw names.
-fn party_identity(challenge_type: ChallengeType, party: &[String]) -> String {
-    let mut sorted: Vec<&str> = party.iter().map(String::as_str).collect();
+fn party_identity(challenge_type: ChallengeType, party: &[Rsn]) -> String {
+    let mut sorted: Vec<&str> = party.iter().map(Rsn::as_str).collect();
     sorted.sort_unstable();
     format!("{challenge_type:?}-{}", sorted.join("-"))
 }
@@ -645,7 +646,7 @@ impl SessionStore for Collector {
     async fn resolve(
         &self,
         challenge_type: ChallengeType,
-        party: &[String],
+        party: &[Rsn],
         _window: Duration,
     ) -> Result<SessionResolution, StoreError> {
         let party_key = party_identity(challenge_type, party);

@@ -732,6 +732,8 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
 
+    use blert::Rsn;
+
     use super::*;
     use crate::lifecycle::core::command::{Create, CreateRequest, Finish};
     use crate::lifecycle::core::deadline::DeadlineKind;
@@ -891,7 +893,7 @@ mod tests {
                 runelite_version: "1.12.31.1".into(),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["a".into()],
+                party: vec![Rsn::try_from("a").unwrap()],
                 stage: Stage::TobMaiden,
                 recording_type: RecordingType::Participant,
             },
@@ -991,7 +993,7 @@ mod tests {
                         session_uuid: Uuid::from_u128(0x5e55),
                         challenge_type: ChallengeType::Tob,
                         mode: ChallengeMode::TobRegular,
-                        party: vec!["a".into()],
+                        party: vec![Rsn::try_from("a").unwrap()],
                         stage: Stage::TobMaiden,
                     },
                 },
@@ -1014,7 +1016,7 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             stage: Stage::TobMaiden,
             stage_attempt: None,
-            party: vec!["a".into()],
+            party: vec![Rsn::try_from("a").unwrap()],
             phase: ChallengePhase::Active,
             status: ChallengeStatus::InProgress,
             cursor: MsgId::sequence(1),
@@ -1118,7 +1120,7 @@ mod tests {
             created_unix_ms: 0,
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
-            party: vec!["a".into()],
+            party: vec![Rsn::try_from("a").unwrap()],
             party_changed: false,
             phase: PhaseState::Terminated {
                 finished_unix_ms: 0,
@@ -1186,7 +1188,7 @@ mod tests {
                     session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
-                    party: vec!["a".into()],
+                    party: vec![Rsn::try_from("a").unwrap()],
                     stage: Stage::TobMaiden,
                 },
             ),
@@ -1254,7 +1256,7 @@ mod tests {
             created_unix_ms: 0,
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
-            party: vec!["a".into()],
+            party: vec![Rsn::try_from("a").unwrap()],
             party_changed: false,
             phase: PhaseState::Terminated {
                 finished_unix_ms: 0,
@@ -1290,7 +1292,7 @@ mod tests {
                     mode: ChallengeMode::TobRegular,
                     stage: Stage::TobMaiden,
                     stage_attempt: None,
-                    party: vec!["a".into()],
+                    party: vec![Rsn::try_from("a").unwrap()],
                     phase: ChallengePhase::Active,
                     status: ChallengeStatus::InProgress,
                     cursor: MsgId::sequence(1),

@@ -14,6 +14,8 @@ mod retries;
 mod stage_end;
 mod sweep;
 
+use blert::Rsn;
+
 use super::{Action, Client, Scenario};
 use crate::lifecycle::core::command::StageProgress;
 use crate::lifecycle::core::event::{Cause, JournalEntry, LifecycleEvent};
@@ -22,8 +24,11 @@ use crate::lifecycle::core::types::{
     Timestamp, UserId,
 };
 
-pub fn duo() -> Vec<String> {
-    vec!["WWWWWWWWWWQQ".into(), "715".into()]
+pub fn duo() -> Vec<Rsn> {
+    vec![
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        Rsn::try_from("715").unwrap(),
+    ]
 }
 
 pub fn tob_start() -> Action {
@@ -104,7 +109,7 @@ pub fn solo_colosseum() -> Scenario {
                     Action::Start {
                         challenge_type: ChallengeType::Colosseum,
                         mode: ChallengeMode::NoMode,
-                        party: vec!["aSaradomin".into()],
+                        party: vec![Rsn::try_from("aSaradomin").unwrap()],
                         stage: Stage::ColosseumWave1,
                     },
                 )

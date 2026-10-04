@@ -4,6 +4,8 @@
 //! converting incoming commands to a set of intended actions that are later
 //! applied.
 
+use blert::Rsn;
+
 use super::command::{
     ClientMovedOn, ClientStatus, ClientStatusChange, Command, Create, Finish, Join, Processed,
     Update,
@@ -267,7 +269,7 @@ fn client_moved_on(state: &ChallengeState, moved: &ClientMovedOn) -> Vec<Lifecyc
     }
 }
 
-fn members_changed(new: &[String], old: &[String]) -> bool {
+fn members_changed(new: &[Rsn], old: &[Rsn]) -> bool {
     new.len() != old.len() || new.iter().any(|member| !old.contains(member))
 }
 
@@ -445,7 +447,7 @@ mod tests {
             uuid: Uuid::from_u128(0xb1e47),
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
-            party: vec!["Skitter".into()],
+            party: vec![Rsn::try_from("Skitter").unwrap()],
             stage: Stage::TobMaiden,
             stage_status: StageStatus::Started,
             clients: clients.into_iter().collect(),
@@ -488,7 +490,7 @@ mod tests {
                 runelite_version: "1.12.31.1".into(),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["Skitter".into()],
+                party: vec![Rsn::try_from("Skitter").unwrap()],
                 stage: Stage::TobMaiden,
                 recording_type: RecordingType::Participant,
             },
@@ -501,7 +503,7 @@ mod tests {
                     session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
-                    party: vec!["Skitter".into()],
+                    party: vec![Rsn::try_from("Skitter").unwrap()],
                     stage: Stage::TobMaiden,
                 },
                 LifecycleEvent::ClientJoined {
@@ -753,7 +755,10 @@ mod tests {
             uuid: Uuid::from_u128(0xb1e47),
             challenge_type: ChallengeType::Toa,
             mode: ChallengeMode::ToaNormal,
-            party: vec!["715".into(), "WWWWWWWWWWQQ".into()],
+            party: vec![
+                Rsn::try_from("715").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             stage: Stage::ToaKephri,
             stage_attempt: Some(1),
             stage_status: StageStatus::Started,
@@ -1062,7 +1067,7 @@ mod tests {
             uuid: Uuid::from_u128(0xb1e47),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["Plondreim".into()],
+            party: vec![Rsn::try_from("Plondreim").unwrap()],
             stage: Stage::MokhaiotlDelve8plus,
             stage_attempt: Some(4),
             clients: [(
@@ -1383,7 +1388,10 @@ mod tests {
     fn entry_mode_update_terminates_without_sealing() {
         let state = ChallengeState {
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+            party: vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             stage: Stage::TobXarpus,
             ..tob_state(vec![
                 (
@@ -1406,7 +1414,7 @@ mod tests {
                 stage: Stage::TobXarpus,
                 status: StageStatus::Started,
             }),
-            party: Some(vec!["1Ogp".into()]),
+            party: Some(vec![Rsn::try_from("1Ogp").unwrap()]),
         });
         assert_eq!(
             decide(&state, &LifecycleConfig::default(), &cmd),
@@ -1425,7 +1433,10 @@ mod tests {
     #[test]
     fn party_change_only_fires_once() {
         let state = ChallengeState {
-            party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+            party: vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             ..tob_state(vec![(
                 CLIENT_A,
                 client(Stage::TobMaiden, StageStatus::Started, None),
@@ -1438,12 +1449,12 @@ mod tests {
             session_token: "tok".into(),
             mode: None,
             stage: None,
-            party: Some(vec!["1Ogp".into()]),
+            party: Some(vec![Rsn::try_from("1Ogp").unwrap()]),
         });
         assert_eq!(
             decide(&state, &LifecycleConfig::default(), &cmd),
             vec![LifecycleEvent::PartyChanged {
-                party: vec!["1Ogp".into()],
+                party: vec![Rsn::try_from("1Ogp").unwrap()],
             }],
         );
 
@@ -1457,7 +1468,10 @@ mod tests {
     #[test]
     fn party_reorder_is_not_a_change() {
         let state = ChallengeState {
-            party: vec!["caps lock13".into(), "vShawneh".into()],
+            party: vec![
+                Rsn::try_from("caps lock13").unwrap(),
+                Rsn::try_from("vShawneh").unwrap(),
+            ],
             ..tob_state(vec![(
                 CLIENT_A,
                 client(Stage::TobMaiden, StageStatus::Started, None),
@@ -1469,7 +1483,10 @@ mod tests {
             session_token: "tok".into(),
             mode: None,
             stage: None,
-            party: Some(vec!["vShawneh".into(), "caps lock13".into()]),
+            party: Some(vec![
+                Rsn::try_from("vShawneh").unwrap(),
+                Rsn::try_from("caps lock13").unwrap(),
+            ]),
         });
         assert_eq!(decide(&state, &LifecycleConfig::default(), &cmd), vec![]);
 

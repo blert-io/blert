@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use blert::Rsn;
 use tokio::sync::watch;
 
 use super::*;
@@ -43,7 +44,7 @@ fn solo_hmt_start() -> Action {
     Action::Start {
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobHard,
-        party: vec!["aSaradomin".into()],
+        party: vec![Rsn::try_from("aSaradomin").unwrap()],
         stage: Stage::TobMaiden,
     }
 }
@@ -718,7 +719,7 @@ fn hmt_creat() -> CreateRequest {
         runelite_version: "1.12.31.1".into(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobHard,
-        party: vec!["aSaradomin".into()],
+        party: vec![Rsn::try_from("aSaradomin").unwrap()],
         stage: Stage::TobMaiden,
         recording_type: RecordingType::Participant,
     }

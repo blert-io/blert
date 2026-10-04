@@ -1330,7 +1330,7 @@ impl ChallengeProcessor for TheatreProcessor {
         let deaths: Vec<String> = ctx
             .deaths()
             .iter()
-            .map(|&index| self.challenge.party[index].clone())
+            .map(|&index| self.challenge.party[index].to_string())
             .collect();
         let mut room = RoomData {
             stage,
@@ -1440,6 +1440,7 @@ impl ChallengeProcessor for TheatreProcessor {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::too_many_lines)]
+    use blert::Rsn;
     use serde_json::json;
 
     use super::*;
@@ -1460,7 +1461,10 @@ mod tests {
             session_uuid: "1de5b70a-3f52-4c68-9b1d-c2a4e87f30b6".parse().unwrap(),
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
-            party: vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            party: vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             party_changed: false,
             stage,
             stage_attempt: None,
@@ -1566,7 +1570,10 @@ mod tests {
         .unwrap();
         let mut ctx = StageContext::new(
             Stage::TobMaiden,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         let mut events = merged_events(
             vec![
@@ -1713,7 +1720,10 @@ mod tests {
         .unwrap();
         let mut ctx = StageContext::new(
             Stage::TobMaiden,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         let maiden = Some(event::Npc {
             id: 8360,
@@ -1832,7 +1842,10 @@ mod tests {
         .unwrap();
         let mut ctx = StageContext::new(
             Stage::TobBloat,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         let mut events = merged_events(
             vec![
@@ -2046,7 +2059,10 @@ mod tests {
         .unwrap();
         let mut ctx = StageContext::new(
             Stage::TobNylocas,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         let mut events = merged_events(
             vec![
@@ -2159,9 +2175,9 @@ mod tests {
         let mut ctx = StageContext::new(
             Stage::TobSotetseg,
             vec![
-                "715".to_string(),
-                "1Ogp".to_string(),
-                "WWWWWWWWWWQQ".to_string(),
+                Rsn::try_from("715").unwrap(),
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
             ],
         );
         let mut events = merged_events(
@@ -2337,7 +2353,10 @@ mod tests {
         .unwrap();
         let mut ctx = StageContext::new(
             Stage::TobXarpus,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         let mut events = merged_events(
             vec![
@@ -2405,9 +2424,9 @@ mod tests {
         let mut ctx = StageContext::new(
             Stage::TobVerzik,
             vec![
-                "1Ogp".to_string(),
-                "WWWWWWWWWWQQ".to_string(),
-                "715".to_string(),
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+                Rsn::try_from("715").unwrap(),
             ],
         );
         let red = |tick: Tick, room_id: u64, coords: (i32, i32)| {
@@ -2564,7 +2583,10 @@ mod tests {
             overall: Some(2485),
         });
         let mut processor = TheatreProcessor::new(TheatreConfig::default(), info, None).unwrap();
-        let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+        let mut ctx = ChallengeContext::new(vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ]);
         processor
             .on_finish(&txn, &stored, &mut ctx, Ticks(2109))
             .await
@@ -2595,7 +2617,10 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+        let mut ctx = ChallengeContext::new(vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ]);
         processor
             .on_finish(&txn, &stored, &mut ctx, Ticks(1121))
             .await

@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
+use blert::Rsn;
 use deadpool_postgres::Object;
 
 use super::golden;
@@ -74,7 +75,7 @@ async fn wave_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Inferno,
         mode: ChallengeMode::NoMode,
-        party: vec!["player1".to_string()],
+        party: vec![Rsn::try_from("player1").unwrap()],
         party_changed: false,
         stage: Stage::InfernoWave42,
         stage_attempt: None,

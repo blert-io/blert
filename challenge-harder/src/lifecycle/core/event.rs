@@ -1,5 +1,6 @@
 //! Challenge journal events.
 
+use blert::Rsn;
 use serde::{Deserialize, Serialize};
 
 use super::command::StageProgress;
@@ -37,7 +38,7 @@ pub enum LifecycleEvent {
         session_uuid: Uuid,
         challenge_type: ChallengeType,
         mode: ChallengeMode,
-        party: Vec<String>,
+        party: Vec<Rsn>,
         stage: Stage,
     },
     ClientJoined {
@@ -55,7 +56,7 @@ pub enum LifecycleEvent {
         mode: ChallengeMode,
     },
     PartyChanged {
-        party: Vec<String>,
+        party: Vec<Rsn>,
     },
     /// A client reported stage progress.
     ClientStageReported {

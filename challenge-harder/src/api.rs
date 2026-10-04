@@ -11,6 +11,7 @@ use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
+use blert::{InvalidRsn, Rsn};
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
 
@@ -156,6 +157,10 @@ fn error_response(status: StatusCode, message: &str) -> Response {
     (status, Json(body)).into_response()
 }
 
+fn parse_party(party: Vec<String>) -> Result<Vec<Rsn>, InvalidRsn> {
+    party.into_iter().map(Rsn::try_from).collect()
+}
+
 fn command_error(e: CommandError) -> Response {
     match e {
         CommandError::UnknownChallenge => {
@@ -174,6 +179,10 @@ async fn new_challenge(
     State(coordinator): State<Arc<Coordinator>>,
     Json(req): Json<NewChallengeRequest>,
 ) -> Response {
+    let party = match parse_party(req.party) {
+        Ok(party) => party,
+        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e.to_string()),
+    };
     let request = CreateRequest {
         user_id: req.user_id,
         client_id: req.client_id,
@@ -182,7 +191,7 @@ async fn new_challenge(
         runelite_version: req.rune_lite_version,
         challenge_type: req.challenge_type,
         mode: req.mode,
-        party: req.party,
+        party,
         stage: req.stage,
         recording_type: req.recording_type,
     };
@@ -204,13 +213,17 @@ async fn update_challenge(
     Path(challenge_id): Path<Uuid>,
     Json(req): Json<UpdateChallengeRequest>,
 ) -> Response {
+    let party = match req.update.party.map(parse_party).transpose() {
+        Ok(party) => party,
+        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e.to_string()),
+    };
     let update = Update {
         user_id: req.user_id,
         client_id: req.client_id,
         session_token: req.session_token,
         mode: req.update.mode,
         stage: req.update.stage,
-        party: req.update.party,
+        party,
     };
 
     match coordinator.update(challenge_id, update).await {
@@ -420,6 +433,48 @@ mod tests {
             body,
             json!({ "error": { "message": "the challenge was not allowed to start" } }),
         );
+    }
+
+    #[tokio::test]
+    async fn invalid_party_names_are_rejected() {
+        let router = test_router();
+        let start = |party: Value| {
+            json!({
+                "userId": 4, "clientId": 40, "sessionToken": "tok4",
+                "pluginVersion": "0.9.23", "runeLiteVersion": "1.13.1",
+                "type": 1, "mode": 11, "party": party, "stage": 10,
+                "recordingType": 1,
+            })
+        };
+        let rejection = json!({
+            "error": { "message": r#"invalid RSN: "<col=ff0000>1Ogp</col>""# },
+        });
+
+        let (status, body) = post(
+            &router,
+            "/challenges/new",
+            &start(json!(["WWWWWWWWWWQQ", "<col=ff0000>1Ogp</col>"])),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body, rejection);
+
+        let (status, body) =
+            post(&router, "/challenges/new", &start(json!(["WWWWWWWWWWQQ"]))).await;
+        assert_eq!(status, StatusCode::OK);
+        let uuid = body["uuid"].as_str().expect("uuid in response").to_owned();
+
+        let (status, body) = post(
+            &router,
+            &format!("/challenges/{uuid}"),
+            &json!({
+                "userId": 4, "clientId": 40, "sessionToken": "tok4",
+                "update": { "party": ["WWWWWWWWWWQQ", "<col=ff0000>1Ogp</col>"] },
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body, rejection);
     }
 
     #[tokio::test]

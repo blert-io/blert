@@ -3,6 +3,7 @@
 use core::ops::Add;
 use core::time::Duration;
 
+use blert::Rsn;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -318,7 +319,7 @@ pub struct ChallengeInfo {
     pub session_uuid: Uuid,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
-    pub party: Vec<String>,
+    pub party: Vec<Rsn>,
     pub party_changed: bool,
     pub stage: Stage,
     pub stage_attempt: Option<u32>,

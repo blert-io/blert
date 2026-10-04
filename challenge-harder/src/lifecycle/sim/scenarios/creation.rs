@@ -1,5 +1,7 @@
 //! Scenarios ruling on challenge creation, joining, and supersession.
 
+use blert::Rsn;
+
 use super::*;
 use crate::lifecycle::core::deadline::DeadlineKind;
 use crate::lifecycle::core::types::{ChallengeStatus, Uuid};
@@ -163,7 +165,7 @@ fn solo_start(name: &str) -> Action {
     Action::Start {
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party: vec![name.into()],
+        party: vec![Rsn::try_from(name).unwrap()],
         stage: Stage::TobMaiden,
     }
 }
@@ -198,7 +200,7 @@ async fn start_for_another_party_leaves_the_recorded_challenge() {
                     session_uuid: result.sessions["Tob-715"],
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
-                    party: vec!["715".into()],
+                    party: vec![Rsn::try_from("715").unwrap()],
                     stage: Stage::TobMaiden,
                 },
             ),

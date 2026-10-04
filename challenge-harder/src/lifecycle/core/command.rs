@@ -1,5 +1,6 @@
 //! Commands processed by a challenge.
 
+use blert::Rsn;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -36,7 +37,7 @@ pub struct CreateRequest {
     pub runelite_version: String,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
-    pub party: Vec<String>,
+    pub party: Vec<Rsn>,
     pub stage: Stage,
     pub recording_type: RecordingType,
 }
@@ -87,7 +88,7 @@ pub struct Update {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stage: Option<StageProgress>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub party: Option<Vec<String>>,
+    pub party: Option<Vec<Rsn>>,
 }
 
 /// Request to complete a challenge.

@@ -7,7 +7,7 @@ fn mokhaiotl_start(stage: Stage) -> Action {
     Action::Start {
         challenge_type: ChallengeType::Mokhaiotl,
         mode: ChallengeMode::NoMode,
-        party: vec!["Prom Wizy".into()],
+        party: vec![Rsn::try_from("Prom Wizy").unwrap()],
         stage,
     }
 }

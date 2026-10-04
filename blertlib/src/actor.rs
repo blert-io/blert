@@ -1,6 +1,8 @@
 use std::fmt;
 use std::ops::{Index, IndexMut};
 
+use serde::{Deserialize, Serialize, Serializer};
+
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item};
 use crate::prayer::PrayerSet;
 use crate::skill::SkillLevel;
@@ -26,13 +28,27 @@ impl PartyIndex {
 }
 
 /// A validated OSRS player name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(try_from = "String")]
 pub struct Rsn(String);
+
+impl Serialize for Rsn {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
 
 impl Rsn {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Normalizes the RSN to Blert's stored representation.
+    #[must_use]
+    pub fn normalized(&self) -> String {
+        // Same transformation as in `//common_player.ts`
+        self.0.to_lowercase().replace(['-', ' '], "_")
     }
 }
 
@@ -339,6 +355,9 @@ mod tests {
         assert_eq!(borrowed, "1Ogp");
         assert_eq!(&borrowed, "1Ogp");
         assert_ne!(borrowed, "1ogp");
+        assert_eq!(Rsn::try_from("-1O gp").unwrap().normalized(), "_1o_gp");
+        assert_eq!(serde_json::to_string(&borrowed).unwrap(), r#""1Ogp""#);
+        assert_eq!(serde_json::from_str::<Rsn>(r#""1Ogp""#).unwrap(), borrowed);
         assert_eq!([borrowed, longest].as_slice(), ["1Ogp", "WWWWWWWWWWQQ"]);
     }
 
@@ -372,5 +391,6 @@ mod tests {
             error.to_string(),
             r#"invalid RSN: "<col=ff0000>1Ogp</col>""#
         );
+        assert!(serde_json::from_str::<Rsn>(r#""<col=ff0000>1Ogp</col>""#).is_err());
     }
 }

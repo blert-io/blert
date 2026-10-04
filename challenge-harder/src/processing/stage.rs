@@ -103,7 +103,7 @@ async fn persist(
         uuid: challenge.uuid,
         challenge_type: challenge.challenge_type,
         mode: challenge.mode,
-        party: challenge.party.clone(),
+        party: challenge.party.iter().map(ToString::to_string).collect(),
         stage: challenge.stage,
         attempt: challenge.stage_attempt,
         records,
@@ -359,7 +359,7 @@ fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingP
 
 #[cfg(test)]
 mod tests {
-    use blert::Tick;
+    use blert::{Rsn, Tick};
     use bytes::Bytes;
     use prost::Message;
 
@@ -434,7 +434,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve1,
             stage_attempt: None,

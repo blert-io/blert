@@ -307,6 +307,8 @@ fn stage_reported(
 mod tests {
     use core::time::Duration;
 
+    use blert::Rsn;
+
     use super::*;
     use crate::lifecycle::core::command::StageProgress;
     use crate::lifecycle::core::deadline::DeadlineKind;
@@ -348,7 +350,7 @@ mod tests {
                     session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type,
                     mode,
-                    party: vec!["aSaradomin".into()],
+                    party: vec![Rsn::try_from("aSaradomin").unwrap()],
                     stage,
                 },
             ),
@@ -390,7 +392,7 @@ mod tests {
         let state = created_tob_state();
         assert_eq!(state.challenge_type, ChallengeType::Tob);
         assert_eq!(state.mode, ChallengeMode::TobRegular);
-        assert_eq!(state.party, vec!["aSaradomin".to_string()]);
+        assert_eq!(state.party, ["aSaradomin"]);
         assert_eq!(state.stage, Stage::TobMaiden);
         assert_eq!(state.stage_attempt, None);
         assert_eq!(state.stage_status, StageStatus::Entered);
@@ -550,7 +552,7 @@ mod tests {
                     session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Mokhaiotl,
                     mode: ChallengeMode::NoMode,
-                    party: vec!["Skitter".into()],
+                    party: vec![Rsn::try_from("Skitter").unwrap()],
                     stage: Stage::MokhaiotlDelve1,
                 },
             ),
@@ -812,7 +814,10 @@ mod tests {
                     session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
-                    party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+                    party: vec![
+                        Rsn::try_from("1Ogp").unwrap(),
+                        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+                    ],
                     stage: Stage::TobMaiden,
                 },
             ),
@@ -824,16 +829,13 @@ mod tests {
                 5_000,
                 2,
                 LifecycleEvent::PartyChanged {
-                    party: vec!["WWWWWWWWWWQQ".into()],
+                    party: vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
                 },
             ),
         );
 
         assert!(state.party_changed);
-        assert_eq!(
-            state.party,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]
-        );
+        assert_eq!(state.party, ["1Ogp", "WWWWWWWWWWQQ"]);
     }
 
     #[test]
@@ -891,7 +893,7 @@ mod tests {
                     session_uuid: Uuid::from_u128(0x5e55),
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
-                    party: vec!["1Ogp".into()],
+                    party: vec![Rsn::try_from("1Ogp").unwrap()],
                     stage: Stage::TobMaiden,
                 },
             },
@@ -1093,7 +1095,7 @@ mod tests {
                 session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["a".into()],
+                party: vec![Rsn::try_from("a").unwrap()],
                 stage: Stage::TobMaiden,
             },
         };
@@ -1154,7 +1156,7 @@ mod tests {
                 5_500,
                 4,
                 LifecycleEvent::PartyChanged {
-                    party: vec!["Skitter".into()],
+                    party: vec![Rsn::try_from("Skitter").unwrap()],
                 },
             ),
         );
@@ -1176,7 +1178,7 @@ mod tests {
                 session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["aSaradomin".into()],
+                party: vec![Rsn::try_from("aSaradomin").unwrap()],
                 party_changed: false,
                 stage: Stage::TobMaiden,
                 stage_attempt: None,
@@ -1213,7 +1215,7 @@ mod tests {
                 session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobHard,
-                party: vec!["aSaradomin".into()],
+                party: vec![Rsn::try_from("aSaradomin").unwrap()],
                 party_changed: true,
                 stage: Stage::TobMaiden,
                 stage_attempt: None,
@@ -1290,7 +1292,7 @@ mod tests {
                 session_uuid: Uuid::from_u128(0x5e55),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["aSaradomin".into()],
+                party: vec![Rsn::try_from("aSaradomin").unwrap()],
                 party_changed: false,
                 stage: Stage::TobMaiden,
                 stage_attempt: None,

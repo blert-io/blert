@@ -5,6 +5,7 @@
 
 #![cfg_attr(not(test), expect(dead_code))]
 
+use blert::Rsn;
 use futures_util::stream::BoxStream;
 use prost::Message;
 
@@ -114,7 +115,7 @@ impl DataRepository {
         uuid: Uuid,
         stage: Stage,
         attempt: Option<u32>,
-        party: &[String],
+        party: &[Rsn],
         mut events: Vec<Event>,
     ) -> Result<(), Error> {
         let party_index = |name: &str| {
@@ -151,7 +152,7 @@ impl DataRepository {
         let contents = ChallengeEvents {
             events,
             stage: stage as i32,
-            party_names: party.to_vec(),
+            party_names: party.iter().map(ToString::to_string).collect(),
         };
         self.backend
             .write(
@@ -398,7 +399,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let repository = repository(&dir);
         let uuid = Uuid::try_parse(UUID).unwrap();
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+        let party = vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ];
 
         repository
             .save_stage_events(uuid, Stage::TobMaiden, None, &party, events())
@@ -414,7 +418,7 @@ mod tests {
             .unwrap();
         let stored = ChallengeEvents::decode(raw.as_slice()).unwrap();
         assert_eq!(stored.stage, Stage::TobMaiden as i32);
-        assert_eq!(stored.party_names, party);
+        assert_eq!(stored.party_names, ["1Ogp", "WWWWWWWWWWQQ"]);
         assert_eq!(
             stored.events,
             vec![
@@ -479,7 +483,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let repository = repository(&dir);
         let uuid = Uuid::try_parse(UUID).unwrap();
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+        let party = vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ];
 
         repository
             .save_challenge(uuid, &ChallengeData::default())
