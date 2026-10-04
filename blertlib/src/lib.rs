@@ -10,6 +10,8 @@ mod skill;
 mod tick;
 mod timeline;
 
+#[cfg(feature = "golden")]
+pub mod golden;
 pub mod item;
 pub mod npc;
 pub mod proto;

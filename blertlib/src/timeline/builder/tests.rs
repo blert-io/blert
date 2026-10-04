@@ -473,13 +473,7 @@ fn builder_ingest_npc_spawn() {
             }
         )])
     );
-    assert_eq!(
-        state.events,
-        [Event::recorded(
-            ClientId(3),
-            EventKind::NpcSpawn(RoomId(48416))
-        )]
-    );
+    assert_eq!(state.events, []);
     assert_eq!(builder.rejections().count(), 0);
     assert_eq!(builder.warnings().count(), 0);
 }
@@ -2658,6 +2652,29 @@ fn convert_npc_death() {
         EventOutcome::Accepted(EventKind::NpcDeath(NpcDeath {
             position: Point(3164, 4315),
             npc: RoomId(62870),
+            npc_id: Some(8385),
+        }))
+    );
+
+    let mut death_without_id = proto::Event {
+        tick: 462,
+        stage: Stage::TobVerzik as i32,
+        x_coord: 3164,
+        y_coord: 4309,
+        ..Default::default()
+    };
+    death_without_id.set_type(proto::event::Type::NpcDeath);
+    death_without_id.npc = Some(proto::event::Npc {
+        room_id: 43436,
+        r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
+    });
+    assert_eq!(
+        convert_event(&party, &death_without_id),
+        EventOutcome::Accepted(EventKind::NpcDeath(NpcDeath {
+            position: Point(3164, 4309),
+            npc: RoomId(43436),
+            npc_id: None,
         }))
     );
 

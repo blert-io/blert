@@ -64,9 +64,6 @@ pub enum EventKind {
     PlayerAttack(PlayerAttacked),
     PlayerSpell(PlayerCast),
 
-    /// The first appearance of an NPC in the client.
-    /// Render distance may mean that this is not actually when it spawned.
-    NpcSpawn(RoomId),
     /// An NPC has despawned following the completion of its death animation.
     NpcDeath(NpcDeath),
     NpcAttack(NpcAttacked),
@@ -135,7 +132,6 @@ impl EventKind {
             Self::PlayerDeath(_)
             | Self::PlayerAttack(_)
             | Self::PlayerSpell(_)
-            | Self::NpcSpawn(_)
             | Self::NpcDeath(_)
             | Self::NpcAttack(_)
             | Self::MaidenCrabLeak(_)
@@ -188,6 +184,7 @@ pub struct PlayerCast {
 pub struct NpcDeath {
     pub position: Point,
     pub npc: RoomId,
+    pub npc_id: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -375,12 +375,6 @@ impl<'a> TickBuilder<'a> {
                 ) {
                     Ok((room_id, state)) => {
                         self.state.npcs.insert(room_id, state);
-                        if kind == Type::NpcSpawn {
-                            self.state.events.push(Event::recorded(
-                                self.client_id,
-                                EventKind::NpcSpawn(room_id),
-                            ));
-                        }
                     }
                     Err(reason) => {
                         self.rejections
@@ -1070,6 +1064,7 @@ fn convert_or_reject(party: &[Rsn], event: &proto::Event) -> Result<EventOutcome
             Ok(EventOutcome::Accepted(EventKind::NpcDeath(NpcDeath {
                 position,
                 npc: RoomId(npc.room_id),
+                npc_id: Some(npc.id).filter(|&id| id > 0),
             })))
         }
 
