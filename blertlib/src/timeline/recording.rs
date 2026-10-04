@@ -1,3 +1,4 @@
+use crate::actor::Rsn;
 use crate::event::Event;
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, Stage};
@@ -16,14 +17,14 @@ use super::{TickState, Timeline, finalize};
 pub struct Recording {
     stage: Stage,
     mode: ChallengeMode,
-    party: Vec<String>,
+    party: Vec<Rsn>,
     states: Vec<Option<TickState>>,
 }
 
 impl Recording {
     /// Creates a recording spanning to `last_tick` without any state or events.
     #[must_use]
-    pub fn vacant(stage: Stage, mode: ChallengeMode, party: Vec<String>, last_tick: Tick) -> Self {
+    pub fn vacant(stage: Stage, mode: ChallengeMode, party: Vec<Rsn>, last_tick: Tick) -> Self {
         Self {
             stage,
             mode,
@@ -46,7 +47,7 @@ impl Recording {
 
     /// Returns the challenge's party in orb order.
     #[must_use]
-    pub fn party(&self) -> &[String] {
+    pub fn party(&self) -> &[Rsn] {
         &self.party
     }
 
@@ -160,7 +161,7 @@ mod tests {
         let mut recording = Recording::vacant(
             Stage::TobBloat,
             ChallengeMode::TobRegular,
-            vec!["TobDataEgirl".to_string()],
+            vec![Rsn::try_from("TobDataEgirl").unwrap()],
             Tick(3),
         );
         assert_eq!(recording.last_tick(), Tick(3));
@@ -253,7 +254,7 @@ mod tests {
         let mut recording = Recording::vacant(
             Stage::TobMaiden,
             ChallengeMode::TobRegular,
-            vec!["TobDataEgirl".to_string()],
+            vec![Rsn::try_from("TobDataEgirl").unwrap()],
             Tick(3),
         );
         recording.set_state(
@@ -272,7 +273,10 @@ mod tests {
         let mut recording = Recording::vacant(
             Stage::TobXarpus,
             ChallengeMode::TobHard,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             Tick(3),
         );
         recording.set_state(
@@ -307,7 +311,7 @@ mod tests {
         let mut recording = Recording::vacant(
             Stage::TobVerzik,
             ChallengeMode::TobRegular,
-            vec!["TobDataEgirl".to_string()],
+            vec![Rsn::try_from("TobDataEgirl").unwrap()],
             Tick(5),
         );
         recording.set_state(

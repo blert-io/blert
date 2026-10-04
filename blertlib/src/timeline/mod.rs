@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::actor::{NpcState, Players, RoomId};
+use crate::actor::{NpcState, Players, RoomId, Rsn};
 use crate::event::Event;
 use crate::objects::TickObjects;
 use crate::tick::Tick;
@@ -31,7 +31,7 @@ pub struct TickState {
 pub struct Timeline {
     stage: Stage,
     mode: ChallengeMode,
-    party: Vec<String>,
+    party: Vec<Rsn>,
     states: Vec<Option<TickState>>,
 }
 
@@ -50,7 +50,7 @@ impl Timeline {
 
     /// Returns the party of the recorded challenge.
     #[must_use]
-    pub fn party(&self) -> &[String] {
+    pub fn party(&self) -> &[Rsn] {
         &self.party
     }
 
@@ -125,7 +125,10 @@ mod tests {
         let timeline = Timeline {
             stage: Stage::TobBloat,
             mode: ChallengeMode::TobHard,
-            party: vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            party: vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             states: vec![
                 None,
                 Some(TickState {
