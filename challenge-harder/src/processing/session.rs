@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use async_trait::async_trait;
-use deadpool_postgres::Object;
 
 use crate::lifecycle::core::types::{ChallengeMode, ChallengeStatus, Uuid};
 use crate::lifecycle::session::SessionFinalizer;
@@ -210,27 +209,13 @@ impl PostgresSessionFinalizer {
     }
 
     async fn run(&self, session: Uuid) -> Result<(), db::Error> {
-        let client = self.db.checkout().await?;
-        client.batch_execute("BEGIN").await?;
-        let result = async {
-            let outcome = Self::finalize_row(&client, session).await?;
-            client.batch_execute("COMMIT").await?;
-            Ok(outcome)
+        let txn = self.db.begin().await?;
+        let outcome = Self::finalize_row(&txn, session).await?;
+        txn.commit().await?;
+        if outcome == Some(FinalizationOutcome::Updated) {
+            metrics::record_session_finalized();
         }
-        .await;
-        match result {
-            Ok(Some(FinalizationOutcome::Updated)) => {
-                metrics::record_session_finalized();
-                Ok(())
-            }
-            Ok(_) => Ok(()),
-            Err(error) => {
-                // Closing the connection rolls the transaction back on the
-                // server; detaching keeps the aborted session out of the pool.
-                drop(Object::take(client));
-                Err(error)
-            }
-        }
+        Ok(())
     }
 
     /// Finalizes the session's row if it exists.

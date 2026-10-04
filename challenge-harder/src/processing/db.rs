@@ -135,9 +135,11 @@ impl Postgres {
         Ok(Postgres { pool })
     }
 
-    /// Checks a raw connection out of the pool.
-    pub(crate) async fn checkout(&self) -> Result<Object, Error> {
-        Ok(self.pool.get().await?)
+    /// Opens a transaction on a pooled connection.
+    pub(crate) async fn begin(&self) -> Result<PooledTransaction, Error> {
+        let txn = PooledTransaction(Some(self.pool.get().await?));
+        txn.batch_execute("BEGIN").await?;
+        Ok(txn)
     }
 
     /// Opens a guarded transaction for the processing run of `trigger`,
@@ -149,10 +151,8 @@ impl Postgres {
         trigger: Trigger,
     ) -> Result<Transaction, Error> {
         let seq = trigger.seq();
-        let client = self.pool.get().await?;
-        client.batch_execute("BEGIN").await?;
         let mut txn = Transaction {
-            client: Some(client),
+            client: self.begin().await?,
             trigger,
             challenge_id: 0,
             session_id: None,
@@ -181,16 +181,33 @@ impl Postgres {
                 txn.session_id = row.get(1);
                 txn.custom_data = row.get(5);
             }
-            None => {
+            None => match trigger {
+                Trigger::Create { .. } => {}
                 // Nothing runs after a finish, so no row existing means a
                 // prior attempt deleted the challenge.
-                if matches!(trigger, Trigger::Finish { .. }) {
+                Trigger::Finish { .. } => {
                     return Err(Error::AlreadyApplied(ProcessingPayload::None));
                 }
-            }
+                // The challenge was never created; fail immediately.
+                Trigger::Recorder { .. }
+                | Trigger::StageStart { .. }
+                | Trigger::Mode { .. }
+                | Trigger::Stage { .. } => {
+                    return Err(Error::InvalidData(format!(
+                        "challenge {uuid} does not exist"
+                    )));
+                }
+            },
         }
 
         Ok(txn)
+    }
+
+    /// Checks a raw connection out of the pool.
+    /// TODO(frolv): remove
+    #[cfg(test)]
+    pub(crate) async fn checkout(&self) -> Result<Object, Error> {
+        Ok(self.pool.get().await?)
     }
 }
 
@@ -213,7 +230,7 @@ fn stored_payload(row: &tokio_postgres::Row) -> Result<ProcessingPayload, Error>
 /// An active processing transaction wrapping a database connection. Committing
 /// advances the challenge's processing cursor.
 pub struct Transaction {
-    client: Option<Object>,
+    client: PooledTransaction,
     trigger: Trigger,
     /// Database ID of the challenge row.
     challenge_id: i32,
@@ -267,16 +284,15 @@ impl Transaction {
     /// A transaction marked deleted commits without recording processing
     /// state, as the rows it would reference no longer exist.
     pub async fn commit(
-        mut self,
+        self,
         payload: &ProcessingPayload,
         custom_data: Option<&serde_json::Value>,
     ) -> Result<(), Error> {
-        let client = self.client.take().expect("transaction is active");
+        let client = self.client;
         let seq = self.trigger.seq().0.cast_signed();
 
         if self.deleted {
-            client.batch_execute("COMMIT").await?;
-            return Ok(());
+            return client.commit().await;
         }
 
         if matches!(self.trigger, Trigger::Finish { .. }) {
@@ -294,8 +310,7 @@ impl Transaction {
                     &[&self.challenge_id, &seq],
                 )
                 .await?;
-            client.batch_execute("COMMIT").await?;
-            return Ok(());
+            return client.commit().await;
         }
 
         let (status, ticks) = match payload {
@@ -320,8 +335,7 @@ impl Transaction {
                 &[&self.challenge_id, &seq, &status, &ticks, &custom_data],
             )
             .await?;
-        client.batch_execute("COMMIT").await?;
-        Ok(())
+        client.commit().await
     }
 }
 
@@ -329,15 +343,35 @@ impl Deref for Transaction {
     type Target = tokio_postgres::Client;
 
     fn deref(&self) -> &tokio_postgres::Client {
-        self.client.as_ref().expect("transaction is active")
+        &self.client
     }
 }
 
-impl Drop for Transaction {
+/// A transaction on a pooled connection. Dropping it before it commits closes
+/// the connection, rolling the transaction back on the server, so the
+/// connection never returns to the pool mid-transaction.
+pub(crate) struct PooledTransaction(Option<Object>);
+
+impl PooledTransaction {
+    /// Commits the transaction, returning the connection to the pool.
+    pub(crate) async fn commit(mut self) -> Result<(), Error> {
+        self.batch_execute("COMMIT").await?;
+        drop(self.0.take());
+        Ok(())
+    }
+}
+
+impl Deref for PooledTransaction {
+    type Target = tokio_postgres::Client;
+
+    fn deref(&self) -> &tokio_postgres::Client {
+        self.0.as_ref().expect("transaction is active")
+    }
+}
+
+impl Drop for PooledTransaction {
     fn drop(&mut self) {
-        // Closing the connection rolls the abandoned transaction back on the
-        // server; detaching keeps the aborted session out of the pool.
-        if let Some(client) = self.client.take() {
+        if let Some(client) = self.0.take() {
             drop(Object::take(client));
         }
     }
@@ -361,7 +395,9 @@ pub(crate) async fn test_database() -> Option<Postgres> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lifecycle::core::types::{JournalSeq, Stage, StageStatus};
+    use crate::lifecycle::core::types::{
+        ChallengeMode, JournalSeq, RecordingType, Stage, StageStatus, UserId,
+    };
 
     /// Inserts a bare challenge row to satisfy foreign keys.
     async fn insert_challenge(db: &Postgres, uuid: Uuid) -> i32 {
@@ -405,6 +441,42 @@ mod tests {
             finish,
             Err(Error::AlreadyApplied(ProcessingPayload::None))
         ));
+    }
+
+    #[tokio::test]
+    async fn guard_rejects_runs_for_a_challenge_that_was_never_created() {
+        let Some(db) = test_database().await else {
+            return;
+        };
+        let uuid = Uuid::new_v4();
+
+        let triggers = [
+            Trigger::Recorder {
+                seq: JournalSeq(1),
+                user_id: UserId(1),
+                recording_type: RecordingType::Participant,
+            },
+            Trigger::StageStart {
+                seq: JournalSeq(2),
+                stage: Stage::TobMaiden,
+            },
+            Trigger::Mode {
+                seq: JournalSeq(3),
+                mode: ChallengeMode::TobHard,
+            },
+            Trigger::Stage {
+                seq: JournalSeq(4),
+                stage: Stage::TobMaiden,
+                attempt: None,
+            },
+        ];
+        for trigger in triggers {
+            let result = db.start_transaction(uuid, trigger).await;
+            assert!(
+                matches!(result, Err(Error::InvalidData(_))),
+                "{trigger:?} should be rejected",
+            );
+        }
     }
 
     #[tokio::test]
@@ -709,6 +781,28 @@ mod tests {
         assert_eq!(row.get::<_, i16>(0), 1);
 
         delete_challenge(&db, uuid).await;
+    }
+
+    #[tokio::test]
+    async fn failed_commit_keeps_its_connection_out_of_the_pool() {
+        let Some(db) = test_database().await else {
+            return;
+        };
+
+        // Without a challenge row, the processing state insert violates its
+        // foreign key, aborting the transaction.
+        let txn = db
+            .start_transaction(Uuid::new_v4(), Trigger::Create { seq: JournalSeq(1) })
+            .await
+            .expect("guard should pass");
+        let result = txn.commit(&ProcessingPayload::None, None).await;
+        assert!(matches!(result, Err(Error::Database(_))));
+
+        let client = db.pool.get().await.expect("client");
+        client
+            .batch_execute("SELECT 1")
+            .await
+            .expect("pooled connection should be usable");
     }
 
     #[test]
