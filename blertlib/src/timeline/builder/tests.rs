@@ -11,7 +11,10 @@ fn builder_ingest_returns_none_if_all_rejected() {
         ClientId(7),
         Stage::TobBloat,
         ChallengeMode::TobRegular,
-        vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+        vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ],
         Some(Tick(120)),
     );
 
@@ -90,7 +93,7 @@ fn builder_ingest_rejects_event_from_another_stage() {
         ClientId(13),
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
-        vec!["Dedion".to_string()],
+        vec![Rsn::try_from("Dedion").unwrap()],
         None,
     );
 
@@ -121,10 +124,10 @@ fn builder_ingest_drops_action_without_actor() {
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![
-            "Sacolyn".to_string(),
-            "715".to_string(),
-            "1Ogp".to_string(),
-            "WWWWWWWWWWQQ".to_string(),
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("715").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
         ],
         None,
     );
@@ -171,7 +174,10 @@ fn builder_ingest_player_update() {
         ClientId(9),
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
-        vec!["Sacolyn".to_string(), "1Ogp".to_string()],
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+        ],
         None,
     );
 
@@ -293,7 +299,10 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
         ClientId(9),
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
-        vec!["Sacolyn".to_string(), "1Ogp".to_string()],
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+        ],
         None,
     );
 
@@ -417,7 +426,7 @@ fn builder_ingest_npc_spawn() {
         ClientId(3),
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
-        vec!["Caps lock13".to_string()],
+        vec![Rsn::try_from("Caps lock13").unwrap()],
         None,
     );
 
@@ -481,7 +490,7 @@ fn builder_ingest_maiden_blood_splats() {
         ClientId(4),
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
-        vec!["aSaradomin".to_string()],
+        vec![Rsn::try_from("aSaradomin").unwrap()],
         None,
     );
 
@@ -552,7 +561,7 @@ fn builder_ingest_verzik_yellows() {
         ClientId(11),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
-        vec!["LC8".to_string()],
+        vec![Rsn::try_from("LC8").unwrap()],
         None,
     );
 
@@ -599,7 +608,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
         ClientId(2),
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
-        vec!["Dedion".to_string()],
+        vec![Rsn::try_from("Dedion").unwrap()],
         None,
     );
 
@@ -758,7 +767,7 @@ fn builder_ingest_colosseum_reentry_pools() {
         ClientId(6),
         Stage::ColosseumWave12,
         ChallengeMode::NoMode,
-        vec!["Sacolyn".to_string()],
+        vec![Rsn::try_from("Sacolyn").unwrap()],
         None,
     );
 
@@ -848,7 +857,7 @@ fn builder_ingest_colosseum_reentry_pools() {
         ClientId(6),
         Stage::ColosseumWave5,
         ChallengeMode::NoMode,
-        vec!["Sacolyn".to_string()],
+        vec![Rsn::try_from("Sacolyn").unwrap()],
         None,
     );
     let mut out_of_domain = proto::Event {
@@ -885,7 +894,7 @@ fn builder_ingest_mokhaiotl_objects() {
         ClientId(8),
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
-        vec!["LC8".to_string()],
+        vec![Rsn::try_from("LC8").unwrap()],
         None,
     );
 
@@ -997,7 +1006,7 @@ fn builder_ingest_sote_maze_tiles() {
         ClientId(6),
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
-        vec!["Yieldofin".to_string()],
+        vec![Rsn::try_from("Yieldofin").unwrap()],
         None,
     );
 
@@ -1051,7 +1060,7 @@ fn builder_ingest_sote_maze_pivots() {
         ClientId(6),
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
-        vec!["Yieldofin".to_string()],
+        vec![Rsn::try_from("Yieldofin").unwrap()],
         None,
     );
 
@@ -1107,7 +1116,7 @@ fn builder_ingest_sote_maze_pivots() {
         ClientId(11),
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
-        vec!["Caywu".to_string()],
+        vec![Rsn::try_from("Caywu").unwrap()],
         None,
     );
 
@@ -1206,7 +1215,10 @@ fn builder_ingest_attack_style() {
         ClientId(2),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
-        vec!["Sacolyn".to_string(), "1Ogp".to_string()],
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+        ],
         None,
     );
 
@@ -1321,7 +1333,10 @@ fn builder_ingest_attack_reference() {
         ClientId(2),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
-        vec!["Sacolyn".to_string(), "1Ogp".to_string()],
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+        ],
         None,
     );
 
@@ -1477,7 +1492,10 @@ fn builder_ingest_attack_reference() {
         ClientId(2),
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
-        vec!["Sacolyn".to_string(), "1Ogp".to_string()],
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+        ],
         None,
     );
     assert_eq!(builder.ingest([verzik_bounce, bounced]), Some(Tick(215)));
@@ -1494,7 +1512,10 @@ fn builder_ingest_attack_reference() {
 
 #[test]
 fn extract_player_state_snapshot() {
-    let party = vec!["Sacolyn".to_string(), "1Ogp".to_string()];
+    let party = vec![
+        Rsn::try_from("Sacolyn").unwrap(),
+        Rsn::try_from("1Ogp").unwrap(),
+    ];
     let recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -1858,7 +1879,10 @@ fn extract_player_state_snapshot() {
 
 #[test]
 fn extract_player_state_update_from_last_seen_tick() {
-    let party = vec!["Sacolyn".to_string(), "1Ogp".to_string()];
+    let party = vec![
+        Rsn::try_from("Sacolyn").unwrap(),
+        Rsn::try_from("1Ogp").unwrap(),
+    ];
     let mut recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -2093,7 +2117,7 @@ fn extract_npc_state_spawn() {
     let recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
-        vec!["TobDataEgirl".to_string()],
+        vec![Rsn::try_from("TobDataEgirl").unwrap()],
         Tick(6),
     );
     let last_seen_actors = HashMap::new();
@@ -2193,7 +2217,7 @@ fn extract_npc_state_update_last_seen_tick() {
     let mut recording = Recording::vacant(
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
-        vec!["TobDataEgirl".to_string()],
+        vec![Rsn::try_from("TobDataEgirl").unwrap()],
         Tick(6),
     );
     recording.set_state(
@@ -2251,9 +2275,9 @@ fn extract_npc_state_update_last_seen_tick() {
 #[test]
 fn convert_player_attack() {
     let party = vec![
-        "715".to_string(),
-        "1Ogp".to_string(),
-        "WWWWWWWWWWQQ".to_string(),
+        Rsn::try_from("715").unwrap(),
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
     ];
 
     let mut scythe = proto::Event {
@@ -2417,7 +2441,10 @@ fn convert_player_attack() {
 
 #[test]
 fn convert_player_death() {
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
 
     let mut death = proto::Event {
         tick: 129,
@@ -2473,10 +2500,10 @@ fn convert_player_death() {
 #[test]
 fn convert_player_spell() {
     let party = vec![
-        "WWWWWWWWWWQQ".to_string(),
-        "Sacolyn".to_string(),
-        "715".to_string(),
-        "1Ogp".to_string(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        Rsn::try_from("Sacolyn").unwrap(),
+        Rsn::try_from("715").unwrap(),
+        Rsn::try_from("1Ogp").unwrap(),
     ];
 
     let mut spellbook_swap = proto::Event {
@@ -2606,7 +2633,10 @@ fn convert_player_spell() {
 
 #[test]
 fn convert_npc_death() {
-    let party = vec!["aSaradomin".to_string(), "servido".to_string()];
+    let party = vec![
+        Rsn::try_from("aSaradomin").unwrap(),
+        Rsn::try_from("servido").unwrap(),
+    ];
 
     let mut death = proto::Event {
         tick: 250,
@@ -2693,7 +2723,10 @@ fn convert_npc_death() {
 
 #[test]
 fn convert_npc_attack() {
-    let party = vec!["Caywu".to_string(), "LC8".to_string()];
+    let party = vec![
+        Rsn::try_from("Caywu").unwrap(),
+        Rsn::try_from("LC8").unwrap(),
+    ];
 
     let mut mage = proto::Event {
         tick: 284,
@@ -2819,7 +2852,7 @@ fn convert_npc_attack() {
 
 #[test]
 fn convert_maiden_crab_leak() {
-    let party = vec!["aSaradomin".to_string()];
+    let party = vec![Rsn::try_from("aSaradomin").unwrap()];
 
     let mut leak = proto::Event {
         tick: 83,
@@ -2857,7 +2890,7 @@ fn convert_maiden_crab_leak() {
 
 #[test]
 fn convert_bloat_down() {
-    let party = vec!["Caywu".to_string()];
+    let party = vec![Rsn::try_from("Caywu").unwrap()];
 
     let mut down = proto::Event {
         tick: 41,
@@ -2895,7 +2928,7 @@ fn convert_bloat_down() {
 
 #[test]
 fn convert_bloat_up() {
-    let party = vec!["Amili".to_string()];
+    let party = vec![Rsn::try_from("Amili").unwrap()];
 
     let mut up = proto::Event {
         tick: 74,
@@ -2913,7 +2946,7 @@ fn convert_bloat_up() {
 
 #[test]
 fn convert_bloat_hands_drop() {
-    let party = vec!["Dedion".to_string()];
+    let party = vec![Rsn::try_from("Dedion").unwrap()];
 
     let mut hands = proto::Event {
         tick: 74,
@@ -3007,7 +3040,7 @@ fn convert_bloat_hands_drop() {
 
 #[test]
 fn convert_bloat_hands_splat() {
-    let party = vec!["Yieldofin".to_string()];
+    let party = vec![Rsn::try_from("Yieldofin").unwrap()];
 
     let mut hands = proto::Event {
         tick: 77,
@@ -3090,7 +3123,7 @@ fn convert_bloat_hands_splat() {
 
 #[test]
 fn convert_nylo_wave_spawn() {
-    let party = vec!["Caywu".to_string()];
+    let party = vec![Rsn::try_from("Caywu").unwrap()];
 
     let mut spawn = proto::Event {
         tick: 76,
@@ -3163,7 +3196,7 @@ fn convert_nylo_wave_spawn() {
 
 #[test]
 fn convert_sote_maze_proc() {
-    let party = vec!["LC8".to_string()];
+    let party = vec![Rsn::try_from("LC8").unwrap()];
 
     let mut proc = proto::Event {
         tick: 63,
@@ -3212,7 +3245,10 @@ fn convert_sote_maze_proc() {
 
 #[test]
 fn convert_sote_maze_end() {
-    let party = vec!["Caps lock13".to_string(), "Yieldofin".to_string()];
+    let party = vec![
+        Rsn::try_from("Caps lock13").unwrap(),
+        Rsn::try_from("Yieldofin").unwrap(),
+    ];
 
     let mut valid = proto::Event {
         tick: 194,
@@ -3307,7 +3343,7 @@ fn convert_sote_maze_end() {
 
 #[test]
 fn convert_xarpus_phase() {
-    let party = vec!["aSaradomin".to_string()];
+    let party = vec![Rsn::try_from("aSaradomin").unwrap()];
 
     let mut phase = proto::Event {
         tick: 259,
@@ -3356,7 +3392,7 @@ fn convert_xarpus_phase() {
 
 #[test]
 fn convert_xarpus_exhumed() {
-    let party = vec!["Amili".to_string()];
+    let party = vec![Rsn::try_from("Amili").unwrap()];
 
     let mut exhumed = proto::Event {
         tick: 22,
@@ -3436,7 +3472,7 @@ fn convert_xarpus_exhumed() {
 
 #[test]
 fn convert_xarpus_splat() {
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
 
     let mut xarpus = proto::Event {
         tick: 103,
@@ -3571,7 +3607,7 @@ fn convert_xarpus_splat() {
 
 #[test]
 fn convert_verzik_phase() {
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
 
     let mut phase = proto::Event {
         tick: 104,
@@ -3614,7 +3650,7 @@ fn convert_verzik_phase() {
 
 #[test]
 fn convert_verzik_dawn_drop() {
-    let party = vec!["j shep98".to_string()];
+    let party = vec![Rsn::try_from("j shep98").unwrap()];
 
     let mut dropped = proto::Event {
         tick: 7,
@@ -3660,7 +3696,10 @@ fn convert_verzik_dawn_drop() {
 
 #[test]
 fn convert_verzik_dawn_hit() {
-    let party = vec!["Caywu".to_string(), "LC8".to_string()];
+    let party = vec![
+        Rsn::try_from("Caywu").unwrap(),
+        Rsn::try_from("LC8").unwrap(),
+    ];
 
     let mut hit = proto::Event {
         tick: 3,
@@ -3742,10 +3781,10 @@ fn convert_verzik_dawn_hit() {
 #[test]
 fn convert_verzik_bounce() {
     let party = vec![
-        "Sacolyn".to_string(),
-        "715".to_string(),
-        "1Ogp".to_string(),
-        "WWWWWWWWWWQQ".to_string(),
+        Rsn::try_from("Sacolyn").unwrap(),
+        Rsn::try_from("715").unwrap(),
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
     ];
 
     let mut bounced = proto::Event {
@@ -3884,9 +3923,9 @@ fn convert_verzik_bounce() {
 #[test]
 fn convert_verzik_heal() {
     let party = vec![
-        "Caps lock13".to_string(),
-        "vShawneh".to_string(),
-        "Yieldofin".to_string(),
+        Rsn::try_from("Caps lock13").unwrap(),
+        Rsn::try_from("vShawneh").unwrap(),
+        Rsn::try_from("Yieldofin").unwrap(),
     ];
 
     let mut heal = proto::Event {
@@ -3985,7 +4024,7 @@ fn convert_verzik_heal() {
 
 #[test]
 fn convert_handicap_choice() {
-    let party = vec!["Supalosa".to_string()];
+    let party = vec![Rsn::try_from("Supalosa").unwrap()];
 
     let mut choice = proto::Event {
         tick: 0,
@@ -4120,7 +4159,7 @@ fn convert_handicap_choice() {
 
 #[test]
 fn convert_doom_applied() {
-    let party = vec!["Caywu".to_string()];
+    let party = vec![Rsn::try_from("Caywu").unwrap()];
 
     let mut doom = proto::Event {
         tick: 14,
@@ -4138,7 +4177,7 @@ fn convert_doom_applied() {
 
 #[test]
 fn convert_totem_heal() {
-    let party = vec!["715".to_string()];
+    let party = vec![Rsn::try_from("715").unwrap()];
 
     let mut heal = proto::Event {
         tick: 89,
@@ -4273,7 +4312,7 @@ fn convert_totem_heal() {
 
 #[test]
 fn convert_sol_dust() {
-    let party = vec!["aSaradomin".to_string()];
+    let party = vec![Rsn::try_from("aSaradomin").unwrap()];
 
     let mut trident_1 = proto::Event {
         tick: 14,
@@ -4422,7 +4461,7 @@ fn convert_sol_dust() {
 
 #[test]
 fn convert_sol_grapple() {
-    let party = vec!["Supalosa".to_string()];
+    let party = vec![Rsn::try_from("Supalosa").unwrap()];
 
     let mut parried = proto::Event {
         tick: 130,
@@ -4546,7 +4585,7 @@ fn convert_sol_grapple() {
 
 #[test]
 fn convert_sol_pools() {
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
 
     let mut pools = proto::Event {
         tick: 34,
@@ -4617,7 +4656,7 @@ fn convert_sol_pools() {
 
 #[test]
 fn convert_sol_lasers() {
-    let party = vec!["Sacolyn".to_string()];
+    let party = vec![Rsn::try_from("Sacolyn").unwrap()];
 
     let mut scan = proto::Event {
         tick: 43,
@@ -4676,7 +4715,7 @@ fn convert_sol_lasers() {
 
 #[test]
 fn convert_mokhaiotl_orb() {
-    let party = vec!["LC8".to_string()];
+    let party = vec![Rsn::try_from("LC8").unwrap()];
 
     let mut ranged = proto::Event {
         tick: 13,
@@ -4887,7 +4926,7 @@ fn convert_mokhaiotl_orb() {
 
 #[test]
 fn convert_mokhaiotl_larva_leak() {
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
 
     let mut leak = proto::Event {
         tick: 78,
@@ -4921,7 +4960,7 @@ fn convert_mokhaiotl_larva_leak() {
 
 #[test]
 fn convert_inferno_wave_start() {
-    let party = vec!["Caywu".to_string()];
+    let party = vec![Rsn::try_from("Caywu").unwrap()];
 
     let mut start = proto::Event {
         tick: 0,

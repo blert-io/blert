@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::actor::{
     Actor, DataSource, MaidenCrab, NpcProperties, NpcState, Nylo, NyloSpawn, PartyIndex,
-    PlayerState, Players, RoomId, Stats, VerzikCrab,
+    PlayerState, Players, RoomId, Rsn, Stats, VerzikCrab,
 };
 use crate::event::{
     BloatDown, Event, EventKind, HandicapChoice, Maze, MokhaiotlLarvaLeak, MokhaiotlOrb,
@@ -92,7 +92,7 @@ pub struct RecordingBuilder {
     client_id: ClientId,
     stage: Stage,
     mode: ChallengeMode,
-    party: Vec<String>,
+    party: Vec<Rsn>,
     reported_last_tick: Option<Tick>,
     events: BTreeMap<Tick, Vec<proto::Event>>,
     recording: Option<Recording>,
@@ -112,7 +112,7 @@ impl RecordingBuilder {
         client_id: ClientId,
         stage: Stage,
         mode: ChallengeMode,
-        party: Vec<String>,
+        party: Vec<Rsn>,
         reported_last_tick: Option<Tick>,
     ) -> Self {
         let recording =
@@ -272,7 +272,7 @@ impl RecordingBuilder {
 
 struct TickBuilder<'a> {
     client_id: ClientId,
-    party: &'a [String],
+    party: &'a [Rsn],
     tick: Tick,
     state: TickState,
     processed: usize,
@@ -798,7 +798,7 @@ impl<'a> TickBuilder<'a> {
 
 fn extract_player_state(
     client_id: ClientId,
-    party: &[String],
+    party: &[Rsn],
     recording: &Recording,
     last_seen_actors: &HashMap<Actor, Tick>,
     event: &proto::Event,
@@ -954,15 +954,15 @@ enum EventOutcome {
     Rejected(RejectionReason),
 }
 
-fn resolve_index(party: &[String], player: &str) -> Result<PartyIndex, FieldError> {
+fn resolve_index(party: &[Rsn], player: &str) -> Result<PartyIndex, FieldError> {
     party
         .iter()
-        .position(|p| p == player)
+        .position(|p| p.as_str() == player)
         .map(PartyIndex::from_usize)
         .ok_or_else(|| FieldError::UnknownActor(RawActor::Player(player.to_string())))
 }
 
-fn convert_event(party: &[String], event: &proto::Event) -> EventOutcome {
+fn convert_event(party: &[Rsn], event: &proto::Event) -> EventOutcome {
     convert_or_reject(party, event).unwrap_or_else(EventOutcome::Rejected)
 }
 
@@ -988,10 +988,7 @@ fn in_domain<T: TryFrom<R>, R: Copy + ToString>(
 
 /// Validates and transforms a proto event into an `EventKind`.
 #[expect(clippy::too_many_lines, reason = "dump your code here")]
-fn convert_or_reject(
-    party: &[String],
-    event: &proto::Event,
-) -> Result<EventOutcome, RejectionReason> {
+fn convert_or_reject(party: &[Rsn], event: &proto::Event) -> Result<EventOutcome, RejectionReason> {
     match event.r#type() {
         Type::PlayerAttack => {
             let player = expect_player(event)?;

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ops::{Index, IndexMut};
 
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item};
@@ -23,6 +24,72 @@ impl PartyIndex {
         self.0 as usize
     }
 }
+
+/// A validated OSRS player name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Rsn(String);
+
+impl Rsn {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for Rsn {
+    type Error = InvalidRsn;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        let allowed = |c: char| c.is_ascii_alphanumeric() || matches!(c, ' ' | '_' | '-');
+        let valid = (1..=12).contains(&name.len())
+            && name.chars().all(allowed)
+            && !name.starts_with(' ')
+            && !name.ends_with(' ');
+        if valid {
+            Ok(Self(name))
+        } else {
+            Err(InvalidRsn(name))
+        }
+    }
+}
+
+impl TryFrom<&str> for Rsn {
+    type Error = InvalidRsn;
+
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
+        Self::try_from(name.to_owned())
+    }
+}
+
+impl PartialEq<str> for Rsn {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
+impl PartialEq<&str> for Rsn {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl fmt::Display for Rsn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// A name that is not a valid [`Rsn`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidRsn(pub String);
+
+impl fmt::Display for InvalidRsn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid RSN: {:?}", self.0)
+    }
+}
+
+impl std::error::Error for InvalidRsn {}
 
 /// A unique identifier for an NPC within a timeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -248,5 +315,62 @@ mod tests {
         assert_eq!(player.equipped(EquipmentSlot::Quiver), Some(bolts));
         assert_eq!(player.equipped(EquipmentSlot::Head), None);
         assert_eq!(player.equipped(EquipmentSlot::Shield), None);
+    }
+
+    #[test]
+    fn rsn_accepts_valid_names() {
+        let longest = Rsn::try_from("WWWWWWWWWWQQ".to_string()).unwrap();
+        assert_eq!(longest.as_str(), "WWWWWWWWWWQQ");
+        assert_eq!(longest.to_string(), "WWWWWWWWWWQQ");
+        assert_eq!(
+            Rsn::try_from("1O gp".to_string()).unwrap().as_str(),
+            "1O gp"
+        );
+        assert_eq!(
+            Rsn::try_from("-1Ogp".to_string()).unwrap().as_str(),
+            "-1Ogp"
+        );
+        assert_eq!(
+            Rsn::try_from("1Ogp_".to_string()).unwrap().as_str(),
+            "1Ogp_"
+        );
+
+        let borrowed = Rsn::try_from("1Ogp").unwrap();
+        assert_eq!(borrowed, "1Ogp");
+        assert_eq!(&borrowed, "1Ogp");
+        assert_ne!(borrowed, "1ogp");
+        assert_eq!([borrowed, longest].as_slice(), ["1Ogp", "WWWWWWWWWWQQ"]);
+    }
+
+    #[test]
+    fn rsn_rejects_invalid_names() {
+        assert_eq!(
+            Rsn::try_from("WWWWWWWWWWQQW".to_string()),
+            Err(InvalidRsn("WWWWWWWWWWQQW".to_string()))
+        );
+        assert_eq!(
+            Rsn::try_from("<col=ff0000>1Ogp</col>".to_string()),
+            Err(InvalidRsn("<col=ff0000>1Ogp</col>".to_string()))
+        );
+        assert_eq!(Rsn::try_from(String::new()), Err(InvalidRsn(String::new())));
+        assert_eq!(
+            Rsn::try_from("1Ogp ".to_string()),
+            Err(InvalidRsn("1Ogp ".to_string()))
+        );
+        assert_eq!(
+            Rsn::try_from(" 1Ogp".to_string()),
+            Err(InvalidRsn(" 1Ogp".to_string()))
+        );
+        assert_eq!(
+            Rsn::try_from("1Ögp".to_string()),
+            Err(InvalidRsn("1Ögp".to_string()))
+        );
+
+        let error: Box<dyn std::error::Error> =
+            Box::new(Rsn::try_from("<col=ff0000>1Ogp</col>").unwrap_err());
+        assert_eq!(
+            error.to_string(),
+            r#"invalid RSN: "<col=ff0000>1Ogp</col>""#
+        );
     }
 }

@@ -17,8 +17,9 @@ pub use proto::event::ColosseumHandicap;
 pub use proto::{ChallengeMode, NpcAttack, PlayerAttack, PlayerSpell, Stage};
 
 pub use actor::{
-    Actor, DataSource, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcProperties, NpcState,
-    Nylo, NyloSpawn, PartyIndex, PlayerState, Players, RoomId, Stats, VerzikCrab, VerzikCrabSpawn,
+    Actor, DataSource, InvalidRsn, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcProperties,
+    NpcState, Nylo, NyloSpawn, PartyIndex, PlayerState, Players, RoomId, Rsn, Stats, VerzikCrab,
+    VerzikCrabSpawn,
 };
 pub use event::*;
 pub use item::{EquipmentSlot, Item, ItemDelta, Slot};
