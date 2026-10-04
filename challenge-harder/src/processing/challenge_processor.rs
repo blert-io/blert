@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use blert::{Tick, Ticks};
+use blert::{Rsn, Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -94,7 +94,7 @@ pub struct PlayerData {
 /// Challenge-scoped state accumulated by a processing run.
 #[derive(Debug)]
 pub struct ChallengeContext {
-    party: Vec<String>,
+    party: Vec<Rsn>,
     /// Per-player data, indexed by party position.
     players: Vec<PlayerData>,
     /// Challenge-wide splits recorded during the run.
@@ -102,7 +102,7 @@ pub struct ChallengeContext {
 }
 
 impl ChallengeContext {
-    pub(super) fn new(party: Vec<String>) -> ChallengeContext {
+    pub(super) fn new(party: Vec<Rsn>) -> ChallengeContext {
         let scale = party.len();
         ChallengeContext {
             party,
@@ -169,7 +169,7 @@ pub struct StageContext {
 }
 
 impl StageContext {
-    pub(super) fn new(stage: Stage, party: Vec<String>) -> StageContext {
+    pub(super) fn new(stage: Stage, party: Vec<Rsn>) -> StageContext {
         StageContext {
             stage,
             challenge: ChallengeContext::new(party),
@@ -363,7 +363,10 @@ mod tests {
     fn stage_splits_must_progress_past_their_start() {
         let mut ctx = StageContext::new(
             Stage::TobMaiden,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, Tick(0), Tick(0), false);
         ctx.set_stage_split(SplitType::TobEntryMaiden70s50s, Tick(32), Tick(52), false);
@@ -384,7 +387,10 @@ mod tests {
     fn stage_splits_overwrite_and_iterate_in_split_order() {
         let mut ctx = StageContext::new(
             Stage::TobMaiden,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         );
         ctx.set_stage_split(SplitType::TobEntryMaiden70s, Tick(32), Tick(0), false);
         ctx.set_stage_split(SplitType::TobEntryMaiden, Tick(150), Tick(0), true);
@@ -414,7 +420,10 @@ mod tests {
 
     #[test]
     fn challenge_splits_need_nonzero_ticks_and_iterate_in_split_order() {
-        let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+        let mut ctx = ChallengeContext::new(vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ]);
         ctx.set_challenge_split(SplitType::TobEntryChallenge, Ticks(0), None);
         assert_eq!(ctx.challenge_splits().count(), 0);
 

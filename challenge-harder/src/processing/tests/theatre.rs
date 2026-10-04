@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
-use blert::item;
+use blert::{Rsn, item};
 use deadpool_postgres::Object;
 
 use super::golden;
@@ -138,7 +138,10 @@ async fn maiden_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobHard,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobMaiden,
         stage_attempt: None,
@@ -429,7 +432,10 @@ async fn bloat_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobHard,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobBloat,
         stage_attempt: None,
@@ -755,7 +761,10 @@ async fn nylocas_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobHard,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobNylocas,
         stage_attempt: None,
@@ -1074,7 +1083,10 @@ async fn sotetseg_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobSotetseg,
         stage_attempt: None,
@@ -1358,7 +1370,10 @@ async fn xarpus_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobXarpus,
         stage_attempt: None,
@@ -1693,7 +1708,10 @@ async fn verzik_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobVerzik,
         stage_attempt: None,
@@ -1979,7 +1997,10 @@ async fn bloat_merge_low_confidence_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobBloat,
         stage_attempt: None,
@@ -2128,7 +2149,10 @@ async fn bloat_merge_unmerged_client_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobHard,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobBloat,
         stage_attempt: None,
@@ -2277,7 +2301,10 @@ async fn nylocas_merge_consistency_rejection_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobNylocas,
         stage_attempt: None,
@@ -2424,7 +2451,10 @@ async fn verzik_merge_clean_test() {
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
         party_changed: false,
         stage: Stage::TobVerzik,
         stage_attempt: None,

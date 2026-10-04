@@ -344,6 +344,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
     use serde_json::json;
 
     use super::*;
@@ -368,7 +369,7 @@ mod tests {
                 session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                 challenge_type: ChallengeType::Mokhaiotl,
                 mode: ChallengeMode::NoMode,
-                party: vec!["1Ogp".to_string()],
+                party: vec![Rsn::try_from("1Ogp").unwrap()],
                 party_changed: false,
                 stage: Stage::MokhaiotlDelve1,
                 stage_attempt: None,
@@ -394,7 +395,7 @@ mod tests {
                 session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                 challenge_type: ChallengeType::Mokhaiotl,
                 mode: ChallengeMode::NoMode,
-                party: vec!["1Ogp".to_string()],
+                party: vec![Rsn::try_from("1Ogp").unwrap()],
                 party_changed: false,
                 stage: Stage::MokhaiotlDelve1,
                 stage_attempt: None,
@@ -451,7 +452,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve3,
             stage_attempt: None,
@@ -515,7 +516,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve8plus,
             stage_attempt: Some(2),
@@ -579,7 +580,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve2,
             stage_attempt: None,
@@ -621,7 +622,8 @@ mod tests {
             ),
         ] {
             let mut processor = MokhaiotlProcessor::new(challenge.clone(), None).unwrap();
-            let mut ctx = StageContext::new(Stage::MokhaiotlDelve2, vec!["1Ogp".to_string()]);
+            let mut ctx =
+                StageContext::new(Stage::MokhaiotlDelve2, vec![Rsn::try_from("1Ogp").unwrap()]);
             let mut events = merged_events(
                 vec![
                     npc_attack_event(
@@ -660,7 +662,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve2,
             stage_attempt: None,
@@ -670,7 +672,8 @@ mod tests {
             finished_unix_ms: None,
         };
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
-        let mut ctx = StageContext::new(Stage::MokhaiotlDelve2, vec!["1Ogp".to_string()]);
+        let mut ctx =
+            StageContext::new(Stage::MokhaiotlDelve2, vec![Rsn::try_from("1Ogp").unwrap()]);
         let mut events = merged_events(
             vec![
                 npc_attack_event(
@@ -724,7 +727,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve8,
             stage_attempt: None,
@@ -734,7 +737,8 @@ mod tests {
             finished_unix_ms: None,
         };
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
-        let mut ctx = StageContext::new(Stage::MokhaiotlDelve8, vec!["1Ogp".to_string()]);
+        let mut ctx =
+            StageContext::new(Stage::MokhaiotlDelve8, vec![Rsn::try_from("1Ogp").unwrap()]);
         let mut events = merged_events(
             vec![
                 mokhaiotl_larva_leak_event(Tick(78), Stage::MokhaiotlDelve8, 45389, 23),
@@ -802,7 +806,7 @@ mod tests {
                     session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                     challenge_type: ChallengeType::Mokhaiotl,
                     mode: ChallengeMode::NoMode,
-                    party: vec!["1Ogp".to_string()],
+                    party: vec![Rsn::try_from("1Ogp").unwrap()],
                     party_changed: false,
                     stage,
                     stage_attempt,
@@ -815,7 +819,7 @@ mod tests {
             )
             .unwrap();
 
-            let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string()]);
+            let mut ctx = ChallengeContext::new(vec![Rsn::try_from("1Ogp").unwrap()]);
             let stored = StoredState {
                 players: vec![StoredPlayerInfo {
                     id: PlayerId(1),

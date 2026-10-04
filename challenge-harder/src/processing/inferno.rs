@@ -450,6 +450,7 @@ impl ChallengeProcessor for InfernoProcessor {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::too_many_lines)]
+    use blert::Rsn;
     use serde_json::json;
 
     use super::*;
@@ -461,7 +462,6 @@ mod tests {
         NpcEvent, ServerTicks, inferno_wave_start_event, merged_events, npc_attack_event,
         npc_death_event,
     };
-    use crate::players::normalize_rsn;
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::{ChallengeSplit, SavedSplit};
     use crate::processing::stats::PlayerStatsDelta;
@@ -473,7 +473,7 @@ mod tests {
             session_uuid: "83b18e1a-97c4-4de5-a2f6-01d9e7b2c644".parse().unwrap(),
             challenge_type: ChallengeType::Inferno,
             mode: ChallengeMode::NoMode,
-            party: vec!["715".to_string()],
+            party: vec![Rsn::try_from("715").unwrap()],
             party_changed: false,
             stage,
             stage_attempt: None,
@@ -526,7 +526,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave25, vec![Rsn::try_from("715").unwrap()]);
         let mut events = merged_events(
             vec![inferno_wave_start_event(
                 Tick(0),
@@ -550,7 +550,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(Stage::InfernoWave66, vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave66, vec![Rsn::try_from("715").unwrap()]);
         let mut events = merged_events(
             vec![npc_death_event(NpcEvent {
                 tick: Tick(31),
@@ -582,7 +582,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(Stage::InfernoWave43, vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave43, vec![Rsn::try_from("715").unwrap()]);
         let mut events = merged_events(
             vec![
                 npc_attack_event(
@@ -730,7 +730,7 @@ mod tests {
             wave_start_tick: Some(Ticks(852)),
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
-        let mut ctx = StageContext::new(Stage::InfernoWave25, vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave25, vec![Rsn::try_from("715").unwrap()]);
         let stored = StoredState {
             players: Vec::new(),
             challenge_ticks: Ticks(846),
@@ -783,7 +783,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(Stage::InfernoWave26, vec!["715".to_string()]);
+        let mut ctx = StageContext::new(Stage::InfernoWave26, vec![Rsn::try_from("715").unwrap()]);
         let stored = StoredState {
             players: Vec::new(),
             challenge_ticks: Ticks(894),
@@ -855,7 +855,7 @@ mod tests {
             ),
         ] {
             let mut processor = InfernoProcessor::new(challenge_info(stage, status), None).unwrap();
-            let mut ctx = ChallengeContext::new(vec!["715".to_string()]);
+            let mut ctx = ChallengeContext::new(vec![Rsn::try_from("715").unwrap()]);
             let stored = StoredState {
                 players: vec![StoredPlayerInfo {
                     id: PlayerId(1),
@@ -916,11 +916,11 @@ mod tests {
         let challenge_id: i32 = row.get(0);
         txn.set_challenge_id(challenge_id);
 
-        let username = format!("715 {}", &uuid.to_string()[..7]);
+        let username = Rsn::try_from(format!("715 {}", &uuid.to_string()[..7])).unwrap();
         let row = txn
             .query_one(
                 "INSERT INTO players (username, normalized_username) VALUES ($1, $2) RETURNING id",
-                &[&username, &normalize_rsn(&username)],
+                &[&username.as_str(), &username.normalized()],
             )
             .await
             .unwrap();

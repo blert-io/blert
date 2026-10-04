@@ -14,7 +14,7 @@ fn solo_tob_start_at(stage: Stage) -> Action {
     Action::Start {
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party: vec!["WWWWWWWWWWQQ".into()],
+        party: vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
         stage,
     }
 }
@@ -23,7 +23,7 @@ fn inferno_start() -> Action {
     Action::Start {
         challenge_type: ChallengeType::Inferno,
         mode: ChallengeMode::NoMode,
-        party: vec!["Plondreim".into()],
+        party: vec![Rsn::try_from("Plondreim").unwrap()],
         stage: Stage::InfernoWave1,
     }
 }
@@ -32,7 +32,7 @@ fn mokhaiotl_start() -> Action {
     Action::Start {
         challenge_type: ChallengeType::Mokhaiotl,
         mode: ChallengeMode::NoMode,
-        party: vec!["Prom Wizy".into()],
+        party: vec![Rsn::try_from("Prom Wizy").unwrap()],
         stage: Stage::MokhaiotlDelve8,
     }
 }

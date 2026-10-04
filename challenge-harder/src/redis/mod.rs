@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use blert::Rsn;
 use bytes::Bytes;
 use deadpool_redis::{Manager, Pool};
 use futures_util::StreamExt;
@@ -23,7 +24,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::lifecycle::session::{SessionResolution, SessionStore};
 use crate::lifecycle::store::StoreError;
-use crate::players::{normalize_rsn, party_hash};
+use crate::players::party_hash;
 
 mod scripts;
 use scripts::{
@@ -147,8 +148,8 @@ fn client_key(client: ClientId) -> String {
 
 /// Which challenge an OSRS player is in.
 /// Matches `activePlayerKey` in `//common/db/redis.ts`.
-fn player_key(name: &str) -> String {
-    format!("player:{}", normalize_rsn(name))
+fn player_key(name: &Rsn) -> String {
+    format!("player:{}", name.normalized())
 }
 
 /// Prefix of the directory keys mapping a party to its session.
@@ -180,7 +181,7 @@ fn session_party_record_key(uuid: Uuid) -> String {
 }
 
 /// Unique identity for a specific party's current session.
-fn session_party_key(challenge_type: ChallengeType, party: &[String]) -> String {
+fn session_party_key(challenge_type: ChallengeType, party: &[Rsn]) -> String {
     format!("{}:{}", challenge_type as i32, party_hash(party))
 }
 
@@ -204,8 +205,8 @@ fn lease_deadline() -> u64 {
 
 /// Unique identity for a party running a particular challenge type.
 /// Matches `challengePartyKey` in `//common/db/redis.ts`.
-fn party_identifier(challenge_type: ChallengeType, party: &[String]) -> String {
-    let mut names: Vec<String> = party.iter().map(|name| normalize_rsn(name)).collect();
+fn party_identifier(challenge_type: ChallengeType, party: &[Rsn]) -> String {
+    let mut names: Vec<String> = party.iter().map(Rsn::normalized).collect();
     names.sort_unstable();
     format!("{}-{}", challenge_type as i32, names.join("-"))
 }
@@ -364,7 +365,11 @@ fn parse_snapshot(uuid: Uuid, hash: &HashMap<String, String>) -> Result<Snapshot
         party: if party.is_empty() {
             Vec::new()
         } else {
-            party.split(',').map(String::from).collect()
+            party
+                .split(',')
+                .map(Rsn::try_from)
+                .collect::<Result<_, _>>()
+                .map_err(|e| e.to_string())?
         },
         phase,
         status,
@@ -462,7 +467,7 @@ impl ChallengeStore for Store {
             .key(client_key(request.client_id))
             .key(challenge_inbox_key(uuid))
             .key(session_members_key(create.session_uuid));
-        for key in request.party.iter().map(|name| player_key(name)) {
+        for key in request.party.iter().map(player_key) {
             invocation.key(key);
         }
 
@@ -646,7 +651,7 @@ impl SessionStore for Store {
     async fn resolve(
         &self,
         challenge_type: ChallengeType,
-        party: &[String],
+        party: &[Rsn],
         window: Duration,
     ) -> Result<SessionResolution, StoreError> {
         let uuid = Uuid::new_v4();
@@ -920,7 +925,15 @@ impl ChallengeClaim for RedisChallengeClaim {
             ("mode", (snapshot.mode as i32).to_string()),
             ("status", (snapshot.status as u8).to_string()),
             ("stage", (snapshot.stage as i32).to_string()),
-            ("party", snapshot.party.join(",")),
+            (
+                "party",
+                snapshot
+                    .party
+                    .iter()
+                    .map(Rsn::as_str)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ),
             ("phase", snapshot.phase.tag().to_string()),
             ("cursor", snapshot.cursor.to_string()),
         ];

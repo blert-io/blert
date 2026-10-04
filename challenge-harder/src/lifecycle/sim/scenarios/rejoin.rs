@@ -9,7 +9,7 @@ fn solo_tob_start() -> Action {
     Action::Start {
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party: vec!["WWWWWWWWWWQQ".into()],
+        party: vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
         stage: Stage::TobMaiden,
     }
 }

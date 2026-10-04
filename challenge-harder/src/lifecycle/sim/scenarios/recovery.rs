@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use blert::Rsn;
 use tokio::sync::watch;
 
 use super::super::Collector;
@@ -44,7 +45,7 @@ fn create() -> CreateRequest {
         runelite_version: "1.12.31.1".into(),
         challenge_type: ChallengeType::Tob,
         mode: ChallengeMode::TobRegular,
-        party: vec!["WWWWWWWWWWQQ".into()],
+        party: vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
         stage: Stage::TobMaiden,
         recording_type: RecordingType::Participant,
     }
@@ -72,7 +73,7 @@ fn created_entries(uuid: Uuid, session_uuid: Uuid) -> Vec<JournalEntry> {
                 session_uuid,
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["WWWWWWWWWWQQ".into()],
+                party: vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
                 stage: Stage::TobMaiden,
             },
         },

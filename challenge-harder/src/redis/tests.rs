@@ -26,8 +26,11 @@ fn test_client() -> ClientId {
 }
 
 /// Unique party names for commands sent by `client` to avoid Redis collisions.
-fn test_party_members(client: ClientId) -> Vec<String> {
-    vec![format!("1Ogp {client}"), format!("WQ {client}")]
+fn test_party_members(client: ClientId) -> Vec<Rsn> {
+    vec![
+        Rsn::try_from(format!("1Ogp {client}")).unwrap(),
+        Rsn::try_from(format!("WQ {client}")).unwrap(),
+    ]
 }
 
 /// The directory identity of a create request's party.
@@ -40,15 +43,18 @@ fn party_key_normalizes_then_sorts_names() {
     let key = party_identifier(
         ChallengeType::Tob,
         &[
-            "WWWWWWWWWWQQ".into(),
-            "715".into(),
-            "1Ogp".into(),
-            "Caps lock13".into(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            Rsn::try_from("715").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("Caps lock13").unwrap(),
         ],
     );
     assert_eq!(key, "1-1ogp-715-caps_lock13-wwwwwwwwwwqq");
 
-    let key = party_identifier(ChallengeType::Tob, &["AB".into(), "Aa".into()]);
+    let key = party_identifier(
+        ChallengeType::Tob,
+        &[Rsn::try_from("AB").unwrap(), Rsn::try_from("Aa").unwrap()],
+    );
     assert_eq!(key, "1-aa-ab");
 }
 
@@ -256,7 +262,10 @@ fn snapshot(uuid: Uuid, cursor: u64) -> Snapshot {
         mode: ChallengeMode::TobRegular,
         stage: Stage::TobMaiden,
         stage_attempt: None,
-        party: vec!["1Ogp".into(), "WWWWWWWWWWQQ".into()],
+        party: vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ],
         phase: ChallengePhase::Active,
         status: ChallengeStatus::InProgress,
         cursor: MsgId::sequence(cursor),
@@ -1490,7 +1499,7 @@ async fn start_sends_a_removal_to_an_existing_challenge() {
 
     // The same client starts a challenge for a different party.
     let mut second_create = create_request(client);
-    second_create.request.party = vec![format!("Second {client}")];
+    second_create.request.party = vec![Rsn::try_from(format!("Second {client}")).unwrap()];
     let second_party = party_of(&second_create);
     let Ok(Start::Created {
         claim: second_claim,

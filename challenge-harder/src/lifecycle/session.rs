@@ -1,6 +1,7 @@
 //! Challenge session management.
 
 use async_trait::async_trait;
+use blert::Rsn;
 
 use core::time::Duration;
 
@@ -23,7 +24,7 @@ pub trait SessionStore: Send + Sync + 'static {
     async fn resolve(
         &self,
         challenge_type: ChallengeType,
-        party: &[String],
+        party: &[Rsn],
         window: Duration,
     ) -> Result<SessionResolution, StoreError>;
 

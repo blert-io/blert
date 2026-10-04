@@ -89,11 +89,12 @@ fn run_interpret(
         ..
     } = challenge;
 
+    let party_names: Vec<String> = party.iter().map(ToString::to_string).collect();
     let merge_info = merging::ChallengeInfo {
         uuid,
         challenge_type,
         mode,
-        party: party.as_slice(),
+        party: &party_names,
     };
 
     let mut client_ids = BTreeSet::new();
@@ -219,7 +220,7 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
 
 #[cfg(test)]
 mod tests {
-    use blert::Ticks;
+    use blert::{Rsn, Ticks};
     use bytes::Bytes;
     use prost::Message;
 
@@ -235,7 +236,10 @@ mod tests {
     fn context() -> StageContext {
         StageContext::new(
             Stage::TobMaiden,
-            vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()],
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
         )
     }
 
@@ -485,7 +489,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve1,
             stage_attempt: None,
@@ -579,7 +583,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Mokhaiotl,
             mode: ChallengeMode::NoMode,
-            party: vec!["aSaradomin".to_string()],
+            party: vec![Rsn::try_from("aSaradomin").unwrap()],
             party_changed: false,
             stage: Stage::MokhaiotlDelve1,
             stage_attempt: None,

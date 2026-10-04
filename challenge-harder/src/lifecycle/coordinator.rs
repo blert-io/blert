@@ -667,6 +667,8 @@ impl Coordinator {
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
+
     use super::*;
     use crate::lifecycle::challenge::{ChallengeClaim, ChallengeServerUpdate};
     use crate::lifecycle::core::command::Envelope;
@@ -689,7 +691,7 @@ mod tests {
                 runelite_version: "1.12.31.1".into(),
                 challenge_type: ChallengeType::Tob,
                 mode: ChallengeMode::TobRegular,
-                party: vec!["WWWWWWWWWWQQ".into()],
+                party: vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
                 stage: Stage::TobMaiden,
                 recording_type: RecordingType::Participant,
             },
@@ -815,7 +817,7 @@ mod tests {
 
         // A second challenge is created but there is no one listening.
         let mut foreign = create_command_for(2);
-        foreign.request.party = vec!["2Ogp".into()];
+        foreign.request.party = vec![Rsn::try_from("2Ogp").unwrap()];
         let Start::Created { claim, .. } = collector
             .start(foreign)
             .await
@@ -917,7 +919,7 @@ mod tests {
         async fn resolve(
             &self,
             _: ChallengeType,
-            _: &[String],
+            _: &[Rsn],
             _: Duration,
         ) -> Result<SessionResolution, StoreError> {
             Err(StoreError::Unavailable("scripted failure".into()))

@@ -2,14 +2,13 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use blert::Ticks;
+use blert::{Rsn, Ticks};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeStatus, ChallengeTypeExt, PlayerId, PrimaryMeleeGear, ProcessingError,
     RecordingType, Stage, UserId,
 };
 use crate::metrics;
-use crate::players::normalize_rsn;
 use crate::repository::DataRepository;
 
 use super::challenge_processor::ChallengeContext;
@@ -78,7 +77,7 @@ async fn insert_challenge(
             &[
                 &txn.challenge_id(),
                 &player_id.0,
-                &username,
+                &username.as_str(),
                 &i16::try_from(orb).expect("orb fits in a smallint"),
                 &(PrimaryMeleeGear::Unknown as i16),
             ],
@@ -93,7 +92,7 @@ async fn insert_challenge(
 /// does not exist. Returns the player's database ID.
 async fn start_player_challenge(
     txn: &db::Transaction,
-    username: &str,
+    username: &Rsn,
 ) -> Result<PlayerId, db::Error> {
     // The unique index on normalized_username is partial, so the conflict
     // target must spell its predicate for Postgres.
@@ -104,7 +103,7 @@ async fn start_player_challenge(
              ON CONFLICT (normalized_username) WHERE NOT starts_with(normalized_username, '*')
              DO UPDATE SET total_recordings = players.total_recordings + 1
              RETURNING id",
-            &[&username, &normalize_rsn(username)],
+            &[&username.as_str(), &username.normalized()],
         )
         .await?;
     Ok(PlayerId(row.get(0)))

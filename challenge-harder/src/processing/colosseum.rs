@@ -386,6 +386,7 @@ impl ChallengeProcessor for ColosseumProcessor {
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
     use serde_json::json;
 
     use super::*;
@@ -408,7 +409,7 @@ mod tests {
                 session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                 challenge_type: ChallengeType::Colosseum,
                 mode: ChallengeMode::NoMode,
-                party: vec!["aSaradomin".to_string()],
+                party: vec![Rsn::try_from("aSaradomin").unwrap()],
                 party_changed: false,
                 stage: Stage::ColosseumWave1,
                 stage_attempt: None,
@@ -438,7 +439,7 @@ mod tests {
                 session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                 challenge_type: ChallengeType::Colosseum,
                 mode: ChallengeMode::NoMode,
-                party: vec!["aSaradomin".to_string()],
+                party: vec![Rsn::try_from("aSaradomin").unwrap()],
                 party_changed: false,
                 stage: Stage::ColosseumWave1,
                 stage_attempt: None,
@@ -465,7 +466,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Colosseum,
             mode: ChallengeMode::NoMode,
-            party: vec!["aSaradomin".to_string()],
+            party: vec![Rsn::try_from("aSaradomin").unwrap()],
             party_changed: false,
             stage: Stage::ColosseumWave1,
             stage_attempt: None,
@@ -475,7 +476,10 @@ mod tests {
             finished_unix_ms: None,
         };
         let mut processor = ColosseumProcessor::new(challenge.clone(), None).unwrap();
-        let mut ctx = StageContext::new(Stage::ColosseumWave1, vec!["aSaradomin".to_string()]);
+        let mut ctx = StageContext::new(
+            Stage::ColosseumWave1,
+            vec![Rsn::try_from("aSaradomin").unwrap()],
+        );
         let mut events = merged_events(
             vec![colosseum_handicap_choice_event(
                 Tick(0),
@@ -506,7 +510,10 @@ mod tests {
             Some(&custom_data),
         )
         .unwrap();
-        let mut ctx = StageContext::new(Stage::ColosseumWave2, vec!["aSaradomin".to_string()]);
+        let mut ctx = StageContext::new(
+            Stage::ColosseumWave2,
+            vec![Rsn::try_from("aSaradomin").unwrap()],
+        );
         let mut events = merged_events(
             vec![colosseum_handicap_choice_event(
                 Tick(0),
@@ -556,7 +563,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Colosseum,
             mode: ChallengeMode::NoMode,
-            party: vec!["1Ogp".to_string()],
+            party: vec![Rsn::try_from("1Ogp").unwrap()],
             party_changed: false,
             stage: Stage::ColosseumWave3,
             stage_attempt: None,
@@ -629,7 +636,7 @@ mod tests {
             session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
             challenge_type: ChallengeType::Colosseum,
             mode: ChallengeMode::NoMode,
-            party: vec!["aSaradomin".to_string()],
+            party: vec![Rsn::try_from("aSaradomin").unwrap()],
             party_changed: false,
             stage: Stage::ColosseumWave7,
             stage_attempt: None,
@@ -727,7 +734,7 @@ mod tests {
                     session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
                     challenge_type: ChallengeType::Colosseum,
                     mode: ChallengeMode::NoMode,
-                    party: vec!["1Ogp".to_string()],
+                    party: vec![Rsn::try_from("1Ogp").unwrap()],
                     party_changed: false,
                     stage,
                     stage_attempt: None,
@@ -740,7 +747,7 @@ mod tests {
             )
             .unwrap();
 
-            let mut ctx = ChallengeContext::new(vec!["1Ogp".to_string()]);
+            let mut ctx = ChallengeContext::new(vec![Rsn::try_from("1Ogp").unwrap()]);
             let stored = StoredState {
                 players: vec![StoredPlayerInfo {
                     id: PlayerId(1),

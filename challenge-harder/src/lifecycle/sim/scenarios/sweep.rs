@@ -147,7 +147,12 @@ fn racing_creates() -> Scenario {
                 Action::Start {
                     challenge_type: ChallengeType::Tob,
                     mode: ChallengeMode::TobRegular,
-                    party: vec!["a".into(), "b".into(), "c".into(), "d".into()],
+                    party: vec![
+                        Rsn::try_from("a").unwrap(),
+                        Rsn::try_from("b").unwrap(),
+                        Rsn::try_from("c").unwrap(),
+                        Rsn::try_from("d").unwrap(),
+                    ],
                     stage: Stage::TobMaiden,
                 },
             )
