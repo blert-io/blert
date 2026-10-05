@@ -236,9 +236,9 @@ EXPOSE 3003
 CMD ["node", "effect-runner/dist/app.js"]
 
 # ==============================================================================
-# Build live-server (Rust)
+# Shared Rust workspace
 # ==============================================================================
-FROM rust:1-slim AS live-server-build
+FROM rust:1-slim AS rust-workspace
 
 WORKDIR /app
 
@@ -247,22 +247,31 @@ RUN apt-get update && \
     apt-get install -y protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
-# Cache dependencies by building with a dummy main first. The workspace
-# manifest lists every member, so unbuilt members are stubbed out too.
-COPY live-server/Cargo.toml live-server/Cargo.lock* live-server/build.rs live-server/
-COPY challenge-harder/Cargo.toml challenge-harder/
-COPY blertlib/Cargo.toml blertlib/build.rs blertlib/
+# Lay out the workspace with every member stubbed, along with blertlib's build
+# inputs. Each service stage builds its dependencies against the stubs first,
+# so they are cached separately from source changes.
 COPY Cargo.toml Cargo.lock ./
+COPY blertlib/Cargo.toml blertlib/build.rs blertlib/
+COPY challenge-harder/Cargo.toml challenge-harder/
+COPY live-server/Cargo.toml live-server/
 COPY proto/ proto/
-RUN mkdir -p live-server/src challenge-harder/src blertlib/src && \
-    echo 'fn main() {}' > live-server/src/main.rs && \
-    echo 'fn main() {}' > challenge-harder/src/main.rs && \
+COPY web/resources/extended_items.json web/resources/
+RUN mkdir -p blertlib/src challenge-harder/src live-server/src && \
     touch blertlib/src/lib.rs && \
-    cargo build --release -p live-server && \
-    rm -rf live-server/src
+    echo 'fn main() {}' > challenge-harder/src/main.rs && \
+    echo 'fn main() {}' > live-server/src/main.rs
 
+# ==============================================================================
+# Build live-server
+# ==============================================================================
+FROM rust-workspace AS live-server-build
+
+RUN cargo build --release -p live-server
+
+COPY blertlib/src/ blertlib/src/
 COPY live-server/src/ live-server/src/
-RUN touch live-server/src/main.rs && cargo build --release -p live-server
+RUN touch blertlib/src/lib.rs live-server/src/main.rs && \
+    cargo build --release -p live-server
 
 # ==============================================================================
 # Runtime: live-server
@@ -283,34 +292,18 @@ EXPOSE 3010
 CMD ["live-server"]
 
 # ==============================================================================
-# Build challenge-harder (Rust)
+# Build challenge-harder
 # ==============================================================================
-FROM rust:1-slim AS challenge-harder-build
+FROM rust-workspace AS challenge-harder-build
 
-WORKDIR /app
+COPY challenge-harder/build.rs challenge-harder/
+RUN cargo build --release -p challenge-harder
 
-RUN apt-get update && \
-    apt-get install -y protobuf-compiler && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY challenge-harder/Cargo.toml challenge-harder/build.rs challenge-harder/
-COPY live-server/Cargo.toml live-server/
-COPY blertlib/Cargo.toml blertlib/build.rs blertlib/
-COPY Cargo.toml Cargo.lock ./
-COPY proto/ proto/
-COPY web/resources/extended_items.json web/resources/
-RUN mkdir -p challenge-harder/src live-server/src blertlib/src && \
-    echo 'fn main() {}' > challenge-harder/src/main.rs && \
-    echo 'fn main() {}' > live-server/src/main.rs && \
-    touch blertlib/src/lib.rs && \
-    cargo build --release -p challenge-harder && \
-    rm -rf challenge-harder/src
-
-COPY challenge-harder/src/ challenge-harder/src/
 COPY blertlib/src/ blertlib/src/
+COPY challenge-harder/src/ challenge-harder/src/
 ARG BLERT_COMMIT_SHA
 ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
-RUN touch challenge-harder/src/main.rs blertlib/src/lib.rs && \
+RUN touch blertlib/src/lib.rs challenge-harder/src/main.rs && \
     cargo build --release -p challenge-harder
 
 # ==============================================================================

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use blert::Stage;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::broadcast::BroadcastManager;
@@ -15,7 +16,7 @@ const BATCH_WINDOW: Duration = Duration::from_millis(50);
 pub struct BackfillRequest {
     pub challenge_id: String,
     pub backfill_id: u64,
-    pub stage: i32,
+    pub stage: Stage,
     pub attempt: Option<u32>,
 }
 
@@ -114,6 +115,13 @@ impl BackfillManager {
                                     entries,
                                     last_stream_id,
                                 }
+                            }
+                            RedisResponse::Malformed(e) => {
+                                tracing::error!(
+                                    challenge_id = %req.challenge_id,
+                                    "malformed backfill response: {e}",
+                                );
+                                BackfillResult::empty(req.challenge_id, req.backfill_id)
                             }
                             _ => BackfillResult::empty(req.challenge_id, req.backfill_id),
                         };

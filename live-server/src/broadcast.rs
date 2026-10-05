@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use blert::ClientId;
 use tokio::sync::{Mutex, mpsc};
 
 use crate::backfill::{BackfillRequest, BackfillResult};
@@ -155,7 +156,7 @@ impl BroadcastManager {
     async fn fetch_challenge_state(
         &mut self,
         challenge_id: &str,
-    ) -> Result<(ChallengeState, HashMap<u64, ChallengeClient>), BroadcastError> {
+    ) -> Result<(ChallengeState, HashMap<ClientId, ChallengeClient>), BroadcastError> {
         let queries = [
             RedisQuery::ChallengeState {
                 uuid: challenge_id.to_string(),
@@ -171,6 +172,9 @@ impl BroadcastManager {
                 Some(RedisResponse::ChallengeClients(clients)),
                 Some(RedisResponse::ChallengeState(Some(state))),
             ) => Ok((state, clients)),
+            (Some(RedisResponse::Malformed(e)), _) | (_, Some(RedisResponse::Malformed(e))) => {
+                Err(BroadcastError::Redis(e))
+            }
             (_, Some(RedisResponse::ChallengeState(None))) => {
                 Err(BroadcastError::ChallengeNotFound(challenge_id.to_string()))
             }

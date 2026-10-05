@@ -1,19 +1,10 @@
 use std::collections::HashMap;
 
+use blert::{ChallengeMode, ClientId, Rsn, Stage, proto};
 use redis::{FromRedisValue, Pipeline, Value};
 use serde::Deserialize;
 use serde_repr::Deserialize_repr;
 use tokio::sync::mpsc;
-
-#[expect(
-    clippy::doc_markdown,
-    clippy::enum_variant_names,
-    clippy::too_many_lines,
-    clippy::trivially_copy_pass_by_ref
-)]
-pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/blert.rs"));
-}
 
 /// Status of a recorded challenge.
 // Matches `ChallengeStatus` in `//common/challenge.ts`.
@@ -70,7 +61,8 @@ fn challenge_clients_key(uuid: &str) -> String {
     format!("challenge:{uuid}:clients")
 }
 
-fn stage_stream_key(uuid: &str, stage: i32, attempt: Option<u32>) -> String {
+fn stage_stream_key(uuid: &str, stage: Stage, attempt: Option<u32>) -> String {
+    let stage = stage as i32;
     match attempt {
         Some(a) => format!("challenge-events:{uuid}:{stage}:{a}"),
         None => format!("challenge-events:{uuid}:{stage}"),
@@ -84,11 +76,11 @@ const CHALLENGE_UPDATES_PUBSUB_KEY: &str = "challenge-updates";
 #[allow(dead_code)]
 pub struct ChallengeState {
     pub status: ChallengeStatus,
-    pub challenge_type: i32,
-    pub mode: i32,
-    pub stage: i32,
+    pub challenge_type: proto::Challenge,
+    pub mode: ChallengeMode,
+    pub stage: Stage,
     pub stage_attempt: Option<u32>,
-    pub party: Vec<String>,
+    pub party: Vec<Rsn>,
 }
 
 /// Fields requested in the `HMGET` for `ChallengeState`.
@@ -116,18 +108,24 @@ impl ChallengeState {
             .ok_or_else(|| RedisQueryError::MissingField("type"))?
             .parse()
             .map_err(|_| RedisQueryError::Parse("invalid type".into()))?;
+        let challenge_type = proto::Challenge::try_from(challenge_type)
+            .map_err(|_| RedisQueryError::Parse(format!("unknown type: {challenge_type}")))?;
 
         let mode: i32 = values[2]
             .as_deref()
             .ok_or_else(|| RedisQueryError::MissingField("mode"))?
             .parse()
             .map_err(|_| RedisQueryError::Parse("invalid mode".into()))?;
+        let mode = ChallengeMode::try_from(mode)
+            .map_err(|_| RedisQueryError::Parse(format!("unknown mode: {mode}")))?;
 
         let stage: i32 = values[3]
             .as_deref()
             .ok_or_else(|| RedisQueryError::MissingField("stage"))?
             .parse()
             .map_err(|_| RedisQueryError::Parse("invalid stage".into()))?;
+        let stage = Stage::try_from(stage)
+            .map_err(|_| RedisQueryError::Parse(format!("unknown stage: {stage}")))?;
 
         let stage_attempt: Option<u32> = values[4]
             .as_deref()
@@ -137,12 +135,15 @@ impl ChallengeState {
             })
             .transpose()?;
 
-        let party: Vec<String> = values[5]
+        let party = values[5]
             .as_deref()
             .ok_or_else(|| RedisQueryError::MissingField("party"))?
             .split(',')
-            .map(String::from)
-            .collect();
+            .map(|name| {
+                Rsn::try_from(name)
+                    .map_err(|_| RedisQueryError::Parse(format!("invalid party member: {name}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             status,
@@ -162,11 +163,11 @@ impl ChallengeState {
 #[allow(dead_code)]
 pub struct ChallengeClient {
     pub user_id: u64,
-    pub client_id: u64,
+    pub client_id: ClientId,
     #[serde(rename = "type")]
     pub recording_type: RecordingType,
     pub active: bool,
-    pub stage: i32,
+    pub stage: Stage,
     pub stage_attempt: Option<u32>,
     pub stage_status: StageStatus,
     pub last_completed: LastCompleted,
@@ -175,7 +176,7 @@ pub struct ChallengeClient {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LastCompleted {
-    pub stage: i32,
+    pub stage: Stage,
     pub attempt: Option<u32>,
 }
 
@@ -185,7 +186,7 @@ pub struct StageStreamEntry {
     /// Redis stream ID, used as cursor for subsequent reads.
     pub id: String,
     /// Client that produced these events.
-    pub client_id: u64,
+    pub client_id: ClientId,
     /// Raw protobuf bytes (serialized `ChallengeEvents`).
     pub events: Vec<u8>,
 }
@@ -201,7 +202,7 @@ pub enum ChallengeServerUpdate {
     },
     StageEnd {
         id: String,
-        stage: i32,
+        stage: Stage,
         attempt: Option<u32>,
     },
 }
@@ -230,7 +231,7 @@ pub enum RedisQuery {
     /// Returns the events for a given stage of a challenge.
     StageStream {
         uuid: String,
-        stage: i32,
+        stage: Stage,
         attempt: Option<u32>,
         cursor: String,
     },
@@ -240,8 +241,10 @@ pub enum RedisQuery {
 #[derive(Debug)]
 pub enum RedisResponse {
     ChallengeState(Option<ChallengeState>),
-    ChallengeClients(HashMap<u64, ChallengeClient>),
+    ChallengeClients(HashMap<ClientId, ChallengeClient>),
     StageStream(Vec<StageStreamEntry>),
+    /// The query's reply could not be parsed.
+    Malformed(RedisQueryError),
 }
 
 impl RedisQuery {
@@ -286,7 +289,7 @@ impl RedisQuery {
                 let pairs: Vec<(String, String)> = FromRedisValue::from_redis_value(value)?;
                 let mut clients = HashMap::new();
                 for (id_str, json) in pairs {
-                    let client_id: u64 = id_str.parse().map_err(|_| {
+                    let client_id = id_str.parse().map(ClientId).map_err(|_| {
                         RedisQueryError::Parse(format!("invalid client id: {id_str}"))
                     })?;
                     let client: ChallengeClient = serde_json::from_str(&json)
@@ -314,7 +317,7 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
         let (id, fields): (String, Vec<Value>) = FromRedisValue::from_redis_value(entry)?;
 
         let mut iter = fields.into_iter();
-        let mut client_id: Option<u64> = None;
+        let mut client_id: Option<ClientId> = None;
         let mut events: Option<Vec<u8>> = None;
 
         while let (Some(k), Some(v)) = (iter.next(), iter.next()) {
@@ -327,8 +330,9 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
                     }
                 }
                 "clientId" => {
-                    client_id = FromRedisValue::from_redis_value(v)
+                    let id: Option<u32> = FromRedisValue::from_redis_value(v)
                         .map_err(|_| RedisQueryError::Parse("invalid client id".into()))?;
+                    client_id = id.map(ClientId);
                 }
                 "events" => {
                     events = FromRedisValue::from_redis_value(v)
@@ -391,11 +395,19 @@ pub async fn execute(
     }
 
     let values: Vec<Value> = pipe.query_async(conn).await?;
+    Ok(parse_responses(queries, values))
+}
 
+/// Individually parses replies for a batch of queries.
+fn parse_responses(queries: &[RedisQuery], values: Vec<Value>) -> Vec<RedisResponse> {
     queries
         .iter()
         .zip(values)
-        .map(|(query, value)| query.parse_response(value))
+        .map(|(query, value)| {
+            query
+                .parse_response(value)
+                .unwrap_or_else(RedisResponse::Malformed)
+        })
         .collect()
 }
 
@@ -457,11 +469,11 @@ mod tests {
     #[test]
     fn test_stage_stream_key() {
         assert_eq!(
-            stage_stream_key("abc-123", 10, None),
+            stage_stream_key("abc-123", Stage::TobMaiden, None),
             "challenge-events:abc-123:10",
         );
         assert_eq!(
-            stage_stream_key("abc-123", 10, Some(2)),
+            stage_stream_key("abc-123", Stage::TobMaiden, Some(2)),
             "challenge-events:abc-123:10:2",
         );
     }
@@ -478,9 +490,9 @@ mod tests {
         ];
         let fields = ChallengeState::from_hmget(&values).unwrap();
         assert_eq!(fields.status, ChallengeStatus::InProgress);
-        assert_eq!(fields.challenge_type, 1);
-        assert_eq!(fields.mode, 11);
-        assert_eq!(fields.stage, 10);
+        assert_eq!(fields.challenge_type, proto::Challenge::Tob);
+        assert_eq!(fields.mode, ChallengeMode::TobRegular);
+        assert_eq!(fields.stage, Stage::TobMaiden);
         assert_eq!(fields.stage_attempt, None);
         assert_eq!(fields.party, vec!["player1", "player2"]);
     }
@@ -497,9 +509,9 @@ mod tests {
         ];
         let fields = ChallengeState::from_hmget(&values).unwrap();
         assert_eq!(fields.status, ChallengeStatus::InProgress);
-        assert_eq!(fields.challenge_type, 1);
-        assert_eq!(fields.mode, 11);
-        assert_eq!(fields.stage, 10);
+        assert_eq!(fields.challenge_type, proto::Challenge::Tob);
+        assert_eq!(fields.mode, ChallengeMode::TobRegular);
+        assert_eq!(fields.stage, Stage::TobMaiden);
         assert_eq!(fields.stage_attempt, Some(3));
         assert_eq!(fields.party, vec!["player1"]);
     }
@@ -524,6 +536,39 @@ mod tests {
     }
 
     #[test]
+    fn test_challenge_fields_unknown_stage() {
+        let values = vec![
+            Some("0".into()),
+            Some("1".into()),
+            Some("11".into()),
+            Some("9".into()),
+            None,
+            Some("1Ogp".into()),
+        ];
+        assert!(matches!(
+            ChallengeState::from_hmget(&values),
+            Err(RedisQueryError::Parse(message)) if message == "unknown stage: 9"
+        ));
+    }
+
+    #[test]
+    fn test_challenge_fields_invalid_party_member() {
+        let values = vec![
+            Some("0".into()),
+            Some("1".into()),
+            Some("12".into()),
+            Some("12".into()),
+            None,
+            Some("1Ogp,WWWWWWWWWWQQQ".into()),
+        ];
+        assert!(matches!(
+            ChallengeState::from_hmget(&values),
+            Err(RedisQueryError::Parse(message))
+                if message == "invalid party member: WWWWWWWWWWQQQ"
+        ));
+    }
+
+    #[test]
     fn test_challenge_client_deserialize() {
         let json = r#"{
             "userId": 123,
@@ -537,13 +582,13 @@ mod tests {
         }"#;
         let client: ChallengeClient = serde_json::from_str(json).unwrap();
         assert_eq!(client.user_id, 123);
-        assert_eq!(client.client_id, 42);
+        assert_eq!(client.client_id, ClientId(42));
         assert_eq!(client.recording_type, RecordingType::Participant);
         assert!(client.active);
-        assert_eq!(client.stage, 10);
+        assert_eq!(client.stage, Stage::TobMaiden);
         assert_eq!(client.stage_attempt, None);
         assert_eq!(client.stage_status, StageStatus::Started);
-        assert_eq!(client.last_completed.stage, 0);
+        assert_eq!(client.last_completed.stage, Stage::UnknownStage);
         assert_eq!(client.last_completed.attempt, None);
     }
 
@@ -563,7 +608,7 @@ mod tests {
         assert_eq!(client.recording_type, RecordingType::Spectator);
         assert!(!client.active);
         assert_eq!(client.stage_attempt, Some(2));
-        assert_eq!(client.last_completed.stage, 10);
+        assert_eq!(client.last_completed.stage, Stage::TobMaiden);
         assert_eq!(client.last_completed.attempt, Some(1));
     }
 
@@ -590,9 +635,9 @@ mod tests {
         match resp {
             RedisResponse::ChallengeState(Some(state)) => {
                 assert_eq!(state.status, ChallengeStatus::Completed);
-                assert_eq!(state.challenge_type, 2);
-                assert_eq!(state.mode, 0);
-                assert_eq!(state.stage, 103);
+                assert_eq!(state.challenge_type, proto::Challenge::Cox);
+                assert_eq!(state.mode, ChallengeMode::NoMode);
+                assert_eq!(state.stage, Stage::ColosseumWave4);
                 assert_eq!(state.stage_attempt, None);
                 assert_eq!(state.party, vec!["715"]);
             }
@@ -625,13 +670,13 @@ mod tests {
         let query = RedisQuery::ChallengeClients {
             uuid: "test".into(),
         };
-        let client_json = r#"{"userId":10,"clientId":42,"type":1,"active":true,"stage":5,"stageAttempt":null,"stageStatus":1,"lastCompleted":{"stage":0,"attempt":null}}"#;
+        let client_json = r#"{"userId":10,"clientId":42,"type":1,"active":true,"stage":10,"stageAttempt":null,"stageStatus":1,"lastCompleted":{"stage":0,"attempt":null}}"#;
         let value = Value::Array(vec![bulk("42"), bulk(client_json)]);
         let resp = query.parse_response(value).unwrap();
         match resp {
             RedisResponse::ChallengeClients(clients) => {
                 assert_eq!(clients.len(), 1);
-                let client = clients.get(&42).unwrap();
+                let client = clients.get(&ClientId(42)).unwrap();
                 assert_eq!(client.user_id, 10);
                 assert_eq!(client.recording_type, RecordingType::Participant);
                 assert!(client.active);
@@ -666,7 +711,7 @@ mod tests {
     fn test_parse_stage_stream() {
         let query = RedisQuery::StageStream {
             uuid: "test".into(),
-            stage: 10,
+            stage: Stage::TobMaiden,
             attempt: None,
             cursor: STREAM_START_CURSOR.into(),
         };
@@ -684,7 +729,7 @@ mod tests {
             RedisResponse::StageStream(entries) => {
                 assert_eq!(entries.len(), 1);
                 assert_eq!(entries[0].id, "1234-0");
-                assert_eq!(entries[0].client_id, 42);
+                assert_eq!(entries[0].client_id, ClientId(42));
                 assert_eq!(entries[0].events, event_bytes);
             }
             other => panic!("expected StageStream, got {other:?}"),
@@ -695,7 +740,7 @@ mod tests {
     fn test_parse_stage_stream_filters_stage_end() {
         let query = RedisQuery::StageStream {
             uuid: "test".into(),
-            stage: 10,
+            stage: Stage::TobMaiden,
             attempt: None,
             cursor: STREAM_START_CURSOR.into(),
         };
@@ -718,9 +763,9 @@ mod tests {
             RedisResponse::StageStream(entries) => {
                 assert_eq!(entries.len(), 2);
                 assert_eq!(entries[0].id, "100-0");
-                assert_eq!(entries[0].client_id, 1);
+                assert_eq!(entries[0].client_id, ClientId(1));
                 assert_eq!(entries[1].id, "300-0");
-                assert_eq!(entries[1].client_id, 2);
+                assert_eq!(entries[1].client_id, ClientId(2));
             }
             other => panic!("expected StageStream, got {other:?}"),
         }
@@ -730,7 +775,7 @@ mod tests {
     fn test_parse_stage_stream_empty() {
         let query = RedisQuery::StageStream {
             uuid: "test".into(),
-            stage: 10,
+            stage: Stage::TobMaiden,
             attempt: Some(1),
             cursor: STREAM_START_CURSOR.into(),
         };
@@ -738,6 +783,69 @@ mod tests {
         let resp = query.parse_response(value).unwrap();
         match resp {
             RedisResponse::StageStream(entries) => assert!(entries.is_empty()),
+            other => panic!("expected StageStream, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_responses_validates_each_separately() {
+        let queries = [
+            RedisQuery::ChallengeState {
+                uuid: "first".into(),
+            },
+            RedisQuery::ChallengeClients {
+                uuid: "second".into(),
+            },
+            RedisQuery::StageStream {
+                uuid: "third".into(),
+                stage: Stage::TobSotetseg,
+                attempt: None,
+                cursor: STREAM_START_CURSOR.into(),
+            },
+        ];
+        let values = vec![
+            Value::Array(vec![
+                bulk("0"),  // status: IN_PROGRESS
+                bulk("1"),  // type: TOB
+                bulk("12"), // mode: TOB_HARD
+                bulk("11"), // stage: TOB_BLOAT
+                Value::Nil, // stageAttempt
+                bulk("1Ogp,WWWWWWWWWWQQ"),
+            ]),
+            Value::Array(vec![bulk("7"), bulk("{\"userId\":")]),
+            Value::Array(vec![stream_entry(
+                "500-0",
+                &[("type", b"0"), ("clientId", b"9"), ("events", b"\x08\x03")],
+            )]),
+        ];
+
+        let responses = parse_responses(&queries, values);
+
+        assert_eq!(responses.len(), 3);
+        match &responses[0] {
+            RedisResponse::ChallengeState(Some(state)) => {
+                assert_eq!(state.status, ChallengeStatus::InProgress);
+                assert_eq!(state.challenge_type, proto::Challenge::Tob);
+                assert_eq!(state.mode, ChallengeMode::TobHard);
+                assert_eq!(state.stage, Stage::TobBloat);
+                assert_eq!(state.stage_attempt, None);
+                assert_eq!(state.party, vec!["1Ogp", "WWWWWWWWWWQQ"]);
+            }
+            other => panic!("expected ChallengeState(Some), got {other:?}"),
+        }
+        match &responses[1] {
+            RedisResponse::Malformed(RedisQueryError::Parse(message)) => {
+                assert!(message.starts_with("invalid client JSON"));
+            }
+            other => panic!("expected Malformed, got {other:?}"),
+        }
+        match &responses[2] {
+            RedisResponse::StageStream(entries) => {
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].id, "500-0");
+                assert_eq!(entries[0].client_id, ClientId(9));
+                assert_eq!(entries[0].events, b"\x08\x03");
+            }
             other => panic!("expected StageStream, got {other:?}"),
         }
     }

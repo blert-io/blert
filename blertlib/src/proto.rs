@@ -99,3 +99,17 @@ impl From<crate::CombatStyle> for event::npc::nylo::Style {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stage_deserializes_from_proto_number() {
+        assert_eq!(
+            serde_json::from_str::<Stage>("15").unwrap(),
+            Stage::TobVerzik
+        );
+        assert!(serde_json::from_str::<Stage>("9").is_err());
+    }
+}
