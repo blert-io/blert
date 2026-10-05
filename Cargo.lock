@@ -745,6 +745,7 @@ dependencies = [
  "prost-types",
  "serde",
  "serde_json",
+ "serde_repr",
  "similar",
 ]
 
@@ -1944,12 +1945,12 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.23.1",
+ "blert",
  "bytes",
  "deadpool-redis",
  "pin-project-lite",
  "prometheus",
  "prost",
- "prost-build",
  "redis",
  "rustls 0.23.45",
  "serde",

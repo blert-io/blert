@@ -25,6 +25,4 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["json", "env-filter"] }
 bytes = "1.11.1"
 deadpool-redis = "0.23.0"
-
-[build-dependencies]
-prost-build = "0.14.3"
+blert = { version = "0.1.0", path = "../blertlib" }

@@ -15,6 +15,7 @@ fn main() -> Result<()> {
     let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
     prost_build::Config::new()
         .file_descriptor_set_path(Path::new(&out_dir).join("blert_descriptor.bin"))
+        .type_attribute(".blert.Stage", "#[derive(serde_repr::Deserialize_repr)]")
         .compile_protos(&[&format!("{proto_dir}/event.proto")], &[proto_dir])
 }
 

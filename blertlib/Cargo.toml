@@ -12,6 +12,7 @@ flate2 = { version = "1.1.10", optional = true }
 prost = "0.14.4"
 prost-types = "0.14.4"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_repr = "0.1.21"
 similar = { version = "3.2.0", features = ["inline"], optional = true }
 
 [dev-dependencies]
