@@ -266,6 +266,7 @@ impl ChallengeReader {
                 }
                 RedisResponse::ChallengeState(None) => {
                     self.finish_challenge();
+                    return;
                 }
                 RedisResponse::ChallengeClients(clients) => {
                     self.process_clients(&clients, tick);
@@ -306,7 +307,9 @@ impl ChallengeReader {
 
         // Gauge the primary's health after processing the stream, so that it
         // reflects data received in this poll.
-        self.update_primary(tick);
+        if self.stage_state == StageState::Active {
+            self.update_primary(tick);
+        }
     }
 
     /// Handles a challenge update from the pubsub channel.
@@ -334,6 +337,11 @@ impl ChallengeReader {
     /// Returns IDs of disconnected subscribers for cleanup.
     #[allow(clippy::cast_possible_truncation)]
     pub fn broadcast(&mut self) -> Vec<SubscriberId> {
+        // A pending backfill replaces buffered data; wait for update.
+        if matches!(self.state, ReaderState::Backfilling(_)) {
+            return Vec::new();
+        }
+
         let available = self.tick_buffer.len() - self.broadcast_cursor;
 
         // Hold back `JITTER_DEPTH` ticks so the plugin's flush-on-tick-boundary
@@ -765,8 +773,6 @@ impl ChallengeReader {
                     "stage became active",
                 );
                 self.begin_stage(tick, self.stage, self.stage_attempt);
-            } else {
-                return;
             }
         }
 
@@ -776,7 +782,7 @@ impl ChallengeReader {
         }
 
         let all_completed = clients.values().all(|c| self.client_completed_stage(c));
-        if all_completed {
+        if self.stage_state.is_open() && all_completed {
             self.stage_state = StageState::Ending;
             return;
         }
@@ -813,7 +819,9 @@ impl ChallengeReader {
                 self.check_primary_switch(primary_id, tick);
             }
             None => {
-                self.primary_client_id = self.select_primary_client(0, None);
+                if let Some(primary_id) = self.select_primary_client(0, None) {
+                    self.switch_to_primary(primary_id);
+                }
             }
         }
     }
@@ -1538,6 +1546,32 @@ mod tests {
     }
 
     #[test]
+    fn missing_challenge_completes_ignoring_empty_clients() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(5, Some(1), tx));
+        drain_messages(&mut rx);
+
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(None),
+                RedisResponse::ChallengeClients(HashMap::new()),
+                RedisResponse::StageStream(vec![]),
+            ],
+            9,
+        );
+
+        assert_eq!(reader.state, ReaderState::Completed);
+        assert!(reader.poll_queries().is_empty());
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 2);
+        assert!(matches!(msgs[0], SseMessage::StageEnd { stage: 1, .. }));
+        assert!(matches!(msgs[1], SseMessage::Complete));
+    }
+
+    #[test]
     fn backfill_with_inactive_clients_populates_buffer_without_primary() {
         let (backfill_tx, _rx) = mpsc::unbounded_channel();
         let clients =
@@ -1574,6 +1608,55 @@ mod tests {
         let msgs = drain_messages(&mut rx);
         assert!(msgs.len() >= 3);
         assert!(matches!(msgs[0], SseMessage::Reset { .. }));
+    }
+
+    #[test]
+    fn primary_selected_after_backfill_without_primary_requests_backfill() {
+        let (backfill_tx, mut backfill_rx) = mpsc::unbounded_channel();
+        let clients = HashMap::from([
+            (1, challenge_client(1, false, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, false, 1, None, StageStatus::Started)),
+        ]);
+        let mut reader = ChallengeReader::new(
+            "test".to_string(),
+            challenge_state(1, None),
+            &clients,
+            backfill_tx,
+        );
+        backfill_rx.try_recv().unwrap();
+
+        // With no active clients, the buffer is filled from client 1.
+        reader.apply_backfill(
+            BackfillResult {
+                challenge_id: "test".to_string(),
+                backfill_id: reader.backfill_id,
+                entries: vec![stream_entry("1-0", 1, 1), stream_entry("2-0", 1, 2)],
+                last_stream_id: "2-0".to_string(),
+            },
+            0,
+        );
+        assert_eq!(reader.primary_client_id, None);
+
+        let updated_clients = HashMap::from([
+            (1, challenge_client(1, false, 1, None, StageStatus::Started)),
+            (2, challenge_client(2, true, 1, None, StageStatus::Started)),
+        ]);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(updated_clients),
+                RedisResponse::StageStream(vec![]),
+            ],
+            3,
+        );
+
+        assert_eq!(reader.primary_client_id, Some(2));
+        assert!(matches!(reader.state, ReaderState::Backfilling(Some(2))));
+        assert_eq!(reader.generation, 1);
+        assert!(reader.tick_buffer.is_empty());
+
+        let req = backfill_rx.try_recv().unwrap();
+        assert_eq!(req.backfill_id, reader.backfill_id);
     }
 
     #[test]
@@ -1757,6 +1840,79 @@ mod tests {
         let msgs = drain_messages(&mut rx);
         assert_eq!(msgs.len(), 1);
         assert!(matches!(msgs[0], SseMessage::StageEnd { .. }));
+    }
+
+    #[test]
+    fn ending_stage_drains_after_pending_backfill() {
+        let (backfill_tx, _rx) = mpsc::unbounded_channel();
+        let clients =
+            HashMap::from([(1, challenge_client(1, true, 1, None, StageStatus::Started))]);
+        let mut reader = ChallengeReader::new(
+            "test".to_string(),
+            challenge_state(1, None),
+            &clients,
+            backfill_tx,
+        );
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(6, Some(1), tx));
+        drain_messages(&mut rx);
+
+        // The stage ends before the initial backfill lands.
+        reader.apply_challenge_update(&ChallengeServerUpdate::StageEnd {
+            id: "test".to_string(),
+            stage: 1,
+            attempt: None,
+        });
+        reader.broadcast();
+
+        assert_eq!(reader.stage_state, StageState::Ending);
+        assert!(drain_messages(&mut rx).is_empty());
+
+        reader.apply_backfill(
+            BackfillResult {
+                challenge_id: "test".to_string(),
+                backfill_id: reader.backfill_id,
+                entries: (0..4)
+                    .map(|t| stream_entry(&format!("{t}-0"), 1, t))
+                    .collect(),
+                last_stream_id: "3-0".to_string(),
+            },
+            2,
+        );
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 3);
+        assert!(matches!(
+            msgs[0],
+            SseMessage::Reset {
+                stage_active: true,
+                ..
+            }
+        ));
+        assert!(matches!(
+            msgs[1],
+            SseMessage::ReplayChunk {
+                start_tick: 0,
+                tick_count: 2,
+                ..
+            }
+        ));
+        assert!(matches!(
+            msgs[2],
+            SseMessage::ReplayEnd { tick: Some(1), .. }
+        ));
+
+        // The ticks held back from the replay drain before the stage ends.
+        reader.broadcast();
+        reader.broadcast();
+
+        assert_eq!(reader.stage_state, StageState::Inactive);
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 3);
+        assert!(matches!(msgs[0], SseMessage::Tick { tick: 2, .. }));
+        assert!(matches!(msgs[1], SseMessage::Tick { tick: 3, .. }));
+        assert!(matches!(msgs[2], SseMessage::StageEnd { stage: 1, .. }));
     }
 
     #[test]
@@ -1975,6 +2131,164 @@ mod tests {
         assert_eq!(reader.primary_client_id, Some(1));
         assert_eq!(reader.state, ReaderState::Active);
         assert_eq!(reader.generation, 0);
+    }
+
+    #[test]
+    fn primary_is_kept_between_stages() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(7, Some(1), tx));
+        drain_messages(&mut rx);
+
+        reader.process_stream_entries(&[stream_entry("1-0", 1, 1)], 4);
+
+        // The stage ends after the primary has been silent past the threshold.
+        reader.apply_challenge_update(&ChallengeServerUpdate::StageEnd {
+            id: "challenge-id".to_string(),
+            stage: 1,
+            attempt: None,
+        });
+        let completed_clients = HashMap::from([(
+            1,
+            challenge_client(1, true, 1, None, StageStatus::Completed),
+        )]);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(completed_clients.clone()),
+                RedisResponse::StageStream(vec![]),
+            ],
+            10,
+        );
+
+        assert_eq!(reader.state, ReaderState::Active);
+        assert_eq!(reader.primary_client_id, Some(1));
+
+        reader.broadcast();
+        reader.broadcast();
+
+        assert_eq!(reader.stage_state, StageState::Inactive);
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 3);
+        assert!(matches!(msgs[0], SseMessage::Tick { tick: 0, .. }));
+        assert!(matches!(msgs[1], SseMessage::Tick { tick: 1, .. }));
+        assert!(matches!(msgs[2], SseMessage::StageEnd { stage: 1, .. }));
+
+        // The primary sends nothing between stages, as no stream is open.
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(completed_clients),
+            ],
+            12,
+        );
+
+        assert_eq!(reader.state, ReaderState::Active);
+        assert_eq!(reader.primary_client_id, Some(1));
+
+        let started_clients =
+            HashMap::from([(1, challenge_client(1, true, 2, None, StageStatus::Started))]);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(2, None))),
+                RedisResponse::ChallengeClients(started_clients),
+            ],
+            13,
+        );
+
+        assert_eq!(reader.stage, 2);
+        assert_eq!(reader.state, ReaderState::Active);
+        assert_eq!(reader.primary_client_id, Some(1));
+        assert_eq!(reader.generation, 0);
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(
+            msgs[0],
+            SseMessage::StageChange {
+                stage: 2,
+                attempt: None
+            }
+        ));
+    }
+
+    #[test]
+    fn stalls_when_clients_leave_between_stages() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(3, Some(1), tx));
+        reader.stage_state = StageState::Ending;
+        reader.broadcast();
+        drain_messages(&mut rx);
+
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(HashMap::new()),
+            ],
+            6,
+        );
+
+        assert!(matches!(
+            reader.state,
+            ReaderState::Stalled {
+                reason: StalledReason::NoClients,
+                since: 6,
+            }
+        ));
+        assert_eq!(reader.primary_client_id, None);
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(
+            msgs[0],
+            SseMessage::Stalled {
+                reason: StalledReason::NoClients
+            }
+        ));
+    }
+
+    #[test]
+    fn stalls_when_clients_go_inactive_between_stages() {
+        let mut reader = new_active_reader(1, None);
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(4, Some(1), tx));
+        reader.stage_state = StageState::Ending;
+        reader.broadcast();
+        drain_messages(&mut rx);
+
+        let inactive_clients = HashMap::from([(
+            1,
+            challenge_client(1, false, 1, None, StageStatus::Completed),
+        )]);
+        reader.apply_poll_responses(
+            vec![
+                RedisResponse::ChallengeState(Some(challenge_state(1, None))),
+                RedisResponse::ChallengeClients(inactive_clients),
+            ],
+            7,
+        );
+
+        assert!(matches!(
+            reader.state,
+            ReaderState::Stalled {
+                reason: StalledReason::AllInactive,
+                since: 7,
+            }
+        ));
+        assert_eq!(reader.primary_client_id, None);
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 1);
+        assert!(matches!(
+            msgs[0],
+            SseMessage::Stalled {
+                reason: StalledReason::AllInactive
+            }
+        ));
     }
 
     #[test]
