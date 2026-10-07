@@ -107,6 +107,8 @@ An SSE stream consists of the following message types:
 
 - `metadata`: The initial challenge state, sent on subscribe.
 - `tick`: A single live tick's events, broadcast at 600ms cadence.
+- `rewind`: Ticks from a given tick onward changed after subscribers received
+  them. The next `tick` re-sends them up to the previous position.
 - `stage-end`: The current stage has ended.
 - `stage-change`: A new stage has started.
 - `complete`: The challenge has finished.

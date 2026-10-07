@@ -260,7 +260,7 @@ export default function DelvePage({ params }: DelvePageProps) {
     const activeSplats = new Set<string>();
 
     for (let tick = 0; tick < totalTicks; tick++) {
-      const objectsEvent = eventsByTick[tick]?.find(
+      const objectsEvents = (eventsByTick[tick] ?? []).filter(
         (event) => event.type === EventType.MOKHAIOTL_OBJECTS,
       );
 
@@ -270,7 +270,7 @@ export default function DelvePage({ params }: DelvePageProps) {
         return { x, y };
       };
 
-      if (objectsEvent !== undefined) {
+      for (const objectsEvent of objectsEvents) {
         const { rocksSpawned, splatsSpawned, rocksDespawned, splatsDespawned } =
           objectsEvent.mokhaiotlObjects;
         for (const rock of rocksSpawned) {

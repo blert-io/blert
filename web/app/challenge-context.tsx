@@ -55,6 +55,8 @@ export type LiveChallengeState = {
   lastTick: number | null;
   /** In-fight splits detected from the live event stream. */
   liveSplits: Readonly<Partial<Record<SplitType, number>>>;
+  /** Number of rewinds applied to the live stage's events. */
+  rewindCount: number;
   /**
    * Request event streaming for a specific stage.
    * If `null`, only control messages are received.
@@ -71,6 +73,7 @@ export const DEFAULT_LIVE_STATE: LiveChallengeState = {
   liveEvents: [],
   lastTick: null,
   liveSplits: {},
+  rewindCount: 0,
   setRequestedStage: () => {
     /* noop */
   },

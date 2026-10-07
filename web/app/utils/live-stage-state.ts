@@ -22,6 +22,8 @@ type IncrementalState = {
   players: PlayerStateBuilder;
   npcs: NpcStateBuilder;
   processedEventCount: number;
+  totalTicks: number;
+  rewindCount: number;
 
   // Reference-stable snapshots of state builder output.
   eventsByTick: EventTickMap;
@@ -30,13 +32,15 @@ type IncrementalState = {
   npcState: RoomNpcMap;
 };
 
-function createIncrementalState(): IncrementalState {
+function createIncrementalState(rewindCount: number): IncrementalState {
   return {
     events: new EventMapBuilder(),
     npcMap: new NpcMapBuilder(),
     players: new PlayerStateBuilder(),
     npcs: new NpcStateBuilder(),
     processedEventCount: 0,
+    totalTicks: 0,
+    rewindCount,
     eventsByTick: {},
     eventsByType: {},
     playerState: new Map(),
@@ -68,12 +72,13 @@ export function useLiveStageState<T extends Challenge>(
     live.currentStage?.stage === stage &&
     liveAttempt === attempt;
 
-  // Reset state when exiting live or the provider reset.
+  // Reset state when exiting live, or if the provider reset or issued a rewind.
   if (
     !isLiveStage ||
     challenge === null ||
     (ref.current !== null &&
-      live.liveEvents.length < ref.current.processedEventCount)
+      (live.liveEvents.length < ref.current.processedEventCount ||
+        live.rewindCount !== ref.current.rewindCount))
   ) {
     ref.current = null;
   }
@@ -101,11 +106,11 @@ export function useLiveStageState<T extends Challenge>(
 
   const totalTicks = live.lastTick === null ? 0 : live.lastTick + 1;
 
-  ref.current ??= createIncrementalState();
+  ref.current ??= createIncrementalState(live.rewindCount);
   const state = ref.current;
 
   const newEvents = live.liveEvents.slice(state.processedEventCount);
-  if (newEvents.length > 0) {
+  if (newEvents.length > 0 || totalTicks > state.totalTicks) {
     state.events.append(newEvents);
     state.npcMap.append(newEvents);
 
@@ -124,6 +129,7 @@ export function useLiveStageState<T extends Challenge>(
     );
 
     state.processedEventCount = live.liveEvents.length;
+    state.totalTicks = totalTicks;
 
     // Create new references so downstream hooks detect the change.
     state.eventsByTick = { ...state.events.eventsByTick };
