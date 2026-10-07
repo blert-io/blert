@@ -6,7 +6,7 @@ import Button from '@/components/button';
 import { useIsApple } from '@/display';
 
 import { setTotalTicks, updateMeta } from './bcf-mutator';
-import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
+import { MAX_CELL_SIZE, MAX_TICKS, MIN_CELL_SIZE } from './constants';
 import { currentDocument } from './editor-state';
 import { ChartEditor } from './use-chart-editor';
 
@@ -106,7 +106,7 @@ function TickCountInput({ ticks, onCommit }: TickCountInputProps) {
 
   const commit = () => {
     const value = Number(text);
-    if (!Number.isInteger(value) || value < 1) {
+    if (!Number.isInteger(value) || value < 1 || value > MAX_TICKS) {
       setText(String(ticks));
     } else if (value !== ticks) {
       onCommit(value);
@@ -117,6 +117,7 @@ function TickCountInput({ ticks, onCommit }: TickCountInputProps) {
     <input
       className={styles.field}
       min={1}
+      max={MAX_TICKS}
       type="number"
       value={text}
       onBlur={commit}

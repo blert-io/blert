@@ -36,6 +36,7 @@ export type CellOverlayProps = {
   tick: number;
   className?: string;
   children?: React.ReactNode;
+  ref?: React.Ref<HTMLDivElement>;
 };
 
 /** Positions content over a cell of a timeline. */
@@ -44,6 +45,7 @@ export function CellOverlay({
   tick,
   className,
   children,
+  ref,
 }: CellOverlayProps) {
   const row = useContext(VisualRowContext);
   if (row === null || tick < row.startTick || tick > row.endTick) {
@@ -59,6 +61,7 @@ export function CellOverlay({
   return (
     <div
       className={className}
+      ref={ref}
       style={{
         position: 'absolute',
         left: (tick - row.startTick) * columnWidth,

@@ -6,7 +6,6 @@ import {
   BlertChartFormat,
   actorTypeSupportsAction,
 } from '@blert/bcf';
-import Image from 'next/image';
 import {
   SetStateAction,
   useCallback,
@@ -15,20 +14,25 @@ import {
   useRef,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 
 import BcfRenderer, {
   CellOverlay,
   InteractionHandler,
-  getActionMetadata,
 } from '@/components/attack-timeline';
 import Button from '@/components/button';
+import { useModifierKey } from '@/hooks/modifier-key';
 import { clamp } from '@/utils/math';
 
+import { useActionDrag } from './action-drag';
+import { cycleAttack } from './action-registry';
+import { ActionIcon } from './action-icon';
 import { placeAction, removeAction, removeCell } from './bcf-mutator';
 import { CellBar } from './cell-bar';
 import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
 import { CellCoord, currentDocument } from './editor-state';
 import { Hotbar } from './hotbar';
+import { Palette } from './palette';
 import { Toolbar } from './toolbar';
 import { useChartEditor } from './use-chart-editor';
 
@@ -49,8 +53,6 @@ const DEFAULT_CHART: BlertChartFormat = {
   },
 };
 
-const DEFAULT_BRUSH: BCFAction = { type: 'attack', attackType: 'SCYTHE' };
-
 function canPlace(
   resolver: BCFResolver,
   actorId: string,
@@ -64,8 +66,8 @@ function canPlace(
 
 export function ChartEditor() {
   const editor = useChartEditor(DEFAULT_CHART);
-  const { state, dispatch, update } = editor;
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { state, slotsLoaded, dispatch, update } = editor;
+  const [drawerOpen, setDrawerOpen] = useState(true);
   const [cellSize, rawSetCellSize] = useState(DEFAULT_CELL_SIZE);
 
   const setCellSize = useCallback((size: SetStateAction<number>) => {
@@ -78,14 +80,9 @@ export function ChartEditor() {
     );
   }, []);
 
-  // TODO(frolv): remove once selection selects
-  useEffect(() => {
-    dispatch({ type: 'set-brush', brush: DEFAULT_BRUSH });
-  }, [dispatch]);
-
   const bcf = currentDocument(state);
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
-  const { brush, focus } = state;
+  const { activeSlot, brush, focus, slots } = state;
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridWidth, setGridWidth] = useState<number | null>(null);
@@ -107,7 +104,27 @@ export function ChartEditor() {
     return () => observer.disconnect();
   }, []);
 
+  const focusRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    focusRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [focus]);
+
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
   const [hover, setHover] = useState<CellCoord | null>(null);
+  const altHeld = useModifierKey('Alt');
+  const { capture, drag, release } = useActionDrag();
+
+  const place = useCallback(
+    (cell: CellCoord, action: BCFAction) => {
+      if (canPlace(resolver, cell.actorId, action)) {
+        update((doc) => placeAction(doc, cell.actorId, cell.tick, action));
+        dispatch({ type: 'set-focus', focus: cell });
+      }
+    },
+    [dispatch, resolver, update],
+  );
 
   const interactionHandler = useMemo<InteractionHandler>(
     () => ({
@@ -117,11 +134,20 @@ export function ChartEditor() {
         }
 
         const cell = { actorId: hit.rowId, tick: hit.tick };
+        if (e.altKey) {
+          const actions =
+            resolver.getCell(cell.actorId, cell.tick)?.actions ?? [];
+          const picked = actions.find((a) => a.type === 'attack') ?? actions[0];
+          if (picked !== undefined) {
+            dispatch({ type: 'set-brush', brush: picked });
+          }
+          return;
+        }
+
         if (brush === null) {
           dispatch({ type: 'set-focus', focus: cell });
-        } else if (canPlace(resolver, cell.actorId, brush)) {
-          update((doc) => placeAction(doc, cell.actorId, cell.tick, brush));
-          dispatch({ type: 'set-focus', focus: cell });
+        } else {
+          place(cell, brush);
         }
       },
       onPointerMove: (hit) => {
@@ -138,10 +164,25 @@ export function ChartEditor() {
           }
           return { actorId: hit.rowId, tick: hit.tick };
         });
+
+        if (drag === null) {
+          return;
+        }
+        if (hit?.type === 'cell') {
+          const cell = { actorId: hit.rowId, tick: hit.tick };
+          capture('chart', ({ action }) => place(cell, action));
+        } else {
+          release('chart');
+        }
       },
       cursor: (hit) => {
         if (hit?.type !== 'cell') {
           return undefined;
+        }
+        if (altHeld) {
+          return resolver.getCell(hit.rowId, hit.tick) !== undefined
+            ? 'copy'
+            : undefined;
         }
         if (brush !== null && !canPlace(resolver, hit.rowId, brush)) {
           return 'not-allowed';
@@ -149,13 +190,10 @@ export function ChartEditor() {
         return 'cell';
       },
     }),
-    [brush, dispatch, resolver, update],
+    [altHeld, brush, capture, dispatch, drag, place, release, resolver],
   );
 
   const wrapWidth = gridWidth !== null && gridWidth > 0 ? gridWidth : undefined;
-
-  const brushImage =
-    brush !== null ? getActionMetadata(brush).imageUrl : undefined;
 
   const removeFocusedAction = useCallback(
     (index: number) => {
@@ -238,8 +276,50 @@ export function ChartEditor() {
           dispatch({ type: 'move-focus', rows: 0, ticks: -1 });
           break;
 
+        case 'a':
+        case 'A':
+          if (!modifier && !e.altKey) {
+            e.preventDefault();
+            setDrawerOpen((open) => !open);
+          }
+          break;
+
+        case 's':
+        case 'S':
+          if (!modifier && brush !== null) {
+            const next = cycleAttack(brush, e.shiftKey ? -1 : 1);
+            if (next !== null) {
+              e.preventDefault();
+              dispatch({ type: 'set-brush', brush: next });
+            }
+          }
+          break;
+
+        case '/':
+          if (!modifier) {
+            e.preventDefault();
+            flushSync(() => setDrawerOpen(true));
+            searchRef.current?.focus({ preventScroll: true });
+          }
+          break;
+
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+          if (!modifier && !e.altKey) {
+            e.preventDefault();
+            dispatch({ type: 'select-slot', slot: Number(e.key) - 1 });
+          }
+          break;
+
         case 'Escape':
-          if (brush !== null) {
+          if (brush !== null || activeSlot !== null) {
             dispatch({ type: 'set-brush', brush: null });
           } else if (focus !== null) {
             dispatch({ type: 'set-focus', focus: null });
@@ -250,7 +330,7 @@ export function ChartEditor() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [brush, dispatch, focus, resolver, setCellSize, update]);
+  }, [activeSlot, brush, dispatch, focus, resolver, setCellSize, update]);
 
   return (
     <div className={styles.editor}>
@@ -265,7 +345,7 @@ export function ChartEditor() {
             icon
             onClick={() => setDrawerOpen((open) => !open)}
             toolbar
-            tooltip="Actions"
+            tooltip="Actions (A)"
           >
             <i className="fa-solid fa-table-cells" />
             <span className="sr-only">Actions</span>
@@ -292,41 +372,103 @@ export function ChartEditor() {
               rowId={focus.actorId}
               tick={focus.tick}
               className={styles.focusOverlay}
+              ref={focusRef}
             />
           )}
-          {brush !== null && hover !== null && (
-            <CellOverlay
-              rowId={hover.actorId}
-              tick={hover.tick}
-              className={
-                canPlace(resolver, hover.actorId, brush)
-                  ? `${styles.ghost} ${styles.valid}`
-                  : `${styles.ghost} ${styles.invalid}`
-              }
-            >
-              {brushImage !== undefined && (
-                <Image
-                  src={brushImage}
-                  alt=""
-                  width={cellSize - 2}
-                  height={cellSize - 2}
-                />
-              )}
-            </CellOverlay>
-          )}
+          <Ghost
+            hover={hover}
+            brush={drag?.action ?? brush}
+            altHeld={altHeld}
+            bcf={bcf}
+            resolver={resolver}
+            cellSize={cellSize}
+          />
         </BcfRenderer>
       </div>
       <aside
         className={
           drawerOpen ? `${styles.drawer} ${styles.open}` : styles.drawer
         }
-      />
+        inert={!drawerOpen}
+      >
+        <Palette
+          brush={brush}
+          onAddToHotbar={(action) => {
+            if (slotsLoaded) {
+              dispatch({ type: 'add-to-hotbar', action });
+            }
+          }}
+          onClose={() => setDrawerOpen(false)}
+          onSelect={(action) => dispatch({ type: 'set-brush', brush: action })}
+          searchRef={searchRef}
+        />
+      </aside>
       <div className={styles.hotbar}>
         <Hotbar
+          activeSlot={activeSlot}
           brush={brush}
+          disabled={!slotsLoaded}
           onClearBrush={() => dispatch({ type: 'set-brush', brush: null })}
+          onSelectSlot={(slot) => {
+            if (slots[slot] === null && brush !== null) {
+              dispatch({ type: 'set-slot', slot, action: brush });
+            }
+            dispatch({ type: 'select-slot', slot });
+          }}
+          onSetSlot={(slot, action) =>
+            dispatch({ type: 'set-slot', slot, action })
+          }
+          onSwapSlots={(from, to) => dispatch({ type: 'swap-slots', from, to })}
+          slots={slots}
         />
       </div>
     </div>
+  );
+}
+
+type GhostProps = {
+  hover: CellCoord | null;
+  brush: BCFAction | null;
+  altHeld: boolean;
+  bcf: BlertChartFormat;
+  resolver: BCFResolver;
+  cellSize: number;
+};
+
+function Ghost({ hover, brush, altHeld, bcf, resolver, cellSize }: GhostProps) {
+  if (altHeld) {
+    return bcf.timeline.ticks.flatMap((tick) =>
+      tick.cells
+        .filter((cell) => (cell.actions?.length ?? 0) > 0)
+        .map((cell) => {
+          const hovered =
+            hover !== null &&
+            hover.actorId === cell.actorId &&
+            hover.tick === tick.tick;
+          return (
+            <CellOverlay
+              key={`${cell.actorId}:${tick.tick}`}
+              rowId={cell.actorId}
+              tick={tick.tick}
+              className={`${styles.ghost} ${hovered ? styles.pick : styles.hint}`}
+            />
+          );
+        }),
+    );
+  }
+
+  if (hover === null || brush === null) {
+    return null;
+  }
+
+  const valid = canPlace(resolver, hover.actorId, brush);
+  return (
+    <CellOverlay
+      rowId={hover.actorId}
+      tick={hover.tick}
+      className={`${styles.ghost} ${valid ? styles.valid : styles.invalid}`}
+    >
+      <ActionIcon action={brush} size={cellSize - 2} />
+    </CellOverlay>
   );
 }

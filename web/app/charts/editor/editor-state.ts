@@ -3,8 +3,12 @@ import { BCFAction, BCFActor, BlertChartFormat } from '@blert/bcf';
 import { clamp } from '@/utils/math';
 
 import { setRowOrder } from './bcf-mutator';
+import { HOTBAR_SLOTS } from './constants';
 
 export type CellCoord = { actorId: string; tick: number };
+
+/** Actions bound to the hotbar slots. */
+export type HotbarSlots = (BCFAction | null)[];
 
 export type EditorState = {
   history: BlertChartFormat[];
@@ -19,6 +23,8 @@ export type EditorState = {
   modified: boolean;
   focus: CellCoord | null;
   brush: BCFAction | null;
+  slots: HotbarSlots;
+  activeSlot: number | null;
   respectCooldowns: boolean;
 };
 
@@ -38,7 +44,12 @@ export type EditorAction =
   | { type: 'redo' }
   | { type: 'set-focus'; focus: CellCoord | null }
   | { type: 'move-focus'; rows: number; ticks: number }
-  | { type: 'set-brush'; brush: BCFAction | null };
+  | { type: 'set-brush'; brush: BCFAction | null }
+  | { type: 'add-to-hotbar'; action: BCFAction }
+  | { type: 'select-slot'; slot: number }
+  | { type: 'set-slot'; slot: number; action: BCFAction | null }
+  | { type: 'set-slots'; slots: HotbarSlots }
+  | { type: 'swap-slots'; from: number; to: number };
 
 // Maximum temporal gap between coalescing edits to combine them.
 const COALESCE_WINDOW_MS = 2500;
@@ -60,6 +71,8 @@ export function initialState(bcf: BlertChartFormat): EditorState {
     modified: false,
     focus: null,
     brush: null,
+    slots: new Array<BCFAction | null>(HOTBAR_SLOTS).fill(null),
+    activeSlot: null,
     respectCooldowns: true,
   };
 }
@@ -171,7 +184,59 @@ function apply(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'set-brush':
-      return { ...state, brush: action.brush };
+      return { ...state, brush: action.brush, activeSlot: null };
+
+    case 'add-to-hotbar': {
+      const slot = state.activeSlot ?? state.slots.indexOf(null);
+      if (slot === -1) {
+        return state;
+      }
+      return apply(state, { type: 'set-slot', slot, action: action.action });
+    }
+
+    case 'select-slot':
+      return {
+        ...state,
+        activeSlot: action.slot,
+        brush: state.slots[action.slot] ?? null,
+      };
+
+    case 'set-slot': {
+      const slots = state.slots.with(action.slot, action.action);
+      if (state.activeSlot === action.slot) {
+        return { ...state, slots, brush: action.action };
+      }
+      return { ...state, slots };
+    }
+
+    case 'set-slots': {
+      const slots =
+        action.slots.length === HOTBAR_SLOTS
+          ? action.slots
+          : Array.from(
+              { length: HOTBAR_SLOTS },
+              (_, i) => action.slots[i] ?? null,
+            );
+      if (state.activeSlot === null) {
+        return { ...state, slots };
+      }
+      return { ...state, slots, brush: slots[state.activeSlot] };
+    }
+
+    case 'swap-slots': {
+      const { from, to } = action;
+      const slots = state.slots
+        .with(from, state.slots[to])
+        .with(to, state.slots[from]);
+
+      let activeSlot = state.activeSlot;
+      if (activeSlot === from) {
+        activeSlot = to;
+      } else if (activeSlot === to) {
+        activeSlot = from;
+      }
+      return { ...state, slots, activeSlot };
+    }
   }
 }
 

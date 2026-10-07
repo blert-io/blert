@@ -14,6 +14,8 @@ import {
   ATTACK_METADATA,
   bcfToNpcAttack,
   bcfToPlayerAttack,
+  getActionMetadata,
+  getAttackBadgeUrl,
   getWeaponImageUrl,
   NPC_ATTACK_METADATA,
 } from '../attack-metadata';
@@ -22,47 +24,6 @@ import { CustomState } from '../types';
 import { ImageCache } from './image-cache';
 import { TimelinePalette } from './palette';
 import { BoundingBox, Point } from './types';
-
-const BARRAGES = new Set<PlayerAttack>([
-  PlayerAttack.KODAI_BARRAGE,
-  PlayerAttack.NM_STAFF_BARRAGE,
-  PlayerAttack.SANG_BARRAGE,
-  PlayerAttack.SCEPTRE_BARRAGE,
-  PlayerAttack.SHADOW_BARRAGE,
-  PlayerAttack.SOTD_BARRAGE,
-  PlayerAttack.STAFF_OF_LIGHT_BARRAGE,
-  PlayerAttack.TOXIC_TRIDENT_BARRAGE,
-  PlayerAttack.TOXIC_STAFF_BARRAGE,
-  PlayerAttack.TRIDENT_BARRAGE,
-  PlayerAttack.UNKNOWN_BARRAGE,
-]);
-
-function attackOverlayUrl(
-  attack: BCFAttackAction,
-  type: PlayerAttack,
-): string | undefined {
-  if (BARRAGES.has(type)) {
-    return '/images/combat/barrage.png';
-  }
-
-  switch (type) {
-    case PlayerAttack.DARK_DEMONBANE:
-      return '/images/combat/dark-demonbane.webp';
-    case PlayerAttack.ICE_RUSH:
-      return '/images/combat/ice-rush.png';
-  }
-
-  const meta = ATTACK_METADATA[type] ?? ATTACK_METADATA[PlayerAttack.UNKNOWN];
-  const isSpec =
-    meta.special ||
-    attack.specCost !== undefined ||
-    attack.attackType.endsWith('_SPEC');
-  if (isSpec) {
-    return '/images/combat/spec.png';
-  }
-
-  return undefined;
-}
 
 function spellMeta(spell: BCFSpellAction) {
   const type = PlayerSpell[spell.spellType as keyof typeof PlayerSpell];
@@ -242,15 +203,14 @@ function drawWeapon(
   return true;
 }
 
-function drawAttackOverlay(
+function drawAttackBadge(
   ctx: CanvasRenderingContext2D,
   pos: Point,
   cellSize: number,
   imageCache: ImageCache,
   attack: BCFAttackAction,
-  attackType: PlayerAttack,
 ): boolean {
-  const url = attackOverlayUrl(attack, attackType);
+  const url = getAttackBadgeUrl(attack);
   if (url === undefined) {
     return true;
   }
@@ -377,6 +337,7 @@ export function drawPlayerCell(
 
   const attack = actions.find((a) => a.type === 'attack');
   const spell = actions.find((a) => a.type === 'spell');
+  const utility = actions.find((a) => a.type === 'utility');
 
   const attackType =
     attack !== undefined
@@ -385,6 +346,13 @@ export function drawPlayerCell(
 
   let hasBaseImage = false;
   const customStates: CustomState[] = [];
+
+  if (utility !== undefined) {
+    const { name, imageUrl } = getActionMetadata(utility);
+    if (imageUrl !== undefined) {
+      customStates.push({ iconUrl: imageUrl, fullText: name });
+    }
+  }
 
   if (attack !== undefined && attackType !== undefined) {
     if (letterMode) {
@@ -406,14 +374,7 @@ export function drawPlayerCell(
       if (spell !== undefined) {
         pending ||= !drawSpellOverlay(ctx, pos, cellSize, imageCache, spell);
       }
-      pending ||= !drawAttackOverlay(
-        ctx,
-        pos,
-        cellSize,
-        imageCache,
-        attack,
-        attackType,
-      );
+      pending ||= !drawAttackBadge(ctx, pos, cellSize, imageCache, attack);
 
       const dmg = createDamageCustomState(attack);
       if (dmg !== undefined) {
