@@ -587,7 +587,7 @@ impl<'a> TickBuilder<'a> {
 
             // Modifies a past attack.
             Type::TobVerzikAttackStyle | Type::MokhaiotlAttackStyle => {
-                match resolve_attack_style(self.recording, event) {
+                match resolve_attack_style(self.recording, &mut self.state, event) {
                     Ok(Some(attack_tick)) => {
                         self.changed = Some(
                             self.changed
@@ -1556,6 +1556,7 @@ fn parse_maze(maze: &proto::event::SoteMaze) -> Result<Maze, RejectionReason> {
 
 fn resolve_attack_style(
     recording: &mut Recording,
+    current: &mut TickState,
     event: &proto::Event,
 ) -> Result<Option<Tick>, RejectionReason> {
     let kind = event.r#type();
@@ -1575,9 +1576,10 @@ fn resolve_attack_style(
 
     let payload = payload.required(field)?;
     let attack_tick = Tick(payload.npc_attack_tick);
-    if attack_tick >= Tick(event.tick) {
+    let event_tick = Tick(event.tick);
+    if attack_tick > event_tick {
         return Err(RejectionReason::Inconsistent(
-            "attack style npc_attack_tick not before event tick",
+            "attack style npc_attack_tick after event tick",
         ));
     }
 
@@ -1603,8 +1605,12 @@ fn resolve_attack_style(
         _ => unreachable!("only attack style events are passed in"),
     };
 
-    let (attack, unresolved) = recording
-        .get_state_mut(attack_tick)
+    let state = if attack_tick == event_tick {
+        Some(current)
+    } else {
+        recording.get_state_mut(attack_tick)
+    };
+    let (attack, unresolved) = state
         .and_then(|state| {
             state.events.iter_mut().find_map(|e| match &mut e.kind {
                 EventKind::NpcAttack(attack) => {

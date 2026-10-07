@@ -43,6 +43,10 @@ impl PlayerAttack {
     pub fn style(self) -> Option<crate::CombatStyle> {
         definitions::style(self as i32)
     }
+
+    pub fn has_class(self, class: crate::AttackClass) -> bool {
+        definitions::classes(self as i32).contains(&class)
+    }
 }
 
 impl PlayerSpell {

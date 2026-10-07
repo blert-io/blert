@@ -3,6 +3,8 @@ use std::fmt::Write as _;
 use std::io::Result;
 use std::path::Path;
 
+use serde::Deserialize;
+
 fn main() -> Result<()> {
     generate_item_ids()?;
     generate_attack_definitions()?;
@@ -19,41 +21,82 @@ fn main() -> Result<()> {
         .compile_protos(&[&format!("{proto_dir}/event.proto")], &[proto_dir])
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[expect(dead_code)]
+struct AttackDefinition {
+    name: String,
+    proto_id: i32,
+    weapon_ids: Vec<i32>,
+    animation_ids: Vec<i32>,
+    #[serde(default)]
+    attacker_graphic_ids: Vec<i32>,
+    projectile: Option<Projectile>,
+    #[serde(default)]
+    weapon_projectiles: Vec<WeaponProjectile>,
+    #[serde(default)]
+    continuous_animation: bool,
+    animation_frame_max: Option<u32>,
+    cooldown: u32,
+    category: Category,
+    #[serde(default)]
+    classes: Vec<AttackClass>,
+    spec_cost: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[expect(dead_code)]
+struct Projectile {
+    id: i32,
+    start_cycle_offset: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[expect(dead_code)]
+struct WeaponProjectile {
+    id: i32,
+    start_cycle_offset: u32,
+    weapon_id: i32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum Category {
+    Melee,
+    Ranged,
+    Magic,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum AttackClass {
+    Demonbane,
+}
+
 /// Generates attack metadata from the canonical JSON.
 fn generate_attack_definitions() -> Result<()> {
     const DEFINITIONS_FILE: &str = "../proto/attack_definitions.json";
     println!("cargo:rerun-if-changed={DEFINITIONS_FILE}");
 
     let data = std::fs::read_to_string(DEFINITIONS_FILE)?;
-    let definitions: serde_json::Value =
+    let mut definitions: Vec<AttackDefinition> =
         serde_json::from_str(&data).map_err(std::io::Error::other)?;
-
-    let mut entries = Vec::new();
-    for definition in definitions.as_array().into_iter().flatten() {
-        let (Some(id), Some(cooldown), Some(category)) = (
-            definition["protoId"].as_i64(),
-            definition["cooldown"].as_i64(),
-            definition["category"].as_str(),
-        ) else {
-            return Err(std::io::Error::other("attack definition missing fields"));
-        };
-        let style = match category {
-            "MELEE" => "Melee",
-            "RANGED" => "Ranged",
-            "MAGIC" => "Magic",
-            _ => return Err(std::io::Error::other("unknown attack category")),
-        };
-        entries.push((id, cooldown, style));
-    }
-    entries.sort_by_key(|&(id, _, _)| id);
+    definitions.sort_by_key(|definition| definition.proto_id);
 
     let mut out = String::from(
         "// Generated from the attack definitions JSON.\n\n\
          /// Returns an attack's cooldown in ticks.\n\
          pub const fn cooldown(id: i32) -> Option<u32> {\n    match id {\n",
     );
-    for &(id, cooldown, _) in &entries {
-        writeln!(out, "        {id} => Some({cooldown}),").map_err(std::io::Error::other)?;
+    for definition in &definitions {
+        writeln!(
+            out,
+            "        {} => Some({}),",
+            definition.proto_id, definition.cooldown
+        )
+        .map_err(std::io::Error::other)?;
     }
     out.push_str("        _ => None,\n    }\n}\n");
 
@@ -61,11 +104,30 @@ fn generate_attack_definitions() -> Result<()> {
         "\n/// Returns an attack's combat style.\n\
          pub const fn style(id: i32) -> Option<crate::CombatStyle> {\n    match id {\n",
     );
-    for &(id, _, style) in &entries {
-        writeln!(out, "        {id} => Some(crate::CombatStyle::{style}),")
-            .map_err(std::io::Error::other)?;
+    for definition in &definitions {
+        writeln!(
+            out,
+            "        {} => Some(crate::CombatStyle::{:?}),",
+            definition.proto_id, definition.category
+        )
+        .map_err(std::io::Error::other)?;
     }
     out.push_str("        _ => None,\n    }\n}\n");
+
+    out.push_str(
+        "\npub const fn classes(id: i32) -> &'static [crate::AttackClass] {\n    match id {\n",
+    );
+    for definition in definitions.iter().filter(|d| !d.classes.is_empty()) {
+        let classes = definition
+            .classes
+            .iter()
+            .map(|class| format!("crate::AttackClass::{class:?}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(out, "        {} => &[{classes}],", definition.proto_id)
+            .map_err(std::io::Error::other)?;
+    }
+    out.push_str("        _ => &[],\n    }\n}\n");
 
     let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
     std::fs::write(Path::new(&out_dir).join("attack_definitions.rs"), out)

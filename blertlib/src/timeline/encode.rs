@@ -6,11 +6,11 @@ use std::collections::{HashMap, HashSet};
 use crate::actor::{
     Actor, DataSource, NpcProperties, NpcState, NyloSpawn, PartyIndex, PlayerState, RoomId,
 };
-use crate::event::{EventKind, Maze, PlayerAttacked, SolDust, XarpusExhumed, XarpusSplatSource};
+use crate::event::{EventKind, Maze, SolDust, XarpusExhumed, XarpusSplatSource};
 use crate::item::{EQUIPMENT_SLOTS, Item, ItemDelta, Slot};
 use crate::objects::{ObjectKind, TickObjects};
 use crate::tick::Tick;
-use crate::{CombatStyle, NpcAttack, Point, Stage, npc, proto};
+use crate::{Point, Stage, npc, proto};
 
 use super::{TickState, Timeline};
 
@@ -60,7 +60,7 @@ impl<'a> Encoder<'a> {
             if self.dead_actors.contains(&Actor::Player(index)) {
                 continue;
             }
-            if let Some(off_cooldown) = off_cooldown_tick(&self.stage, tick, state, index) {
+            if let Some(off_cooldown) = off_cooldown_tick(tick, state, index) {
                 self.off_cooldown_ticks[index.as_usize()] = off_cooldown;
             }
             if encode_events {
@@ -180,7 +180,7 @@ impl<'a> Encoder<'a> {
                 .filter(|&properties| {
                     previous.and_then(|previous| previous.properties.as_ref()) != Some(properties)
                 })
-                .map(npc_type),
+                .and_then(npc_type),
         });
         event
     }
@@ -440,7 +440,7 @@ impl<'a> Encoder<'a> {
                     room_id: room_id.0,
                     hitpoints: npc.hitpoints.to_raw(),
                     active_prayers: npc.prayers.to_raw(),
-                    r#type: npc.properties.as_ref().map(npc_type),
+                    r#type: npc.properties.as_ref().and_then(npc_type),
                 });
                 Some(event)
             }
@@ -738,31 +738,12 @@ impl Iterator for Encoder<'_> {
 enum StageContext {
     None,
     Sotetseg { maze: Option<Maze> },
-    Mokhaiotl { charge: Charge },
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Charge {
-    Idle,
-    Charging,
-    Interrupted,
 }
 
 impl StageContext {
     fn new(stage: Stage) -> Self {
         match stage {
             Stage::TobSotetseg => Self::Sotetseg { maze: None },
-            Stage::MokhaiotlDelve1
-            | Stage::MokhaiotlDelve2
-            | Stage::MokhaiotlDelve3
-            | Stage::MokhaiotlDelve4
-            | Stage::MokhaiotlDelve5
-            | Stage::MokhaiotlDelve6
-            | Stage::MokhaiotlDelve7
-            | Stage::MokhaiotlDelve8
-            | Stage::MokhaiotlDelve8plus => Self::Mokhaiotl {
-                charge: Charge::Idle,
-            },
             _ => Self::None,
         }
     }
@@ -779,83 +760,31 @@ impl StageContext {
                     }
                 }
             }
-            Self::Mokhaiotl { charge } => {
-                let is_mokhaiotl = |room_id: RoomId| {
-                    state
-                        .npcs
-                        .get(&room_id)
-                        .is_some_and(|npc| npc.npc_id == npc::id::MOKHAIOTL)
-                };
-                if *charge == Charge::Interrupted {
-                    *charge = Charge::Idle;
-                }
-                for event in &state.events {
-                    if let EventKind::NpcAttack(attack) = &event.kind
-                        && is_mokhaiotl(attack.npc)
-                    {
-                        *charge = if attack.attack == NpcAttack::MokhaiotlCharge {
-                            Charge::Charging
-                        } else {
-                            Charge::Idle
-                        };
-                    }
-                }
-                for event in &state.events {
-                    if *charge == Charge::Charging
-                        && let EventKind::PlayerAttack(PlayerAttacked {
-                            attack,
-                            target: Some(Actor::Npc(room_id)),
-                            ..
-                        }) = &event.kind
-                        && is_mokhaiotl(*room_id)
-                        && attack.style() == Some(CombatStyle::Melee)
-                    {
-                        *charge = Charge::Interrupted;
-                    }
-                }
-            }
             Self::None => {}
         }
     }
-
-    fn attack_ignores_cooldown(&self, state: &TickState, attack: &PlayerAttacked) -> bool {
-        match self {
-            Self::Mokhaiotl { charge } => {
-                let Some(Actor::Npc(room_id)) = attack.target else {
-                    return false;
-                };
-                let Some(target) = state.npcs.get(&room_id) else {
-                    return false;
-                };
-                npc::is_mokhaiotl_larva(target.npc_id)
-                    || target.npc_id == npc::id::VOLATILE_EARTH
-                    || (target.npc_id == npc::id::MOKHAIOTL
-                        && *charge != Charge::Idle
-                        && attack.attack.style() == Some(CombatStyle::Melee))
-            }
-            Self::None | Self::Sotetseg { .. } => false,
-        }
-    }
 }
 
-fn off_cooldown_tick(
-    ctx: &StageContext,
-    tick: Tick,
-    state: &TickState,
-    player: PartyIndex,
-) -> Option<Tick> {
-    state.events.iter().find_map(|event| match &event.kind {
-        EventKind::PlayerAttack(attack)
-            if attack.player == player && !ctx.attack_ignores_cooldown(state, attack) =>
-        {
-            Some(tick + attack.attack.cooldown())
+fn off_cooldown_tick(tick: Tick, state: &TickState, player: PartyIndex) -> Option<Tick> {
+    state.events.iter().find_map(|event| {
+        let EventKind::PlayerAttack(attack) = &event.kind else {
+            return None;
+        };
+        if attack.player != player {
+            return None;
         }
-        _ => None,
+        if let Some(Actor::Npc(room_id)) = attack.target
+            && let Some(target) = state.npcs.get(&room_id)
+            && !target.attack_applies_cooldown(attack.attack)
+        {
+            return None;
+        }
+        Some(tick + attack.attack.cooldown())
     })
 }
 
-fn npc_type(properties: &NpcProperties) -> proto::event::npc::Type {
-    match properties {
+fn npc_type(properties: &NpcProperties) -> Option<proto::event::npc::Type> {
+    let npc_type = match properties {
         NpcProperties::MaidenCrab(crab) => {
             proto::event::npc::Type::MaidenCrab(proto::event::npc::MaidenCrab {
                 spawn: crab.spawn as i32,
@@ -888,7 +817,9 @@ fn npc_type(properties: &NpcProperties) -> proto::event::npc::Type {
                 spawn: crab.spawn as i32,
             })
         }
-    }
+        NpcProperties::Mokhaiotl(_) => return None,
+    };
+    Some(npc_type)
 }
 
 fn encode_equipment_deltas(
