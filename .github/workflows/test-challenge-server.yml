@@ -5,6 +5,7 @@ on:
     paths:
       - 'challenge-server/**'
       - 'common/**'
+      - 'proto'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.base.json'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'challenge-server/**'
       - 'common/**'
+      - 'proto'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.base.json'
