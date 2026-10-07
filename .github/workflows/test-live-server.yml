@@ -5,7 +5,7 @@ on:
     paths:
       - 'live-server/**'
       - 'blertlib/**'
-      - 'proto/**'
+      - 'proto'
       - 'web/resources/extended_items.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -16,7 +16,7 @@ on:
     paths:
       - 'live-server/**'
       - 'blertlib/**'
-      - 'proto/**'
+      - 'proto'
       - 'web/resources/extended_items.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -49,7 +49,7 @@ jobs:
         run: cargo fmt -p live-server -- --check
 
       - name: Lint
-        run: cargo clippy -p live-server -- -D warnings
+        run: cargo clippy -p live-server --all-targets -- -D warnings
 
       - name: Build
         run: cargo build -p live-server

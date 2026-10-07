@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - 'blertlib/**'
-      - 'proto/**'
+      - 'proto'
+      - 'web/resources/extended_items.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/test-blertlib.yml'
@@ -13,7 +14,8 @@ on:
       - main
     paths:
       - 'blertlib/**'
-      - 'proto/**'
+      - 'proto'
+      - 'web/resources/extended_items.json'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/test-blertlib.yml'
