@@ -1,6 +1,8 @@
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
-use blert::{ChallengeMode, ClientId, Rsn, Stage, proto};
+use blert::{
+    BuildRejection, ChallengeMode, ClientId, RecordingBuilder, Rsn, Stage, Tick, Ticks, proto,
+};
 use bytes::{Bytes, BytesMut};
 use prost::Message as _;
 
@@ -63,7 +65,7 @@ impl StageState {
 #[derive(Debug, Clone)]
 struct TickEntry {
     /// Game tick number.
-    tick: u32,
+    tick: Tick,
     /// Serialized `EventStream` proto for this tick.
     data: Bytes,
 }
@@ -84,8 +86,8 @@ struct ClientState {
 }
 
 struct ReplayChunk {
-    start_tick: u32,
-    tick_count: u32,
+    start_tick: Tick,
+    tick_count: Ticks,
     data: Bytes,
 }
 
@@ -94,8 +96,8 @@ impl ReplayChunk {
     /// to account for base64 encoding overhead.
     const MAX_SIZE_BYTES: usize = 96 * 1024;
 
-    fn end_tick(&self) -> u32 {
-        self.start_tick + self.tick_count - 1
+    fn end_tick(&self) -> Tick {
+        (self.start_tick + self.tick_count).pred()
     }
 }
 
@@ -118,13 +120,16 @@ pub struct ChallengeReader {
     /// Redis stream cursor for the current stage stream.
     poll_cursor: String,
 
-    /// Contiguous buffer of tick data in the range `[0, high_water_tick]`,
+    /// Contiguous buffer of tick data from 0 to the recording's last tick,
     /// pending broadcast.
     tick_buffer: VecDeque<TickEntry>,
     /// Index into `tick_buffer` tracking what has been broadcast so far.
     broadcast_cursor: usize,
-    /// High watermark: the highest game tick seen from the current primary.
-    high_water_tick: u32,
+    /// Earliest broadcast tick that has changed since the last broadcast.
+    pending_rewind: Option<Tick>,
+
+    /// Event accumulator for the current stage.
+    builder: Option<RecordingBuilder>,
 
     /// Client ID of the selected primary recording client for the challenge.
     primary_client_id: Option<ClientId>,
@@ -198,7 +203,8 @@ impl ChallengeReader {
             poll_cursor: STREAM_START_CURSOR.to_string(),
             tick_buffer: VecDeque::new(),
             broadcast_cursor: 0,
-            high_water_tick: 0,
+            pending_rewind: None,
+            builder: None,
             primary_client_id: None,
             client_states,
             generation: 0,
@@ -343,14 +349,25 @@ impl ChallengeReader {
     /// Broadcasts events to live subscribers.
     ///
     /// Normally sends one tick per cycle. During lag recovery, bundles multiple
-    /// ticks to catch up to the live edge.
+    /// ticks to catch up to the live edge. After a rewind, first re-sends the
+    /// changed ticks up to the previous position as a single bundle.
     ///
     /// Returns IDs of disconnected subscribers for cleanup.
-    #[allow(clippy::cast_possible_truncation)]
     pub fn broadcast(&mut self) -> Vec<SubscriberId> {
         // A pending backfill replaces buffered data; wait for update.
         if matches!(self.state, ReaderState::Backfilling(_)) {
             return Vec::new();
+        }
+
+        let mut messages = Vec::new();
+
+        if let Some(rewind) = self.pending_rewind.take() {
+            crate::metrics::REWINDS_TOTAL.inc();
+            messages.push(SseMessage::Rewind {
+                generation: self.generation,
+                tick: rewind.0,
+            });
+            messages.push(self.bundle_ticks(rewind, Tick::from_usize(self.broadcast_cursor)));
         }
 
         let available = self.tick_buffer.len() - self.broadcast_cursor;
@@ -364,53 +381,31 @@ impl ChallengeReader {
             JITTER_DEPTH + 1
         };
 
-        if available < min_buffer {
-            // If ending with an empty buffer, finalize immediately.
-            if self.stage_state == StageState::Ending && available == 0 {
-                self.finish_stage();
-            }
-            return Vec::new();
-        }
-
-        let ticks_to_send =
-            if self.stage_state != StageState::Ending && available > JITTER_DEPTH + LAG_THRESHOLD {
+        if available >= min_buffer {
+            let ticks_to_send = if self.stage_state != StageState::Ending
+                && available > JITTER_DEPTH + LAG_THRESHOLD
+            {
                 available - JITTER_DEPTH
             } else {
                 1
             };
+            if ticks_to_send > 1 {
+                crate::metrics::LAG_RECOVERIES_TOTAL.inc();
+            }
+
+            let end = self.broadcast_cursor + ticks_to_send;
+            messages.push(self.bundle_ticks(
+                Tick::from_usize(self.broadcast_cursor),
+                Tick::from_usize(end),
+            ));
+            self.broadcast_cursor = end;
+        }
 
         let mut disconnected = Vec::new();
-
-        let first = &self.tick_buffer[self.broadcast_cursor];
-        let msg = if ticks_to_send == 1 {
-            let entry = first.clone();
-            self.broadcast_cursor += 1;
-            SseMessage::Tick {
-                generation: self.generation,
-                tick: entry.tick,
-                tick_count: 1,
-                data: entry.data,
-            }
-        } else {
-            crate::metrics::LAG_RECOVERIES_TOTAL.inc();
-            let start_tick = first.tick;
-            let mut combined = BytesMut::new();
-            for i in 0..ticks_to_send {
-                combined.extend_from_slice(&self.tick_buffer[self.broadcast_cursor + i].data);
-            }
-            self.broadcast_cursor += ticks_to_send;
-            SseMessage::Tick {
-                generation: self.generation,
-                tick: start_tick,
-                tick_count: ticks_to_send as u32,
-                data: combined.into(),
-            }
-        };
-
         for (id, subscriber) in &self.subscribers {
             if subscriber.state == SubscriberState::Live
                 && subscriber.requested_stage == Some(self.stage as i32)
-                && !subscriber.send(msg.clone())
+                && !messages.iter().all(|msg| subscriber.send(msg.clone()))
             {
                 disconnected.push(*id);
             }
@@ -430,6 +425,21 @@ impl ChallengeReader {
         }
 
         disconnected
+    }
+
+    /// Bundles the buffered ticks from `start` up to, but not including, `end`
+    /// into a single `Tick` message.
+    fn bundle_ticks(&self, start: Tick, end: Tick) -> SseMessage {
+        let mut data = BytesMut::new();
+        for entry in self.tick_buffer.range(start.as_usize()..end.as_usize()) {
+            data.extend_from_slice(&entry.data);
+        }
+        SseMessage::Tick {
+            generation: self.generation,
+            tick: start.0,
+            tick_count: (end - start).0,
+            data: data.into(),
+        }
     }
 
     /// Applies a completed backfill result to this reader.
@@ -589,8 +599,9 @@ impl ChallengeReader {
     }
 
     /// Processes stream entries from an incremental poll: counts events,
-    /// advances the cursor, updates silence tracking, and ingests the
-    /// primary's events into the buffer.
+    /// advances the cursor, updates silence tracking, ingests the primary's
+    /// events into the buffer, and records a pending rewind if a broadcast
+    /// tick changed.
     fn process_stream_entries(&mut self, entries: &[StageStreamEntry], tick: u64) {
         if entries.is_empty() {
             return;
@@ -619,73 +630,72 @@ impl ChallengeReader {
             && let Some(rebuild_from) = self.ingest_entries(entries, primary)
         {
             self.build_replay_chunks(rebuild_from);
+            if rebuild_from.as_usize() < self.broadcast_cursor {
+                self.pending_rewind = Some(
+                    self.pending_rewind
+                        .map_or(rebuild_from, |pending| pending.min(rebuild_from)),
+                );
+            }
         }
     }
 
-    /// Decodes a specific client's events from stream entries and appends them
-    /// to the tick buffer, grouped by game tick.
+    /// Decodes a specific client's events from stream entries, feeds them to
+    /// the stage's builder, and rewrites the tick buffer with the encoded
+    /// recording from the earliest tick the builder modified, grouped by game
+    /// tick.
     ///
     /// Following this function, the tick buffer is guaranteed to be contiguous
-    /// between 0 and `high_water_tick`, with missing ticks populated as empty
-    /// entries.
-    fn ingest_entries(&mut self, entries: &[StageStreamEntry], client_id: ClientId) -> Option<u32> {
-        let mut by_tick: BTreeMap<u32, Vec<proto::Event>> = BTreeMap::new();
-
+    /// between 0 and the recording's last tick, with missing ticks populated as
+    /// empty entries.
+    fn ingest_entries(
+        &mut self,
+        entries: &[StageStreamEntry],
+        client_id: ClientId,
+    ) -> Option<Tick> {
+        let mut events = Vec::new();
         for entry in entries.iter().filter(|e| e.client_id == client_id) {
             // Redis encodes ChallengeEvents, but EventStream is wire-compatible
             // for field 1 (repeated Event). Extra fields are silently ignored.
-            let event_stream = match proto::EventStream::decode(entry.events.as_slice()) {
-                Ok(es) => es,
-                Err(e) => {
-                    tracing::warn!(parent: &self.span, "failed to decode protobuf: {e}");
-                    continue;
-                }
-            };
-
-            for event in event_stream.events {
-                by_tick.entry(event.tick).or_default().push(event);
+            match proto::EventStream::decode(entry.events.as_slice()) {
+                Ok(event_stream) => events.extend(event_stream.events),
+                Err(e) => tracing::warn!(parent: &self.span, "failed to decode protobuf: {e}"),
             }
         }
 
-        if by_tick.is_empty() {
-            return None;
+        let builder = self.builder.get_or_insert_with(|| {
+            RecordingBuilder::new(
+                client_id,
+                self.stage,
+                self.challenge_mode,
+                self.party.clone(),
+                None,
+            )
+        });
+        let modified = builder.ingest(events)?;
+        let timeline = builder.recording()?.snapshot();
+
+        // Vacant ticks preceding the modified tick may not be buffered yet.
+        let next_buffered = self
+            .tick_buffer
+            .back()
+            .map_or(Tick(0), |entry| entry.tick.succ());
+        let start = modified.min(next_buffered);
+        let last = timeline.last_tick();
+
+        let mut ticks = vec![Vec::new(); last.as_usize() - start.as_usize() + 1];
+        for event in timeline.to_proto_from(start) {
+            ticks[Tick(event.tick).as_usize() - start.as_usize()].push(event);
         }
 
-        let mut dirty_from: Option<u32> = None;
-
-        for (tick, events) in by_tick {
-            // If the tick is already in the buffer, merge into it.
-            if let Some(existing) = self.tick_buffer.get_mut(tick as usize) {
-                let mut merged = match proto::EventStream::decode(existing.data.as_ref()) {
-                    Ok(es) => es.events,
-                    Err(_) => Vec::new(),
-                };
-                merged.extend(events);
-                existing.data = proto::EventStream { events: merged }.encode_to_vec().into();
-                dirty_from = Some(dirty_from.map_or(tick, |d: u32| d.min(tick)));
-                continue;
-            }
-
-            // Gap-fill: insert empty entries for any missing ticks to
-            // maintain contiguity.
-            #[allow(clippy::cast_possible_truncation)]
-            let expected_next = self.tick_buffer.len() as u32;
-            for gap_tick in expected_next..tick {
-                self.tick_buffer.push_back(TickEntry {
-                    tick: gap_tick,
-                    data: Bytes::new(),
-                });
-            }
-
-            self.high_water_tick = tick;
+        self.tick_buffer.truncate(start.as_usize());
+        for (tick, events) in start.through(last).zip(ticks) {
             self.tick_buffer.push_back(TickEntry {
                 tick,
                 data: proto::EventStream { events }.encode_to_vec().into(),
             });
-            dirty_from = dirty_from.or(Some(tick));
         }
 
-        dirty_from
+        Some(modified)
     }
 
     /// Selects a new primary client from `client_states`, considering clients
@@ -737,7 +747,8 @@ impl ChallengeReader {
         self.stage_state = StageState::Active;
         self.tick_buffer.clear();
         self.broadcast_cursor = 0;
-        self.high_water_tick = 0;
+        self.pending_rewind = None;
+        self.builder = None;
         self.poll_cursor = STREAM_START_CURSOR.to_string();
         self.state = ReaderState::Active;
         self.replay_chunks.clear();
@@ -906,7 +917,8 @@ impl ChallengeReader {
         self.generation += 1;
         self.tick_buffer.clear();
         self.broadcast_cursor = 0;
-        self.high_water_tick = 0;
+        self.pending_rewind = None;
+        self.builder = None;
         self.replay_chunks.clear();
         self.request_backfill(Some(new_primary));
     }
@@ -948,6 +960,31 @@ impl ChallengeReader {
             attempt = self.stage_attempt,
             "stage ended",
         );
+
+        if let Some(builder) = &self.builder {
+            let mut groups: Vec<(&BuildRejection, usize)> = Vec::new();
+            for rejection in builder.rejections() {
+                match groups.iter_mut().find(|(first, _)| {
+                    first.kind == rejection.kind && first.reason == rejection.reason
+                }) {
+                    Some((_, count)) => *count += 1,
+                    None => groups.push((rejection, 1)),
+                }
+            }
+
+            for (first, count) in groups {
+                tracing::warn!(
+                    parent: &self.span,
+                    stage = self.stage as i32,
+                    attempt = self.stage_attempt,
+                    kind = ?first.kind,
+                    reason = ?first.reason,
+                    count,
+                    first_tick = first.tick.0,
+                    "builder rejected events",
+                );
+            }
+        }
 
         self.stage_state = StageState::Inactive;
 
@@ -999,17 +1036,17 @@ impl ChallengeReader {
         // chunk onward must be rebuilt dynamically below.
         let mut tail_start = 0;
         for chunk in &self.replay_chunks {
-            if (chunk.end_tick() + 1) as usize > self.broadcast_cursor {
+            if chunk.end_tick().succ().as_usize() > self.broadcast_cursor {
                 break;
             }
 
             messages.push(SseMessage::ReplayChunk {
                 generation,
-                start_tick: chunk.start_tick,
-                tick_count: chunk.tick_count,
+                start_tick: chunk.start_tick.0,
+                tick_count: chunk.tick_count.0,
                 data: chunk.data.clone(),
             });
-            tail_start = (chunk.end_tick() + 1) as usize;
+            tail_start = chunk.end_tick().succ().as_usize();
         }
 
         // Create a trailing partial chunk from everything after the last
@@ -1033,7 +1070,7 @@ impl ChallengeReader {
             tick: self
                 .broadcast_cursor
                 .checked_sub(1)
-                .map(|i| self.tick_buffer[i].tick),
+                .map(|i| self.tick_buffer[i].tick.0),
         });
 
         messages
@@ -1052,7 +1089,7 @@ impl ChallengeReader {
         }
     }
 
-    fn build_replay_chunks(&mut self, from_tick: u32) {
+    fn build_replay_chunks(&mut self, from_tick: Tick) {
         if self.tick_buffer.is_empty() {
             self.replay_chunks.clear();
             return;
@@ -1069,17 +1106,24 @@ impl ChallengeReader {
                     None
                 }
             })
-            .unwrap_or_else(|| self.replay_chunks.last().map_or(0, |c| c.end_tick() + 1));
+            .unwrap_or_else(|| {
+                self.replay_chunks
+                    .last()
+                    .map_or(Tick(0), |c| c.end_tick().succ())
+            });
         self.replay_chunks.retain(|c| c.end_tick() < start_tick);
 
         let mut size_bytes = 0;
 
         // Concatenate tick data into chunks up to `MAX_SIZE_BYTES`.
-        for entry in self.tick_buffer.iter().skip(start_tick as usize) {
+        for entry in self.tick_buffer.iter().skip(start_tick.as_usize()) {
             if size_bytes > 0 && size_bytes + entry.data.len() > ReplayChunk::MAX_SIZE_BYTES {
                 let mut data = BytesMut::with_capacity(size_bytes);
-                for i in start_tick..entry.tick {
-                    data.extend_from_slice(&self.tick_buffer[i as usize].data);
+                for buffered in self
+                    .tick_buffer
+                    .range(start_tick.as_usize()..entry.tick.as_usize())
+                {
+                    data.extend_from_slice(&buffered.data);
                 }
 
                 self.replay_chunks.push(ReplayChunk {
@@ -1100,9 +1144,10 @@ impl ChallengeReader {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::cast_possible_truncation)]
+    #![allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
     use std::collections::HashMap;
 
+    use blert::Point;
     use tokio::sync::mpsc;
 
     use super::*;
@@ -1114,7 +1159,7 @@ mod tests {
             mode: ChallengeMode::TobRegular,
             stage,
             stage_attempt: attempt,
-            party: vec![Rsn::try_from("Skitter").unwrap()],
+            party: vec![Rsn::try_from("Dedion").unwrap()],
         }
     }
 
@@ -1145,13 +1190,102 @@ mod tests {
             id: id.to_string(),
             client_id,
             events: proto::EventStream {
-                events: vec![proto::Event {
-                    tick,
-                    ..Default::default()
-                }],
+                events: vec![maiden_events()[tick as usize].clone()],
             }
             .encode_to_vec(),
         }
+    }
+
+    fn maiden_events() -> Vec<proto::Event> {
+        vec![
+            proto::Event {
+                r#type: proto::event::Type::PlayerUpdate as i32,
+                stage: Stage::TobMaiden as i32,
+                tick: 0,
+                x_coord: 3184,
+                y_coord: 4448,
+                player: Some(proto::event::Player {
+                    name: "Dedion".to_string(),
+                    equipment_deltas: vec![
+                        121_352_153_464_833,
+                        372_895_503_089_665,
+                        608_427_214_635_009,
+                        1_216_083_482_640_385,
+                        2_350_504_604_598_273,
+                        2_666_837_535_883_265,
+                    ],
+                    data_source: proto::event::player::DataSource::Secondary as i32,
+                    snapshot: true,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            proto::Event {
+                r#type: proto::event::Type::PlayerUpdate as i32,
+                stage: Stage::TobMaiden as i32,
+                tick: 1,
+                x_coord: 3184,
+                y_coord: 4448,
+                player: Some(proto::event::Player {
+                    name: "Dedion".to_string(),
+                    data_source: proto::event::player::DataSource::Secondary as i32,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            proto::Event {
+                r#type: proto::event::Type::PlayerUpdate as i32,
+                stage: Stage::TobMaiden as i32,
+                tick: 2,
+                x_coord: 3182,
+                y_coord: 4448,
+                player: Some(proto::event::Player {
+                    name: "Dedion".to_string(),
+                    data_source: proto::event::player::DataSource::Secondary as i32,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            proto::Event {
+                r#type: proto::event::Type::PlayerUpdate as i32,
+                stage: Stage::TobMaiden as i32,
+                tick: 3,
+                x_coord: 3180,
+                y_coord: 4448,
+                player: Some(proto::event::Player {
+                    name: "Dedion".to_string(),
+                    data_source: proto::event::player::DataSource::Secondary as i32,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            proto::Event {
+                r#type: proto::event::Type::PlayerUpdate as i32,
+                stage: Stage::TobMaiden as i32,
+                tick: 4,
+                x_coord: 3178,
+                y_coord: 4448,
+                player: Some(proto::event::Player {
+                    name: "Dedion".to_string(),
+                    data_source: proto::event::player::DataSource::Secondary as i32,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            proto::Event {
+                r#type: proto::event::Type::PlayerUpdate as i32,
+                stage: Stage::TobMaiden as i32,
+                tick: 5,
+                x_coord: 3176,
+                y_coord: 4448,
+                player: Some(proto::event::Player {
+                    name: "Dedion".to_string(),
+                    data_source: proto::event::player::DataSource::Secondary as i32,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ]
     }
 
     fn new_active_reader(stage: Stage, attempt: Option<u32>) -> ChallengeReader {
@@ -1204,6 +1338,7 @@ mod tests {
     #[test]
     fn apply_poll_responses_ignores_stale_stage_stream_after_stage_change() {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
+        reader.process_stream_entries(&[stream_entry("0-0", ClientId(1), 0)], 0);
 
         let clients = HashMap::from([(
             ClientId(1),
@@ -1228,6 +1363,7 @@ mod tests {
         assert_eq!(reader.stage, Stage::TobBloat);
         assert_eq!(reader.stage_attempt, None);
         assert!(reader.tick_buffer.is_empty());
+        assert!(reader.builder.is_none());
         assert_eq!(reader.poll_cursor, STREAM_START_CURSOR);
     }
 
@@ -1257,7 +1393,7 @@ mod tests {
 
         assert_eq!(reader.poll_cursor, "1-0");
         assert_eq!(reader.tick_buffer.len(), 4);
-        assert_eq!(reader.tick_buffer[3].tick, 3);
+        assert_eq!(reader.tick_buffer[3].tick, Tick(3));
     }
 
     #[test]
@@ -1329,13 +1465,26 @@ mod tests {
         let dirty = reader.ingest_entries(&entries, ClientId(1));
 
         assert_eq!(reader.tick_buffer.len(), 4);
-        for tick in 0..3 {
-            assert_eq!(reader.tick_buffer[tick].tick as usize, tick);
-            assert!(reader.tick_buffer[tick].data.is_empty());
+        for tick in Tick(3).up_to() {
+            assert_eq!(reader.tick_buffer[tick.as_usize()].tick, tick);
+            assert!(reader.tick_buffer[tick.as_usize()].data.is_empty());
         }
-        assert_eq!(reader.tick_buffer[3].tick, 3);
-        assert!(!reader.tick_buffer[3].data.is_empty());
-        assert_eq!(dirty, Some(3));
+        assert_eq!(reader.tick_buffer[3].tick, Tick(3));
+        let events = proto::EventStream::decode(reader.tick_buffer[3].data.as_ref())
+            .unwrap()
+            .events;
+        let updates: Vec<_> = events
+            .iter()
+            .map(|e| {
+                let name = e.player.as_ref().map(|p| p.name.as_str());
+                (e.r#type(), name, e.x_coord, e.y_coord)
+            })
+            .collect();
+        assert_eq!(
+            updates,
+            vec![(proto::event::Type::PlayerUpdate, Some("Dedion"), 3180, 4448)]
+        );
+        assert_eq!(dirty, Some(Tick(3)));
     }
 
     #[test]
@@ -1345,12 +1494,97 @@ mod tests {
         // Ingest tick 2, then merge more events into it.
         reader.ingest_entries(&[stream_entry("1-0", ClientId(1), 2)], ClientId(1));
         assert_eq!(reader.tick_buffer.len(), 3);
-        let original_size = reader.tick_buffer[2].data.len();
 
-        let dirty = reader.ingest_entries(&[stream_entry("2-0", ClientId(1), 2)], ClientId(1));
+        let maiden_spawn = StageStreamEntry {
+            id: "2-0".to_string(),
+            client_id: ClientId(1),
+            events: proto::EventStream {
+                events: vec![proto::Event {
+                    r#type: proto::event::Type::NpcSpawn as i32,
+                    stage: Stage::TobMaiden as i32,
+                    tick: 2,
+                    x_coord: 3162,
+                    y_coord: 4444,
+                    npc: Some(proto::event::Npc {
+                        id: 8360,
+                        room_id: 64386,
+                        hitpoints: 200_674_294,
+                        r#type: Some(proto::event::npc::Type::Basic(())),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }],
+            }
+            .encode_to_vec(),
+        };
+        let dirty = reader.ingest_entries(&[maiden_spawn], ClientId(1));
         assert_eq!(reader.tick_buffer.len(), 3); // No new entries.
-        assert!(reader.tick_buffer[2].data.len() > original_size); // Data merged.
-        assert_eq!(dirty, Some(2));
+        let events = proto::EventStream::decode(reader.tick_buffer[2].data.as_ref())
+            .unwrap()
+            .events;
+        let kinds: Vec<_> = events.iter().map(proto::Event::r#type).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                proto::event::Type::PlayerUpdate,
+                proto::event::Type::NpcSpawn
+            ]
+        );
+        assert_eq!(dirty, Some(Tick(2)));
+
+        let state = reader
+            .builder
+            .as_ref()
+            .and_then(RecordingBuilder::recording)
+            .and_then(|recording| recording.get_state(Tick(2)))
+            .unwrap();
+        let positions: Vec<_> = state.players.iter().map(|(_, p)| p.position).collect();
+        assert_eq!(positions, vec![Point(3182, 4448)]);
+        let npc_ids: Vec<_> = state.npcs.values().map(|npc| npc.npc_id).collect();
+        assert_eq!(npc_ids, vec![8360]);
+    }
+
+    #[test]
+    fn ingest_entries_drops_events_rejected_by_the_builder() {
+        let mut reader = new_active_reader(Stage::TobMaiden, None);
+        reader.ingest_entries(&[stream_entry("1-0", ClientId(1), 0)], ClientId(1));
+
+        let mut outsider = maiden_events()[1].clone();
+        outsider.player.as_mut().unwrap().name = "715".to_string();
+        reader.ingest_entries(
+            &[StageStreamEntry {
+                id: "2-0".to_string(),
+                client_id: ClientId(1),
+                events: proto::EventStream {
+                    events: vec![outsider],
+                }
+                .encode_to_vec(),
+            }],
+            ClientId(1),
+        );
+
+        let rejections: Vec<_> = reader
+            .builder
+            .as_ref()
+            .unwrap()
+            .rejections()
+            .map(|rejection| (rejection.tick, rejection.kind))
+            .collect();
+        assert_eq!(
+            rejections,
+            vec![(Tick(1), proto::event::Type::PlayerUpdate)]
+        );
+        let names: Vec<_> = reader
+            .tick_buffer
+            .iter()
+            .flat_map(|entry| {
+                proto::EventStream::decode(entry.data.as_ref())
+                    .unwrap()
+                    .events
+            })
+            .filter_map(|event| event.player.map(|player| player.name))
+            .collect();
+        assert!(!names.contains(&"715".to_string()));
     }
 
     /// Drain all messages from a subscriber's channel.
@@ -1454,13 +1688,13 @@ mod tests {
 
         reader.replay_chunks = vec![
             ReplayChunk {
-                start_tick: 0,
-                tick_count: 2,
+                start_tick: Tick(0),
+                tick_count: Ticks(2),
                 data: Bytes::from_static(b"chunk-a"),
             },
             ReplayChunk {
-                start_tick: 2,
-                tick_count: 2,
+                start_tick: Tick(2),
+                tick_count: Ticks(2),
                 data: Bytes::from_static(b"chunk-b"),
             },
         ];
@@ -1536,7 +1770,7 @@ mod tests {
             challenge_id: "test".to_string(),
             backfill_id: reader.backfill_id,
             entries: vec![
-                stream_entry("1-0", ClientId(1), 1),
+                stream_entry("1-0", ClientId(1), 4),
                 stream_entry("2-0", ClientId(2), 1),
                 stream_entry("3-0", ClientId(2), 2),
                 stream_entry("4-0", ClientId(2), 3),
@@ -1548,6 +1782,27 @@ mod tests {
         assert_eq!(reader.state, ReaderState::Active);
         assert_eq!(reader.primary_client_id, Some(ClientId(2)));
         assert_eq!(reader.client_states[&ClientId(2)].last_active_tick, 5);
+
+        let recording = reader
+            .builder
+            .as_ref()
+            .and_then(RecordingBuilder::recording)
+            .unwrap();
+        let positions: Vec<_> = recording
+            .states()
+            .map(|(tick, state)| {
+                let players: Vec<_> = state.players.iter().map(|(_, p)| p.position).collect();
+                (tick, players)
+            })
+            .collect();
+        assert_eq!(
+            positions,
+            vec![
+                (Tick(1), vec![Point(3184, 4448)]),
+                (Tick(2), vec![Point(3182, 4448)]),
+                (Tick(3), vec![Point(3180, 4448)]),
+            ]
+        );
 
         // Subscriber receives a replay of the backfilled data.
         let msgs = drain_messages(&mut rx);
@@ -1988,6 +2243,227 @@ mod tests {
     }
 
     #[test]
+    fn broadcast_rewinds_ticks_that_changed_after_sending() {
+        let mut reader = new_active_reader(Stage::MokhaiotlDelve2, None);
+        reader.challenge_type = proto::Challenge::Mokhaiotl;
+        reader.challenge_mode = ChallengeMode::NoMode;
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        reader.add_subscriber(Subscriber::new(1, Some(Stage::MokhaiotlDelve2 as i32), tx));
+        drain_messages(&mut rx);
+
+        reader.process_stream_entries(
+            &[
+                StageStreamEntry {
+                    id: "1-0".to_string(),
+                    client_id: ClientId(1),
+                    events: proto::EventStream {
+                        events: vec![
+                            proto::Event {
+                                r#type: proto::event::Type::NpcSpawn as i32,
+                                stage: Stage::MokhaiotlDelve2 as i32,
+                                tick: 0,
+                                x_coord: 3421,
+                                y_coord: 6435,
+                                npc: Some(proto::event::Npc {
+                                    id: 14707,
+                                    room_id: 49601,
+                                    hitpoints: 36_045_350,
+                                    r#type: Some(proto::event::npc::Type::Basic(())),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                            proto::Event {
+                                r#type: proto::event::Type::NpcAttack as i32,
+                                stage: Stage::MokhaiotlDelve2 as i32,
+                                tick: 1,
+                                x_coord: 3421,
+                                y_coord: 6435,
+                                npc: Some(proto::event::Npc {
+                                    id: 14707,
+                                    room_id: 49601,
+                                    r#type: Some(proto::event::npc::Type::Basic(())),
+                                    ..Default::default()
+                                }),
+                                npc_attack: Some(proto::event::NpcAttacked {
+                                    attack: proto::NpcAttack::MokhaiotlBall as i32,
+                                    target: Some("Dedion".to_string()),
+                                }),
+                                ..Default::default()
+                            },
+                        ],
+                    }
+                    .encode_to_vec(),
+                },
+                StageStreamEntry {
+                    id: "2-0".to_string(),
+                    client_id: ClientId(1),
+                    events: proto::EventStream {
+                        events: vec![proto::Event {
+                            r#type: proto::event::Type::NpcUpdate as i32,
+                            stage: Stage::MokhaiotlDelve2 as i32,
+                            tick: 1,
+                            x_coord: 3421,
+                            y_coord: 6435,
+                            npc: Some(proto::event::Npc {
+                                id: 14707,
+                                room_id: 49601,
+                                hitpoints: 36_045_350,
+                                r#type: Some(proto::event::npc::Type::Basic(())),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        }],
+                    }
+                    .encode_to_vec(),
+                },
+                StageStreamEntry {
+                    id: "3-0".to_string(),
+                    client_id: ClientId(1),
+                    events: proto::EventStream {
+                        events: vec![
+                            proto::Event {
+                                r#type: proto::event::Type::NpcUpdate as i32,
+                                stage: Stage::MokhaiotlDelve2 as i32,
+                                tick: 2,
+                                x_coord: 3421,
+                                y_coord: 6435,
+                                npc: Some(proto::event::Npc {
+                                    id: 14707,
+                                    room_id: 49601,
+                                    hitpoints: 36_045_350,
+                                    r#type: Some(proto::event::npc::Type::Basic(())),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                            proto::Event {
+                                r#type: proto::event::Type::PlayerUpdate as i32,
+                                stage: Stage::MokhaiotlDelve2 as i32,
+                                tick: 3,
+                                x_coord: 3423,
+                                y_coord: 6430,
+                                player: Some(proto::event::Player {
+                                    name: "Dedion".to_string(),
+                                    off_cooldown_tick: 3,
+                                    hitpoints: Some(7_012_451),
+                                    prayer: Some(5_505_116),
+                                    attack: Some(7_733_347),
+                                    strength: Some(7_733_347),
+                                    defence: Some(7_733_347),
+                                    ranged: Some(7_340_131),
+                                    magic: Some(6_488_163),
+                                    equipment_deltas: vec![988_714_356_441_089],
+                                    active_prayers: Some(134_217_728),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                        ],
+                    }
+                    .encode_to_vec(),
+                },
+            ],
+            0,
+        );
+
+        // Two cycles with no new entries send ticks 0 and 1, holding the rest.
+        // Tick 1 sends an unidentified attack and tick 4 rewrites it.
+        reader.broadcast();
+        reader.broadcast();
+        assert_eq!(reader.broadcast_cursor, 2);
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 2);
+        match &msgs[1] {
+            SseMessage::Tick { tick: 1, data, .. } => {
+                let attacks: Vec<_> = proto::EventStream::decode(data.as_ref())
+                    .unwrap()
+                    .events
+                    .iter()
+                    .filter_map(|e| e.npc_attack.as_ref().map(proto::event::NpcAttacked::attack))
+                    .collect();
+                assert_eq!(attacks, vec![proto::NpcAttack::MokhaiotlBall]);
+            }
+            other => panic!("expected Tick for tick 1, got {other:?}"),
+        }
+
+        reader.process_stream_entries(
+            &[StageStreamEntry {
+                id: "4-0".to_string(),
+                client_id: ClientId(1),
+                events: proto::EventStream {
+                    events: vec![
+                        proto::Event {
+                            r#type: proto::event::Type::NpcUpdate as i32,
+                            stage: Stage::MokhaiotlDelve2 as i32,
+                            tick: 3,
+                            x_coord: 3421,
+                            y_coord: 6435,
+                            npc: Some(proto::event::Npc {
+                                id: 14707,
+                                room_id: 49601,
+                                hitpoints: 36_045_350,
+                                r#type: Some(proto::event::npc::Type::Basic(())),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        },
+                        proto::Event {
+                            r#type: proto::event::Type::MokhaiotlAttackStyle as i32,
+                            stage: Stage::MokhaiotlDelve2 as i32,
+                            tick: 4,
+                            mokhaiotl_attack_style: Some(proto::event::AttackStyle {
+                                style: proto::event::attack_style::Style::Mage as i32,
+                                npc_attack_tick: 1,
+                            }),
+                            ..Default::default()
+                        },
+                    ],
+                }
+                .encode_to_vec(),
+            }],
+            1,
+        );
+
+        let rewinds = crate::metrics::REWINDS_TOTAL.get();
+        reader.broadcast();
+        assert_eq!(crate::metrics::REWINDS_TOTAL.get(), rewinds + 1);
+
+        let msgs = drain_messages(&mut rx);
+        assert_eq!(msgs.len(), 3);
+        assert!(matches!(msgs[0], SseMessage::Rewind { tick: 1, .. }));
+        match &msgs[1] {
+            SseMessage::Tick {
+                tick: 1,
+                tick_count: 1,
+                data,
+                ..
+            } => {
+                let attacks: Vec<_> = proto::EventStream::decode(data.as_ref())
+                    .unwrap()
+                    .events
+                    .iter()
+                    .filter_map(|e| e.npc_attack.as_ref().map(proto::event::NpcAttacked::attack))
+                    .collect();
+                assert_eq!(attacks, vec![proto::NpcAttack::MokhaiotlMageBall]);
+            }
+            other => panic!("expected re-sent Tick for tick 1, got {other:?}"),
+        }
+        assert!(matches!(
+            msgs[2],
+            SseMessage::Tick {
+                tick: 2,
+                tick_count: 1,
+                ..
+            }
+        ));
+
+        reader.broadcast();
+        assert!(drain_messages(&mut rx).is_empty());
+    }
+
+    #[test]
     fn ending_stage_ignores_jitter_buffer() {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
 
@@ -2162,6 +2638,8 @@ mod tests {
         // Drain the initial backfill request.
         backfill_rx.try_recv().unwrap();
 
+        reader.process_stream_entries(&[stream_entry("1-0", ClientId(1), 0)], 0);
+
         // Primary goes inactive.
         let updated_clients = HashMap::from([
             (
@@ -2200,6 +2678,7 @@ mod tests {
         ));
         assert_eq!(reader.generation, 1);
         assert!(reader.tick_buffer.is_empty());
+        assert!(reader.builder.is_none());
 
         let req = backfill_rx.try_recv().unwrap();
         assert_eq!(req.backfill_id, reader.backfill_id);

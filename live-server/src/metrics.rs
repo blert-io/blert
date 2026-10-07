@@ -108,7 +108,12 @@ pub static LAG_RECOVERIES_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Times a challenge entered stalled state.
+/// Rewind messages broadcast after previously sent ticks changed.
+pub static REWINDS_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
+    register_int_counter!(Opts::new("live_server_rewinds_total", "Rewind events")).unwrap()
+});
+
+/// Times a challenge entered a stalled state.
 pub static STALLED_CHALLENGES_TOTAL: LazyLock<IntCounter> = LazyLock::new(|| {
     register_int_counter!(Opts::new(
         "live_server_stalled_challenges_total",

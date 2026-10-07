@@ -113,6 +113,7 @@ export default function LiveChallengeProvider({
           liveEvents: [],
           lastTick: null,
           liveSplits: {},
+          rewindCount: 0,
         });
       });
 
@@ -134,6 +135,7 @@ export default function LiveChallengeProvider({
           liveEvents: [],
           lastTick: null,
           liveSplits: {},
+          rewindCount: 0,
         });
       });
 
@@ -228,6 +230,33 @@ export default function LiveChallengeProvider({
         }));
       });
 
+      source.addEventListener('rewind', (e: MessageEvent<string>) => {
+        if (isStale()) {
+          return;
+        }
+        const data = JSON.parse(e.data) as {
+          generation: number;
+          tick: number;
+        };
+        if (data.generation !== generationRef.current) {
+          return;
+        }
+        // The next `tick` re-sends the dropped events.
+        setState((prev) => {
+          const kept = prev.liveEvents.filter(
+            (event) => event.tick < data.tick,
+          );
+          splitTrackerRef.current!.rebuild(kept);
+          return {
+            ...prev,
+            liveEvents: kept,
+            lastTick: data.tick > 0 ? data.tick - 1 : null,
+            liveSplits: { ...splitTrackerRef.current!.splits },
+            rewindCount: prev.rewindCount + 1,
+          };
+        });
+      });
+
       source.addEventListener('replay-chunk', (e: MessageEvent<string>) => {
         if (isStale()) {
           return;
@@ -293,6 +322,7 @@ export default function LiveChallengeProvider({
           liveEvents: [],
           lastTick: null,
           liveSplits: {},
+          rewindCount: 0,
         });
       });
 

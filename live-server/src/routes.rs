@@ -176,6 +176,9 @@ fn sse_event(msg: &SseMessage) -> Event {
                 })
                 .to_string(),
             ),
+        SseMessage::Rewind { generation, tick } => Event::default()
+            .event("rewind")
+            .data(serde_json::json!({"generation": generation, "tick": tick}).to_string()),
         SseMessage::StageChange { stage, attempt } => Event::default()
             .event("stage-change")
             .data(serde_json::json!({"stage": stage, "attempt": attempt}).to_string()),

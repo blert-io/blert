@@ -39,13 +39,19 @@ pub enum SseMessage {
     ReplayEnd { generation: u64, tick: Option<u32> },
 
     /// A single live tick's events, broadcast at 600ms cadence.
-    /// `tick_count` is normally 1 but may be higher during lag recovery.
+    /// `tick_count` is normally 1 but may be higher during lag recovery or
+    /// when re-sending ticks after a rewind.
     Tick {
         generation: u64,
         tick: u32,
         tick_count: u32,
         data: Bytes,
     },
+
+    /// Ticks from `tick` onward changed after they were sent.
+    /// The next `Tick` will send a batch up to the previous position before
+    /// resuming the normal tick loop.
+    Rewind { generation: u64, tick: u32 },
 
     /// The challenge's current stage has changed.
     StageChange { stage: i32, attempt: Option<u32> },
