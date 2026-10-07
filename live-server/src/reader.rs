@@ -671,16 +671,21 @@ impl ChallengeReader {
                 None,
             )
         });
-        let modified = builder.ingest(events)?;
-        let timeline = builder.recording()?.snapshot();
+        let modified = builder.ingest(events);
+        let recording = builder.recording()?;
 
         // Vacant ticks preceding the modified tick may not be buffered yet.
         let next_buffered = self
             .tick_buffer
             .back()
             .map_or(Tick(0), |entry| entry.tick.succ());
-        let start = modified.min(next_buffered);
-        let last = timeline.last_tick();
+        let last = recording.last_tick();
+        let start = match modified {
+            Some(modified) => modified.min(next_buffered),
+            None if last >= next_buffered => next_buffered,
+            None => return None,
+        };
+        let timeline = recording.snapshot();
 
         let mut ticks = vec![Vec::new(); last.as_usize() - start.as_usize() + 1];
         for event in timeline.to_proto_from(start) {
@@ -695,7 +700,7 @@ impl ChallengeReader {
             });
         }
 
-        Some(modified)
+        Some(modified.unwrap_or(start))
     }
 
     /// Selects a new primary client from `client_states`, considering clients
@@ -1551,7 +1556,7 @@ mod tests {
 
         let mut outsider = maiden_events()[1].clone();
         outsider.player.as_mut().unwrap().name = "715".to_string();
-        reader.ingest_entries(
+        let dirty = reader.ingest_entries(
             &[StageStreamEntry {
                 id: "2-0".to_string(),
                 client_id: ClientId(1),
@@ -1574,6 +1579,10 @@ mod tests {
             rejections,
             vec![(Tick(1), proto::event::Type::PlayerUpdate)]
         );
+        assert_eq!(dirty, Some(Tick(1)));
+        let ticks: Vec<_> = reader.tick_buffer.iter().map(|entry| entry.tick).collect();
+        assert_eq!(ticks, vec![Tick(0), Tick(1)]);
+        assert!(reader.tick_buffer[1].data.is_empty());
         let names: Vec<_> = reader
             .tick_buffer
             .iter()
@@ -1584,7 +1593,7 @@ mod tests {
             })
             .filter_map(|event| event.player.map(|player| player.name))
             .collect();
-        assert!(!names.contains(&"715".to_string()));
+        assert_eq!(names, vec!["Dedion".to_string()]);
     }
 
     /// Drain all messages from a subscriber's channel.
