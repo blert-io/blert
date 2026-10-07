@@ -390,24 +390,30 @@ describe('move-focus', () => {
 });
 
 describe('set-brush', () => {
-  it('sets the brush to the given action', () => {
-    const initial = initialState({
-      version: '1.0',
-      config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
-      timeline: { actors: [VERZIK, P1], ticks: [] },
-    });
-    const state = reduce(initial, {
-      type: 'set-brush',
-      brush: { type: 'attack', attackType: 'SCYTHE', weaponId: 22325 },
-    });
-
-    expect(state.brush).toEqual({
-      type: 'attack',
+  it('sets the brush to the given action and deselects an active slot', () => {
+    const scythe = {
+      type: 'attack' as const,
       attackType: 'SCYTHE',
       weaponId: 22325,
-    });
-    expect(state.history).toBe(initial.history);
-    expect(state.modified).toBe(false);
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const selected = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+      activeSlot: 2,
+      brush: scythe,
+    };
+
+    const state = reduce(selected, { type: 'set-brush', brush: bgs });
+    expect(state).toEqual({ ...selected, brush: bgs, activeSlot: null });
   });
 
   it('clears the existing brush on null', () => {
@@ -424,5 +430,351 @@ describe('set-brush', () => {
     expect(state.brush).toBeNull();
     state = reduce(state, { type: 'set-brush', brush: null });
     expect(state.brush).toBeNull();
+  });
+});
+
+describe('add-to-hotbar', () => {
+  it('binds the action to the active slot', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const selected = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+      activeSlot: 2,
+      brush: scythe,
+    };
+
+    const state = reduce(selected, { type: 'add-to-hotbar', action: bgs });
+    expect(state).toEqual({
+      ...selected,
+      slots: [null, null, bgs, null, null, null, null, null, null],
+      brush: bgs,
+    });
+  });
+
+  it('binds the action to the first empty slot if no slot is active', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const initial = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [scythe, null, null, null, null, null, null, null, null],
+      brush: scythe,
+    };
+
+    const state = reduce(initial, { type: 'add-to-hotbar', action: bgs });
+    expect(state).toEqual({
+      ...initial,
+      slots: [scythe, bgs, null, null, null, null, null, null, null],
+    });
+  });
+
+  it('does nothing if every slot is bound and none is active', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const full = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: new Array(9).fill(scythe),
+    };
+
+    const state = reduce(full, { type: 'add-to-hotbar', action: bgs });
+    expect(state).toBe(full);
+  });
+});
+
+describe('select-slot', () => {
+  it("sets the brush to the slot's action", () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const initial = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+    };
+
+    const state = reduce(initial, { type: 'select-slot', slot: 2 });
+    expect(state).toEqual({ ...initial, activeSlot: 2, brush: scythe });
+  });
+
+  it('clears the brush if the slot is empty', () => {
+    const initial = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      brush: { type: 'attack' as const, attackType: 'SCYTHE' },
+    };
+
+    const state = reduce(initial, { type: 'select-slot', slot: 4 });
+    expect(state).toEqual({ ...initial, activeSlot: 4, brush: null });
+  });
+});
+
+describe('set-slot', () => {
+  it('binds the action to the slot', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const initial = initialState({
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+      timeline: { actors: [VERZIK, P1], ticks: [] },
+    });
+
+    const state = reduce(initial, {
+      type: 'set-slot',
+      slot: 2,
+      action: scythe,
+    });
+    expect(state).toEqual({
+      ...initial,
+      slots: [null, null, scythe, null, null, null, null, null, null],
+    });
+  });
+
+  it('updates the brush if the slot is active', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const selected = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+      activeSlot: 2,
+      brush: scythe,
+    };
+
+    const state = reduce(selected, { type: 'set-slot', slot: 2, action: bgs });
+    expect(state).toEqual({
+      ...selected,
+      slots: [null, null, bgs, null, null, null, null, null, null],
+      brush: bgs,
+    });
+  });
+});
+
+describe('set-slots', () => {
+  it('replaces every slot', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const initial = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+    };
+    const slots = [bgs, null, null, null, scythe, null, null, null, null];
+
+    const state = reduce(initial, { type: 'set-slots', slots });
+    expect(state).toEqual({ ...initial, slots });
+    expect(state.slots).toBe(slots);
+  });
+
+  it('updates the brush if a slot is active', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const selected = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+      activeSlot: 2,
+      brush: scythe,
+    };
+    const slots = [null, null, bgs, null, null, null, null, null, null];
+
+    const state = reduce(selected, { type: 'set-slots', slots });
+    expect(state).toEqual({ ...selected, slots, brush: bgs });
+  });
+
+  it('fits slots to the hotbar size', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const initial = initialState({
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+      timeline: { actors: [VERZIK, P1], ticks: [] },
+    });
+
+    let state = reduce(initial, { type: 'set-slots', slots: [scythe] });
+    expect(state).toEqual({
+      ...initial,
+      slots: [scythe, null, null, null, null, null, null, null, null],
+    });
+
+    state = reduce(initial, {
+      type: 'set-slots',
+      slots: [null, null, null, null, null, null, null, null, scythe, bgs],
+    });
+    expect(state).toEqual({
+      ...initial,
+      slots: [null, null, null, null, null, null, null, null, scythe],
+    });
+  });
+});
+
+describe('swap-slots', () => {
+  it('swaps actions between the two slots', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const initial = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, bgs, null, null, null],
+    };
+
+    const state = reduce(initial, { type: 'swap-slots', from: 2, to: 5 });
+    expect(state).toEqual({
+      ...initial,
+      slots: [null, null, bgs, null, null, scythe, null, null, null],
+    });
+  });
+
+  it('moves an active source slot with its action', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const selected = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, null, null, null, null],
+      activeSlot: 2,
+      brush: scythe,
+    };
+
+    const state = reduce(selected, { type: 'swap-slots', from: 2, to: 7 });
+    expect(state).toEqual({
+      ...selected,
+      slots: [null, null, null, null, null, null, null, scythe, null],
+      activeSlot: 7,
+    });
+  });
+
+  it('moves an active target slot with its action', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const selected = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [null, null, scythe, null, null, bgs, null, null, null],
+      activeSlot: 2,
+      brush: scythe,
+    };
+
+    const state = reduce(selected, { type: 'swap-slots', from: 5, to: 2 });
+    expect(state).toEqual({
+      ...selected,
+      slots: [null, null, bgs, null, null, scythe, null, null, null],
+      activeSlot: 5,
+    });
   });
 });

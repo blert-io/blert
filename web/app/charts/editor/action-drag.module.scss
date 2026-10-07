@@ -1,0 +1,20 @@
+.float {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  padding: 0.35rem;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 6px;
+  background: var(--blert-surface-light);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  will-change: transform;
+}
+
+// Applied to the document root during a drag to override inline cursors.
+.dragging,
+.dragging * {
+  cursor: grabbing !important;
+}

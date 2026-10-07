@@ -15,6 +15,7 @@ export function DismissButton({ label, onClick }: DismissButtonProps) {
       data-tooltip-id={GLOBAL_TOOLTIP_ID}
       data-tooltip-content={label}
       onClick={onClick}
+      onMouseDown={(e) => e.preventDefault()}
       type="button"
     >
       <i className="fa-solid fa-xmark" />

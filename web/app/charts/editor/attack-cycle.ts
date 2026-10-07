@@ -12,6 +12,11 @@ export function attackCooldown(attackType: string): number {
   );
 }
 
+/** Returns the special attack energy cost of `attackType`, if it has one. */
+export function specCost(attackType: string): number | undefined {
+  return attackDefinitionsById.get(bcfToPlayerAttack(attackType))?.specCost;
+}
+
 /** An attack placed before its actor is off cooldown. */
 export type CooldownConflict = {
   actorId: string;

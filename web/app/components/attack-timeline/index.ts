@@ -9,6 +9,7 @@ export {
   CombatStyle,
   getActionMetadata,
   getAttackStyle,
+  isSpecialAttack,
 } from './attack-metadata';
 export type { HitTestResult } from './canvas/hit-test';
 export type { InteractionHandler } from './canvas/timeline-controller';

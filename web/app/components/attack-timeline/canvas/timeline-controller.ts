@@ -89,7 +89,7 @@ export class TimelineController {
   private dprMql: MediaQueryList | null = null;
   private themeObserver: MutationObserver | null = null;
 
-  private hover: [TimelineHover, number] | null = null;
+  private hover: [HitTestResult, number] | null = null;
   private cursor = 'default';
   private lastMouseEvent: MouseEvent | null = null;
   private scrollContainer: HTMLElement | null = null;
@@ -154,11 +154,19 @@ export class TimelineController {
    */
   update(data: ControllerData, layout: ControllerLayout): void {
     const resolverChanged = this.data?.resolver !== data.resolver;
+    const handlerChanged =
+      this.data?.interactionHandler !== data.interactionHandler;
     this.data = data;
     this.layout = layout;
 
     if (resolverChanged) {
       this.imageCache.preloadForTimeline(data.resolver);
+    }
+
+    if (handlerChanged && this.hover !== null) {
+      const [hit, tileIndex] = this.hover;
+      this.cursor = this.cursorFor(hit);
+      this.canvases[tileIndex].style.cursor = this.cursor;
     }
 
     this.resizeCanvases();

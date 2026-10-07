@@ -1,10 +1,9 @@
 'use client';
 
 import { BCFAction, BCFResolver } from '@blert/bcf';
-import Image from 'next/image';
 
-import { getActionMetadata } from '@/components/attack-timeline';
-
+import { ActionIcon } from './action-icon';
+import { actionName } from './action-registry';
 import { attackCooldown } from './attack-cycle';
 import { DismissButton } from './dismiss-button';
 import { CellCoord } from './editor-state';
@@ -58,13 +57,10 @@ type ActionChipProps = {
 };
 
 function ActionChip({ action, onRemove }: ActionChipProps) {
-  const { name, imageUrl } = getActionMetadata(action);
   return (
     <span className={styles.action}>
-      {imageUrl !== undefined && (
-        <Image src={imageUrl} alt="" width={22} height={22} />
-      )}
-      {name}
+      <ActionIcon action={action} size={22} />
+      {actionName(action)}
       {action.type === 'attack' && (
         <span className={styles.meta}>
           {attackCooldown(action.attackType)}t
