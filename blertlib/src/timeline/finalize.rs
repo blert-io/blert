@@ -1,8 +1,9 @@
 //! Conversions from working state to a complete timeline.
 
+use crate::actor::{Actor, Mokhaiotl, NpcProperties, RoomId};
 use crate::event::{Event, EventKind, NyloWave};
 use crate::tick::{Tick, Ticks};
-use crate::{ChallengeMode, Stage, npc};
+use crate::{ChallengeMode, CombatStyle, NpcAttack, Stage, npc};
 
 use super::TickState;
 
@@ -30,8 +31,18 @@ pub(super) fn finalize_from(
     let (history, states) = states.split_at_mut(start.as_usize());
 
     let mut finalizers: Vec<Box<dyn Finalizer>> = Vec::new();
-    if stage == Stage::TobNylocas {
-        finalizers.push(Box::new(NylocasFinalizer::new(mode)));
+    match stage {
+        Stage::TobNylocas => finalizers.push(Box::new(NylocasFinalizer::new(mode))),
+        Stage::MokhaiotlDelve1
+        | Stage::MokhaiotlDelve2
+        | Stage::MokhaiotlDelve3
+        | Stage::MokhaiotlDelve4
+        | Stage::MokhaiotlDelve5
+        | Stage::MokhaiotlDelve6
+        | Stage::MokhaiotlDelve7
+        | Stage::MokhaiotlDelve8
+        | Stage::MokhaiotlDelve8plus => finalizers.push(Box::new(MokhaiotlFinalizer::default())),
+        _ => {}
     }
 
     for finalizer in &mut finalizers {
@@ -166,6 +177,71 @@ impl Finalizer for NylocasFinalizer {
                         nylos_alive,
                     })));
             }
+        }
+    }
+}
+
+#[derive(Default)]
+struct MokhaiotlFinalizer {
+    charging: bool,
+}
+
+impl MokhaiotlFinalizer {
+    fn was_meleed(events: &[Event], mokhaiotl: RoomId) -> bool {
+        events.iter().any(|event| {
+            matches!(
+                &event.kind,
+                EventKind::PlayerAttack(attack)
+                    if attack.target == Some(Actor::Npc(mokhaiotl))
+                        && attack.attack.style() == Some(CombatStyle::Melee)
+            )
+        })
+    }
+}
+
+impl Finalizer for MokhaiotlFinalizer {
+    fn initialize(&mut self, history: &[Option<TickState>]) {
+        let Some(state) = history.iter().rev().find_map(Option::as_ref) else {
+            return;
+        };
+        let Some((&room_id, mokhaiotl)) = state
+            .npcs
+            .iter()
+            .find(|(_, npc)| npc.npc_id == npc::id::MOKHAIOTL)
+        else {
+            return;
+        };
+        self.charging = matches!(
+            mokhaiotl.properties,
+            Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true }))
+        ) && !Self::was_meleed(&state.events, room_id);
+    }
+
+    fn tick(&mut self, _tick: Tick, state: &mut Option<TickState>) {
+        let Some(state) = state else {
+            return;
+        };
+        let Some((&room_id, mokhaiotl)) = state
+            .npcs
+            .iter_mut()
+            .find(|(_, npc)| npc.npc_id == npc::id::MOKHAIOTL)
+        else {
+            self.charging = false;
+            return;
+        };
+
+        for event in &state.events {
+            if let EventKind::NpcAttack(attack) = &event.kind
+                && attack.npc == room_id
+            {
+                self.charging = attack.attack == NpcAttack::MokhaiotlCharge;
+            }
+        }
+        mokhaiotl.properties = Some(NpcProperties::Mokhaiotl(Mokhaiotl {
+            charging: self.charging,
+        }));
+        if Self::was_meleed(&state.events, room_id) {
+            self.charging = false;
         }
     }
 }

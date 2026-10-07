@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item};
 use crate::prayer::PrayerSet;
 use crate::skill::SkillLevel;
-use crate::{CombatStyle, Point, Rect, Source, VerzikPhase};
+use crate::{AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, VerzikPhase, npc};
 
 pub use crate::proto::event::npc::maiden_crab::{
     Position as MaidenCrabPosition, Spawn as MaidenCrabSpawn,
@@ -224,11 +224,42 @@ pub struct NpcState {
     pub properties: Option<NpcProperties>,
 }
 
+impl NpcState {
+    /// Returns whether a player's attack on this NPC puts them on cooldown.
+    #[must_use]
+    pub fn attack_applies_cooldown(&self, attack: PlayerAttack) -> bool {
+        if npc::is_mokhaiotl_larva(self.npc_id) {
+            let ignores = attack.has_class(AttackClass::Demonbane)
+                || matches!(
+                    attack,
+                    PlayerAttack::EyeOfAyakAuto | PlayerAttack::EyeOfAyakSpec
+                );
+            return !ignores;
+        }
+
+        true
+    }
+
+    /// Returns whether a player must be off cooldown to perform an attack
+    /// on this NPC.
+    #[must_use]
+    pub fn attack_checks_cooldown(&self, attack: PlayerAttack) -> bool {
+        let charging = matches!(
+            self.properties,
+            Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true }))
+        );
+        !(npc::is_mokhaiotl_larva(self.npc_id)
+            || self.npc_id == npc::id::VOLATILE_EARTH
+            || (charging && attack.style() == Some(CombatStyle::Melee)))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NpcProperties {
     MaidenCrab(MaidenCrab),
     Nylo(Nylo),
     VerzikCrab(VerzikCrab),
+    Mokhaiotl(Mokhaiotl),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,6 +292,11 @@ pub enum NyloSpawn {
 pub struct VerzikCrab {
     pub phase: VerzikPhase,
     pub spawn: VerzikCrabSpawn,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mokhaiotl {
+    pub charging: bool,
 }
 
 #[cfg(test)]
@@ -331,6 +367,77 @@ mod tests {
         assert_eq!(player.equipped(EquipmentSlot::Quiver), Some(bolts));
         assert_eq!(player.equipped(EquipmentSlot::Head), None);
         assert_eq!(player.equipped(EquipmentSlot::Shield), None);
+    }
+
+    #[test]
+    fn npc_attack_cooldown_rules() {
+        let larva = NpcState {
+            source: Source::Client(ClientId(179)),
+            npc_id: npc::id::DEMONIC_LARVA,
+            position: Rect::square(Point(1309, 9567), 1),
+            hitpoints: SkillLevel::from_raw(131_074),
+            prayers: PrayerSet::from_raw(262_144),
+            properties: None,
+        };
+        assert!(larva.attack_applies_cooldown(PlayerAttack::Blowpipe));
+        assert!(!larva.attack_checks_cooldown(PlayerAttack::Blowpipe));
+
+        let range_larva = NpcState {
+            source: Source::Client(ClientId(560)),
+            npc_id: npc::id::DEMONIC_RANGE_LARVA,
+            position: Rect::square(Point(3421, 6435), 1),
+            hitpoints: SkillLevel::from_raw(131_074),
+            prayers: PrayerSet::from_raw(327_680),
+            properties: None,
+        };
+        assert!(!range_larva.attack_applies_cooldown(PlayerAttack::ScorchingBowAuto));
+        assert!(!range_larva.attack_checks_cooldown(PlayerAttack::ScorchingBowAuto));
+
+        let magic_larva = NpcState {
+            source: Source::Client(ClientId(40)),
+            npc_id: npc::id::DEMONIC_MAGIC_LARVA,
+            position: Rect::square(Point(3549, 6439), 1),
+            hitpoints: SkillLevel::from_raw(131_074),
+            prayers: PrayerSet::from_raw(393_216),
+            properties: None,
+        };
+        assert!(!magic_larva.attack_applies_cooldown(PlayerAttack::EyeOfAyakAuto));
+        assert!(!magic_larva.attack_checks_cooldown(PlayerAttack::EyeOfAyakAuto));
+
+        let volatile_earth = NpcState {
+            source: Source::Client(ClientId(638)),
+            npc_id: npc::id::VOLATILE_EARTH,
+            position: Rect::square(Point(3547, 6435), 1),
+            hitpoints: SkillLevel::from_raw(65_537),
+            prayers: PrayerSet::from_raw(0),
+            properties: None,
+        };
+        assert!(volatile_earth.attack_applies_cooldown(PlayerAttack::TwistedBow));
+        assert!(!volatile_earth.attack_checks_cooldown(PlayerAttack::TwistedBow));
+
+        let charging_doom = NpcState {
+            source: Source::Client(ClientId(282)),
+            npc_id: npc::id::MOKHAIOTL,
+            position: Rect::square(Point(3549, 6435), 5),
+            hitpoints: SkillLevel::from_raw(35_783_331),
+            prayers: PrayerSet::from_raw(196_608),
+            properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true })),
+        };
+        assert!(charging_doom.attack_applies_cooldown(PlayerAttack::NoxiousHalberd));
+        assert!(!charging_doom.attack_checks_cooldown(PlayerAttack::NoxiousHalberd));
+        assert!(charging_doom.attack_applies_cooldown(PlayerAttack::TwistedBow));
+        assert!(charging_doom.attack_checks_cooldown(PlayerAttack::TwistedBow));
+
+        let regular_doom = NpcState {
+            source: Source::Client(ClientId(293)),
+            npc_id: npc::id::MOKHAIOTL,
+            position: Rect::square(Point(3549, 6435), 5),
+            hitpoints: SkillLevel::from_raw(36_176_547),
+            prayers: PrayerSet::from_raw(0),
+            properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: false })),
+        };
+        assert!(regular_doom.attack_applies_cooldown(PlayerAttack::NoxiousHalberd));
+        assert!(regular_doom.attack_checks_cooldown(PlayerAttack::NoxiousHalberd));
     }
 
     #[test]

@@ -1322,6 +1322,84 @@ fn builder_ingest_attack_style() {
 }
 
 #[test]
+fn builder_ingest_attack_style_same_tick() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(378),
+        Stage::MokhaiotlDelve4,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("1Ogp").unwrap()],
+        None,
+    );
+
+    let mut doom = proto::Event {
+        tick: 25,
+        stage: Stage::MokhaiotlDelve4 as i32,
+        x_coord: 3421,
+        y_coord: 6435,
+        ..Default::default()
+    };
+    doom.set_type(proto::event::Type::NpcUpdate);
+    doom.npc = Some(proto::event::Npc {
+        id: 14707,
+        room_id: 47491,
+        hitpoints: 29_557_336,
+        active_prayers: 0,
+        r#type: Some(proto::event::npc::Type::Basic(())),
+    });
+    let mut auto = proto::Event {
+        tick: 26,
+        stage: Stage::MokhaiotlDelve4 as i32,
+        x_coord: 3421,
+        y_coord: 6435,
+        ..Default::default()
+    };
+    auto.set_type(proto::event::Type::NpcAttack);
+    auto.npc = Some(proto::event::Npc {
+        id: 14707,
+        room_id: 47491,
+        r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
+    });
+    auto.npc_attack = Some(proto::event::NpcAttacked {
+        attack: proto::NpcAttack::MokhaiotlAuto as i32,
+        target: Some("1Ogp".to_string()),
+    });
+
+    builder.ingest([doom.clone(), auto]);
+
+    let mut style = proto::Event {
+        tick: 26,
+        stage: Stage::MokhaiotlDelve4 as i32,
+        ..Default::default()
+    };
+    style.set_type(proto::event::Type::MokhaiotlAttackStyle);
+    style.mokhaiotl_attack_style = Some(proto::event::AttackStyle {
+        style: proto::event::attack_style::Style::Mage as i32,
+        npc_attack_tick: 26,
+    });
+    doom.tick = 26;
+
+    assert_eq!(builder.ingest([style, doom]), Some(Tick(26)));
+    assert_eq!(
+        builder
+            .recording()
+            .unwrap()
+            .get_state(Tick(26))
+            .unwrap()
+            .events,
+        [Event::recorded(
+            ClientId(378),
+            EventKind::NpcAttack(NpcAttacked {
+                npc: RoomId(47491),
+                attack: NpcAttack::MokhaiotlMageAuto,
+                target: Some(Actor::Player(PartyIndex::from_usize(0))),
+            })
+        )]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+}
+
+#[test]
 fn builder_ingest_attack_reference() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),

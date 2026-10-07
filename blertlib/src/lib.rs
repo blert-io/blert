@@ -19,9 +19,9 @@ pub use proto::event::ColosseumHandicap;
 pub use proto::{ChallengeMode, NpcAttack, PlayerAttack, PlayerSpell, Stage};
 
 pub use actor::{
-    Actor, DataSource, InvalidRsn, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcProperties,
-    NpcState, Nylo, NyloSpawn, PartyIndex, PlayerState, Players, RoomId, Rsn, Stats, VerzikCrab,
-    VerzikCrabSpawn,
+    Actor, DataSource, InvalidRsn, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, Mokhaiotl,
+    NpcProperties, NpcState, Nylo, NyloSpawn, PartyIndex, PlayerState, Players, RoomId, Rsn, Stats,
+    VerzikCrab, VerzikCrabSpawn,
 };
 pub use event::*;
 pub use item::{EquipmentSlot, Item, ItemDelta, Slot};
@@ -97,6 +97,12 @@ pub enum CombatStyle {
     Melee = 0,
     Ranged = 1,
     Magic = 2,
+}
+
+/// Special behaviors that player attacks can have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttackClass {
+    Demonbane,
 }
 
 /// Unique identifier for a Blert client.
