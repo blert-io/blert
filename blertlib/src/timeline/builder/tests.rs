@@ -479,6 +479,294 @@ fn builder_ingest_npc_spawn() {
 }
 
 #[test]
+fn builder_ingest_moves_maiden_spawn_to_tick_0() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(1),
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("715").unwrap()],
+        None,
+    );
+
+    let first = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 0,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3184,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "715".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let second = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 1,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3184,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "715".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let third = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 2,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3182,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "715".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let spawn = proto::Event {
+        r#type: proto::event::Type::NpcSpawn as i32,
+        tick: 2,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3162,
+        y_coord: 4444,
+        npc: Some(proto::event::Npc {
+            id: 8360,
+            room_id: 49403,
+            hitpoints: 172_034_625,
+            active_prayers: 0,
+            r#type: Some(proto::event::npc::Type::Basic(())),
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(builder.ingest([first, second.clone()]), Some(Tick(0)));
+    assert_eq!(builder.ingest([third, spawn]), Some(Tick(0)));
+    let recording = builder.recording().unwrap();
+    let maiden = NpcState {
+        source: Source::Client(ClientId(1)),
+        npc_id: 8360,
+        position: Rect::square(Point(3162, 4444), 6),
+        hitpoints: SkillLevel::from_raw(172_034_625),
+        prayers: PrayerSet::from_raw(0),
+        properties: None,
+    };
+    for tick in [Tick(0), Tick(1)] {
+        assert_eq!(
+            recording.get_state(tick).unwrap().npcs,
+            BTreeMap::from([(
+                RoomId(49403),
+                NpcState {
+                    source: Source::Synthetic,
+                    ..maiden.clone()
+                }
+            )])
+        );
+    }
+    assert_eq!(
+        recording.get_state(Tick(2)).unwrap().npcs,
+        BTreeMap::from([(RoomId(49403), maiden.clone())])
+    );
+
+    assert_eq!(builder.ingest([second]), Some(Tick(0)));
+    let recording = builder.recording().unwrap();
+    for tick in [Tick(0), Tick(1)] {
+        assert_eq!(
+            recording.get_state(tick).unwrap().npcs,
+            BTreeMap::from([(
+                RoomId(49403),
+                NpcState {
+                    source: Source::Synthetic,
+                    ..maiden.clone()
+                }
+            )])
+        );
+    }
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(1),
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("TobDataEgirl").unwrap()],
+        None,
+    );
+
+    let first = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 0,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3182,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "TobDataEgirl".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let second = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 1,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3180,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "TobDataEgirl".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let third = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 2,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3178,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "TobDataEgirl".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let spawn = proto::Event {
+        r#type: proto::event::Type::NpcSpawn as i32,
+        tick: 2,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3162,
+        y_coord: 4444,
+        npc: Some(proto::event::Npc {
+            id: 8360,
+            room_id: 49403,
+            hitpoints: 172_034_625,
+            active_prayers: 0,
+            r#type: Some(proto::event::npc::Type::Basic(())),
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(builder.ingest([first, second, spawn]), Some(Tick(0)));
+    assert_eq!(builder.ingest([third]), Some(Tick(0)));
+    let recording = builder.recording().unwrap();
+    for tick in [Tick(0), Tick(1)] {
+        assert!(recording.get_state(tick).unwrap().npcs.is_empty());
+    }
+    assert_eq!(
+        recording.get_state(Tick(2)).unwrap().npcs,
+        BTreeMap::from([(
+            RoomId(49403),
+            NpcState {
+                source: Source::Client(ClientId(1)),
+                npc_id: 8360,
+                position: Rect::square(Point(3162, 4444), 6),
+                hitpoints: SkillLevel::from_raw(172_034_625),
+                prayers: PrayerSet::from_raw(0),
+                properties: None,
+            }
+        )])
+    );
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(1),
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
+        None,
+    );
+
+    let first = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 0,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3184,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "WWWWWWWWWWQQ".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let second = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 1,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3184,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "WWWWWWWWWWQQ".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let third = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 2,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3182,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "WWWWWWWWWWQQ".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let spawn = proto::Event {
+        r#type: proto::event::Type::NpcSpawn as i32,
+        tick: 3,
+        stage: Stage::TobMaiden as i32,
+        x_coord: 3162,
+        y_coord: 4444,
+        npc: Some(proto::event::Npc {
+            id: 8360,
+            room_id: 39349,
+            hitpoints: 172_034_625,
+            active_prayers: 0,
+            r#type: Some(proto::event::npc::Type::Basic(())),
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(builder.ingest([first, second, third, spawn]), Some(Tick(0)));
+    let recording = builder.recording().unwrap();
+    for tick in [Tick(0), Tick(1), Tick(2)] {
+        assert!(recording.get_state(tick).unwrap().npcs.is_empty());
+    }
+    assert_eq!(
+        recording.get_state(Tick(3)).unwrap().npcs,
+        BTreeMap::from([(
+            RoomId(39349),
+            NpcState {
+                source: Source::Client(ClientId(1)),
+                npc_id: 8360,
+                position: Rect::square(Point(3162, 4444), 6),
+                hitpoints: SkillLevel::from_raw(172_034_625),
+                prayers: PrayerSet::from_raw(0),
+                properties: None,
+            }
+        )])
+    );
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
 fn builder_ingest_maiden_blood_splats() {
     let mut builder = RecordingBuilder::new(
         ClientId(4),

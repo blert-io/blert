@@ -782,6 +782,9 @@ impl<'a> TickBuilder<'a> {
         for &room_id in self.state.npcs.keys() {
             self.last_seen_actors.insert(Actor::Npc(room_id), tick);
         }
+        if correct_offset_maiden_spawn(self.recording, tick, &self.state) {
+            self.changed = Some(Tick(0));
+        }
         if self.recording.get_state(tick) != Some(&self.state) {
             self.changed = Some(self.changed.map_or(tick, |changed| changed.min(tick)));
         }
@@ -1659,6 +1662,78 @@ fn resolve_attack_style(
     }
     attack.attack = resolved;
     Ok(Some(attack_tick))
+}
+
+// On 2025-02-18, a RuneScape update limited clients to receiving events from
+// only actors that were rendered, rather than all actors in an instance. One
+// consequence of this is that Maiden only appears two ticks into the room from
+// an entering player's perspective.
+//
+// If the state of the room appears to be the start of the fight, this can be
+// corrected by extending Maiden's initial tick 2 state back through tick 0.
+// This is safe because Maiden's HP is known via varbit and she can't be
+// attacked until tick 5.
+fn correct_offset_maiden_spawn(recording: &mut Recording, tick: Tick, state: &TickState) -> bool {
+    if recording.stage() != Stage::TobMaiden || tick != Tick(2) {
+        return false;
+    }
+
+    let Some((&room_id, maiden)) = state
+        .npcs
+        .iter()
+        .find(|(_, npc)| npc::is_maiden(npc.npc_id))
+    else {
+        return false;
+    };
+
+    let backfill = should_backfill_maiden(state, maiden, recording, tick);
+    let state = NpcState {
+        source: Source::Synthetic,
+        ..maiden.clone()
+    };
+    let mut changed = false;
+    for earlier in tick.up_to() {
+        let Some(earlier_state) = recording.get_state_mut(earlier) else {
+            continue;
+        };
+        let current = earlier_state.npcs.get(&room_id);
+        if backfill && current != Some(&state) {
+            earlier_state.npcs.insert(room_id, state.clone());
+            changed = true;
+        } else if !backfill && current.is_some_and(|npc| npc.source == Source::Synthetic) {
+            earlier_state.npcs.remove(&room_id);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn should_backfill_maiden(
+    state: &TickState,
+    maiden: &NpcState,
+    recording: &Recording,
+    tick: Tick,
+) -> bool {
+    // Maiden must be full HP, and no player can be beyond where it is
+    // physically possible to run.
+    if maiden.hitpoints.current != maiden.hitpoints.base {
+        return false;
+    }
+    if !state
+        .players
+        .iter()
+        .all(|(_, player)| player.position.0 >= 3180)
+    {
+        return false;
+    }
+    !tick.up_to().any(|earlier| {
+        recording.get_state(earlier).is_some_and(|earlier_state| {
+            earlier_state
+                .npcs
+                .values()
+                .any(|npc| npc.source != Source::Synthetic && npc::is_maiden(npc.npc_id))
+        })
+    })
 }
 
 #[cfg(test)]
