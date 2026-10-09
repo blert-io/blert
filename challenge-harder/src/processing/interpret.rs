@@ -4,13 +4,12 @@ use std::collections::BTreeSet;
 use std::panic::{self, AssertUnwindSafe};
 use std::time::Instant;
 
-use blert::{Tick, item};
+use blert::proto::{Event, event};
+use blert::{ItemDelta, Tick, item};
 
-use crate::item::ItemDelta;
 use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
 use crate::merging::{self, MergeReport, MergedEvents};
 use crate::metrics;
-use crate::proto::{Event, event};
 
 use super::ChallengeInfo;
 use super::challenge_processor::{ChallengeProcessor, EventCursor, RoomNpc, StageContext};
@@ -89,12 +88,11 @@ fn run_interpret(
         ..
     } = challenge;
 
-    let party_names: Vec<String> = party.iter().map(ToString::to_string).collect();
     let merge_info = merging::ChallengeInfo {
         uuid,
         challenge_type,
         mode,
-        party: &party_names,
+        party: &party,
     };
 
     let mut client_ids = BTreeSet::new();
@@ -193,9 +191,12 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
         player
             .equipment_deltas
             .iter()
-            .filter_map(|&raw| ItemDelta::parse(raw).ok())
-            .find_map(|delta| match delta {
-                ItemDelta::Add(s, id, _) if s == slot => Some(id.cast_unsigned()),
+            .find_map(|&raw| match ItemDelta::parse(raw) {
+                ItemDelta::Add(s, item)
+                    if event::player::EquipmentSlot::try_from(s) == Ok(slot) =>
+                {
+                    Some(item.id)
+                }
                 ItemDelta::Add(..) | ItemDelta::Remove(..) => None,
             })
     };
@@ -220,7 +221,8 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
 
 #[cfg(test)]
 mod tests {
-    use blert::{Rsn, Ticks};
+    use blert::proto::event::player::EquipmentSlot;
+    use blert::{Item, Rsn, Slot, Ticks};
     use bytes::Bytes;
     use prost::Message;
 
@@ -231,7 +233,6 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage,
     };
     use crate::proto::ChallengeEvents;
-    use crate::proto::event::player::EquipmentSlot;
 
     fn context() -> StageContext {
         StageContext::new(
@@ -360,9 +361,11 @@ mod tests {
                 0,
                 vec![
                     ItemDelta::Add(
-                        EquipmentSlot::Torso,
-                        item::id::TORVA_PLATEBODY.cast_signed(),
-                        1,
+                        Slot(EquipmentSlot::Torso as u8),
+                        Item {
+                            id: item::id::TORVA_PLATEBODY,
+                            quantity: 1,
+                        },
                     )
                     .to_raw(),
                 ],
@@ -375,9 +378,11 @@ mod tests {
                 0,
                 vec![
                     ItemDelta::Add(
-                        EquipmentSlot::Torso,
-                        item::id::BANDOS_CHESTPLATE.cast_signed(),
-                        1,
+                        Slot(EquipmentSlot::Torso as u8),
+                        Item {
+                            id: item::id::BANDOS_CHESTPLATE,
+                            quantity: 1,
+                        },
                     )
                     .to_raw(),
                 ],
@@ -397,9 +402,11 @@ mod tests {
                 0,
                 vec![
                     ItemDelta::Remove(
-                        EquipmentSlot::Torso,
-                        item::id::TORVA_PLATEBODY.cast_signed(),
-                        1,
+                        Slot(EquipmentSlot::Torso as u8),
+                        Item {
+                            id: item::id::TORVA_PLATEBODY,
+                            quantity: 1,
+                        },
                     )
                     .to_raw(),
                 ],

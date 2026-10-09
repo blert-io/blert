@@ -2,14 +2,13 @@
 
 use std::collections::BTreeMap;
 
-use crate::item::ItemDelta;
+use blert::proto::event::attack_style::Style;
+use blert::proto::event::sote_maze::Maze;
+use blert::proto::event::{VerzikPhase, XarpusPhase};
+use blert::proto::{Coords, Event, event};
+use blert::{ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerSet, Rsn, SkillLevel};
+
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
-use crate::prayer::PrayerSet;
-use crate::proto::event::attack_style::Style;
-use crate::proto::event::sote_maze::Maze;
-use crate::proto::event::{VerzikPhase, XarpusPhase};
-use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, event};
-use crate::skill::SkillLevel;
 
 use super::client_consistency::ConsistencyIssue;
 use super::client_events::{ClientEvents, ReportedInfo, StageData};
@@ -61,7 +60,7 @@ pub fn merged_events(
 pub(super) fn challenge_info(
     stage: Stage,
     mode: ChallengeMode,
-    party: &[String],
+    party: &[Rsn],
 ) -> ChallengeInfo<'_> {
     ChallengeInfo {
         uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d"
@@ -82,7 +81,7 @@ pub(super) struct ClientBuilder<'a> {
 }
 
 impl<'a> ClientBuilder<'a> {
-    pub(super) fn new(id: i64, stage: Stage, last_recorded_tick: Tick) -> Self {
+    pub(super) fn new(id: u32, stage: Stage, last_recorded_tick: Tick) -> Self {
         Self {
             id: ClientId(id),
             stage,
@@ -152,7 +151,7 @@ impl<'a> MergeContextBuilder<'a> {
         last_recorded_tick: Tick,
         events: Vec<Event>,
     ) -> Self {
-        let client_id = ClientId(i64::try_from(self.clients.len() + 1).expect("few clients"));
+        let client_id = ClientId(u32::try_from(self.clients.len() + 1).expect("few clients"));
         let events = events
             .into_iter()
             .map(|event| TaggedEvent::new(client_id, event))
@@ -212,7 +211,7 @@ impl<'a> MergeContextBuilder<'a> {
 }
 
 pub(super) fn timeline(
-    party: &[String],
+    party: &[Rsn],
     last_recorded_tick: Tick,
     events: Vec<Event>,
 ) -> Timeline<'_> {
@@ -473,7 +472,11 @@ pub fn maiden_blood_splats_event(tick: Tick, coords: &[(i32, i32)]) -> Event {
         ..Default::default()
     };
     event.set_type(event::Type::TobMaidenBloodSplats);
-    event.maiden_blood_splats = coords.iter().copied().map(Coords::from).collect();
+    event.maiden_blood_splats = coords
+        .iter()
+        .copied()
+        .map(|(x, y)| Coords { x, y })
+        .collect();
     event
 }
 
@@ -515,7 +518,11 @@ pub fn bloat_hands_drop_event(tick: Tick, hands: &[(i32, i32)]) -> Event {
         ..Default::default()
     };
     event.set_type(event::Type::TobBloatHandsDrop);
-    event.bloat_hands = hands.iter().copied().map(Coords::from).collect();
+    event.bloat_hands = hands
+        .iter()
+        .copied()
+        .map(|(x, y)| Coords { x, y })
+        .collect();
     event
 }
 
@@ -576,7 +583,13 @@ pub enum SoteMazePath<'a> {
 }
 
 pub fn sote_maze_path_event(tick: Tick, maze: Maze, path: SoteMazePath<'_>) -> Event {
-    let coords = |points: &[(i32, i32)]| points.iter().copied().map(Coords::from).collect();
+    let coords = |points: &[(i32, i32)]| {
+        points
+            .iter()
+            .copied()
+            .map(|(x, y)| Coords { x, y })
+            .collect()
+    };
     let mut sote_maze = event::SoteMaze {
         maze: maze as i32,
         ..Default::default()

@@ -7,6 +7,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use blert::Rsn;
 use bytes::Bytes;
 use prost::Message;
 use serde::{Deserialize, Serialize};
@@ -27,7 +28,7 @@ pub struct MergeCapture {
     pub uuid: Uuid,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
-    pub party: Vec<String>,
+    pub party: Vec<Rsn>,
     pub stage: Stage,
     pub attempt: Option<u32>,
     /// Every client's records, in the order they were captured.
@@ -123,7 +124,7 @@ struct ChallengeInfo {
     #[serde(rename = "type")]
     challenge_type: ChallengeType,
     mode: ChallengeMode,
-    party: Vec<String>,
+    party: Vec<Rsn>,
 }
 
 /// A stream record in its JSON form, with field presence determined by `tag`.
@@ -132,7 +133,7 @@ struct ChallengeInfo {
 struct RawRecord {
     #[serde(rename = "type")]
     tag: u8,
-    client_id: i64,
+    client_id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     events: Option<Buffer>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -305,7 +306,7 @@ struct Identity {
     #[serde(rename = "type")]
     challenge_type: ChallengeType,
     mode: ChallengeMode,
-    party: Vec<String>,
+    party: Vec<Rsn>,
     stage: Stage,
     attempt: Option<u32>,
 }
@@ -439,7 +440,10 @@ mod tests {
             uuid: Uuid::try_parse("d6a81e14-5f9a-4314-91d2-16eaee45b1d0").unwrap(),
             challenge_type: ChallengeType::Tob,
             mode: ChallengeMode::TobRegular,
-            party: vec!["715".to_string(), "Sacolyn".to_string()],
+            party: vec![
+                Rsn::try_from("715").unwrap(),
+                Rsn::try_from("Sacolyn").unwrap(),
+            ],
             stage: Stage::TobBloat,
             attempt: None,
             records: vec![

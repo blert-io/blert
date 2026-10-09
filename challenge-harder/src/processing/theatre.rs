@@ -4,7 +4,13 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use async_trait::async_trait;
-use blert::{CombatStyle, Tick, Ticks, npc};
+use blert::proto::event::attack_style::Style as AttackStyle;
+use blert::proto::event::npc::maiden_crab::Spawn as MaidenCrabSpawn;
+use blert::proto::event::npc::nylo::Style as NyloStyle;
+use blert::proto::event::sote_maze::Maze;
+use blert::proto::event::{VerzikPhase, XarpusPhase};
+use blert::proto::{Coords, event};
+use blert::{ChallengeMode, CombatStyle, NpcAttack, PlayerAttack, SkillLevel, Tick, Ticks, npc};
 use serde::{Deserialize, Serialize};
 
 use super::challenge_processor::{
@@ -18,15 +24,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::merging::MergedEvents;
 use crate::price::PriceResolver;
-use crate::proto::event::attack_style::Style as AttackStyle;
-use crate::proto::event::npc::maiden_crab::Spawn as MaidenCrabSpawn;
-use crate::proto::event::npc::nylo::Style as NyloStyle;
-use crate::proto::event::sote_maze::Maze;
-use crate::proto::event::{VerzikPhase, XarpusPhase};
-use crate::proto::{
-    ChallengeData, ChallengeMode, Coords, NpcAttack, PlayerAttack, challenge_data, event,
-};
-use crate::skill::SkillLevel;
+use crate::proto::{ChallengeData, challenge_data};
 
 /// Southwest corner of the Bloat room.
 const BLOAT_ROOM_ORIGIN: (i32, i32) = (3288, 4440);
@@ -1441,6 +1439,9 @@ impl ChallengeProcessor for TheatreProcessor {
 mod tests {
     #![allow(clippy::too_many_lines)]
     use blert::Rsn;
+    use blert::proto::Event;
+    use blert::proto::event::npc::MaidenCrab;
+    use blert::proto::event::npc::maiden_crab::Position as MaidenCrabPosition;
     use serde_json::json;
 
     use super::*;
@@ -1451,9 +1452,6 @@ mod tests {
     use crate::merging::fixtures::*;
     use crate::processing::split::{SavedSplit, StageSplit};
     use crate::processing::stats::PlayerStatsDelta;
-    use crate::proto::Event;
-    use crate::proto::event::npc::MaidenCrab;
-    use crate::proto::event::npc::maiden_crab::Position as MaidenCrabPosition;
 
     fn challenge_info(stage: Stage, status: ChallengeStatus) -> ChallengeInfo {
         ChallengeInfo {

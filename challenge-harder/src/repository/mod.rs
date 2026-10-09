@@ -6,11 +6,12 @@
 #![cfg_attr(not(test), expect(dead_code))]
 
 use blert::Rsn;
+use blert::proto::{Event, event};
 use futures_util::stream::BoxStream;
 use prost::Message;
 
 use crate::lifecycle::core::types::{ProcessingError, Stage, Uuid};
-use crate::proto::{ChallengeData, ChallengeEvents, Event, event};
+use crate::proto::{ChallengeData, ChallengeEvents};
 
 mod fs;
 mod s3;

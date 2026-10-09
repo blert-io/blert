@@ -7,19 +7,16 @@
 #![deny(clippy::pedantic)]
 
 mod api;
-mod item;
 mod lifecycle;
 mod merging;
 mod metrics;
 mod players;
-mod prayer;
 mod price;
 mod processing;
 mod proto;
 mod redis;
 mod repository;
 mod shadow;
-mod skill;
 
 use std::path::PathBuf;
 use std::process::ExitCode;

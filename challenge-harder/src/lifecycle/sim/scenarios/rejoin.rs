@@ -30,29 +30,29 @@ fn sealed(stage: Stage, attempt: Option<u32>, forced: bool) -> LifecycleEvent {
     }
 }
 
-fn removed(client: i64) -> LifecycleEvent {
+fn removed(client: u32) -> LifecycleEvent {
     LifecycleEvent::ClientRemoved {
         client_id: client_id(client),
     }
 }
 
-fn client_rejoined(client: i64, token: &str) -> LifecycleEvent {
+fn client_rejoined(client: u32, token: &str) -> LifecycleEvent {
     LifecycleEvent::ClientRejoined {
         client_id: client_id(client),
         session_token: token.into(),
     }
 }
 
-fn joined_with_token(client: i64, token: &str) -> LifecycleEvent {
+fn joined_with_token(client: u32, token: &str) -> LifecycleEvent {
     LifecycleEvent::ClientJoined {
         client_id: client_id(client),
-        user_id: UserId(client),
+        user_id: UserId(i64::from(client)),
         session_token: token.into(),
         recording_type: RecordingType::Participant,
     }
 }
 
-fn client_finished(client: i64) -> LifecycleEvent {
+fn client_finished(client: u32) -> LifecycleEvent {
     LifecycleEvent::ClientFinished {
         client_id: client_id(client),
         definitive: true,

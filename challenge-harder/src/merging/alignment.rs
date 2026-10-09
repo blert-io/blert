@@ -445,7 +445,7 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use blert::Tick;
+    use blert::{Rsn, Tick};
 
     use super::*;
     use crate::lifecycle::core::types::Stage;
@@ -456,8 +456,8 @@ mod tests {
     // Each listed tick gets a state with a dummy player so it's non-null, at
     // its position in the list, so tick numbers are decoupled from indices.
     fn make_timeline(ticks: &[u32]) -> Vec<Option<TickState<'static>>> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+        static PARTY: std::sync::LazyLock<Vec<Rsn>> =
+            std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
         let events = ticks
             .iter()
             .map(|&t| fixtures::PlayerUpdateEvent::new(Tick(t), STAGE, "1Ogp", (10, 20)).build())

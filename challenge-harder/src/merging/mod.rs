@@ -36,12 +36,12 @@ pub use trace::Tracer;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::{Tick, Ticks};
+use blert::proto::Event;
+use blert::{Rsn, Tick, Ticks};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, Uuid,
 };
-use crate::proto::Event;
 
 use alignment::{AlignmentResult, TickAligner};
 use classification::{ClientClassification, classify_clients};
@@ -96,7 +96,7 @@ pub struct ChallengeInfo<'a> {
     pub uuid: Uuid,
     pub challenge_type: ChallengeType,
     pub mode: ChallengeMode,
-    pub party: &'a [String],
+    pub party: &'a [Rsn],
 }
 
 /// Fatally invalid client input data.
@@ -288,7 +288,8 @@ impl<'a> MergeContext<'a> {
         self.challenge
             .party
             .iter()
-            .find(|player| *player == name)
+            .find(|player| **player == name)
+            .map(Rsn::as_str)
             .expect("name is a party member")
     }
 
@@ -716,16 +717,18 @@ impl std::ops::Index<usize> for MergedEvents {
 mod tests {
     #![allow(clippy::too_many_lines)]
 
+    use blert::PlayerAttack;
+    use blert::proto::event;
     use bytes::Bytes;
     use prost::Message;
 
     use super::*;
     use crate::lifecycle::core::types::{ClientId, ServerTicks, StageUpdate};
-    use crate::proto::{ChallengeEvents, PlayerAttack, event};
+    use crate::proto::ChallengeEvents;
 
     fn nylocas_challenge() -> ChallengeInfo<'static> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+        static PARTY: std::sync::LazyLock<Vec<Rsn>> =
+            std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
         fixtures::challenge_info(Stage::TobNylocas, ChallengeMode::TobRegular, &PARTY)
     }
 
@@ -765,7 +768,7 @@ mod tests {
 
     #[test]
     fn merge_of_an_empty_stream_is_none() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let challenge =
             fixtures::challenge_info(Stage::MokhaiotlDelve1, ChallengeMode::NoMode, &party);
         let (merged, report) = merge(&challenge, Stage::MokhaiotlDelve1, &[], None);
@@ -829,7 +832,7 @@ mod tests {
     fn stage_status_is_taken_from_the_most_complete_client() {
         let challenge = nylocas_challenge();
         let end =
-            |client_id: i64, status: StageStatus, recorded_ticks: u32| ClientStageStream::End {
+            |client_id: u32, status: StageStatus, recorded_ticks: u32| ClientStageStream::End {
                 client_id: ClientId(client_id),
                 update: StageUpdate {
                     stage: Stage::TobNylocas,
@@ -986,7 +989,7 @@ mod tests {
             events: vec![wave_event(Tick(4), 1), wave_event(Tick(8), 2)],
             ..Default::default()
         };
-        let end = |client_id: i64| ClientStageStream::End {
+        let end = |client_id: u32| ClientStageStream::End {
             client_id: ClientId(client_id),
             update: StageUpdate {
                 stage: Stage::TobNylocas,
@@ -1015,7 +1018,7 @@ mod tests {
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
 
         assert!(merged.is_some());
-        let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
+        let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
             metadata: None,
             primary_player: None,
@@ -1089,7 +1092,7 @@ mod tests {
             room_id: 1001,
             ..Default::default()
         };
-        let recording = |client_id: i64, death_tick: Tick| ClientStageStream::Events {
+        let recording = |client_id: u32, death_tick: Tick| ClientStageStream::Events {
             client_id: ClientId(client_id),
             events: Bytes::from(
                 ChallengeEvents {
@@ -1102,7 +1105,7 @@ mod tests {
                 .encode_to_vec(),
             ),
         };
-        let end = |client_id: i64| ClientStageStream::End {
+        let end = |client_id: u32| ClientStageStream::End {
             client_id: ClientId(client_id),
             update: StageUpdate {
                 stage: Stage::TobNylocas,
@@ -1125,7 +1128,7 @@ mod tests {
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
 
         assert!(merged.is_some());
-        let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
+        let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
             metadata: None,
             primary_player: None,
@@ -1194,7 +1197,7 @@ mod tests {
     #[test]
     fn merge_step_with_low_confidence_is_rejected() {
         let challenge = nylocas_challenge();
-        let recording = |client_id: i64, attack: PlayerAttack| ClientStageStream::Events {
+        let recording = |client_id: u32, attack: PlayerAttack| ClientStageStream::Events {
             client_id: ClientId(client_id),
             events: Bytes::from(
                 ChallengeEvents {
@@ -1228,7 +1231,7 @@ mod tests {
                 .encode_to_vec(),
             ),
         };
-        let end = |client_id: i64| ClientStageStream::End {
+        let end = |client_id: u32| ClientStageStream::End {
             client_id: ClientId(client_id),
             update: StageUpdate {
                 stage: Stage::TobNylocas,
@@ -1251,7 +1254,7 @@ mod tests {
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
 
         assert!(merged.is_some());
-        let outcome = |client_id: i64, status: report::MergeStatus| ClientOutcome {
+        let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
             metadata: None,
             primary_player: None,

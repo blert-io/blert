@@ -226,14 +226,21 @@ pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) 
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
+    use blert::proto::Coords;
+
     use super::*;
     use crate::lifecycle::core::types::{ChallengeMode, Stage};
     use crate::merging::alignment::AlignmentEntry;
     use crate::merging::mapping::TickMapping;
     use crate::merging::{ChallengeInfo, fixtures};
 
-    static PARTY: std::sync::LazyLock<Vec<String>> =
-        std::sync::LazyLock::new(|| vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+    static PARTY: std::sync::LazyLock<Vec<Rsn>> = std::sync::LazyLock::new(|| {
+        vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ]
+    });
 
     fn challenge_for(stage: Stage, mode: ChallengeMode) -> ChallengeInfo<'static> {
         fixtures::challenge_info(stage, mode, &PARTY)
@@ -268,12 +275,12 @@ mod tests {
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
                 fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[1])
+                    .primary_player(PARTY[1].as_str())
                     .build(),
             )
             .build();
@@ -303,12 +310,12 @@ mod tests {
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
                 fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[1])
+                    .primary_player(PARTY[1].as_str())
                     .build(),
             )
             .build();
@@ -338,12 +345,12 @@ mod tests {
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
                 fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[1])
+                    .primary_player(PARTY[1].as_str())
                     .build(),
             )
             .build();
@@ -373,7 +380,7 @@ mod tests {
         let ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .build();
@@ -471,18 +478,18 @@ mod tests {
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
                 fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[1])
+                    .primary_player(PARTY[1].as_str())
                     .consistency_issue(ConsistencyIssue::LargeJump {
-                        player: &PARTY[1],
+                        player: PARTY[1].as_str(),
                         tick: Tick(4),
                         last_tick: Tick(3),
-                        start: (3168, 4436).into(),
-                        end: (3184, 4450).into(),
+                        start: Coords { x: 3168, y: 4436 },
+                        end: Coords { x: 3184, y: 4450 },
                     })
                     .build(),
             )
@@ -513,7 +520,7 @@ mod tests {
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .build();
@@ -544,12 +551,12 @@ mod tests {
         let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
             .client(
                 fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[0])
+                    .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
                 fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
-                    .primary_player(&PARTY[1])
+                    .primary_player(PARTY[1].as_str())
                     .build(),
             )
             .build();

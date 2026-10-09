@@ -15,10 +15,28 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed={proto_dir}");
 
     let out_dir = std::env::var("OUT_DIR").map_err(std::io::Error::other)?;
-    prost_build::Config::new()
-        .file_descriptor_set_path(Path::new(&out_dir).join("blert_descriptor.bin"))
-        .type_attribute(".blert.Stage", "#[derive(serde_repr::Deserialize_repr)]")
-        .compile_protos(&[&format!("{proto_dir}/event.proto")], &[proto_dir])
+    let mut config = prost_build::Config::new();
+    config.file_descriptor_set_path(Path::new(&out_dir).join("blert_descriptor.bin"));
+
+    for ty in [".blert.Challenge", ".blert.ChallengeMode", ".blert.Stage"] {
+        config.type_attribute(
+            ty,
+            "#[derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)]",
+        );
+    }
+
+    config.type_attribute(".blert.Coords", "#[derive(PartialOrd, Ord)]");
+
+    for ty in [
+        ".blert.Event.Npc.type",
+        ".blert.Event.Npc.MaidenCrab",
+        ".blert.Event.Npc.Nylo",
+        ".blert.Event.Npc.VerzikCrab",
+    ] {
+        config.type_attribute(ty, "#[derive(serde::Serialize, serde::Deserialize)]");
+    }
+
+    config.compile_protos(&[&format!("{proto_dir}/event.proto")], &[proto_dir])
 }
 
 #[derive(Deserialize)]

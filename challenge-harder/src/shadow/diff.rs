@@ -449,7 +449,7 @@ mod tests {
 
     fn record(
         op: CaptureOp,
-        client: Option<i64>,
+        client: Option<u32>,
         challenge: Option<&str>,
         request: Value,
         http: Option<(u16, Value)>,
@@ -460,7 +460,7 @@ mod tests {
             host: "sock-a".into(),
             challenge_uuid: challenge.map(uuid),
             client_id: client.map(ClientId),
-            user_id: client.map(UserId),
+            user_id: client.map(|client| UserId(i64::from(client))),
             request,
             http: http.map(|(status_code, response)| CaptureHttp {
                 ok: status_code < 400,

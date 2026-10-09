@@ -3,7 +3,9 @@
 use std::collections::BTreeSet;
 
 use async_trait::async_trait;
-use blert::{Tick, Ticks};
+use blert::proto::event;
+use blert::proto::event::attack_style::Style;
+use blert::{NpcAttack, Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -17,8 +19,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::merging::MergedEvents;
 use crate::price::PriceResolver;
-use crate::proto::event::attack_style::Style;
-use crate::proto::{ChallengeData, NpcAttack, challenge_data, event};
+use crate::proto::{ChallengeData, challenge_data};
 
 /// In-flight mokhaiotl state stored between stages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -140,7 +140,7 @@ fn sweep(name: &str, template: fn() -> Scenario) {
 /// Under heavy jitter, fast clients can finish and terminate the challenge
 /// before slow ones even start.
 fn racing_creates() -> Scenario {
-    fn racer(name: &'static str, id: i64) -> Client {
+    fn racer(name: &'static str, id: u32) -> Client {
         Client::participant(name, id)
             .at(
                 0,

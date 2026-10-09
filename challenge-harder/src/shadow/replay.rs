@@ -513,7 +513,7 @@ mod tests {
     fn planned(
         index: usize,
         offset_ms: u64,
-        client: i64,
+        client: u32,
         op: CaptureOp,
         creates: Option<&str>,
         requires: Option<&str>,

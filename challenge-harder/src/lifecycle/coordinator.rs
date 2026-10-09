@@ -680,11 +680,11 @@ mod tests {
     use crate::lifecycle::sim::Collector;
     use crate::lifecycle::store::StoreError;
 
-    fn create_command_for(user: i64) -> Create {
+    fn create_command_for(user: u32) -> Create {
         Create {
             session_uuid: Uuid::from_u128(0x5e55),
             request: CreateRequest {
-                user_id: UserId(user),
+                user_id: UserId(i64::from(user)),
                 client_id: ClientId(10 * user),
                 session_token: format!("tok{user}").into(),
                 plugin_version: "0.9.14".into(),
@@ -698,9 +698,9 @@ mod tests {
         }
     }
 
-    fn finish_request(user: i64) -> Finish {
+    fn finish_request(user: u32) -> Finish {
         Finish {
-            user_id: UserId(user),
+            user_id: UserId(i64::from(user)),
             client_id: ClientId(10 * user),
             session_token: format!("tok{user}").into(),
             times: None,
@@ -708,9 +708,9 @@ mod tests {
         }
     }
 
-    fn update_request(user: i64) -> Update {
+    fn update_request(user: u32) -> Update {
         Update {
-            user_id: UserId(user),
+            user_id: UserId(i64::from(user)),
             client_id: ClientId(10 * user),
             session_token: format!("tok{user}").into(),
             mode: None,

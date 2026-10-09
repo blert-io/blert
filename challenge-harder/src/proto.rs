@@ -11,30 +11,3 @@
 )]
 
 include!(concat!(env!("OUT_DIR"), "/blert.rs"));
-
-mod definitions {
-    // Distinct attacks routinely share a cooldown.
-    #![allow(clippy::match_same_arms)]
-    include!(concat!(env!("OUT_DIR"), "/attack_definitions.rs"));
-    include!(concat!(env!("OUT_DIR"), "/spell_definitions.rs"));
-}
-
-impl From<(i32, i32)> for Coords {
-    fn from((x, y): (i32, i32)) -> Coords {
-        Coords { x, y }
-    }
-}
-
-impl PlayerAttack {
-    pub fn cooldown(self) -> blert::Ticks {
-        // Every constructible `PlayerAttack` has a defined cooldown.
-        blert::Ticks(definitions::cooldown(self as i32).unwrap_or(0))
-    }
-}
-
-impl PlayerSpell {
-    /// Returns whether the spell is cast on a target.
-    pub fn is_targeted(self) -> bool {
-        definitions::is_targeted(self as i32)
-    }
-}

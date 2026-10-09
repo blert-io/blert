@@ -5,7 +5,8 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use blert::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
-use blert::{Tick, Ticks, npc};
+use blert::proto::{Coords, event};
+use blert::{NpcAttack, Tick, Ticks, npc};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -20,7 +21,7 @@ use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingEr
 use crate::merging::MergedEvents;
 use crate::metrics;
 use crate::price::PriceResolver;
-use crate::proto::{ChallengeData, Coords, NpcAttack, challenge_data, event};
+use crate::proto::{ChallengeData, challenge_data};
 
 /// Ticks between the end of one wave and the start of the next.
 const WAVE_INTERVAL_TICKS: Ticks = Ticks(6);
@@ -450,7 +451,7 @@ impl ChallengeProcessor for InfernoProcessor {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::too_many_lines)]
-    use blert::Rsn;
+    use blert::{Rsn, SkillLevel};
     use serde_json::json;
 
     use super::*;
@@ -465,7 +466,6 @@ mod tests {
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::{ChallengeSplit, SavedSplit};
     use crate::processing::stats::PlayerStatsDelta;
-    use crate::skill::SkillLevel;
 
     fn challenge_info(stage: Stage, status: ChallengeStatus) -> ChallengeInfo {
         ChallengeInfo {

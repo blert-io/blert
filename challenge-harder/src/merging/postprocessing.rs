@@ -1,9 +1,7 @@
 //! Post-merge event fiddling.
 
-use blert::{Tick, npc};
-
-use crate::proto::{Stage, event};
-use crate::skill::SkillLevel;
+use blert::proto::event;
+use blert::{SkillLevel, Stage, Tick, npc};
 
 use super::MergeContext;
 use super::timeline::Timeline;
@@ -96,13 +94,15 @@ fn correct_offset_maiden_spawn(timeline: &mut Timeline<'_>) {
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
+    use blert::proto::Event;
+
     use super::*;
     use crate::merging::fixtures::{self, NpcEvent};
     use crate::merging::timeline::TickState;
-    use crate::proto::Event;
 
-    static PARTY: std::sync::LazyLock<Vec<String>> =
-        std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+    static PARTY: std::sync::LazyLock<Vec<Rsn>> =
+        std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
 
     fn maiden_spawn(tick: Tick, hitpoints: SkillLevel) -> Event {
         fixtures::npc_spawn_event(NpcEvent {

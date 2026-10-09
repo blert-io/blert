@@ -103,7 +103,7 @@ async fn persist(
         uuid: challenge.uuid,
         challenge_type: challenge.challenge_type,
         mode: challenge.mode,
-        party: challenge.party.iter().map(ToString::to_string).collect(),
+        party: challenge.party.clone(),
         stage: challenge.stage,
         attempt: challenge.stage_attempt,
         records,
@@ -391,7 +391,7 @@ mod tests {
         );
     }
 
-    fn events(client: i64, ticks: &[u32]) -> ClientStageStream {
+    fn events(client: u32, ticks: &[u32]) -> ClientStageStream {
         let message = ChallengeEvents {
             events: ticks
                 .iter()
@@ -412,7 +412,7 @@ mod tests {
         }
     }
 
-    fn end(client: i64, status: StageStatus, ticks: u32) -> ClientStageStream {
+    fn end(client: u32, status: StageStatus, ticks: u32) -> ClientStageStream {
         ClientStageStream::End {
             client_id: ClientId(client),
             update: StageUpdate {
