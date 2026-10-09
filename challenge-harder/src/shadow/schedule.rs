@@ -93,14 +93,14 @@ mod tests {
 
     const UUID_A: &str = "11111111-1111-1111-1111-111111111111";
 
-    fn record(ts: u64, op: CaptureOp, client: Option<i64>, uuid: Option<&str>) -> CaptureRecord {
+    fn record(ts: u64, op: CaptureOp, client: Option<u32>, uuid: Option<&str>) -> CaptureRecord {
         CaptureRecord {
             ts,
             op,
             host: "sock-a".into(),
             challenge_uuid: uuid.map(|uuid| uuid.parse().unwrap()),
             client_id: client.map(ClientId),
-            user_id: client.map(UserId),
+            user_id: client.map(|client| UserId(i64::from(client))),
             request: serde_json::Value::Null,
             http: None,
         }

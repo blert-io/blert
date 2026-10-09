@@ -2,6 +2,11 @@
 
 use std::collections::BTreeMap;
 
+use blert::proto::event::XarpusPhase;
+use blert::proto::event::attack_style::Style;
+use blert::proto::event::player::DataSource;
+use blert::{Rsn, SkillLevel};
+
 use crate::lifecycle::core::types::{ChallengeMode, Stage};
 use crate::merging::ChallengeInfo;
 use crate::merging::alignment::AlignmentEntry;
@@ -9,10 +14,6 @@ use crate::merging::fixtures::{
     self, ClientBuilder, NpcEvent, PlayerAttackEvent, PlayerUpdateEvent,
 };
 use crate::merging::mapping::TickMapping;
-use crate::proto::event::XarpusPhase;
-use crate::proto::event::attack_style::Style;
-use crate::proto::event::player::DataSource;
-use crate::skill::SkillLevel;
 
 use super::*;
 
@@ -50,7 +51,7 @@ fn test_ctx<'a>(
 fn build_timeline<'a>(
     client_id: ClientId,
     stage: Stage,
-    party: &'a [String],
+    party: &'a [Rsn],
     num_ticks: u32,
     player: &str,
     source: DataSource,
@@ -99,7 +100,7 @@ fn assert_set_eq<T: PartialEq + std::fmt::Debug>(mut actual: Vec<T>, expected: &
 #[test]
 fn merges_tick_states_and_extracts_stream_events() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let verzik_hitpoints: [u16; 5] = [100, 95, 90, 85, 80];
     let verzik_updates = || -> BTreeMap<Tick, Vec<Event>> {
@@ -193,7 +194,7 @@ fn merges_tick_states_and_extracts_stream_events() {
 #[test]
 fn fills_gaps_in_the_base_from_the_target() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = Timeline::build(
         &party,
@@ -245,7 +246,7 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
     // base:   _,_,0,1,2,3,4,5
     // target: 0,1,2,3,_,_,_,_
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_timeline(
         BASE_CLIENT_ID,
@@ -329,7 +330,7 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
 #[test]
 fn deduplicates_deaths_globally_in_regular_challenges() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_timeline(
         BASE_CLIENT_ID,
@@ -397,7 +398,7 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
 #[test]
 fn deduplicates_deaths_within_window_in_respawnable_challenges() {
     let stage = Stage::CoxOlm;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::CoxRegular, &party);
     let death = |tick: Tick| vec![fixtures::player_death_event(tick, stage, (0, 0), "1Ogp", 0)];
 
@@ -457,7 +458,7 @@ fn deduplicates_deaths_within_window_in_respawnable_challenges() {
 #[test]
 fn flags_large_temporal_gaps_between_paired_stream_events() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let crab_death = |tick: Tick| {
         fixtures::npc_death_event(NpcEvent {
@@ -561,7 +562,7 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
 #[test]
 fn deduplicates_npc_deaths_by_room_id() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let crab_death = |room_id: u64| {
         fixtures::npc_death_event(NpcEvent {
@@ -636,7 +637,7 @@ fn deduplicates_npc_deaths_by_room_id() {
 #[test]
 fn deduplicates_unique_events_regardless_of_tick_gap() {
     let stage = Stage::TobXarpus;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
     let base = build_timeline(
@@ -694,7 +695,7 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
 #[test]
 fn directly_copies_stream_events_only_recorded_by_one_side() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
     let base = build_timeline(
@@ -771,7 +772,7 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
 /// its style.
 fn build_p3_timeline<'a>(
     client_id: ClientId,
-    party: &'a [String],
+    party: &'a [Rsn],
     num_ticks: u32,
     player: &str,
     source: DataSource,
@@ -837,7 +838,7 @@ fn build_p3_timeline<'a>(
 #[test]
 fn places_an_attack_style_event_the_tick_after_its_attack() {
     let stage = Stage::TobVerzik;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
@@ -895,7 +896,7 @@ fn places_an_attack_style_event_the_tick_after_its_attack() {
 #[test]
 fn deduplicates_attack_style_events_across_clients() {
     let stage = Stage::TobVerzik;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
@@ -952,7 +953,10 @@ fn resolves_disagreeing_attack_style_events_by_primary_proximity_to_verzik() {
     // Verzik at (10, 10). 1Ogp (base primary) is at (0, 0).
     // WWWWWWWWWWQQ (target primary) is nearer at (9, 10).
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
     let recording = |client_id: ClientId, primary_player: &str, style: Style| -> Timeline {
@@ -1048,7 +1052,7 @@ fn resolves_disagreeing_attack_style_events_by_primary_proximity_to_verzik() {
 #[test]
 fn keeps_the_base_conflicting_attack_style_event_when_clients_have_no_primary_players() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
@@ -1103,7 +1107,7 @@ fn keeps_the_base_conflicting_attack_style_event_when_clients_have_no_primary_pl
 #[test]
 fn discards_attack_style_events_whose_attack_does_not_exist() {
     let stage = Stage::TobVerzik;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_timeline(
         BASE_CLIENT_ID,
@@ -1198,7 +1202,7 @@ fn matches_a_bounce_event_to_a_p2_attack_depending_on_target() {
     let mage = p2_tick(Some(NpcAttack::TobVerzikP2Mage));
     let bounce = p2_tick(Some(NpcAttack::TobVerzikP2Bounce));
     let idle = p2_tick(None);
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let without_verzik = fixtures::timeline(
         &party,
         Tick(0),
@@ -1223,9 +1227,9 @@ fn resolves_projectile_ambiguous_player_attacks_by_primary_proximity_to_attacker
     // WWWWWWWWWWQQ (target primary, close to 715) sees a spec.
     let stage = Stage::TobVerzik;
     let party = vec![
-        "1Ogp".to_string(),
-        "WWWWWWWWWWQQ".to_string(),
-        "715".to_string(),
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        Rsn::try_from("715").unwrap(),
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
@@ -1316,7 +1320,7 @@ fn resolves_projectile_ambiguous_player_attacks_by_primary_proximity_to_attacker
 fn single_tick_with_attack(
     client_id: ClientId,
     stage: Stage,
-    party: &[String],
+    party: &[Rsn],
     attack: Option<PlayerAttack>,
     target: Option<event::Npc>,
 ) -> Timeline<'_> {
@@ -1344,7 +1348,7 @@ fn single_tick_with_attack(
 #[test]
 fn deduplicates_agreeing_player_attacks() {
     let stage = Stage::TobMaiden;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let maiden = event::Npc {
         id: npc::id::MAIDEN_REGULAR,
@@ -1408,7 +1412,7 @@ fn deduplicates_agreeing_player_attacks() {
 #[test]
 fn inserts_a_player_attack_only_the_target_recorded() {
     let stage = Stage::TobMaiden;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let maiden = event::Npc {
         id: npc::id::MAIDEN_REGULAR,
@@ -1461,7 +1465,7 @@ fn inserts_a_player_attack_only_the_target_recorded() {
 fn fills_a_missing_player_attack_target_from_the_other_client() {
     // Tick 0: only the target saw who was attacked. Tick 1: only the base did.
     let stage = Stage::TobMaiden;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let maiden = event::Npc {
         id: npc::id::MAIDEN_REGULAR,
@@ -1543,7 +1547,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
     // Tick 0: the clients disagree on who was attacked.
     // Tick 1: they disagree on the attack.
     let stage = Stage::TobMaiden;
-    let party = vec!["WWWWWWWWWWQQ".to_string()];
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let maiden = event::Npc {
         id: npc::id::MAIDEN_REGULAR,
@@ -1667,7 +1671,10 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
 #[test]
 fn deduplicates_agreeing_player_spells_and_fills_a_missing_target() {
     let stage = Stage::TobMaiden;
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let heal_target = event::spell::Target::TargetPlayer("WWWWWWWWWWQQ".to_string());
     let recording = |client_id: ClientId, targets: [Option<event::spell::Target>; 2]| -> Timeline {
@@ -1739,7 +1746,10 @@ fn clears_targets_from_untargeted_spells() {
     // Tick 1: the base recorded one.
     // Tick 2: the target did.
     let stage = Stage::TobMaiden;
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let spurious = event::spell::Target::TargetPlayer("WWWWWWWWWWQQ".to_string());
     let recording = |client_id: ClientId, targets: [Option<event::spell::Target>; 3]| -> Timeline {
@@ -1806,9 +1816,9 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
     // Tick 1: they disagree on the spell.
     let stage = Stage::TobMaiden;
     let party = vec![
-        "1Ogp".to_string(),
-        "WWWWWWWWWWQQ".to_string(),
-        "715".to_string(),
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        Rsn::try_from("715").unwrap(),
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let recording = |client_id: ClientId, spells: [(PlayerSpell, &str); 2]| -> Timeline {
@@ -1910,7 +1920,10 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
 #[test]
 fn inserts_a_player_spell_only_the_target_recorded() {
     let stage = Stage::TobMaiden;
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let recording = |client_id: ClientId, spell: Option<PlayerSpell>| -> Timeline {
         let mut events = vec![PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", (0, 0)).build()];
@@ -1967,7 +1980,7 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
     // Tick 0: both clients saw Verzik attack 1Ogp.
     // Tick 1: only the target saw who was attacked.
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
@@ -2032,7 +2045,7 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
 #[test]
 fn inserts_an_npc_attack_only_the_target_recorded() {
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string()];
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let base = build_p3_timeline(
         BASE_CLIENT_ID,
@@ -2085,7 +2098,10 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
     // Tick 0: the clients disagree on the target.
     // Tick 1: they disagree on the attack.
     let stage = Stage::TobVerzik;
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let recording = |client_id: ClientId, attacks: [(NpcAttack, &str); 2]| -> Timeline {
         let events = attacks
@@ -2207,7 +2223,10 @@ fn resolves_projectile_ambiguous_npc_attacks_by_primary_proximity() {
     // at (0, 0) and sees a regular ball; WWWWWWWWWWQQ (target primary) is next
     // to Sotetseg at (49, 50) and sees a death ball.
     let stage = Stage::TobSotetseg;
-    let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+    let party = vec![
+        Rsn::try_from("1Ogp").unwrap(),
+        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+    ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let recording = |client_id: ClientId,
                      primary_player: (&str, u32, (i32, i32)),

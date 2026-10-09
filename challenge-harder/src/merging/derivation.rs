@@ -2,11 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use blert::{Tick, Ticks, npc};
+use blert::proto::event::sote_maze::Maze;
+use blert::proto::{Coords, Event, event};
+use blert::{Stage, Tick, Ticks, npc};
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId};
-use crate::proto::event::sote_maze::Maze;
-use crate::proto::{Coords, Event, Stage, event};
 
 use super::client_events::StageData;
 use super::timeline::{TickState, Timeline};
@@ -212,21 +212,23 @@ fn sort_pivots(pivots: BTreeMap<Coords, ClientId>) -> Vec<Coords> {
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
+
     use super::*;
     use crate::lifecycle::core::types::{ChallengeMode, StageStatus};
     use crate::merging::client_events::{ClientEvents, ReportedInfo, SotePivots};
     use crate::merging::mapping::MergeMapping;
     use crate::merging::{ChallengeInfo, Classification, fixtures};
 
-    static PARTY: std::sync::LazyLock<Vec<String>> =
-        std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+    static PARTY: std::sync::LazyLock<Vec<Rsn>> =
+        std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
 
     fn challenge_for(stage: Stage, mode: ChallengeMode) -> ChallengeInfo<'static> {
         fixtures::challenge_info(stage, mode, &PARTY)
     }
 
     fn client_with_pivots(
-        id: i64,
+        id: u32,
         last_recorded_tick: Tick,
         pivots: Vec<SotePivots>,
     ) -> ClientEvents<'static> {
@@ -295,11 +297,11 @@ mod tests {
                             SotePivots {
                                 maze: Maze::Maze66,
                                 overworld: Vec::new(),
-                                underworld: vec![(2, 2).into(), (4, 0).into()],
+                                underworld: vec![Coords { x: 2, y: 2 }, Coords { x: 4, y: 0 }],
                             },
                             SotePivots {
                                 maze: Maze::Maze33,
-                                overworld: vec![(11, 4).into(), (7, 0).into()],
+                                overworld: vec![Coords { x: 11, y: 4 }, Coords { x: 7, y: 0 }],
                                 underworld: Vec::new(),
                             },
                         ],
@@ -317,7 +319,7 @@ mod tests {
                         vec![SotePivots {
                             maze: Maze::Maze66,
                             overworld: Vec::new(),
-                            underworld: vec![(4, 0).into(), (6, 4).into()],
+                            underworld: vec![Coords { x: 4, y: 0 }, Coords { x: 6, y: 4 }],
                         }],
                     ),
                     classification: Classification::Matching,
@@ -338,12 +340,16 @@ mod tests {
                     64,
                     Maze::Maze66,
                     Vec::new(),
-                    vec![(4, 0).into(), (2, 2).into(), (6, 4).into()],
+                    vec![
+                        Coords { x: 4, y: 0 },
+                        Coords { x: 2, y: 2 },
+                        Coords { x: 6, y: 4 }
+                    ],
                 ),
                 (
                     124,
                     Maze::Maze33,
-                    vec![(7, 0).into(), (11, 4).into()],
+                    vec![Coords { x: 7, y: 0 }, Coords { x: 11, y: 4 }],
                     Vec::new(),
                 ),
             ],
@@ -370,7 +376,7 @@ mod tests {
                     LAST_TICK,
                     vec![SotePivots {
                         maze: Maze::Maze33,
-                        overworld: vec![(7, 0).into()],
+                        overworld: vec![Coords { x: 7, y: 0 }],
                         underworld: Vec::new(),
                     }],
                 ),
@@ -413,7 +419,7 @@ mod tests {
                         vec![SotePivots {
                             maze: Maze::Maze33,
                             overworld: Vec::new(),
-                            underworld: vec![(2, 6).into(), (5, 0).into()],
+                            underworld: vec![Coords { x: 2, y: 6 }, Coords { x: 5, y: 0 }],
                         }],
                     ),
                     classification: Classification::Reference,
@@ -429,7 +435,7 @@ mod tests {
                         vec![SotePivots {
                             maze: Maze::Maze33,
                             overworld: Vec::new(),
-                            underworld: vec![(9, 4).into(), (12, 2).into()],
+                            underworld: vec![Coords { x: 9, y: 4 }, Coords { x: 12, y: 2 }],
                         }],
                     ),
                     classification: Classification::Mismatched,
@@ -446,7 +452,7 @@ mod tests {
                 10,
                 Maze::Maze33,
                 Vec::new(),
-                vec![(5, 0).into(), (2, 6).into()],
+                vec![Coords { x: 5, y: 0 }, Coords { x: 2, y: 6 }],
             )],
         );
     }
@@ -498,7 +504,10 @@ mod tests {
                     event.tick,
                     event.r#type(),
                     event.nylo_wave,
-                    (event.x_coord, event.y_coord).into(),
+                    Coords {
+                        x: event.x_coord,
+                        y: event.y_coord,
+                    },
                 )
             })
             .collect()
@@ -546,7 +555,7 @@ mod tests {
                         nylos_alive: 12,
                         room_cap: ROOM_CAP,
                     }),
-                    (0, 0).into(),
+                    Coords { x: 0, y: 0 },
                 ),
                 (
                     156,
@@ -556,7 +565,7 @@ mod tests {
                         nylos_alive: 12,
                         room_cap: ROOM_CAP,
                     }),
-                    (0, 0).into(),
+                    Coords { x: 0, y: 0 },
                 ),
             ],
         );
@@ -592,7 +601,12 @@ mod tests {
 
         assert_eq!(
             derived_nylo_events(&timeline),
-            vec![(281, event::Type::TobNyloCleanupEnd, None, (0, 0).into())],
+            vec![(
+                281,
+                event::Type::TobNyloCleanupEnd,
+                None,
+                Coords { x: 0, y: 0 }
+            )],
         );
     }
 
@@ -623,7 +637,12 @@ mod tests {
 
         assert_eq!(
             derived_nylo_events(&timeline),
-            vec![(12, event::Type::TobNyloBossSpawn, None, (3294, 4247).into(),)],
+            vec![(
+                12,
+                event::Type::TobNyloBossSpawn,
+                None,
+                Coords { x: 3294, y: 4247 },
+            )],
         );
     }
 

@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 use std::time::Instant;
 
+use blert::proto::event;
 use blert::{Tick, Ticks};
 use serde::Serialize;
 
 use crate::lifecycle::core::types::ClientId;
-use crate::proto::event;
 
 use super::RegisteredClient;
 use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
@@ -73,8 +73,8 @@ struct Coords {
     y: i32,
 }
 
-impl From<&crate::proto::Coords> for Coords {
-    fn from(coords: &crate::proto::Coords) -> Self {
+impl From<&blert::proto::Coords> for Coords {
+    fn from(coords: &blert::proto::Coords) -> Self {
         Self {
             x: coords.x,
             y: coords.y,
@@ -112,7 +112,7 @@ struct Classification {
 #[serde(rename_all = "camelCase")]
 struct PlayerAttackSummary {
     r#type: i32,
-    weapon_id: Option<i32>,
+    weapon_id: Option<u32>,
     target: Option<u64>,
 }
 

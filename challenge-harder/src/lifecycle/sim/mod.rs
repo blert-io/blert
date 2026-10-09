@@ -85,19 +85,19 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn participant(name: &'static str, id: i64) -> Self {
+    pub fn participant(name: &'static str, id: u32) -> Self {
         Client::new(name, id, RecordingType::Participant)
     }
 
-    pub fn spectator(name: &'static str, id: i64) -> Self {
+    pub fn spectator(name: &'static str, id: u32) -> Self {
         Client::new(name, id, RecordingType::Spectator)
     }
 
-    fn new(name: &'static str, id: i64, recording_type: RecordingType) -> Self {
+    fn new(name: &'static str, id: u32, recording_type: RecordingType) -> Self {
         Client {
             identity: Identity {
                 name,
-                user_id: UserId(id),
+                user_id: UserId(i64::from(id)),
                 client_id: ClientId(10 * id),
                 session_token: format!("tok{id}").into(),
                 recording_type,

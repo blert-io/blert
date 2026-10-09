@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use blert::npc::id::{JAVELIN_COLOSSUS, MANTICORE, SERPENT_SHAMAN, SHOCKWAVE_COLOSSUS};
+use blert::proto::{Coords, event};
 use blert::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +22,7 @@ use crate::lifecycle::core::types::{
 use crate::merging::MergedEvents;
 use crate::metrics;
 use crate::price::PriceResolver;
-use crate::proto::{ChallengeData, Coords, challenge_data, event};
+use crate::proto::{ChallengeData, challenge_data};
 
 /// ID increment between consecutive levels of a handicap.
 const HANDICAP_LEVEL_INCREMENT: u32 = 30;
@@ -386,7 +387,7 @@ impl ChallengeProcessor for ColosseumProcessor {
 
 #[cfg(test)]
 mod tests {
-    use blert::Rsn;
+    use blert::{ColosseumHandicap, Rsn};
     use serde_json::json;
 
     use super::*;
@@ -399,7 +400,6 @@ mod tests {
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::ChallengeSplit;
     use crate::processing::stats::PlayerStatsDelta;
-    use crate::proto::event::ColosseumHandicap;
 
     #[test]
     fn processor_starts_with_empty_data() {

@@ -2,7 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use blert::Tick;
+use blert::proto::{Event, event};
+use blert::{SkillLevel, Tick};
 use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
@@ -11,8 +12,6 @@ use crate::merging::{
 };
 
 use super::merging::{Capture, MergeOutcome};
-use crate::proto::{Event, event};
-use crate::skill::SkillLevel;
 
 use super::challenge_processor::{ChallengeTicks, PlayerData, StageContext};
 use super::db;

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
 use blert::Rsn;
+use blert::proto::event;
 use deadpool_postgres::Object;
 
 use super::golden;
@@ -20,7 +21,7 @@ use crate::processing::split::SplitType;
 use crate::processing::{
     CaptureRates, Pipeline, ProcessingRequest, ProcessorConfig, StageProcessor, StreamCapturer, db,
 };
-use crate::proto::{ChallengeData, challenge_data, event};
+use crate::proto::{ChallengeData, challenge_data};
 use crate::redis;
 use crate::repository::{DataRepository, FilesystemBackend};
 

@@ -4,10 +4,10 @@
 //! Lag detection in the general case is impossible. The absence of issues
 //! does not imply that a timeline is of high quality.
 
-use blert::{Tick, Ticks, npc};
+use blert::proto::{Coords, event};
+use blert::{NpcAttack, Rsn, Stage, Tick, Ticks, npc};
 
 use crate::lifecycle::core::types::{ChallengeMode, ChallengeType, StageExt};
-use crate::proto::{Coords, NpcAttack, Stage, event};
 
 use super::event::MalformedEvent;
 use super::timeline::{TickState, Timeline};
@@ -82,7 +82,7 @@ fn has_npc_attack(
 
 fn check_movement<'a>(
     stage: Stage,
-    party: &'a [String],
+    party: &'a [Rsn],
     timeline: &Timeline<'a>,
 ) -> Vec<ConsistencyIssue<'a>> {
     MovementChecker {
@@ -95,7 +95,7 @@ fn check_movement<'a>(
 
 struct MovementChecker<'a, 't> {
     stage: Stage,
-    party: &'a [String],
+    party: &'a [Rsn],
     timeline: &'t Timeline<'a>,
 }
 
@@ -108,7 +108,7 @@ impl<'a> MovementChecker<'a, '_> {
         for state in self.timeline.tick_states().iter().flatten() {
             let tick = state.tick();
 
-            for (index, player) in self.party.iter().enumerate() {
+            for (index, player) in self.party.iter().map(Rsn::as_str).enumerate() {
                 let Some(player_state) = state.player(player) else {
                     continue;
                 };
@@ -138,7 +138,7 @@ impl<'a> MovementChecker<'a, '_> {
                         );
                     if jumped {
                         issues.push(ConsistencyIssue::LargeJump {
-                            player: player.as_str(),
+                            player,
                             tick,
                             last_tick,
                             start: last_position,
@@ -316,7 +316,7 @@ impl<'a> MovementChecker<'a, '_> {
         let mut bounce_like_movements = 0;
         let mut player_was_bounced = false;
 
-        for name in self.party {
+        for name in self.party.iter().map(Rsn::as_str) {
             let curr = self.timeline.get(tick).and_then(|state| state.player(name));
             let prev = self
                 .timeline
@@ -330,7 +330,7 @@ impl<'a> MovementChecker<'a, '_> {
                 && world::is_valid_p2_bounce_destination(curr.position)
             {
                 bounce_like_movements += 1;
-                if name.as_str() == player {
+                if name == player {
                     player_was_bounced = true;
                 }
             }
@@ -461,13 +461,14 @@ fn check_nylocas<'a>(
 
 #[cfg(test)]
 mod tests {
+    use blert::proto::Event;
+
     use super::*;
     use crate::merging::fixtures;
-    use crate::proto::Event;
 
     #[test]
     fn movement_permits_up_to_two_tiles_per_tick() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(3),
@@ -485,7 +486,7 @@ mod tests {
 
     #[test]
     fn movement_flags_greater_than_two_tiles() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -502,15 +503,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3184, 4447).into(),
-                end: (3174, 4447).into(),
+                start: Coords { x: 3184, y: 4447 },
+                end: Coords { x: 3174, y: 4447 },
             }],
         );
     }
 
     #[test]
     fn movement_distance_scales_with_the_tick_gap() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(6),
@@ -531,15 +532,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(5),
                 last_tick: Tick(3),
-                start: (3178, 4447).into(),
-                end: (3184, 4447).into(),
+                start: Coords { x: 3178, y: 4447 },
+                end: Coords { x: 3184, y: 4447 },
             }],
         );
     }
 
     #[test]
     fn movement_ignores_dead_players() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -554,7 +555,10 @@ mod tests {
 
     #[test]
     fn movement_tracks_each_player() {
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+        let party = vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -585,15 +589,15 @@ mod tests {
                 player: "WWWWWWWWWWQQ",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3184, 4445).into(),
-                end: (3172, 4445).into(),
+                start: Coords { x: 3184, y: 4445 },
+                end: Coords { x: 3172, y: 4445 },
             }],
         );
     }
 
     #[test]
     fn movement_unconditionally_flags_in_stages_without_special_teleports() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let stages = [
             (Stage::TobMaiden, (3184, 4447)),
             (Stage::InfernoWave1, (2273, 5353)),
@@ -617,8 +621,11 @@ mod tests {
                     player: "1Ogp",
                     tick: Tick(1),
                     last_tick: Tick(0),
-                    start: start.into(),
-                    end: end.into(),
+                    start: Coords {
+                        x: start.0,
+                        y: start.1,
+                    },
+                    end: Coords { x: end.0, y: end.1 },
                 }],
                 "stage {stage:?}",
             );
@@ -635,7 +642,7 @@ mod tests {
             (Stage::TobXarpus, (3170, 4386), (3157, 4387)),
             (Stage::TobVerzik, (3168, 4312), (3159, 4325)),
         ];
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         for (stage, start, end) in cases {
             let timeline = fixtures::timeline(
                 &party,
@@ -655,7 +662,7 @@ mod tests {
 
     #[test]
     fn movement_permits_colosseum_boss_start_teleport() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(5),
@@ -684,7 +691,7 @@ mod tests {
 
     #[test]
     fn movement_flags_colosseum_boss_start_teleport_after_start() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(6),
@@ -711,15 +718,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(5),
                 last_tick: Tick(4),
-                start: (1819, 3118).into(),
-                end: (1825, 3103).into(),
+                start: Coords { x: 1819, y: 3118 },
+                end: Coords { x: 1825, y: 3103 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_colosseum_teleport_to_non_start_tiles() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(5),
@@ -746,15 +753,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(4),
                 last_tick: Tick(3),
-                start: (1819, 3118).into(),
-                end: (1817, 3103).into(),
+                start: Coords { x: 1819, y: 3118 },
+                end: Coords { x: 1817, y: 3103 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_colosseum_jumps_in_earlier_waves() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         for value in (Stage::ColosseumWave1 as i32)..=(Stage::ColosseumWave11 as i32) {
             let stage = Stage::try_from(value).expect("colosseum wave stages are contiguous");
             let timeline = fixtures::timeline(
@@ -771,8 +778,8 @@ mod tests {
                     player: "1Ogp",
                     tick: Tick(1),
                     last_tick: Tick(0),
-                    start: (1815, 3110).into(),
-                    end: (1825, 3103).into(),
+                    start: Coords { x: 1815, y: 3110 },
+                    end: Coords { x: 1825, y: 3103 },
                 }],
                 "stage {stage:?}",
             );
@@ -781,7 +788,7 @@ mod tests {
 
     #[test]
     fn movement_permits_sotetseg_maze_start_teleport() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -800,7 +807,7 @@ mod tests {
 
     #[test]
     fn movement_permits_sotetseg_room_to_underworld_teleport() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -819,7 +826,7 @@ mod tests {
 
     #[test]
     fn movement_permits_sotetseg_underworld_to_room_teleport() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(8),
@@ -838,7 +845,7 @@ mod tests {
 
     #[test]
     fn movement_permits_sotetseg_underworld_teleport_over_multiple_ticks() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(6),
@@ -857,7 +864,7 @@ mod tests {
 
     #[test]
     fn movement_flags_sotetseg_jumps_to_non_maze_tiles() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -874,15 +881,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3275, 4310).into(),
-                end: (3300, 4350).into(),
+                start: Coords { x: 3275, y: 4310 },
+                end: Coords { x: 3300, y: 4350 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_sotetseg_maze_start_teleport_across_multiple_ticks() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(3),
@@ -899,15 +906,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(2),
                 last_tick: Tick(0),
-                start: (3275, 4312).into(),
-                end: (3274, 4307).into(),
+                start: Coords { x: 3275, y: 4312 },
+                end: Coords { x: 3274, y: 4307 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_verzik_jumps_if_verzik_is_missing() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -924,8 +931,8 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3168, 4313).into(),
-                end: (3168, 4309).into(),
+                start: Coords { x: 3168, y: 4313 },
+                end: Coords { x: 3168, y: 4309 },
             }],
         );
     }
@@ -943,7 +950,7 @@ mod tests {
 
     #[test]
     fn movement_permits_verzik_bounce() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -961,7 +968,7 @@ mod tests {
 
     #[test]
     fn movement_permits_verzik_bounce_from_corner() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -979,7 +986,10 @@ mod tests {
 
     #[test]
     fn movement_permits_verzik_bounce_at_the_end_of_p2() {
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+        let party = vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ];
         let timeline = fixtures::timeline(
             &party,
             Tick(3),
@@ -1018,7 +1028,7 @@ mod tests {
 
     #[test]
     fn movement_flags_verzik_bounce_like_movement_when_another_player_was_bounced() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1037,15 +1047,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3168, 4313).into(),
-                end: (3168, 4309).into(),
+                start: Coords { x: 3168, y: 4313 },
+                end: Coords { x: 3168, y: 4309 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_verzik_p2_jumps_outside_of_bounce_area() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1064,15 +1074,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3168, 4305).into(),
-                end: (3168, 4309).into(),
+                start: Coords { x: 3168, y: 4305 },
+                end: Coords { x: 3168, y: 4309 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_verzik_bounce_like_movement_over_multiple_ticks() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(3),
@@ -1091,15 +1101,18 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(2),
                 last_tick: Tick(0),
-                start: (3168, 4313).into(),
-                end: (3168, 4303).into(),
+                start: Coords { x: 3168, y: 4313 },
+                end: Coords { x: 3168, y: 4303 },
             }],
         );
     }
 
     #[test]
     fn movement_permits_verzik_bounce_like_movements_following_a_bounce_attack() {
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+        let party = vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1139,7 +1152,7 @@ mod tests {
 
     #[test]
     fn movement_flags_verzik_bounce_like_movement_without_an_attack() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1157,15 +1170,18 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3168, 4313).into(),
-                end: (3168, 4309).into(),
+                start: Coords { x: 3168, y: 4313 },
+                end: Coords { x: 3168, y: 4309 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_verzik_bounce_like_movements_for_multiple_players() {
-        let party = vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()];
+        let party = vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1207,15 +1223,15 @@ mod tests {
                     player: "1Ogp",
                     tick: Tick(1),
                     last_tick: Tick(0),
-                    start: (3168, 4313).into(),
-                    end: (3168, 4309).into(),
+                    start: Coords { x: 3168, y: 4313 },
+                    end: Coords { x: 3168, y: 4309 },
                 },
                 ConsistencyIssue::LargeJump {
                     player: "WWWWWWWWWWQQ",
                     tick: Tick(1),
                     last_tick: Tick(0),
-                    start: (3169, 4313).into(),
-                    end: (3173, 4314).into(),
+                    start: Coords { x: 3169, y: 4313 },
+                    end: Coords { x: 3173, y: 4314 },
                 },
             ],
         );
@@ -1246,7 +1262,7 @@ mod tests {
 
     #[test]
     fn movement_permits_verzik_webs_push() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1264,7 +1280,7 @@ mod tests {
 
     #[test]
     fn movement_flags_verzik_webs_push_to_an_invalid_tile() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1283,15 +1299,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3168, 4312).into(),
-                end: (3168, 4307).into(),
+                start: Coords { x: 3168, y: 4312 },
+                end: Coords { x: 3168, y: 4307 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_verzik_p3_jumps_outside_of_webs_area() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1310,15 +1326,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3160, 4310).into(),
-                end: (3168, 4308).into(),
+                start: Coords { x: 3160, y: 4310 },
+                end: Coords { x: 3168, y: 4308 },
             }],
         );
     }
 
     #[test]
     fn movement_flags_verzik_webs_like_movement_without_an_attack() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(2),
@@ -1336,15 +1352,15 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(1),
                 last_tick: Tick(0),
-                start: (3168, 4312).into(),
-                end: (3168, 4308).into(),
+                start: Coords { x: 3168, y: 4312 },
+                end: Coords { x: 3168, y: 4308 },
             }],
         );
     }
 
     #[test]
     fn movement_permits_verzik_webs_push_within_three_ticks_of_the_attack() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(5),
@@ -1363,7 +1379,7 @@ mod tests {
 
     #[test]
     fn movement_flags_verzik_webs_push_more_than_three_ticks_after_the_attack() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let timeline = fixtures::timeline(
             &party,
             Tick(6),
@@ -1383,8 +1399,8 @@ mod tests {
                 player: "1Ogp",
                 tick: Tick(5),
                 last_tick: Tick(4),
-                start: (3168, 4312).into(),
-                end: (3168, 4308).into(),
+                start: Coords { x: 3168, y: 4312 },
+                end: Coords { x: 3168, y: 4308 },
             }],
         );
     }

@@ -1,9 +1,9 @@
 //! Event classification by merge policy.
 
-use blert::{Tick, Ticks};
+use blert::proto::{Coords, Event, event};
+use blert::{NpcAttack, PlayerAttack, Tick, Ticks};
 
 use crate::lifecycle::core::types::{ChallengeType, ClientId};
-use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, event};
 
 #[derive(Debug, Clone)]
 pub struct TaggedEvent(ClientId, Event);
@@ -413,7 +413,10 @@ pub(super) fn identity_key(event: &Event) -> IdentityKey<'_> {
             IdentityKey::Number(u64::from(phase.cast_unsigned()))
         }
         event::Type::TobXarpusExhumed | event::Type::TobXarpusSplat => {
-            IdentityKey::Coords((event.x_coord, event.y_coord).into())
+            IdentityKey::Coords(Coords {
+                x: event.x_coord,
+                y: event.y_coord,
+            })
         }
         event::Type::TobVerzikPhase => {
             let phase = event.verzik_phase.expect("validated at build");

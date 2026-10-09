@@ -1,15 +1,16 @@
 //! A timeline of recorded game state and events.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use blert::{Tick, Ticks};
+use blert::proto::event::player::{DataSource, EquipmentSlot};
+use blert::proto::{Coords, Event, event};
+use blert::{
+    Item, ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerBook, PrayerSet, Rsn, SkillLevel,
+    Slot, Stage, Tick, Ticks,
+};
 
-use crate::item::ItemDelta;
 use crate::lifecycle::core::types::ClientId;
-use crate::prayer::{PrayerBook, PrayerSet};
-use crate::proto::event::player::{DataSource, EquipmentSlot};
-use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, Stage, event};
-use crate::skill::SkillLevel;
 
 use super::MergeContext;
 use super::event::{Class, MalformedEvent, TaggedEvent, classify, remap_event_tick};
@@ -30,7 +31,7 @@ impl<'a> Timeline<'a> {
     /// Initializes a timeline from a chronological list of events,
     /// preprocessed with sources and indices.
     pub(super) fn build(
-        party: &'a [String],
+        party: &'a [Rsn],
         last_recorded_tick: Tick,
         events: Vec<TaggedEvent>,
     ) -> Result<Self, MalformedEvent> {
@@ -215,12 +216,6 @@ pub struct Sourced<T> {
 
 const NUM_EQUIPMENT_SLOTS: usize = EquipmentSlot::Quiver as usize + 1;
 
-#[derive(Debug, Clone, Copy)]
-pub struct EquippedItem {
-    pub id: i32,
-    pub quantity: i32,
-}
-
 /// The target of an action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target<'a> {
@@ -262,7 +257,7 @@ impl<'a> From<&Sourced<Target<'a>>> for Actor<'a> {
 #[derive(Debug, Clone)]
 pub struct PlayerAttacked<'a> {
     pub kind: PlayerAttack,
-    pub weapon: Option<EquippedItem>,
+    pub weapon: Option<Item>,
     pub target: Option<Sourced<Target<'a>>>,
     pub distance_to_target: i32,
 }
@@ -293,7 +288,7 @@ pub struct PlayerState<'a> {
     pub party_index: u32,
     pub data_source: DataSource,
     pub position: Coords,
-    pub equipment: [Option<EquippedItem>; NUM_EQUIPMENT_SLOTS],
+    pub equipment: [Option<Item>; NUM_EQUIPMENT_SLOTS],
     pub prayers: PrayerSet,
     pub attack: Option<Sourced<PlayerAttacked<'a>>>,
     pub spell: Option<Sourced<PlayerCast<'a>>>,
@@ -333,7 +328,10 @@ fn extract_player_state<'a>(
         source: event.source(),
         party_index: player.party_index,
         data_source: DataSource::Secondary,
-        position: (event.x_coord, event.y_coord).into(),
+        position: Coords {
+            x: event.x_coord,
+            y: event.y_coord,
+        },
         equipment: last.map_or([None; NUM_EQUIPMENT_SLOTS], |state| state.equipment),
         prayers: PrayerSet::empty(PrayerBook::Normal),
         attack: None,
@@ -345,7 +343,10 @@ fn extract_player_state<'a>(
     match event.r#type() {
         event::Type::PlayerUpdate => {
             state.data_source = player.data_source();
-            state.position = (event.x_coord, event.y_coord).into();
+            state.position = Coords {
+                x: event.x_coord,
+                y: event.y_coord,
+            };
             state.equipment =
                 parse_equipment(player, last).map_err(|raw| MalformedEvent::OutOfDomain {
                     kind: event.r#type(),
@@ -369,7 +370,7 @@ fn extract_player_state<'a>(
 fn parse_equipment(
     player: &event::Player,
     last: Option<&PlayerState>,
-) -> Result<[Option<EquippedItem>; NUM_EQUIPMENT_SLOTS], u64> {
+) -> Result<[Option<Item>; NUM_EQUIPMENT_SLOTS], u64> {
     let mut equipment = if player.snapshot {
         [None; NUM_EQUIPMENT_SLOTS]
     } else {
@@ -377,28 +378,25 @@ fn parse_equipment(
     };
 
     for &raw in &player.equipment_deltas {
-        match ItemDelta::parse(raw).map_err(|_| raw)? {
-            ItemDelta::Add(slot, id, quantity) => {
-                let slot = slot as usize;
-                equipment[slot] = match equipment[slot] {
-                    Some(item) if item.id == id => Some(EquippedItem {
-                        id,
-                        quantity: item.quantity + quantity,
-                    }),
-                    _ => Some(EquippedItem { id, quantity }),
-                };
+        let (slot, item, added) = match ItemDelta::parse(raw) {
+            ItemDelta::Add(slot, item) => (slot, item, true),
+            ItemDelta::Remove(slot, item) => (slot, item, false),
+        };
+        let slot = EquipmentSlot::try_from(slot).map_err(|_| raw)? as usize;
+        equipment[slot] = match (equipment[slot], added) {
+            (Some(worn), true) if worn.id == item.id => Some(Item {
+                id: item.id,
+                quantity: worn.quantity + item.quantity,
+            }),
+            (_, true) => Some(item),
+            (Some(worn), false) if worn.id == item.id && item.quantity < worn.quantity => {
+                Some(Item {
+                    id: item.id,
+                    quantity: worn.quantity - item.quantity,
+                })
             }
-            ItemDelta::Remove(slot, id, quantity) => {
-                let slot = slot as usize;
-                equipment[slot] = match equipment[slot] {
-                    Some(item) if item.id == id && quantity < item.quantity => Some(EquippedItem {
-                        id,
-                        quantity: item.quantity - quantity,
-                    }),
-                    _ => None,
-                };
-            }
-        }
+            (_, false) => None,
+        };
     }
 
     Ok(equipment)
@@ -409,30 +407,34 @@ fn create_equipment_deltas(state: &PlayerState, previous: Option<&PlayerState>) 
     let mut deltas = Vec::with_capacity(NUM_EQUIPMENT_SLOTS);
 
     for index in 0..NUM_EQUIPMENT_SLOTS {
-        let slot = i32::try_from(index)
-            .ok()
-            .and_then(|i| EquipmentSlot::try_from(i).ok())
-            .expect("every equipment index is a slot");
+        let slot = Slot(u8::try_from(index).expect("every equipment index is a slot"));
         let prev = previous.and_then(|state| state.equipment[index]);
 
-        match (state.equipment[index], prev) {
+        let delta = match (state.equipment[index], prev) {
             (Some(curr), Some(prev)) if curr.id == prev.id => {
-                let delta = curr.quantity - prev.quantity;
-                if delta != 0 {
-                    let delta = if delta > 0 {
-                        ItemDelta::Add(slot, curr.id, delta)
-                    } else {
-                        ItemDelta::Remove(slot, curr.id, -delta)
-                    };
-                    deltas.push(delta.to_raw());
+                match curr.quantity.cmp(&prev.quantity) {
+                    Ordering::Greater => ItemDelta::Add(
+                        slot,
+                        Item {
+                            id: curr.id,
+                            quantity: curr.quantity - prev.quantity,
+                        },
+                    ),
+                    Ordering::Less => ItemDelta::Remove(
+                        slot,
+                        Item {
+                            id: curr.id,
+                            quantity: prev.quantity - curr.quantity,
+                        },
+                    ),
+                    Ordering::Equal => continue,
                 }
             }
-            (Some(curr), _) => deltas.push(ItemDelta::Add(slot, curr.id, curr.quantity).to_raw()),
-            (None, Some(prev)) => {
-                deltas.push(ItemDelta::Remove(slot, prev.id, prev.quantity).to_raw());
-            }
-            (None, None) => {}
-        }
+            (Some(curr), _) => ItemDelta::Add(slot, curr),
+            (None, Some(prev)) => ItemDelta::Remove(slot, prev),
+            (None, None) => continue,
+        };
+        deltas.push(delta.to_raw());
     }
 
     deltas
@@ -457,9 +459,9 @@ fn parse_stats(player: &event::Player) -> Option<PlayerStats> {
 fn parse_player_attack<'a>(source: ClientId, attack: &event::Attack) -> PlayerAttacked<'a> {
     PlayerAttacked {
         kind: attack.r#type(),
-        weapon: attack.weapon.map(|weapon| EquippedItem {
-            id: weapon.id.cast_signed(),
-            quantity: weapon.quantity.cast_signed(),
+        weapon: attack.weapon.map(|weapon| Item {
+            id: weapon.id,
+            quantity: weapon.quantity,
         }),
         // Jagex moment: defend against invalid target data.
         target: attack
@@ -545,7 +547,10 @@ fn extract_npc_state<'a>(
     let state = NpcState {
         source: event.source(),
         id,
-        position: (event.x_coord, event.y_coord).into(),
+        position: Coords {
+            x: event.x_coord,
+            y: event.y_coord,
+        },
         hitpoints: SkillLevel::from_raw(npc.hitpoints),
         prayers: PrayerSet::from_raw(npc.active_prayers),
         attack: None,
@@ -739,7 +744,7 @@ impl<'a> TickState<'a> {
 
     fn from_events(
         tick: Tick,
-        party: &'a [String],
+        party: &'a [Rsn],
         history: &[Option<TickState<'a>>],
         last_players: &mut [Option<Tick>],
         events: impl IntoIterator<Item = TaggedEvent>,
@@ -949,8 +954,8 @@ impl<'a> TickState<'a> {
                     weapon: attack.weapon.filter(|weapon| weapon.id > 0).map(|weapon| {
                         event::player::EquippedItem {
                             slot: EquipmentSlot::Weapon as i32,
-                            id: weapon.id.cast_unsigned(),
-                            quantity: weapon.quantity.cast_unsigned(),
+                            id: weapon.id,
+                            quantity: weapon.quantity,
                         }
                     }),
                     target: attack.target.as_ref().map(|target| match &target.value {
@@ -1231,13 +1236,14 @@ fn attach_actions<'a>(
 
 #[cfg(test)]
 mod tests {
+    use blert::proto::event::attack_style::Style;
+
     use super::*;
     use crate::merging::fixtures;
-    use crate::proto::event::attack_style::Style;
 
     #[test]
     fn shift_moves_ticks_and_their_events() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let events = vec![
             TaggedEvent::new(
                 ClientId(1),
@@ -1285,7 +1291,7 @@ mod tests {
         let state = timeline.get(Tick(5)).expect("tick state moved up");
         assert_eq!(state.tick(), Tick(5));
         let player = state.player("1Ogp").expect("player state moved with tick");
-        assert_eq!(player.position, (3167, 4311).into());
+        assert_eq!(player.position, Coords { x: 3167, y: 4311 });
         let npc = state.npc(1).expect("npc state moved with tick");
         assert_eq!(npc.id, 8374);
         assert!(npc.attack.is_some());
@@ -1301,7 +1307,7 @@ mod tests {
         assert_eq!(style.npc_attack_tick, 5);
     }
 
-    fn single_tick(client_id: i64, party: &[String], events: Vec<Event>) -> Timeline<'_> {
+    fn single_tick(client_id: u32, party: &[Rsn], events: Vec<Event>) -> Timeline<'_> {
         Timeline::build(
             party,
             Tick(0),
@@ -1315,7 +1321,7 @@ mod tests {
 
     #[test]
     fn merge_player_replaces_secondary_with_primary() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let mut base = single_tick(
             1,
             &party,
@@ -1355,7 +1361,7 @@ mod tests {
             .expect("player is visible");
         assert_eq!(player.source, ClientId(2));
         assert_eq!(player.data_source, DataSource::Primary);
-        assert_eq!(player.position, (5, 7).into());
+        assert_eq!(player.position, Coords { x: 5, y: 7 });
         let attack = player.attack.as_ref().expect("base's attack is kept");
         assert_eq!(attack.source, ClientId(1));
         assert_eq!(attack.value.kind, PlayerAttack::Scythe);
@@ -1364,7 +1370,7 @@ mod tests {
 
     #[test]
     fn merge_player_keeps_base_when_both_are_secondary() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let mut base = single_tick(
             1,
             &party,
@@ -1394,7 +1400,7 @@ mod tests {
 
     #[test]
     fn merge_npc_adds_missing_from_base() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let mut base = single_tick(
             1,
             &party,
@@ -1430,7 +1436,7 @@ mod tests {
             .expect("npc is visible");
         assert_eq!(npc.source, ClientId(2));
         assert_eq!(npc.id, 8360);
-        assert_eq!(npc.position, (10, 20).into());
+        assert_eq!(npc.position, Coords { x: 10, y: 20 });
         assert_eq!(
             npc.hitpoints,
             SkillLevel {
@@ -1442,7 +1448,7 @@ mod tests {
 
     #[test]
     fn merge_npc_keeps_existing_base() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let mut base = single_tick(
             1,
             &party,
@@ -1514,7 +1520,7 @@ mod tests {
 
     #[test]
     fn merge_graphics_unions_from_both_sides() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let mut base = single_tick(
             1,
             &party,
@@ -1545,14 +1551,17 @@ mod tests {
             graphics,
             vec![(
                 GraphicsKind::MaidenBloodSplats,
-                vec![((1, 1).into(), ClientId(1)), ((2, 2).into(), ClientId(2))],
+                vec![
+                    (Coords { x: 1, y: 1 }, ClientId(1)),
+                    (Coords { x: 2, y: 2 }, ClientId(2))
+                ],
             )]
         );
     }
 
     #[test]
     fn merge_graphics_keeps_base_source_for_a_coordinate_in_both() {
-        let party = vec!["1Ogp".to_string()];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
         let mut base = single_tick(
             1,
             &party,
@@ -1586,7 +1595,10 @@ mod tests {
             graphics,
             vec![(
                 GraphicsKind::MaidenBloodSplats,
-                vec![((1, 1).into(), ClientId(1)), ((2, 2).into(), ClientId(1))],
+                vec![
+                    (Coords { x: 1, y: 1 }, ClientId(1)),
+                    (Coords { x: 2, y: 2 }, ClientId(1))
+                ],
             )]
         );
     }

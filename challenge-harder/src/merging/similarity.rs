@@ -2,11 +2,9 @@
 
 #![cfg_attr(not(test), expect(dead_code))]
 
-use blert::npc;
-
-use crate::proto::event::player::EquipmentSlot;
-use crate::proto::{NpcAttack, PlayerAttack, event};
-use crate::skill::SkillLevel;
+use blert::proto::event;
+use blert::proto::event::player::EquipmentSlot;
+use blert::{NpcAttack, PlayerAttack, SkillLevel, npc};
 
 use super::event::{normalize_npc_attack, normalize_player_attack};
 use super::timeline::{Actor, Sourced, Target, TickState};
@@ -420,7 +418,7 @@ struct Attack<'a, K> {
     actor: Actor<'a>,
     target: Option<&'a Sourced<Target<'a>>>,
     kind: K,
-    secondary_id: i32,
+    secondary_id: u32,
 }
 
 enum AttackComparison {
@@ -589,21 +587,23 @@ fn score_attacks<A: PartialEq + Copy>(
 
 #[cfg(test)]
 mod tests {
-    use blert::{Tick, item};
+    use blert::proto::Event;
+    use blert::{Item, ItemDelta, Prayer, PrayerBook, PrayerSet, Rsn, Slot, Tick, item};
 
     use super::*;
-    use crate::item::ItemDelta;
     use crate::lifecycle::core::types::Stage;
     use crate::merging::fixtures;
-    use crate::prayer::{Prayer, PrayerBook, PrayerSet};
-    use crate::proto::Event;
 
     const STAGE: Stage = Stage::TobMaiden;
 
     /// Builds the tick state a single client's events produce on `tick`.
     fn tick_state(tick: Tick, events: Vec<Event>) -> TickState<'static> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["715".to_string(), "caps lock13".to_string()]);
+        static PARTY: std::sync::LazyLock<Vec<Rsn>> = std::sync::LazyLock::new(|| {
+            vec![
+                Rsn::try_from("715").unwrap(),
+                Rsn::try_from("caps lock13").unwrap(),
+            ]
+        });
         fixtures::timeline(&PARTY, tick, events)
             .get(tick)
             .expect("tick has recorded state")
@@ -664,7 +664,13 @@ mod tests {
 
     #[test]
     fn matching_overlapping_players_scores_baseline() {
-        let weapon = [ItemDelta::Add(EquipmentSlot::Weapon, 100, 1)];
+        let weapon = [ItemDelta::Add(
+            Slot(EquipmentSlot::Weapon as u8),
+            Item {
+                id: 100,
+                quantity: 1,
+            },
+        )];
         let base = tick_state(
             Tick(5),
             vec![
@@ -720,7 +726,13 @@ mod tests {
                 Tick(2),
                 "715",
                 (5, 5),
-                &[ItemDelta::Add(EquipmentSlot::Head, 200, 1)],
+                &[ItemDelta::Add(
+                    Slot(EquipmentSlot::Head as u8),
+                    Item {
+                        id: 200,
+                        quantity: 1,
+                    },
+                )],
             )],
         );
         let target = tick_state(
@@ -729,7 +741,13 @@ mod tests {
                 Tick(2),
                 "715",
                 (5, 5),
-                &[ItemDelta::Add(EquipmentSlot::Head, 201, 1)],
+                &[ItemDelta::Add(
+                    Slot(EquipmentSlot::Head as u8),
+                    Item {
+                        id: 201,
+                        quantity: 1,
+                    },
+                )],
             )],
         );
 

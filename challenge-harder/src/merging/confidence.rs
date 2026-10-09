@@ -634,18 +634,19 @@ fn noisy_or(a: f64, b: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use blert::{PlayerAttack, Rsn};
+
     use super::*;
     use crate::lifecycle::core::types::{ClientId, Stage};
     use crate::merging::alignment::{AlignmentConfig, TickAligner};
     use crate::merging::fixtures;
     use crate::merging::timeline::TickState;
-    use crate::proto::PlayerAttack;
 
     const STAGE: Stage = Stage::TobMaiden;
 
     fn tick_states(len: usize, nulls: &[usize]) -> Vec<Option<TickState<'static>>> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+        static PARTY: std::sync::LazyLock<Vec<Rsn>> =
+            std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
         let events = (0..len)
             .map(|t| {
                 fixtures::PlayerUpdateEvent::new(Tick::from_usize(t), STAGE, "1Ogp", (10, 20))

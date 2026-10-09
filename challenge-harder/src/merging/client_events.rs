@@ -3,13 +3,14 @@
 use std::collections::{BTreeMap, HashSet};
 
 use blert::Tick;
+use blert::proto::event::player::DataSource;
+use blert::proto::{Coords, event};
 use prost::Message;
 
 use crate::lifecycle::core::types::{
     ClientId, ClientStageStream, ServerTicks, Stage, StageStatus, UserId,
 };
-use crate::proto::event::player::DataSource;
-use crate::proto::{ChallengeEvents, Coords, event};
+use crate::proto::ChallengeEvents;
 
 use super::client_consistency::{self, ConsistencyIssue, MAX_RECORDED_TICK};
 use super::event::TaggedEvent;
@@ -361,7 +362,7 @@ impl<'a> StreamParser<'a> {
         events.retain_mut(|event| {
             let kind = event.r#type();
             if let Some(player) = event.player.as_mut() {
-                let Some(index) = party.iter().position(|name| name == &player.name) else {
+                let Some(index) = party.iter().position(|name| *name == *player.name) else {
                     *unknown_players.entry(player.name.clone()).or_default() += 1;
                     return false;
                 };
@@ -374,7 +375,9 @@ impl<'a> StreamParser<'a> {
             }
 
             if let Some(attack) = event.npc_attack.as_mut()
-                && let Some(target) = attack.target.take_if(|target| !party.contains(target))
+                && let Some(target) = attack
+                    .target
+                    .take_if(|target| !party.iter().any(|name| name == target.as_str()))
             {
                 *unknown_players.entry(target).or_default() += 1;
             }
@@ -384,7 +387,8 @@ impl<'a> StreamParser<'a> {
                     spell.target.take_if(|target| {
                         matches!(
                             target,
-                            event::spell::Target::TargetPlayer(name) if !party.contains(name)
+                            event::spell::Target::TargetPlayer(target)
+                                if !party.iter().any(|name| name == target.as_str())
                         )
                     })
             {
@@ -435,6 +439,7 @@ impl<'a> StreamParser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use blert::Rsn;
     use bytes::Bytes;
 
     use super::*;
@@ -442,21 +447,21 @@ mod tests {
     use crate::merging::fixtures;
 
     fn test_challenge(stage: Stage) -> ChallengeInfo<'static> {
-        static PARTY: std::sync::LazyLock<Vec<String>> =
-            std::sync::LazyLock::new(|| vec!["1Ogp".to_string()]);
+        static PARTY: std::sync::LazyLock<Vec<Rsn>> =
+            std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
         fixtures::challenge_info(stage, ChallengeMode::TobRegular, &PARTY)
     }
 
-    fn metadata(client: i64) -> ClientStageStream {
+    fn metadata(client: u32) -> ClientStageStream {
         ClientStageStream::Metadata {
             client_id: ClientId(client),
-            user_id: UserId(client * 10),
+            user_id: UserId(i64::from(client) * 10),
             plugin_version: "0.9.14".into(),
             runelite_version: "1.12.33".into(),
         }
     }
 
-    fn events(client: i64, ticks: &[u32]) -> ClientStageStream {
+    fn events(client: u32, ticks: &[u32]) -> ClientStageStream {
         let message = ChallengeEvents {
             events: ticks
                 .iter()
@@ -480,7 +485,7 @@ mod tests {
         }
     }
 
-    fn end(client: i64, status: StageStatus, ticks: u32) -> ClientStageStream {
+    fn end(client: u32, status: StageStatus, ticks: u32) -> ClientStageStream {
         ClientStageStream::End {
             client_id: ClientId(client),
             update: StageUpdate {
@@ -943,14 +948,14 @@ mod tests {
         assert_eq!(
             pivots[0].overworld,
             vec![
-                (7, 0).into(),
-                (10, 2).into(),
-                (11, 4).into(),
-                (12, 6).into(),
-                (10, 8).into(),
-                (9, 10).into(),
-                (11, 12).into(),
-                (12, 14).into(),
+                Coords { x: 7, y: 0 },
+                Coords { x: 10, y: 2 },
+                Coords { x: 11, y: 4 },
+                Coords { x: 12, y: 6 },
+                Coords { x: 10, y: 8 },
+                Coords { x: 9, y: 10 },
+                Coords { x: 11, y: 12 },
+                Coords { x: 12, y: 14 },
             ],
         );
 
@@ -978,7 +983,7 @@ mod tests {
                 (0, 0),
                 8360,
                 1001,
-                crate::proto::NpcAttack::TobMaidenAuto,
+                blert::NpcAttack::TobMaidenAuto,
                 Some("aSaradomin"),
             ),
             fixtures::player_spell_event(
@@ -986,7 +991,7 @@ mod tests {
                 Stage::TobMaiden,
                 (0, 0),
                 "1Ogp",
-                crate::proto::PlayerSpell::HealOther,
+                blert::PlayerSpell::HealOther,
                 Some(event::spell::Target::TargetPlayer("aSaradomin".to_string())),
             ),
         ]

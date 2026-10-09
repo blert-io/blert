@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, HashSet};
 
 use blert::Tick;
+use blert::proto::Coords;
 
 use super::db;
 use crate::lifecycle::core::types::Stage;
-use crate::proto::Coords;
 
 const MAX_SPAWNS: usize = 9;
 

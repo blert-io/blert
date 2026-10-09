@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
+use blert::proto::{Coords, Event, event};
 use blert::{Rsn, Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +16,7 @@ use super::stats::PlayerStatsDelta;
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::MergedEvents;
 use crate::price::PriceResolver;
-use crate::proto::{ChallengeData, Coords, Event, challenge_data, event};
+use crate::proto::{ChallengeData, challenge_data};
 
 /// Read and mutation access to the stage timeline during the event loop,
 /// positioned at the event being processed.

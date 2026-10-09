@@ -237,7 +237,7 @@ mod tests {
     use crate::merging::timeline::Timeline;
 
     fn client(
-        id: i64,
+        id: u32,
         accurate: bool,
         recorded_ticks: u32,
         server_ticks: Option<ServerTicks>,
@@ -278,11 +278,11 @@ mod tests {
         })
     }
 
-    fn accurate(id: i64, recorded: u32) -> ClientEvents<'static> {
+    fn accurate(id: u32, recorded: u32) -> ClientEvents<'static> {
         client(id, true, recorded, precise(recorded))
     }
 
-    fn inaccurate(id: i64, recorded: u32, server: Option<ServerTicks>) -> ClientEvents<'static> {
+    fn inaccurate(id: u32, recorded: u32, server: Option<ServerTicks>) -> ClientEvents<'static> {
         client(id, false, recorded, server)
     }
 

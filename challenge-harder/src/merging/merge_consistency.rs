@@ -2,9 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::{Tick, Ticks};
-
-use crate::proto::{Event, PlayerAttack, Stage, event};
+use blert::proto::{Event, event};
+use blert::{PlayerAttack, Stage, Tick, Ticks};
 
 use super::MergeContext;
 use super::event::{identity_key, stream_config};
@@ -458,15 +457,19 @@ fn check_exclusive_event_types(
 
 #[cfg(test)]
 mod tests {
-    use blert::item;
+    use blert::{Rsn, item};
 
     use super::*;
     use crate::lifecycle::core::types::ChallengeMode;
     use crate::merging::ChallengeInfo;
     use crate::merging::fixtures::{self, NpcEvent};
 
-    static PARTY: std::sync::LazyLock<Vec<String>> =
-        std::sync::LazyLock::new(|| vec!["1Ogp".to_string(), "WWWWWWWWWWQQ".to_string()]);
+    static PARTY: std::sync::LazyLock<Vec<Rsn>> = std::sync::LazyLock::new(|| {
+        vec![
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+        ]
+    });
 
     fn check_events<'a>(
         challenge: &'a ChallengeInfo<'a>,
@@ -1049,7 +1052,7 @@ mod tests {
                     (0, 0),
                     8360,
                     1001,
-                    crate::proto::NpcAttack::TobMaidenAuto,
+                    blert::NpcAttack::TobMaidenAuto,
                     Some("WWWWWWWWWWQQ"),
                 ),
             ],
@@ -1094,7 +1097,7 @@ mod tests {
                     (0, 0),
                     8360,
                     1001,
-                    crate::proto::NpcAttack::TobMaidenAuto,
+                    blert::NpcAttack::TobMaidenAuto,
                     Some("1Ogp"),
                 ),
             ],

@@ -65,25 +65,25 @@ fn sealed(stage: Stage, attempt: Option<u32>, forced: bool) -> LifecycleEvent {
     }
 }
 
-fn idled(client: i64) -> LifecycleEvent {
+fn idled(client: u32) -> LifecycleEvent {
     LifecycleEvent::ClientIdled {
         client_id: client_id(client),
     }
 }
 
-fn activated(client: i64) -> LifecycleEvent {
+fn activated(client: u32) -> LifecycleEvent {
     LifecycleEvent::ClientActivated {
         client_id: client_id(client),
     }
 }
 
-fn removed(client: i64) -> LifecycleEvent {
+fn removed(client: u32) -> LifecycleEvent {
     LifecycleEvent::ClientRemoved {
         client_id: client_id(client),
     }
 }
 
-fn rejoined(client: i64, user: i64) -> LifecycleEvent {
+fn rejoined(client: u32, user: i64) -> LifecycleEvent {
     LifecycleEvent::ClientJoined {
         client_id: client_id(client),
         user_id: UserId(user),
@@ -92,7 +92,7 @@ fn rejoined(client: i64, user: i64) -> LifecycleEvent {
     }
 }
 
-fn client_finished(client: i64) -> LifecycleEvent {
+fn client_finished(client: u32) -> LifecycleEvent {
     LifecycleEvent::ClientFinished {
         client_id: client_id(client),
         definitive: true,

@@ -8,11 +8,10 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+pub use blert::proto::Challenge as ChallengeType;
+pub use blert::{ChallengeMode, ClientId, Stage};
 pub use uuid::Uuid;
 
-pub use crate::proto::Challenge as ChallengeType;
-pub use crate::proto::ChallengeMode;
-pub use crate::proto::Stage;
 pub use crate::proto::challenge_update::stage_update::Status as StageStatus;
 
 /// Milliseconds since a challenge-specific epoch.
@@ -121,16 +120,6 @@ impl TryFrom<String> for MsgId {
     Debug, Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 pub struct JournalSeq(pub u64);
-
-/// Unique identifier for a Blert client.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct ClientId(pub i64);
-
-impl std::fmt::Display for ClientId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 /// Unique identifier for a Blert user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

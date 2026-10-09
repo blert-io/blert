@@ -4,9 +4,10 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 use blert::golden::assert_golden;
+use blert::proto::Event;
 use prost_reflect::{DescriptorPool, DynamicMessage};
 
-use crate::proto::{ChallengeData, Event};
+use crate::proto::ChallengeData;
 
 static DESCRIPTOR_POOL: LazyLock<DescriptorPool> = LazyLock::new(|| {
     DescriptorPool::decode(

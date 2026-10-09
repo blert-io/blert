@@ -3,7 +3,7 @@
 //! tests, as it is flushed once per run.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use futures_util::StreamExt;
@@ -21,7 +21,7 @@ use crate::lifecycle::core::types::{
 /// Returns a unique client ID on every call. Tests share a Redis instance and
 /// run in parallel, so this avoids key collisions.
 fn test_client() -> ClientId {
-    static NEXT_CLIENT: AtomicI64 = AtomicI64::new(7_000);
+    static NEXT_CLIENT: AtomicU32 = AtomicU32::new(7_000);
     ClientId(NEXT_CLIENT.fetch_add(1, Ordering::Relaxed))
 }
 
@@ -60,7 +60,7 @@ fn party_key_normalizes_then_sorts_names() {
 
 fn base_request(client: ClientId) -> CreateRequest {
     CreateRequest {
-        user_id: UserId(client.0),
+        user_id: UserId(i64::from(client.0)),
         client_id: client,
         session_token: format!("tok{client}").into(),
         plugin_version: "0.9.14".into(),
@@ -1843,7 +1843,7 @@ async fn client_send_to_a_terminated_challenge_is_rejected() {
 
 fn join_request(client: ClientId) -> Join {
     Join {
-        user_id: UserId(client.0),
+        user_id: UserId(i64::from(client.0)),
         client_id: client,
         session_token: format!("tok{client}b").into(),
         plugin_version: "0.9.14".into(),

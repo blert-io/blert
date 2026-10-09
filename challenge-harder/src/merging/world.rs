@@ -1,7 +1,9 @@
 //! OSRS game info.
 
+use blert::Stage;
+use blert::proto::Coords;
+
 use crate::lifecycle::core::types::ChallengeMode;
-use crate::proto::{Coords, Stage};
 
 use super::Ticks;
 
@@ -172,11 +174,11 @@ mod tests {
 
     #[test]
     fn area_is_inclusive_of_corners() {
-        assert!(SOTETSEG_ROOM_AREA.contains((3271, 4304).into()));
-        assert!(SOTETSEG_ROOM_AREA.contains((3287, 4333).into()));
-        assert!(SOTETSEG_ROOM_AREA.contains((3280, 4320).into()));
-        assert!(!SOTETSEG_ROOM_AREA.contains((3288, 4333).into()));
-        assert!(!SOTETSEG_ROOM_AREA.contains((3287, 4334).into()));
-        assert!(!SOTETSEG_ROOM_AREA.contains((3270, 4304).into()));
+        assert!(SOTETSEG_ROOM_AREA.contains(Coords { x: 3271, y: 4304 }));
+        assert!(SOTETSEG_ROOM_AREA.contains(Coords { x: 3287, y: 4333 }));
+        assert!(SOTETSEG_ROOM_AREA.contains(Coords { x: 3280, y: 4320 }));
+        assert!(!SOTETSEG_ROOM_AREA.contains(Coords { x: 3288, y: 4333 }));
+        assert!(!SOTETSEG_ROOM_AREA.contains(Coords { x: 3287, y: 4334 }));
+        assert!(!SOTETSEG_ROOM_AREA.contains(Coords { x: 3270, y: 4304 }));
     }
 }

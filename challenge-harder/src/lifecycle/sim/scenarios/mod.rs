@@ -65,11 +65,11 @@ pub fn cmd(n: u64) -> Cause {
     Cause::Command(MsgId::sequence(n))
 }
 
-pub fn client_id(client: i64) -> ClientId {
+pub fn client_id(client: u32) -> ClientId {
     ClientId(10 * client)
 }
 
-pub fn reported(client: i64, stage: Stage, status: StageStatus) -> LifecycleEvent {
+pub fn reported(client: u32, stage: Stage, status: StageStatus) -> LifecycleEvent {
     LifecycleEvent::ClientStageReported {
         client_id: client_id(client),
         attempt: None,
@@ -78,7 +78,7 @@ pub fn reported(client: i64, stage: Stage, status: StageStatus) -> LifecycleEven
 }
 
 pub fn reported_attempt(
-    client: i64,
+    client: u32,
     stage: Stage,
     status: StageStatus,
     attempt: u32,
@@ -90,10 +90,10 @@ pub fn reported_attempt(
     }
 }
 
-pub fn joined(client: i64, recording_type: RecordingType) -> LifecycleEvent {
+pub fn joined(client: u32, recording_type: RecordingType) -> LifecycleEvent {
     LifecycleEvent::ClientJoined {
         client_id: client_id(client),
-        user_id: UserId(client),
+        user_id: UserId(i64::from(client)),
         session_token: format!("tok{client}").into(),
         recording_type,
     }

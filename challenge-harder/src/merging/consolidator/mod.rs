@@ -3,10 +3,10 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::{Tick, Ticks, npc};
+use blert::proto::{Coords, Event, event};
+use blert::{NpcAttack, PlayerAttack, PlayerSpell, Tick, Ticks, npc};
 
 use crate::lifecycle::core::types::ClientId;
-use crate::proto::{Coords, Event, NpcAttack, PlayerAttack, PlayerSpell, event};
 
 use super::event::{
     Class, IdentityKey, TaggedEvent, classify, identity_key, normalize_npc_attack,
