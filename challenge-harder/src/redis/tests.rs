@@ -771,6 +771,106 @@ async fn subscriber_delivers_update_signals() {
 }
 
 #[tokio::test]
+async fn subscriber_replaces_dead_connection() {
+    let Some(store) = test_store().await else {
+        return;
+    };
+    let info = store.client.get_connection_info();
+    let upstream = info.addr().to_string();
+    let db = info.redis_settings().db();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let proxy = listener.local_addr().unwrap();
+    let (stop_forwarding, forwarding_stopped) = tokio::sync::watch::channel(());
+    tokio::spawn(async move {
+        loop {
+            let (mut inbound, _) = listener.accept().await.unwrap();
+            let mut outbound = tokio::net::TcpStream::connect(upstream.as_str())
+                .await
+                .unwrap();
+            let mut forwarding_stopped = forwarding_stopped.clone();
+            forwarding_stopped.mark_unchanged();
+            tokio::spawn(async move {
+                tokio::select! {
+                    biased;
+                    _ = forwarding_stopped.changed() => std::future::pending::<()>().await,
+                    _ = tokio::io::copy_bidirectional(&mut inbound, &mut outbound) => {}
+                }
+            });
+        }
+    });
+
+    let proxied = Store::connect(&format!("redis://{proxy}/{db}"), TEST_IDENTITY.into(), 1)
+        .await
+        .expect("proxied redis unreachable");
+    let (tx, mut rx) = mpsc::channel(16);
+    proxied.subscribe(tx);
+
+    let uuid = Uuid::new_v4();
+    let mut connection = store.pool.get().await.unwrap();
+
+    let mut cursor = 0;
+    'subscribing: loop {
+        cursor += 1;
+        assert!(cursor < 10, "no signal after {cursor} publishes");
+        let signal = ChallengeSignal::Updated {
+            uuid,
+            cursor: MsgId::sequence(cursor),
+        };
+        let _: () = connection
+            .publish(SIGNAL_CHANNEL, serde_json::to_string(&signal).unwrap())
+            .await
+            .unwrap();
+        let window = tokio::time::Instant::now() + Duration::from_millis(250);
+        loop {
+            match tokio::time::timeout_at(window, rx.recv()).await {
+                Ok(Some(ChallengeSignal::Updated { uuid: id, .. })) if id == uuid => {
+                    break 'subscribing;
+                }
+                Ok(Some(_)) => {}
+                Ok(None) => panic!("signal channel closed"),
+                Err(_) => break,
+            }
+        }
+    }
+
+    stop_forwarding.send(()).unwrap();
+    let first_lost = MsgId::sequence(cursor + 1);
+    let deadline = tokio::time::Instant::now()
+        + SIGNAL_PING_INTERVAL
+        + SIGNAL_PING_TIMEOUT
+        + RECONNECT_DELAY
+        + Duration::from_secs(1);
+    let received = 'reconnecting: loop {
+        cursor += 1;
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "no signal after {cursor} publishes",
+        );
+        let signal = ChallengeSignal::Updated {
+            uuid,
+            cursor: MsgId::sequence(cursor),
+        };
+        let _: () = connection
+            .publish(SIGNAL_CHANNEL, serde_json::to_string(&signal).unwrap())
+            .await
+            .unwrap();
+        let window = tokio::time::Instant::now() + Duration::from_millis(250);
+        loop {
+            match tokio::time::timeout_at(window, rx.recv()).await {
+                Ok(Some(ChallengeSignal::Updated { uuid: id, cursor })) if id == uuid => {
+                    break 'reconnecting cursor;
+                }
+                Ok(Some(_)) => {}
+                Ok(None) => panic!("signal channel closed"),
+                Err(_) => break,
+            }
+        }
+    };
+    assert!(received > first_lost);
+}
+
+#[tokio::test]
 async fn bumped_fence_rejects_projection() {
     let Some(store) = test_store().await else {
         return;

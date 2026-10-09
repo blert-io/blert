@@ -40,6 +40,9 @@ pub(crate) mod tests;
 /// Private channel carrying challenge state update signals.
 const SIGNAL_CHANNEL: &str = "2c2s:challenge-signal";
 
+const SIGNAL_PING_INTERVAL: Duration = Duration::from_secs(5);
+const SIGNAL_PING_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// Delay before reestablishing a failed or dropped store connection.
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
 
@@ -622,18 +625,40 @@ impl ChallengeStore for Store {
                     continue;
                 }
 
-                let mut messages = pubsub.on_message();
-                while let Some(message) = messages.next().await {
-                    let Ok(payload) = message.get_payload::<String>() else {
-                        continue;
-                    };
-                    match serde_json::from_str::<ChallengeSignal>(&payload) {
-                        Ok(signal) => {
-                            if sink.send(signal).await.is_err() {
-                                return;
+                let (mut control, mut messages) = pubsub.split();
+                let mut heartbeat = tokio::time::interval(SIGNAL_PING_INTERVAL);
+                loop {
+                    tokio::select! {
+                        message = messages.next() => {
+                            let Some(message) = message else {
+                                break;
+                            };
+                            let Ok(payload) = message.get_payload::<String>() else {
+                                continue;
+                            };
+                            match serde_json::from_str::<ChallengeSignal>(&payload) {
+                                Ok(signal) => {
+                                    if sink.send(signal).await.is_err() {
+                                        return;
+                                    }
+                                }
+                                Err(error) => tracing::warn!(%error, "signal_parse_failed"),
                             }
                         }
-                        Err(error) => tracing::warn!(%error, "signal_parse_failed"),
+                        _ = heartbeat.tick() => {
+                            let ping = control.ping::<()>();
+                            match tokio::time::timeout(SIGNAL_PING_TIMEOUT, ping).await {
+                                Ok(Ok(())) => {}
+                                Ok(Err(error)) => {
+                                    tracing::warn!(%error, "signal_ping_failed");
+                                    break;
+                                }
+                                Err(_) => {
+                                    tracing::warn!("signal_ping_timed_out");
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
 
