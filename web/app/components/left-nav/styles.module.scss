@@ -485,6 +485,36 @@ button.item {
   }
 }
 
+.featured {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 10px;
+  padding: 0 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--blert-purple-base), 0.16),
+    rgba(var(--blert-purple-base), 0.04)
+  );
+  border: 1px solid rgba(var(--blert-purple-base), 0.3);
+
+  .tileLabel {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+  }
+
+  &:hover,
+  &.active {
+    background: linear-gradient(
+      135deg,
+      rgba(var(--blert-purple-base), 0.28),
+      rgba(var(--blert-purple-base), 0.08)
+    );
+    border-color: rgba(var(--blert-purple-base), 0.5);
+  }
+}
+
 .browse {
   grid-column: 1 / -1;
   height: 34px;
@@ -816,6 +846,12 @@ $COLLAPSED_ICON_SIZE: 40px;
   .tile {
     width: $COLLAPSED_ICON_SIZE;
     height: $COLLAPSED_ICON_SIZE;
+  }
+
+  .featured {
+    grid-column: auto;
+    flex-direction: column;
+    padding: 0;
   }
 
   .browse {

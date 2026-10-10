@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { RELEASE_TIME as TFA_RELEASE_TIME } from '@/(challenges)/raids/tfa/release';
 import { getSignedInUserId } from '@/actions/users';
 import { ButtonLink } from '@/components/button';
 import Card from '@/components/card';
@@ -10,10 +11,38 @@ import styles from './style.module.scss';
 
 export default async function Home() {
   const isLoggedIn = (await getSignedInUserId()) !== null;
+  const tfaReleased = Date.now() >= TFA_RELEASE_TIME;
 
   return (
     <div className={styles.home}>
       <div className={styles.homeInner}>
+        <Link href="/raids/tfa" className={styles.tfaBanner}>
+          <Image
+            src="/images/tfa.webp"
+            alt="The Fractured Archive"
+            width={72}
+            height={55}
+          />
+          <div className={styles.tfaBannerText}>
+            {tfaReleased ? (
+              <>
+                <strong>The Fractured Archive is out.</strong>
+                <span>Blert recording support is in progress.</span>
+              </>
+            ) : (
+              <>
+                <strong>
+                  The Fractured Archive releases Tuesday, October 20.
+                </strong>
+                <span>
+                  Blert recording support will arrive some time after release.
+                </span>
+              </>
+            )}
+          </div>
+          <i className="fas fa-arrow-right" />
+        </Link>
+
         <div className={styles.registerCta}>
           <div className={styles.ctaContent}>
             <h1>Track Your PvM Progress</h1>
