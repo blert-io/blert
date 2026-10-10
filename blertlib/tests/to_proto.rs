@@ -160,16 +160,16 @@ fn assert_refresh_matches_snapshot(fixture: &Fixture) {
             }
         }
 
-        let refreshed = timeline
-            .expect("fixture has events")
-            .to_proto()
-            .collect::<Vec<_>>();
-        let snapshot = builder
-            .recording()
-            .expect("fixture has events")
-            .snapshot()
-            .to_proto()
-            .collect::<Vec<_>>();
+        let refreshed = timeline.expect("fixture has events");
+        let snapshot = builder.recording().expect("fixture has events").snapshot();
+        assert_eq!(
+            refreshed.npcs().collect::<Vec<_>>(),
+            snapshot.npcs().collect::<Vec<_>>(),
+            "client {client_id}"
+        );
+
+        let refreshed = refreshed.to_proto().collect::<Vec<_>>();
+        let snapshot = snapshot.to_proto().collect::<Vec<_>>();
         for (refreshed, snapshot) in refreshed
             .chunk_by(|a, b| a.tick == b.tick)
             .zip(snapshot.chunk_by(|a, b| a.tick == b.tick))

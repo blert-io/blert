@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::actor::Rsn;
 use crate::event::Event;
 use crate::tick::{Tick, Ticks};
@@ -127,14 +129,16 @@ impl Recording {
 
     /// Finalizes the recording into a [`Timeline`].
     #[must_use]
-    pub fn finalize(mut self) -> Timeline {
-        finalize::finalize_from(self.stage, self.mode, &mut self.states, Tick(0));
-        Timeline {
+    pub fn finalize(self) -> Timeline {
+        let mut timeline = Timeline {
             stage: self.stage,
             mode: self.mode,
             party: self.party,
             states: self.states,
-        }
+            npcs: BTreeMap::new(),
+        };
+        finalize::finalize_from(&mut timeline, Tick(0));
+        timeline
     }
 
     /// Finalizes a copy of the recording into a [`Timeline`], leaving the
@@ -147,8 +151,6 @@ impl Recording {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::*;
     use crate::{
         Actor, BloatDown, ClientId, EventKind, NpcAttack, NpcAttacked, NpcState, PartyIndex,
