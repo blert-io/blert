@@ -3,10 +3,10 @@
  */
 import { render, screen } from '@testing-library/react';
 
-import TextureBoundary from '../texture-boundary';
+import RenderBoundary from '../render-boundary';
 
 function LoadFailure(): never {
-  throw new Error('texture failed to load');
+  throw new Error('failed to render');
 }
 
 function StillLoading(): never {
@@ -16,38 +16,38 @@ function StillLoading(): never {
   });
 }
 
-describe('TextureBoundary', () => {
-  it('renders its children once the texture has loaded', () => {
+describe('RenderBoundary', () => {
+  it('renders its children once they have loaded', () => {
     render(
-      <TextureBoundary fallback={<div>fallback</div>}>
+      <RenderBoundary fallback={<div>fallback</div>}>
         <div>loaded</div>
-      </TextureBoundary>,
+      </RenderBoundary>,
     );
 
     expect(screen.getByText('loaded')).toBeInTheDocument();
     expect(screen.queryByText('fallback')).not.toBeInTheDocument();
   });
 
-  it('shows the fallback while the texture is still loading', () => {
+  it('shows the fallback while the children are still loading', () => {
     render(
-      <TextureBoundary fallback={<div>fallback</div>}>
+      <RenderBoundary fallback={<div>fallback</div>}>
         <StillLoading />
-      </TextureBoundary>,
+      </RenderBoundary>,
     );
 
     expect(screen.getByText('fallback')).toBeInTheDocument();
   });
 
-  it('shows the fallback instead of crashing when the texture fails to load', () => {
+  it('shows the fallback instead of crashing when the children fail to render', () => {
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {
       /* silence react error */
     });
 
     expect(() =>
       render(
-        <TextureBoundary fallback={<div>fallback</div>}>
+        <RenderBoundary fallback={<div>fallback</div>}>
           <LoadFailure />
-        </TextureBoundary>,
+        </RenderBoundary>,
       ),
     ).not.toThrow();
     expect(screen.getByText('fallback')).toBeInTheDocument();

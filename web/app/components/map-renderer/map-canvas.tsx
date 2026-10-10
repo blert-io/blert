@@ -14,12 +14,16 @@ import { Canvas, ThreeEvent, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MapControls as MapControlsImpl } from 'three-stdlib';
 
+import { Browser, useBrowser } from '@/display';
+
 import DevConsole from './dev-console';
 import KeyboardCameraControls from './keyboard-camera-controls';
 import MapFloor from './map-floor';
 import Npc from './npc';
 import Object from './object';
 import Player from './player';
+import { RenderErrorBoundary } from './render-boundary';
+import ReplayClock, { TimeoutReplayClock } from './replay-clock';
 import { useReplayContext } from './replay-context';
 import StackIndicator from './stack-indicator';
 import { AdaptiveZoomController } from './adaptive-zoom';
@@ -355,6 +359,66 @@ function LoadingFallback() {
   );
 }
 
+function MapUnavailable() {
+  const browser = useBrowser();
+  const [webGl2Supported, setWebGl2Supported] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setWebGl2Supported(
+      document.createElement('canvas').getContext('webgl2') !== null,
+    );
+  }, []);
+
+  if (browser === null || webGl2Supported === null) {
+    return <div className={styles.mapUnavailable} />;
+  }
+
+  if (webGl2Supported) {
+    return (
+      <div className={styles.mapUnavailable}>
+        <i className="fas fa-triangle-exclamation" />
+        <h3>Replay map unavailable</h3>
+        <p>The replay map failed to load. Try refreshing the page.</p>
+      </div>
+    );
+  }
+
+  let steps: React.ReactNode;
+  switch (browser) {
+    case Browser.CHROME:
+      steps = (
+        <>
+          Turn on <strong>Use graphics acceleration when available</strong>{' '}
+          under Settings &rarr; System, then relaunch Chrome.
+        </>
+      );
+      break;
+    case Browser.EDGE:
+    case Browser.FIREFOX:
+    case Browser.SAFARI:
+    case Browser.OTHER:
+      steps =
+        'Turn on hardware acceleration in your browser settings, then restart your browser.';
+      break;
+    default: {
+      const _exhaustive: never = browser;
+      return _exhaustive;
+    }
+  }
+
+  return (
+    <div className={styles.mapUnavailable}>
+      <i className="fas fa-triangle-exclamation" />
+      <h3>Replay map unavailable</h3>
+      <p>
+        Your browser couldn&apos;t start WebGL, which the room replay needs.
+        This usually happens when hardware acceleration is turned off.
+      </p>
+      <p>{steps}</p>
+    </div>
+  );
+}
+
 function CameraRig({
   controlsRef,
   faceSouth,
@@ -538,72 +602,83 @@ export default function MapCanvas({
 
   return (
     <div className={styles.mapCanvas} data-camera-reset-container>
-      <Canvas
-        style={{
-          background: '#000',
-          borderRadius: '8px',
-          border: '1px solid var(--blert-surface-light)',
-          cursor: interactionState.hoveredActorId ? 'pointer' : 'default',
-        }}
+      <RenderErrorBoundary
+        fallback={
+          <>
+            <MapUnavailable />
+            <TimeoutReplayClock />
+          </>
+        }
       >
-        <OrthographicCamera
-          makeDefault
-          position={cameraPosition}
-          zoom={mapDefinition.initialZoom ?? 20}
-          near={0.1}
-          far={1000}
-        />
-
-        <MapControls
-          makeDefault
-          ref={mapControlsRef}
-          target={[
-            initialX,
-            0,
-            initialZ + (mapDefinition.faceSouth ? 0.01 : 0),
-          ]}
-          enableRotate
-          enableZoom
-          enablePan
-          maxPolarAngle={Math.PI / 2.1}
-          minZoom={10}
-          maxZoom={150}
-          mouseButtons={{
-            LEFT: THREE.MOUSE.PAN,
-            MIDDLE: THREE.MOUSE.ROTATE,
-            RIGHT: THREE.MOUSE.PAN,
+        <Canvas
+          style={{
+            background: '#000',
+            borderRadius: '8px',
+            border: '1px solid var(--blert-surface-light)',
+            cursor: interactionState.hoveredActorId ? 'pointer' : 'default',
           }}
-        />
-
-        <AdaptiveZoomController controlsRef={mapControlsRef} />
-
-        <CameraRig
-          controlsRef={mapControlsRef}
-          faceSouth={mapDefinition.faceSouth ?? false}
-          initialX={initialX}
-          initialZ={initialZ}
-          initialZoom={mapDefinition.initialZoom ?? 20}
-        />
-
-        <KeyboardCameraControls
-          speed={keyboardControlsSpeed}
-          enabled={keyboardControlsEnabled}
-        />
-
-        <Suspense fallback={null}>
-          <MapScene
-            mapDefinition={mapDefinition}
-            entities={entities}
-            interactionState={interactionState}
-            onEntitySelected={handleEntitySelected}
-            onEntityHovered={handleEntityHovered}
+        >
+          <OrthographicCamera
+            makeDefault
+            position={cameraPosition}
+            zoom={mapDefinition.initialZoom ?? 20}
+            near={0.1}
+            far={1000}
           />
-        </Suspense>
 
-        {preloadTextures && <TexturePreloader urls={preloadTextures} />}
+          <MapControls
+            makeDefault
+            ref={mapControlsRef}
+            target={[
+              initialX,
+              0,
+              initialZ + (mapDefinition.faceSouth ? 0.01 : 0),
+            ]}
+            enableRotate
+            enableZoom
+            enablePan
+            maxPolarAngle={Math.PI / 2.1}
+            minZoom={10}
+            maxZoom={150}
+            mouseButtons={{
+              LEFT: THREE.MOUSE.PAN,
+              MIDDLE: THREE.MOUSE.ROTATE,
+              RIGHT: THREE.MOUSE.PAN,
+            }}
+          />
 
-        {children}
-      </Canvas>
+          <AdaptiveZoomController controlsRef={mapControlsRef} />
+
+          <CameraRig
+            controlsRef={mapControlsRef}
+            faceSouth={mapDefinition.faceSouth ?? false}
+            initialX={initialX}
+            initialZ={initialZ}
+            initialZoom={mapDefinition.initialZoom ?? 20}
+          />
+
+          <KeyboardCameraControls
+            speed={keyboardControlsSpeed}
+            enabled={keyboardControlsEnabled}
+          />
+
+          <Suspense fallback={null}>
+            <MapScene
+              mapDefinition={mapDefinition}
+              entities={entities}
+              interactionState={interactionState}
+              onEntitySelected={handleEntitySelected}
+              onEntityHovered={handleEntityHovered}
+            />
+          </Suspense>
+
+          {preloadTextures && <TexturePreloader urls={preloadTextures} />}
+
+          <ReplayClock />
+
+          {children}
+        </Canvas>
+      </RenderErrorBoundary>
 
       <Suspense fallback={<LoadingFallback />}>
         <div />

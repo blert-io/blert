@@ -5,7 +5,7 @@ import { useRef, useMemo, useState } from 'react';
 import * as THREE from 'three';
 
 import { osrsToThreePosition } from './animation';
-import TextureBoundary from './texture-boundary';
+import RenderBoundary from './render-boundary';
 import { EntityType, ObjectEntity } from './types';
 
 export interface ObjectComponentProps {
@@ -150,7 +150,7 @@ export default function Object({ entity }: ObjectComponentProps) {
   if (entity.layFlat) {
     objectGroup = (
       <group ref={groupRef} position={position}>
-        <TextureBoundary
+        <RenderBoundary
           fallback={
             <ObjectFallback
               size={entity.size * 0.9}
@@ -159,15 +159,15 @@ export default function Object({ entity }: ObjectComponentProps) {
           }
         >
           <ObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
-        </TextureBoundary>
+        </RenderBoundary>
       </group>
     );
   } else {
     objectGroup = (
       <Billboard ref={groupRef} position={position}>
-        <TextureBoundary fallback={<ObjectFallback size={entity.size * 0.9} />}>
+        <RenderBoundary fallback={<ObjectFallback size={entity.size * 0.9} />}>
           <ObjectSpriteMesh entity={entity} size={entity.size * 0.9} />
-        </TextureBoundary>
+        </RenderBoundary>
       </Billboard>
     );
   }

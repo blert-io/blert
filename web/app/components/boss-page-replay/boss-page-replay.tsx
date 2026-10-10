@@ -14,7 +14,6 @@ import {
   MapDefinition,
   MapSettings,
   NpcEntity,
-  ReplayClock,
 } from '@/components/map-renderer';
 import Modal from '@/components/modal';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
@@ -97,6 +96,8 @@ export function BossPageReplay({
       isFullscreen={fullscreen}
       onConfigChange={setConfig}
       playing={playing}
+      currentTick={currentTick}
+      onTick={advanceTick}
       width={width}
     >
       <MapCanvas
@@ -104,9 +105,7 @@ export function BossPageReplay({
         preloadTextures={preloads}
         selectedEntity={selectedEntity}
         onEntitySelected={onEntitySelected}
-      >
-        <ReplayClock currentTick={currentTick} onTick={advanceTick} />
-      </MapCanvas>
+      />
       <MapControlsSection>
         <CustomButton
           icon={fullscreen ? 'fas fa-compress' : 'fas fa-maximize'}

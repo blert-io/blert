@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { EntityPositionProvider } from './entity-position-context';
 import { ReplayContext, DEFAULT_REPLAY_CONFIG } from './replay-context';
@@ -23,6 +23,8 @@ export type MapProps = {
 
   /** Whether the replay is currently playing. */
   playing: boolean;
+  currentTick: number;
+  onTick: () => void;
 
   /** Container width in px. */
   width?: number;
@@ -39,6 +41,8 @@ export default function Map({
   config = DEFAULT_REPLAY_CONFIG,
   onConfigChange,
   playing,
+  currentTick,
+  onTick,
   mapDefinition,
   width = 704,
   height = 604,
@@ -50,36 +54,49 @@ export default function Map({
   const referenceWidth = width;
   const referenceHeight = height;
 
+  const updateConfig = useCallback(
+    (updater: (config: ReplayConfig) => ReplayConfig) => {
+      const newConfig = updater(config);
+      onConfigChange?.(newConfig);
+    },
+    [config, onConfigChange],
+  );
+
+  const resetCamera = useCallback(() => {
+    if (cameraResetFn) {
+      cameraResetFn();
+    }
+  }, [cameraResetFn]);
+
+  const onResetAvailable = useCallback((resetFn: () => void) => {
+    setCameraResetFn(() => resetFn);
+  }, []);
+
   const contextValue = useMemo(
     () => ({
       config,
-      updateConfig: (updater: (config: ReplayConfig) => ReplayConfig) => {
-        const newConfig = updater(config);
-        onConfigChange?.(newConfig);
-      },
+      updateConfig,
       playing,
+      currentTick,
+      onTick,
       mapDefinition,
       replayTime,
-      resetCamera: () => {
-        if (cameraResetFn) {
-          cameraResetFn();
-        }
-      },
-      onResetAvailable: (resetFn: () => void) => {
-        setCameraResetFn(() => resetFn);
-      },
+      resetCamera,
+      onResetAvailable,
       referenceWidth,
       referenceHeight,
       isFullscreen,
     }),
     [
       config,
-      onConfigChange,
+      updateConfig,
       playing,
+      currentTick,
+      onTick,
       mapDefinition,
       replayTime,
-      cameraResetFn,
-      setCameraResetFn,
+      resetCamera,
+      onResetAvailable,
       referenceWidth,
       referenceHeight,
       isFullscreen,
