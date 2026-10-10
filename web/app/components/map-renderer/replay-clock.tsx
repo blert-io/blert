@@ -1,20 +1,14 @@
 'use client';
 
 import { useFrame } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useReplayContext } from './replay-context';
 
-type ReplayClockProps = {
-  /** The current tick of the replay. */
-  currentTick: number;
-  /** Callback to advance to the next tick. */
-  onTick: () => void;
-};
-
 /** Advances a tick timer based on Three.js's internal clock. */
-export default function ReplayClock({ currentTick, onTick }: ReplayClockProps) {
-  const { config, playing, replayTime } = useReplayContext();
+export default function ReplayClock() {
+  const { config, playing, currentTick, onTick, replayTime } =
+    useReplayContext();
   const lastTickTime = useRef<number | null>(null);
 
   const seekRef = useRef<{ hasSeeked: boolean; tick: number }>({
@@ -60,6 +54,30 @@ export default function ReplayClock({ currentTick, onTick }: ReplayClockProps) {
       onTick();
     }
   });
+
+  return null;
+}
+
+export function TimeoutReplayClock() {
+  const { config, playing, currentTick, onTick } = useReplayContext();
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    const onVisibilityChange = () => setHidden(document.hidden);
+    onVisibilityChange();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (!playing || hidden) {
+      return;
+    }
+
+    const timeout = window.setTimeout(onTick, config.tickDuration);
+    return () => window.clearTimeout(timeout);
+  }, [playing, hidden, currentTick, onTick, config.tickDuration]);
 
   return null;
 }

@@ -15,6 +15,8 @@ type ReplayContextType = {
   updateConfig: (updater: (config: ReplayConfig) => ReplayConfig) => void;
   mapDefinition: Readonly<MapDefinition>;
   playing: Readonly<boolean>;
+  currentTick: number;
+  onTick: () => void;
   replayTime: RefObject<number>;
   resetCamera: () => void;
   onResetAvailable: (resetFn: () => void) => void;
@@ -29,6 +31,8 @@ export const ReplayContext = createContext<ReplayContextType>({
     /* noop */
   },
   playing: false,
+  currentTick: 0,
+  onTick: () => undefined,
   replayTime: { current: 0 },
   mapDefinition: {
     baseX: 0,

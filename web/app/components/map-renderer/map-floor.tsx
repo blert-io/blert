@@ -5,7 +5,7 @@ import { Plane } from '@react-three/drei';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 
-import TextureBoundary from './texture-boundary';
+import RenderBoundary from './render-boundary';
 
 type BaseTile = {
   x: number;
@@ -160,11 +160,11 @@ function MapChunk({
   plane: number;
 }) {
   return (
-    <TextureBoundary
+    <RenderBoundary
       fallback={<FallbackMapChunk chunkX={chunkX} chunkY={chunkY} />}
     >
       <LoadedMapChunk chunkX={chunkX} chunkY={chunkY} plane={plane} />
-    </TextureBoundary>
+    </RenderBoundary>
   );
 }
 

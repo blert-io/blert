@@ -2,7 +2,6 @@ export { default as Map } from './map';
 export { default as MapCanvas } from './map-canvas';
 export { default as MapControlsSection } from './map-controls-section';
 export { default as MapSettings } from './map-settings';
-export { default as ReplayClock } from './replay-clock';
 export { default as Object } from './object';
 export { default as CameraResetButton } from './camera-reset-button';
 export { default as CustomButton } from './custom-button';

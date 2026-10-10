@@ -17,7 +17,7 @@ import {
 import { useEntityPositions } from './entity-position-context';
 import HealthBar from './health-bar';
 import { useReplayContext } from './replay-context';
-import TextureBoundary from './texture-boundary';
+import RenderBoundary from './render-boundary';
 import {
   EntityType,
   InteractiveEntityProps,
@@ -60,7 +60,7 @@ const fragmentShader = `
       gl_FragColor = originalColor;
       return;
     }
-    
+
     vec2 texelSize = 1.0 / u_textureResolution;
     float maxAlpha = 0.0;
 
@@ -71,7 +71,7 @@ const fragmentShader = `
         maxAlpha = max(maxAlpha, texture2D(u_texture, vUv + offset).a);
       }
     }
-    
+
     if (maxAlpha > 0.5) {
       gl_FragColor = u_outlineColor;
     } else {
@@ -452,7 +452,7 @@ export default function Npc({
           onClick={handleClick}
           userData={{ entityId: entity.getUniqueId() }}
         >
-          <TextureBoundary
+          <RenderBoundary
             fallback={<NpcFallback width={spriteWidth} height={spriteHeight} />}
           >
             <NpcSpriteMesh
@@ -464,7 +464,7 @@ export default function Npc({
               npcEntity={npcEntity}
               setAspect={setAspect}
             />
-          </TextureBoundary>
+          </RenderBoundary>
         </group>
 
         {!isDimmed && (
@@ -500,9 +500,9 @@ export default function Npc({
 
             {!npcEntity.prayers.isEmpty() && (
               <group position={[0, 2.0 + (entity.size - 1) * 0.5, 0]}>
-                <TextureBoundary fallback={null}>
+                <RenderBoundary fallback={null}>
                   <PrayerSprite prayers={npcEntity.prayers} />
-                </TextureBoundary>
+                </RenderBoundary>
               </group>
             )}
 

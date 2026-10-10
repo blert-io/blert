@@ -142,3 +142,50 @@ export function useIsApple() {
 
   return isApple;
 }
+
+export const enum Browser {
+  CHROME,
+  EDGE,
+  FIREFOX,
+  SAFARI,
+  OTHER,
+}
+
+/**
+ * Hook that detects the browser the user is using.
+ * @returns The browser, or `null` if not yet determined (e.g. during SSR)
+ */
+export function useBrowser() {
+  const [browser, setBrowser] = useState<Browser | null>(null);
+
+  useEffect(() => {
+    const nav = navigator as {
+      userAgentData?: { brands: { brand: string }[] };
+    };
+    const brands = nav.userAgentData?.brands.map(({ brand }) => brand);
+    if (brands !== undefined) {
+      if (brands.includes('Google Chrome')) {
+        setBrowser(Browser.CHROME);
+      } else if (brands.includes('Microsoft Edge')) {
+        setBrowser(Browser.EDGE);
+      } else {
+        setBrowser(Browser.OTHER);
+      }
+      return;
+    }
+
+    const ua = navigator.userAgent;
+    if (ua.includes('Firefox/')) {
+      setBrowser(Browser.FIREFOX);
+    } else if (
+      ua.includes('Safari/') &&
+      !/Chrome\/|CriOS\/|FxiOS\/|EdgiOS\//.test(ua)
+    ) {
+      setBrowser(Browser.SAFARI);
+    } else {
+      setBrowser(Browser.OTHER);
+    }
+  }, []);
+
+  return browser;
+}
