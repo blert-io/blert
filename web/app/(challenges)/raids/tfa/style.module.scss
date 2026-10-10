@@ -1,0 +1,128 @@
+@use '../../../mixins.scss' as *;
+
+.tfaPage {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    min-height: calc(100vh - $TOPBAR_HEIGHT);
+    padding: 16px;
+  }
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 32px;
+  text-align: center;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    padding: 24px 16px;
+  }
+
+  // Green glow taken from the logo.
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at 50% 30%,
+      rgba(90, 200, 70, 0.12),
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+
+  > * {
+    position: relative;
+  }
+}
+
+.logo {
+  width: 360px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 8px;
+
+  :global([data-theme='aero']) & {
+    filter: drop-shadow(0 0 1px rgba(22, 48, 18, 0.95))
+      drop-shadow(0 0 8px rgba(60, 150, 40, 0.4));
+  }
+}
+
+.placeholder {
+  min-height: 160px;
+}
+
+.countdown {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    gap: 8px;
+  }
+}
+
+.unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 76px;
+  padding: 14px 10px;
+  border-radius: 10px;
+  background: var(--blert-surface-dark);
+  border: 1px solid rgba(var(--blert-purple-base), 0.15);
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    min-width: 60px;
+    padding: 10px 6px;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroWell;
+  }
+
+  .value {
+    font-size: 2em;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--blert-font-color-primary);
+
+    @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+      font-size: 1.5em;
+    }
+  }
+
+  .label {
+    font-size: 0.75em;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--blert-font-color-secondary);
+  }
+}
+
+.release {
+  margin: 0;
+  font-size: 1.05em;
+  line-height: 1.6;
+  color: rgba(var(--blert-font-color-primary-base), 0.9);
+}
+
+.note {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--blert-font-color-secondary);
+}

@@ -482,6 +482,70 @@
   }
 }
 
+.tfaBanner {
+  @include panel;
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border: 1px solid rgba(90, 200, 70, 0.25);
+  color: var(--blert-font-color-primary);
+  text-decoration: none;
+  transition: border-color 0.2s ease;
+
+  // Green glow taken from the logo.
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at 0% 50%,
+      rgba(90, 200, 70, 0.14),
+      transparent 50%
+    );
+    pointer-events: none;
+  }
+
+  > * {
+    position: relative;
+  }
+
+  img {
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
+  i {
+    color: var(--blert-font-color-secondary);
+    transition: transform 0.2s ease;
+  }
+
+  &:hover {
+    border-color: rgba(90, 200, 70, 0.5);
+
+    i {
+      transform: translateX(3px);
+    }
+  }
+
+  .tfaBannerText {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong {
+      font-weight: 600;
+    }
+
+    span {
+      font-size: 0.9em;
+      color: var(--blert-font-color-secondary);
+    }
+  }
+}
+
 .registerCta {
   @include panel;
   padding: 32px;

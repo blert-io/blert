@@ -263,6 +263,23 @@ export function LeftNav() {
         <div className={styles.divider} />
 
         <div className={styles.grid}>
+          {/* Featured until TFA becomes a regular challenge tile. */}
+          <Link
+            className={`${styles.tile} ${styles.featured} ${isUnder(pathname, '/raids/tfa') ? styles.active : ''}`}
+            href="/raids/tfa"
+            title="The Fractured Archive"
+          >
+            <span className={styles.tileIcon}>
+              <Image
+                src="/images/tfa.webp"
+                alt="The Fractured Archive"
+                fill
+                sizes="24px"
+                style={{ objectFit: 'contain', top: 1 }}
+              />
+            </span>
+            <span className={styles.tileLabel}>The Fractured Archive</span>
+          </Link>
           {CHALLENGES.map((challenge) => (
             <Link
               key={challenge.type}
@@ -275,6 +292,7 @@ export function LeftNav() {
                   src={challengeLogo(challenge.type)}
                   alt={challenge.label}
                   fill
+                  sizes="24px"
                   style={{ objectFit: 'contain' }}
                 />
               </span>
