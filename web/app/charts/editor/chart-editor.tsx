@@ -19,6 +19,7 @@ import { flushSync } from 'react-dom';
 import BcfRenderer, {
   CellOverlay,
   InteractionHandler,
+  RegionOverlay,
 } from '@/components/attack-timeline';
 import Button from '@/components/button';
 import { useModifierKey } from '@/hooks/modifier-key';
@@ -27,10 +28,15 @@ import { clamp } from '@/utils/math';
 import { useActionDrag } from './action-drag';
 import { cycleAttack } from './action-registry';
 import { ActionIcon } from './action-icon';
+import {
+  CooldownConflict,
+  deriveState,
+  findOffCooldownTick,
+} from './attack-cycle';
 import { placeAction, removeAction, removeCell } from './bcf-mutator';
 import { CellBar } from './cell-bar';
 import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
-import { CellCoord, currentDocument } from './editor-state';
+import { CellCoord, currentDocument, displayWindow } from './editor-state';
 import { Hotbar } from './hotbar';
 import { Palette } from './palette';
 import { Toolbar } from './toolbar';
@@ -64,9 +70,32 @@ function canPlace(
   );
 }
 
+type ConflictSpan = { actorId: string; endTick: number; startTick: number };
+
+/**
+ * Returns the tick spans that attacks spend inside an earlier attack's
+ * cooldown, merging each actor's overlapping and adjacent spans.
+ * `conflicts` must be in tick order.
+ */
+function findConflictSpans(conflicts: CooldownConflict[]): ConflictSpan[] {
+  const spans: ConflictSpan[] = [];
+  const latest = new Map<string, ConflictSpan>();
+  for (const { actorId, offCooldownTick, tick } of conflicts) {
+    const span = latest.get(actorId);
+    if (span !== undefined && tick <= span.endTick + 1) {
+      span.endTick = Math.max(span.endTick, offCooldownTick - 1);
+    } else {
+      const next = { actorId, endTick: offCooldownTick - 1, startTick: tick };
+      spans.push(next);
+      latest.set(actorId, next);
+    }
+  }
+  return spans;
+}
+
 export function ChartEditor() {
   const editor = useChartEditor(DEFAULT_CHART);
-  const { state, slotsLoaded, dispatch, update } = editor;
+  const { dispatch, slotsLoaded, state, update } = editor;
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [cellSize, rawSetCellSize] = useState(DEFAULT_CELL_SIZE);
 
@@ -82,7 +111,19 @@ export function ChartEditor() {
 
   const bcf = currentDocument(state);
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
-  const { activeSlot, brush, focus, slots } = state;
+
+  // Derived state is local to the renderer and not used in edits.
+  const { conflicts, conflictSpans, derived, derivedResolver } = useMemo(() => {
+    const derived = structuredClone(bcf);
+    const conflicts = deriveState(derived);
+    return {
+      conflicts,
+      conflictSpans: findConflictSpans(conflicts),
+      derived,
+      derivedResolver: new BCFResolver(derived),
+    };
+  }, [bcf]);
+  const { activeSlot, brush, focus, focusedBy, slots } = state;
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridWidth, setGridWidth] = useState<number | null>(null);
@@ -113,6 +154,12 @@ export function ChartEditor() {
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const [hover, setHover] = useState<CellCoord | null>(null);
+  const [rejection, setRejection] = useState<{
+    at: number;
+    focus: CellCoord;
+    invalid: boolean;
+    slot: number;
+  } | null>(null);
   const altHeld = useModifierKey('Alt');
   const { capture, drag, release } = useActionDrag();
 
@@ -213,7 +260,25 @@ export function ChartEditor() {
         return;
       }
 
+      // Keep DOM focus working as usual.
+      if (
+        (e.key === 'Enter' || e.key === 'Tab') &&
+        e.target !== document.body
+      ) {
+        return;
+      }
+
       const modifier = e.ctrlKey || e.metaKey;
+
+      const focusRowEdge = (edge: 'end' | 'start') => {
+        if (focus === null) {
+          return;
+        }
+        e.preventDefault();
+        const [first, last] = displayWindow(bcf);
+        const tick = edge === 'start' ? first : last;
+        dispatch({ type: 'move-focus', rows: 0, ticks: tick - focus.tick });
+      };
 
       switch (e.key) {
         case 'z':
@@ -244,13 +309,60 @@ export function ChartEditor() {
         case 'ArrowDown':
         case 'ArrowLeft':
         case 'ArrowRight':
-          if (!modifier && !e.altKey) {
+          if (
+            e.metaKey &&
+            !e.ctrlKey &&
+            !e.altKey &&
+            (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+          ) {
+            focusRowEdge(e.key === 'ArrowLeft' ? 'start' : 'end');
+          } else if (!modifier && !e.altKey) {
             e.preventDefault();
             dispatch({
               type: 'move-focus',
               rows: e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0,
               ticks:
                 e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0,
+            });
+          }
+          break;
+
+        case 'Home':
+        case 'End':
+          if (!modifier && !e.altKey) {
+            focusRowEdge(e.key === 'Home' ? 'start' : 'end');
+          }
+          break;
+
+        case 'Enter':
+          if (
+            focus !== null &&
+            !modifier &&
+            !e.altKey &&
+            focusedBy === 'pointer'
+          ) {
+            e.preventDefault();
+            // Switch focus to keyboard mode on the same cell.
+            dispatch({ type: 'move-focus', rows: 0, ticks: 0 });
+          }
+          break;
+
+        case 'Tab':
+          if (focus !== null && !modifier && !e.altKey) {
+            e.preventDefault();
+            const target = findOffCooldownTick(
+              derivedResolver,
+              focus.actorId,
+              focus.tick,
+              e.shiftKey ? 'backward' : 'forward',
+            );
+            const [first, last] = displayWindow(bcf);
+            const visible =
+              target !== null && target >= first && target <= last;
+            dispatch({
+              type: 'move-focus',
+              rows: 0,
+              ticks: visible ? target - focus.tick : 0,
             });
           }
           break;
@@ -314,7 +426,25 @@ export function ChartEditor() {
         case '9':
           if (!modifier && !e.altKey) {
             e.preventDefault();
-            dispatch({ type: 'select-slot', slot: Number(e.key) - 1 });
+            const slot = Number(e.key) - 1;
+            if (focus !== null && focusedBy === 'keyboard') {
+              const action = slots[slot];
+              if (
+                action !== null &&
+                canPlace(resolver, focus.actorId, action)
+              ) {
+                dispatch({ type: 'place-slot-at-focus', slot, at: Date.now() });
+              } else {
+                setRejection({
+                  at: Date.now(),
+                  focus,
+                  invalid: action !== null,
+                  slot,
+                });
+              }
+            } else {
+              dispatch({ type: 'select-slot', slot });
+            }
           }
           break;
 
@@ -330,7 +460,30 @@ export function ChartEditor() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeSlot, brush, dispatch, focus, resolver, setCellSize, update]);
+  }, [
+    activeSlot,
+    bcf,
+    brush,
+    derivedResolver,
+    dispatch,
+    focus,
+    focusedBy,
+    resolver,
+    setCellSize,
+    slots,
+    update,
+  ]);
+
+  let focusClass = styles.focusOverlay;
+  if (focusedBy === 'keyboard') {
+    focusClass += ` ${styles.keyboard}`;
+  }
+  if (rejection !== null && rejection.focus === focus) {
+    focusClass += ` ${styles.rejected}`;
+    if (rejection.invalid) {
+      focusClass += ` ${styles.invalid}`;
+    }
+  }
 
   return (
     <div className={styles.editor}>
@@ -354,25 +507,37 @@ export function ChartEditor() {
       </div>
       <div className={styles.cellBar}>
         <CellBar
-          resolver={resolver}
+          conflicts={conflicts}
           focus={focus}
           onRemoveAction={removeFocusedAction}
+          resolver={resolver}
         />
       </div>
       <div className={styles.grid} ref={gridRef}>
         <BcfRenderer
-          bcf={bcf}
+          bcf={derived}
           cellSize={cellSize}
           wrapWidth={wrapWidth}
           interactionHandler={interactionHandler}
           tooltipId="chart-editor"
         >
+          {conflictSpans.map((span) => (
+            <RegionOverlay
+              className={styles.conflict}
+              endRowId={span.actorId}
+              endTick={span.endTick}
+              key={`${span.actorId}:${span.startTick}`}
+              startRowId={span.actorId}
+              startTick={span.startTick}
+            />
+          ))}
           {focus !== null && (
             <CellOverlay
+              className={focusClass}
+              key={rejection?.at}
+              ref={focusRef}
               rowId={focus.actorId}
               tick={focus.tick}
-              className={styles.focusOverlay}
-              ref={focusRef}
             />
           )}
           <Ghost
@@ -419,6 +584,7 @@ export function ChartEditor() {
             dispatch({ type: 'set-slot', slot, action })
           }
           onSwapSlots={(from, to) => dispatch({ type: 'swap-slots', from, to })}
+          pulse={rejection !== null && !rejection.invalid ? rejection : null}
           slots={slots}
         />
       </div>

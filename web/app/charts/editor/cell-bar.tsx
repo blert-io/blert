@@ -4,19 +4,25 @@ import { BCFAction, BCFResolver } from '@blert/bcf';
 
 import { ActionIcon } from './action-icon';
 import { actionName } from './action-registry';
-import { attackCooldown } from './attack-cycle';
+import { attackCooldown, CooldownConflict } from './attack-cycle';
 import { DismissButton } from './dismiss-button';
 import { CellCoord } from './editor-state';
 
 import styles from './cell-bar.module.scss';
 
 type CellBarProps = {
-  resolver: BCFResolver;
+  conflicts: CooldownConflict[];
   focus: CellCoord | null;
   onRemoveAction: (index: number) => void;
+  resolver: BCFResolver;
 };
 
-export function CellBar({ resolver, focus, onRemoveAction }: CellBarProps) {
+export function CellBar({
+  conflicts,
+  focus,
+  onRemoveAction,
+  resolver,
+}: CellBarProps) {
   if (focus === null) {
     return (
       <span className={`${styles.cell} ${styles.none}`}>
@@ -28,6 +34,10 @@ export function CellBar({ resolver, focus, onRemoveAction }: CellBarProps) {
 
   const actor = resolver.getActor(focus.actorId)!;
   const actions = resolver.getCell(focus.actorId, focus.tick)?.actions ?? [];
+  const conflict =
+    conflicts.find(
+      (c) => c.actorId === focus.actorId && c.tick === focus.tick,
+    ) ?? null;
 
   return (
     <>
@@ -41,8 +51,9 @@ export function CellBar({ resolver, focus, onRemoveAction }: CellBarProps) {
       ) : (
         actions.map((action, index) => (
           <ActionChip
-            key={action.type}
             action={action}
+            conflict={action.type === 'attack' ? conflict : null}
+            key={action.type}
             onRemove={() => onRemoveAction(index)}
           />
         ))
@@ -53,17 +64,31 @@ export function CellBar({ resolver, focus, onRemoveAction }: CellBarProps) {
 
 type ActionChipProps = {
   action: BCFAction;
+  conflict: CooldownConflict | null;
   onRemove: () => void;
 };
 
-function ActionChip({ action, onRemove }: ActionChipProps) {
+function ActionChip({ action, conflict, onRemove }: ActionChipProps) {
   return (
-    <span className={styles.action}>
+    <span
+      className={
+        conflict === null
+          ? styles.action
+          : `${styles.action} ${styles.conflict}`
+      }
+    >
       <ActionIcon action={action} size={22} />
       {actionName(action)}
       {action.type === 'attack' && (
         <span className={styles.meta}>
           {attackCooldown(action.attackType)}t
+        </span>
+      )}
+      {conflict !== null && (
+        <span className={styles.warning}>
+          <i className="fa-solid fa-triangle-exclamation" />
+          On cooldown until{' '}
+          <span className={styles.tick}>t{conflict.offCooldownTick}</span>
         </span>
       )}
       <DismissButton label="Remove" onClick={onRemove} />

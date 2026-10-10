@@ -92,6 +92,24 @@
   }
 }
 
+.pulse {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: pulse 500ms ease-out;
+}
+
+@keyframes pulse {
+  from {
+    box-shadow: 0 0 0 3px rgba(var(--blert-purple-base), 0.6);
+  }
+
+  to {
+    box-shadow: 0 0 0 8px rgba(var(--blert-purple-base), 0);
+  }
+}
+
 .brush {
   display: flex;
   align-items: center;

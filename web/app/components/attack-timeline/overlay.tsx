@@ -32,20 +32,20 @@ export function OverlayPlane(props: VisualRow) {
 }
 
 export type CellOverlayProps = {
+  children?: React.ReactNode;
+  className?: string;
+  ref?: React.Ref<HTMLDivElement>;
   rowId: string;
   tick: number;
-  className?: string;
-  children?: React.ReactNode;
-  ref?: React.Ref<HTMLDivElement>;
 };
 
 /** Positions content over a cell of a timeline. */
 export function CellOverlay({
+  children,
+  className,
+  ref,
   rowId,
   tick,
-  className,
-  children,
-  ref,
 }: CellOverlayProps) {
   const row = useContext(VisualRowContext);
   if (row === null || tick < row.startTick || tick > row.endTick) {
@@ -68,6 +68,59 @@ export function CellOverlay({
         top: TICK_HEIGHT + rowIndex * columnWidth,
         width: row.cellSize,
         height: row.cellSize,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export type RegionOverlayProps = {
+  children?: React.ReactNode;
+  className?: string;
+  endRowId: string;
+  endTick: number;
+  startRowId: string;
+  startTick: number;
+};
+
+/**
+ * Places content over the rows between `startRowId` and `endRowId` and ticks
+ * between `startTick` and `endTick`, inclusive, wrapping across visual rows.
+ */
+export function RegionOverlay({
+  children,
+  className,
+  endRowId,
+  endTick,
+  startRowId,
+  startTick,
+}: RegionOverlayProps) {
+  const row = useContext(VisualRowContext);
+  if (row === null) {
+    return null;
+  }
+
+  const firstTick = Math.max(Math.min(startTick, endTick), row.startTick);
+  const lastTick = Math.min(Math.max(startTick, endTick), row.endTick);
+  const startIndex = row.rowOrder.indexOf(startRowId);
+  const endIndex = row.rowOrder.indexOf(endRowId);
+  if (firstTick > lastTick || startIndex === -1 || endIndex === -1) {
+    return null;
+  }
+
+  const firstRow = Math.min(startIndex, endIndex);
+  const lastRow = Math.max(startIndex, endIndex);
+  const columnWidth = row.cellSize + CELL_GAP;
+  return (
+    <div
+      className={className}
+      style={{
+        position: 'absolute',
+        left: (firstTick - row.startTick) * columnWidth,
+        top: TICK_HEIGHT + firstRow * columnWidth,
+        width: (lastTick - firstTick + 1) * columnWidth - CELL_GAP,
+        height: (lastRow - firstRow + 1) * columnWidth - CELL_GAP,
       }}
     >
       {children}
