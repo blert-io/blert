@@ -28,12 +28,19 @@ pub struct TickState {
     pub events: Vec<Event>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StageNpc {
+    pub spawn: Tick,
+    pub death: Option<Tick>,
+}
+
 #[derive(Debug)]
 pub struct Timeline {
     stage: Stage,
     mode: ChallengeMode,
     party: Vec<Rsn>,
     states: Vec<Option<TickState>>,
+    npcs: BTreeMap<RoomId, StageNpc>,
 }
 
 impl Timeline {
@@ -90,6 +97,17 @@ impl Timeline {
             .unwrap_or_default()
     }
 
+    /// Returns stage-level information about an NPC.
+    #[must_use]
+    pub fn npc(&self, room_id: RoomId) -> Option<StageNpc> {
+        self.npcs.get(&room_id).copied()
+    }
+
+    /// Returns stage-level information about every recorded NPC.
+    pub fn npcs(&self) -> impl Iterator<Item = (RoomId, StageNpc)> {
+        self.npcs.iter().map(|(&room_id, &npc)| (room_id, npc))
+    }
+
     /// Returns whether this timeline is compatible with the given recording.
     #[must_use]
     pub fn is_compatible(&self, recording: &Recording) -> bool {
@@ -112,7 +130,7 @@ impl Timeline {
                 .through(recording.last_tick())
                 .map(|tick| recording.get_state(tick).cloned()),
         );
-        finalize::finalize_from(self.stage, self.mode, &mut self.states, start);
+        finalize::finalize_from(self, start);
     }
 
     /// Encodes the full timeline as wire events in tick order.
@@ -129,7 +147,10 @@ impl Timeline {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BloatDown, ClientId, EventKind, Ticks};
+    use crate::{
+        BloatDown, ClientId, EventKind, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcDeath,
+        NpcProperties, Point, PrayerBook, PrayerSet, Rect, SkillLevel, Source, Ticks,
+    };
 
     #[test]
     fn timeline_accessors() {
@@ -169,6 +190,7 @@ mod tests {
                 }),
                 None,
             ],
+            npcs: BTreeMap::new(),
         };
 
         assert_eq!(timeline.stage(), &Stage::TobBloat);
@@ -228,5 +250,192 @@ mod tests {
         assert_eq!(timeline.events_for_tick(Tick(2)), []);
         assert_eq!(timeline.events_for_tick(Tick(3)), []);
         assert_eq!(timeline.events_for_tick(Tick(6)), []);
+    }
+
+    #[test]
+    fn timeline_npcs() {
+        let mut recording = Recording::vacant(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("Sacolyn").unwrap(),
+                Rsn::try_from("715").unwrap(),
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
+            Tick(69),
+        );
+        recording.set_state(
+            Tick(0),
+            TickState {
+                players: Players::empty(4),
+                npcs: BTreeMap::from([(
+                    RoomId(64386),
+                    NpcState {
+                        source: Source::Synthetic,
+                        npc_id: 8360,
+                        position: Rect::square(Point(3162, 4444), 6),
+                        hitpoints: SkillLevel {
+                            current: 3062,
+                            base: 3062,
+                        },
+                        prayers: PrayerSet::empty(PrayerBook::Normal),
+                        properties: None,
+                    },
+                )]),
+                objects: TickObjects::default(),
+                events: Vec::new(),
+            },
+        );
+        recording.set_state(
+            Tick(32),
+            TickState {
+                players: Players::empty(4),
+                npcs: BTreeMap::from([
+                    (
+                        RoomId(64386),
+                        NpcState {
+                            source: Source::Client(ClientId(344)),
+                            npc_id: 8361,
+                            position: Rect::square(Point(3162, 4444), 6),
+                            hitpoints: SkillLevel {
+                                current: 2078,
+                                base: 3062,
+                            },
+                            prayers: PrayerSet::empty(PrayerBook::Normal),
+                            properties: None,
+                        },
+                    ),
+                    (
+                        RoomId(64745),
+                        NpcState {
+                            source: Source::Client(ClientId(344)),
+                            npc_id: 8366,
+                            position: Rect::square(Point(3177, 4456), 2),
+                            hitpoints: SkillLevel {
+                                current: 87,
+                                base: 87,
+                            },
+                            prayers: PrayerSet::empty(PrayerBook::Normal),
+                            properties: Some(NpcProperties::MaidenCrab(MaidenCrab {
+                                spawn: MaidenCrabSpawn::Seventies,
+                                position: MaidenCrabPosition::N2,
+                                scuffed: false,
+                            })),
+                        },
+                    ),
+                ]),
+                objects: TickObjects::default(),
+                events: Vec::new(),
+            },
+        );
+        recording.set_state(
+            Tick(68),
+            TickState {
+                players: Players::empty(4),
+                npcs: BTreeMap::from([
+                    (
+                        RoomId(64386),
+                        NpcState {
+                            source: Source::Client(ClientId(344)),
+                            npc_id: 8362,
+                            position: Rect::square(Point(3162, 4444), 6),
+                            hitpoints: SkillLevel {
+                                current: 1343,
+                                base: 3062,
+                            },
+                            prayers: PrayerSet::empty(PrayerBook::Normal),
+                            properties: None,
+                        },
+                    ),
+                    (
+                        RoomId(64745),
+                        NpcState {
+                            source: Source::Client(ClientId(344)),
+                            npc_id: 8366,
+                            position: Rect::square(Point(3171, 4450), 2),
+                            hitpoints: SkillLevel {
+                                current: 0,
+                                base: 87,
+                            },
+                            prayers: PrayerSet::empty(PrayerBook::Normal),
+                            properties: Some(NpcProperties::MaidenCrab(MaidenCrab {
+                                spawn: MaidenCrabSpawn::Seventies,
+                                position: MaidenCrabPosition::N2,
+                                scuffed: false,
+                            })),
+                        },
+                    ),
+                ]),
+                objects: TickObjects::default(),
+                events: Vec::new(),
+            },
+        );
+        recording.set_state(
+            Tick(69),
+            TickState {
+                players: Players::empty(4),
+                npcs: BTreeMap::from([(
+                    RoomId(64386),
+                    NpcState {
+                        source: Source::Client(ClientId(344)),
+                        npc_id: 8362,
+                        position: Rect::square(Point(3162, 4444), 6),
+                        hitpoints: SkillLevel {
+                            current: 1343,
+                            base: 3062,
+                        },
+                        prayers: PrayerSet::empty(PrayerBook::Normal),
+                        properties: None,
+                    },
+                )]),
+                objects: TickObjects::default(),
+                events: vec![Event::recorded(
+                    ClientId(344),
+                    EventKind::NpcDeath(NpcDeath {
+                        position: Point(3171, 4450),
+                        npc: RoomId(64745),
+                        npc_id: Some(8366),
+                    }),
+                )],
+            },
+        );
+
+        let timeline = recording.finalize();
+
+        assert_eq!(
+            timeline.npc(RoomId(64386)),
+            Some(StageNpc {
+                spawn: Tick(0),
+                death: None,
+            })
+        );
+        assert_eq!(
+            timeline.npc(RoomId(64745)),
+            Some(StageNpc {
+                spawn: Tick(32),
+                death: Some(Tick(69)),
+            })
+        );
+        assert_eq!(timeline.npc(RoomId(64744)), None);
+        assert_eq!(
+            timeline.npcs().collect::<Vec<_>>(),
+            [
+                (
+                    RoomId(64386),
+                    StageNpc {
+                        spawn: Tick(0),
+                        death: None,
+                    }
+                ),
+                (
+                    RoomId(64745),
+                    StageNpc {
+                        spawn: Tick(32),
+                        death: Some(Tick(69)),
+                    }
+                ),
+            ]
+        );
     }
 }

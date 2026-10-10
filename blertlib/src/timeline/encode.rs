@@ -26,7 +26,7 @@ struct Encoder<'a> {
     players: Vec<Option<&'a PlayerState>>,
     off_cooldown_ticks: Vec<Tick>,
     npcs: HashMap<RoomId, &'a NpcState>,
-    dead_actors: HashSet<Actor>,
+    dead_players: HashSet<PartyIndex>,
     stage: StageContext,
 }
 
@@ -39,7 +39,7 @@ impl<'a> Encoder<'a> {
             players: vec![None; timeline.party.len()],
             off_cooldown_ticks: vec![Tick(0); timeline.party.len()],
             npcs: HashMap::new(),
-            dead_actors: HashSet::new(),
+            dead_players: HashSet::new(),
             stage: StageContext::new(timeline.stage),
         };
         for tick in start.up_to() {
@@ -57,7 +57,7 @@ impl<'a> Encoder<'a> {
         self.stage.tick(state);
 
         for (index, player) in state.players.iter() {
-            if self.dead_actors.contains(&Actor::Player(index)) {
+            if self.dead_players.contains(&index) {
                 continue;
             }
             if let Some(off_cooldown) = off_cooldown_tick(tick, state, index) {
@@ -70,7 +70,7 @@ impl<'a> Encoder<'a> {
         }
 
         for (&room_id, npc) in &state.npcs {
-            if self.dead_actors.contains(&Actor::Npc(room_id)) {
+            if self.npc_died_before(room_id, tick) {
                 continue;
             }
             if encode_events {
@@ -87,21 +87,22 @@ impl<'a> Encoder<'a> {
             }
         }
 
-        // Mark dead actors after all events are encoded so that they are dead
+        // Mark dead players after all events are encoded so that they are dead
         // starting from the next tick.
         for event in &state.events {
-            match event.kind {
-                EventKind::PlayerDeath(index) => {
-                    self.dead_actors.insert(Actor::Player(index));
-                }
-                EventKind::NpcDeath(death) => {
-                    self.dead_actors.insert(Actor::Npc(death.npc));
-                }
-                _ => {}
+            if let EventKind::PlayerDeath(index) = event.kind {
+                self.dead_players.insert(index);
             }
         }
 
         events
+    }
+
+    fn npc_died_before(&self, room_id: RoomId, tick: Tick) -> bool {
+        self.timeline
+            .npc(room_id)
+            .and_then(|npc| npc.death)
+            .is_some_and(|death| death < tick)
     }
 
     fn event(&self, kind: proto::event::Type, tick: Tick, position: Option<Point>) -> proto::Event {
@@ -163,7 +164,11 @@ impl<'a> Encoder<'a> {
         npc: &NpcState,
         previous: Option<&NpcState>,
     ) -> proto::Event {
-        let kind = if previous.is_none() {
+        let kind = if self
+            .timeline
+            .npc(room_id)
+            .is_some_and(|stage_npc| stage_npc.spawn == tick)
+        {
             proto::event::Type::NpcSpawn
         } else {
             proto::event::Type::NpcUpdate
@@ -314,7 +319,7 @@ impl<'a> Encoder<'a> {
             }
 
             EventKind::PlayerAttack(attack) => {
-                if self.dead_actors.contains(&Actor::Player(attack.player)) {
+                if self.dead_players.contains(&attack.player) {
                     return None;
                 }
                 let player = state.players.get(attack.player)?;
@@ -354,7 +359,7 @@ impl<'a> Encoder<'a> {
             }
 
             EventKind::PlayerSpell(cast) => {
-                if self.dead_actors.contains(&Actor::Player(cast.player)) {
+                if self.dead_players.contains(&cast.player) {
                     return None;
                 }
                 let player = state.players.get(cast.player)?;
@@ -386,6 +391,9 @@ impl<'a> Encoder<'a> {
             }
 
             EventKind::NpcDeath(death) => {
+                if self.timeline.npc(death.npc).and_then(|npc| npc.death) != Some(tick) {
+                    return None;
+                }
                 let npc = self.npcs.get(&death.npc);
                 let mut event =
                     self.event(proto::event::Type::NpcDeath, tick, Some(death.position));
@@ -402,7 +410,7 @@ impl<'a> Encoder<'a> {
             }
 
             EventKind::NpcAttack(attack) => {
-                if self.dead_actors.contains(&Actor::Npc(attack.npc)) {
+                if self.npc_died_before(attack.npc, tick) {
                     return None;
                 }
                 let npc = state.npcs.get(&attack.npc)?;
@@ -589,7 +597,7 @@ impl<'a> Encoder<'a> {
             EventKind::VerzikBounce(bounce) => {
                 let players_alive = (0..self.timeline.party.len())
                     .map(PartyIndex::from_usize)
-                    .filter(|&index| !self.dead_actors.contains(&Actor::Player(index)))
+                    .filter(|index| !self.dead_players.contains(index))
                     .count();
                 let not_in_range =
                     players_alive.saturating_sub(usize::from(bounce.players_in_range));

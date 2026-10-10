@@ -5,7 +5,7 @@ use crate::event::{Event, EventKind, NyloWave};
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, CombatStyle, NpcAttack, Stage, npc};
 
-use super::TickState;
+use super::{StageNpc, TickState, Timeline};
 
 /// A `Finalizer` is responsible for writing some part of the finished version
 /// of a working tick, such as deriving events from game state. Finalizers may
@@ -20,19 +20,14 @@ trait Finalizer {
     fn tick(&mut self, tick: Tick, state: &mut Option<TickState>);
 }
 
-/// Runs finalizers for `stage` on the given timeline, beginning from `start`.
-pub(super) fn finalize_from(
-    stage: Stage,
-    mode: ChallengeMode,
-    states: &mut [Option<TickState>],
-    start: Tick,
-) {
-    let end = Tick::from_usize(states.len() - 1);
-    let (history, states) = states.split_at_mut(start.as_usize());
+/// Runs finalizers for the timeline's stage, beginning from `start`.
+pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
+    let end = timeline.last_tick();
+    let (history, states) = timeline.states.split_at_mut(start.as_usize());
 
     let mut finalizers: Vec<Box<dyn Finalizer>> = Vec::new();
-    match stage {
-        Stage::TobNylocas => finalizers.push(Box::new(NylocasFinalizer::new(mode))),
+    match timeline.stage {
+        Stage::TobNylocas => finalizers.push(Box::new(NylocasFinalizer::new(timeline.mode))),
         Stage::MokhaiotlDelve1
         | Stage::MokhaiotlDelve2
         | Stage::MokhaiotlDelve3
@@ -45,12 +40,34 @@ pub(super) fn finalize_from(
         _ => {}
     }
 
+    timeline.npcs.retain(|_, npc| npc.spawn < start);
+    for npc in timeline.npcs.values_mut() {
+        npc.death.take_if(|death| *death >= start);
+    }
+
     for finalizer in &mut finalizers {
         finalizer.initialize(history);
     }
     for (tick, state) in start.through(end).zip(states) {
         for finalizer in &mut finalizers {
             finalizer.tick(tick, state);
+        }
+
+        let Some(state) = state else {
+            continue;
+        };
+        for &room_id in state.npcs.keys() {
+            timeline.npcs.entry(room_id).or_insert(StageNpc {
+                spawn: tick,
+                death: None,
+            });
+        }
+        for event in &state.events {
+            if let EventKind::NpcDeath(death) = event.kind
+                && let Some(npc) = timeline.npcs.get_mut(&death.npc)
+            {
+                npc.death = Some(tick);
+            }
         }
     }
 }

@@ -31,7 +31,7 @@ pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
 pub use timeline::{
     BuildRejection, BuildWarning, FieldError, RawActor, Recording, RecordingBuilder,
-    RejectionReason, TickState, Timeline,
+    RejectionReason, StageNpc, TickState, Timeline,
 };
 
 /// A location in the game world.
