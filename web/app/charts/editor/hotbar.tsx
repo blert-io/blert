@@ -27,6 +27,7 @@ type HotbarProps = {
   onSelectSlot: (slot: number) => void;
   onSetSlot: (slot: number, action: BCFAction | null) => void;
   onSwapSlots: (from: number, to: number) => void;
+  pulse: { at: number; slot: number } | null;
   slots: HotbarSlots;
 };
 
@@ -38,6 +39,7 @@ export function Hotbar({
   onSelectSlot,
   onSetSlot,
   onSwapSlots,
+  pulse,
   slots,
 }: HotbarProps) {
   const shiftHeld = useModifierKey('Shift');
@@ -75,6 +77,7 @@ export function Hotbar({
               onSet={(next) => onSetSlot(i, next)}
               onSwap={(source) => onSwapSlots(source, i)}
               preview={preview}
+              pulsedAt={pulse?.slot === i ? pulse.at : null}
             />
           );
         })}
@@ -107,6 +110,7 @@ type SlotProps = {
   onSet: (action: BCFAction | null) => void;
   onSwap: (from: number) => void;
   preview: SlotPreview | null;
+  pulsedAt: number | null;
 };
 
 function Slot({
@@ -120,6 +124,7 @@ function Slot({
   onSet,
   onSwap,
   preview,
+  pulsedAt,
 }: SlotProps) {
   const { capture, drag, press, release } = useActionDrag();
   const id = `slot:${index}`;
@@ -198,6 +203,7 @@ function Slot({
     >
       <span className={styles.slotKey}>{index + 1}</span>
       {content}
+      {pulsedAt !== null && <span className={styles.pulse} key={pulsedAt} />}
     </button>
   );
 }

@@ -1,12 +1,13 @@
 import {
   BCFAction,
   BCFActor,
+  BCFResolver,
   BCFTick,
   BlertChartFormat,
   validate,
 } from '@blert/bcf';
 
-import { deriveState } from '../attack-cycle';
+import { deriveState, findOffCooldownTick } from '../attack-cycle';
 
 const VERZIK: BCFActor = {
   id: 'verzik',
@@ -158,5 +159,29 @@ describe('deriveState', () => {
         ],
       },
     ]);
+  });
+});
+
+describe('findOffCooldownTick', () => {
+  it("steps through a player's off-cooldown ticks to either end of the chart", () => {
+    const bcf = makeChart(
+      [
+        { tick: 0, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+        { tick: 6, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+      ],
+      14,
+    );
+    deriveState(bcf);
+    const resolver = new BCFResolver(bcf);
+
+    const forward = [0, 5, 11, 13].map((tick) =>
+      findOffCooldownTick(resolver, 'p1', tick, 'forward'),
+    );
+    expect(forward).toEqual([5, 11, 12, null]);
+    const backward = [13, 11, 5].map((tick) =>
+      findOffCooldownTick(resolver, 'p1', tick, 'backward'),
+    );
+    expect(backward).toEqual([12, 5, null]);
+    expect(findOffCooldownTick(resolver, 'verzik', 0, 'forward')).toBeNull();
   });
 });

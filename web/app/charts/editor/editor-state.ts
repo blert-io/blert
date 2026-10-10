@@ -1,8 +1,14 @@
-import { BCFAction, BCFActor, BlertChartFormat } from '@blert/bcf';
+import {
+  BCFAction,
+  BCFActor,
+  BlertChartFormat,
+  actorTypeSupportsAction,
+} from '@blert/bcf';
 
 import { clamp } from '@/utils/math';
 
-import { setRowOrder } from './bcf-mutator';
+import { attackCooldown } from './attack-cycle';
+import { placeAction, setRowOrder } from './bcf-mutator';
 import { HOTBAR_SLOTS } from './constants';
 
 export type CellCoord = { actorId: string; tick: number };
@@ -22,6 +28,8 @@ export type EditorState = {
 
   modified: boolean;
   focus: CellCoord | null;
+  /** How the focus last moved. */
+  focusedBy: 'keyboard' | 'pointer';
   brush: BCFAction | null;
   slots: HotbarSlots;
   activeSlot: number | null;
@@ -44,6 +52,7 @@ export type EditorAction =
   | { type: 'redo' }
   | { type: 'set-focus'; focus: CellCoord | null }
   | { type: 'move-focus'; rows: number; ticks: number }
+  | { type: 'place-slot-at-focus'; slot: number; at: number }
   | { type: 'set-brush'; brush: BCFAction | null }
   | { type: 'add-to-hotbar'; action: BCFAction }
   | { type: 'select-slot'; slot: number }
@@ -58,6 +67,14 @@ export function currentDocument(state: EditorState): BlertChartFormat {
   return state.history[state.position];
 }
 
+/** Returns the first and last ticks `bcf` displays, inclusive. */
+export function displayWindow(bcf: BlertChartFormat): [number, number] {
+  return [
+    bcf.config.startTick ?? 0,
+    bcf.config.endTick ?? bcf.config.totalTicks - 1,
+  ];
+}
+
 export function initialState(bcf: BlertChartFormat): EditorState {
   const document =
     bcf.config.rowOrder === undefined
@@ -70,6 +87,7 @@ export function initialState(bcf: BlertChartFormat): EditorState {
     coalesce: null,
     modified: false,
     focus: null,
+    focusedBy: 'pointer',
     brush: null,
     slots: new Array<BCFAction | null>(HOTBAR_SLOTS).fill(null),
     activeSlot: null,
@@ -156,7 +174,7 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       };
 
     case 'set-focus':
-      return { ...state, focus: action.focus };
+      return { ...state, focus: action.focus, focusedBy: 'pointer' };
 
     case 'move-focus': {
       const bcf = currentDocument(state);
@@ -167,7 +185,11 @@ function apply(state: EditorState, action: EditorAction): EditorState {
         if (rowOrder.length === 0) {
           return state;
         }
-        return { ...state, focus: { actorId: rowOrder[0], tick: first } };
+        return {
+          ...state,
+          focus: { actorId: rowOrder[0], tick: first },
+          focusedBy: 'keyboard',
+        };
       }
 
       const row = rowOrder.indexOf(state.focus.actorId);
@@ -177,10 +199,41 @@ function apply(state: EditorState, action: EditorAction): EditorState {
 
       const nextRow = clamp(row + action.rows, 0, rowOrder.length - 1);
       const tick = clamp(state.focus.tick + action.ticks, first, last);
-      if (nextRow === row && tick === state.focus.tick) {
+      const focus =
+        nextRow === row && tick === state.focus.tick
+          ? state.focus
+          : { actorId: rowOrder[nextRow], tick };
+      return { ...state, focus, focusedBy: 'keyboard' };
+    }
+
+    case 'place-slot-at-focus': {
+      const { focus } = state;
+      const bound = state.slots[action.slot] ?? null;
+      if (focus === null || bound === null) {
         return state;
       }
-      return { ...state, focus: { actorId: rowOrder[nextRow], tick } };
+
+      const actor = currentDocument(state).timeline.actors.find(
+        (a) => a.id === focus.actorId,
+      );
+      if (
+        actor === undefined ||
+        !actorTypeSupportsAction(actor.type, bound.type)
+      ) {
+        return state;
+      }
+
+      const placed = apply(state, {
+        type: 'update',
+        mutate: (bcf) => placeAction(bcf, focus.actorId, focus.tick, bound),
+        coalesce: 'place',
+        at: action.at,
+      });
+      if (bound.type !== 'attack') {
+        return placed;
+      }
+      const tick = focus.tick + attackCooldown(bound.attackType);
+      return { ...placed, focus: { actorId: focus.actorId, tick } };
     }
 
     case 'set-brush':
@@ -238,13 +291,6 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       return { ...state, slots, activeSlot };
     }
   }
-}
-
-function displayWindow(bcf: BlertChartFormat): [number, number] {
-  return [
-    bcf.config.startTick ?? 0,
-    bcf.config.endTick ?? bcf.config.totalTicks - 1,
-  ];
 }
 
 function defaultRowOrder(actors: BCFActor[]): string[] {

@@ -1,6 +1,11 @@
 /** Attack cycle derivation over BCF documents. */
 
-import { BCFAction, BCFAttackAction, BlertChartFormat } from '@blert/bcf';
+import {
+  BCFAction,
+  BCFAttackAction,
+  BCFResolver,
+  BlertChartFormat,
+} from '@blert/bcf';
 import { attackDefinitionsById } from '@blert/common';
 
 import { bcfToPlayerAttack } from '@/components/attack-timeline';
@@ -108,4 +113,27 @@ export function deriveState(bcf: BlertChartFormat): CooldownConflict[] {
     .toArray()
     .sort((a, b) => a.tick - b.tick);
   return conflicts;
+}
+
+/**
+ * Returns the nearest tick after `tick` (or before it, going `backward`) at
+ * which player `actorId` is off cooldown.
+ * State must be present in the chart. See {@link deriveState}.
+ */
+export function findOffCooldownTick(
+  resolver: BCFResolver,
+  actorId: string,
+  tick: number,
+  direction: 'forward' | 'backward',
+): number | null {
+  const step = direction === 'forward' ? 1 : -1;
+  for (let t = tick + step; ; t += step) {
+    const state = resolver.getPlayerState(actorId, t);
+    if (state === undefined) {
+      return null;
+    }
+    if (state.offCooldown === true) {
+      return t;
+    }
+  }
 }

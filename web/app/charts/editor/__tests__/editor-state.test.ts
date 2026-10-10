@@ -1,6 +1,6 @@
 import { BCFActor, BlertChartFormat } from '@blert/bcf';
 
-import { removeActor, setTotalTicks } from '../bcf-mutator';
+import { placeAction, removeActor, setTotalTicks } from '../bcf-mutator';
 import {
   EditorState,
   currentDocument,
@@ -276,20 +276,18 @@ describe('update', () => {
 describe('set-focus', () => {
   it('focuses the given cell', () => {
     const hocus = { actorId: 'p1', tick: 4 };
-    const state = reduce(
-      initialState({
+    const initial = {
+      ...initialState({
         version: '1.0',
         config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
-      {
-        type: 'set-focus',
-        focus: hocus,
-      },
-    );
+      focus: { actorId: 'verzik', tick: 9 },
+      focusedBy: 'keyboard' as const,
+    };
 
-    expect(state.focus).toEqual(hocus);
-    expect(state.modified).toBe(false);
+    const state = reduce(initial, { type: 'set-focus', focus: hocus });
+    expect(state).toEqual({ ...initial, focus: hocus, focusedBy: 'pointer' });
   });
 
   it('clears focus on null', () => {
@@ -336,12 +334,21 @@ describe('move-focus', () => {
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
       focus: { actorId: 'p1', tick: 3 },
+      focusedBy: 'pointer' as const,
     };
 
     let next = reduce(state, { type: 'move-focus', rows: 0, ticks: 5 });
-    expect(next.focus).toEqual({ actorId: 'p1', tick: 8 });
+    expect(next).toEqual({
+      ...state,
+      focus: { actorId: 'p1', tick: 8 },
+      focusedBy: 'keyboard',
+    });
     next = reduce(next, { type: 'move-focus', rows: 0, ticks: -6 });
-    expect(next.focus).toEqual({ actorId: 'p1', tick: 2 });
+    expect(next).toEqual({
+      ...state,
+      focus: { actorId: 'p1', tick: 2 },
+      focusedBy: 'keyboard',
+    });
   });
 
   it('clamps focus between first and last rows', () => {
@@ -368,11 +375,11 @@ describe('move-focus', () => {
         config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
-      focus: { actorId: 'p1', tick: 10 },
+      focus: { actorId: 'p1', tick: 0 },
     };
 
     const start = reduce(state, { type: 'move-focus', rows: 0, ticks: -50 });
-    expect(start.focus).toEqual({ actorId: 'p1', tick: 0 });
+    expect(start).toEqual({ ...state, focusedBy: 'keyboard' });
 
     const end = reduce(state, { type: 'move-focus', rows: 0, ticks: 50 });
     expect(end.focus).toEqual({ actorId: 'p1', tick: 29 });
@@ -386,6 +393,83 @@ describe('move-focus', () => {
     });
     const next = reduce(state, { type: 'move-focus', rows: 1, ticks: 5 });
     expect(next.focus).toEqual({ actorId: 'verzik', tick: 1 });
+  });
+});
+
+describe('place-slot-at-focus', () => {
+  it('sets the focused cell and advances', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const bgs = {
+      type: 'attack' as const,
+      attackType: 'BGS_SPEC',
+      weaponId: 11804,
+    };
+    const veng = { type: 'spell' as const, spellType: 'VENGEANCE' };
+    const chart: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 24, rowOrder: ['verzik', 'p1'] },
+      timeline: { actors: [VERZIK, P1], ticks: [] },
+    };
+    const initial = {
+      ...initialState(chart),
+      slots: [scythe, bgs, veng, null, null, null, null, null, null],
+      focus: { actorId: 'p1', tick: 4 },
+      focusedBy: 'keyboard' as const,
+    };
+
+    let state: EditorState = initial;
+    for (const [i, slot] of [2, 0, 1, 0, 0].entries()) {
+      state = reduce(state, { type: 'place-slot-at-focus', slot, at: i * 300 });
+    }
+
+    let expected = placeAction(chart, 'p1', 4, veng);
+    expected = placeAction(expected, 'p1', 4, scythe);
+    expected = placeAction(expected, 'p1', 9, bgs);
+    expected = placeAction(expected, 'p1', 15, scythe);
+    expected = placeAction(expected, 'p1', 20, scythe);
+    expect(state).toEqual({
+      ...initial,
+      history: [chart, expected],
+      position: 1,
+      coalesce: { key: 'place', position: 1, at: 1200 },
+      modified: true,
+      focus: { actorId: 'p1', tick: 23 },
+    });
+    expect(currentDocument(reduce(state, { type: 'undo' }))).toBe(chart);
+  });
+
+  it('does nothing if the selected slot is incompatible with the focused cell', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const verzikFocus = {
+      ...initialState({
+        version: '1.0',
+        config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+        timeline: { actors: [VERZIK, P1], ticks: [] },
+      }),
+      slots: [scythe, null, null, null, null, null, null, null, null],
+      focus: { actorId: 'verzik', tick: 4 },
+      focusedBy: 'keyboard' as const,
+    };
+    const p1Focus = { ...verzikFocus, focus: { actorId: 'p1', tick: 4 } };
+    const noFocus = { ...verzikFocus, focus: null };
+
+    expect(
+      reduce(verzikFocus, { type: 'place-slot-at-focus', slot: 0, at: 0 }),
+    ).toBe(verzikFocus);
+    expect(
+      reduce(p1Focus, { type: 'place-slot-at-focus', slot: 1, at: 0 }),
+    ).toBe(p1Focus);
+    expect(
+      reduce(noFocus, { type: 'place-slot-at-focus', slot: 0, at: 0 }),
+    ).toBe(noFocus);
   });
 });
 

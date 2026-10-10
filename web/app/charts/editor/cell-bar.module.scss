@@ -61,9 +61,25 @@
   font-size: 0.8rem;
   font-weight: 500;
   white-space: nowrap;
+
+  &.conflict {
+    border-color: rgba(var(--blert-yellow-base), 0.6);
+  }
 }
 
 .meta {
   font-size: 0.7rem;
   color: var(--blert-font-color-secondary);
+}
+
+.warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--blert-yellow);
+  font-size: 0.7rem;
+
+  i {
+    font-size: 0.65rem;
+  }
 }
