@@ -180,7 +180,7 @@ async fn maiden_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 151,
+            ticks: 138,
         },
     );
 
@@ -233,7 +233,7 @@ async fn verify_maiden_rows(
     assert_eq!(row.get::<_, i16>(2), 5);
     assert_eq!(row.get::<_, i16>(3), Stage::TobMaiden as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 151);
+    assert_eq!(row.get::<_, i32>(5), 138);
     assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
@@ -248,13 +248,7 @@ async fn verify_maiden_rows(
         )
         .await
         .expect("membership rows");
-    let expected_gear = [
-        PrimaryMeleeGear::Unknown,
-        PrimaryMeleeGear::RadiantOathplate,
-        PrimaryMeleeGear::Oathplate,
-        PrimaryMeleeGear::Unknown,
-        PrimaryMeleeGear::RadiantOathplate,
-    ];
+    let expected_gear = [PrimaryMeleeGear::RadiantOathplate; PARTY.len()];
     assert_eq!(rows.len(), PARTY.len());
     for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
@@ -272,8 +266,8 @@ async fn verify_maiden_rows(
         .await
         .expect("stats row");
     assert_eq!(row.get::<_, Option<i32>>(0), Some(0));
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(0));
-    assert_eq!(row.get::<_, Option<bool>>(2), Some(true));
+    assert_eq!(row.get::<_, Option<i32>>(1), Some(2));
+    assert_eq!(row.get::<_, Option<bool>>(2), Some(false));
 
     let splits = client
         .query(
@@ -284,13 +278,13 @@ async fn verify_maiden_rows(
         .await
         .expect("split rows");
     let expected = [
-        (SplitType::TobHmMaiden, 151),
-        (SplitType::TobHmMaiden70s, 32),
-        (SplitType::TobHmMaiden50s, 54),
-        (SplitType::TobHmMaiden30s, 107),
-        (SplitType::TobHmMaiden70s50s, 22),
-        (SplitType::TobHmMaiden50s30s, 53),
-        (SplitType::TobHmMaiden30sEnd, 44),
+        (SplitType::TobHmMaiden, 138),
+        (SplitType::TobHmMaiden70s, 37),
+        (SplitType::TobHmMaiden50s, 57),
+        (SplitType::TobHmMaiden30s, 97),
+        (SplitType::TobHmMaiden70s50s, 20),
+        (SplitType::TobHmMaiden50s30s, 40),
+        (SplitType::TobHmMaiden30sEnd, 41),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {
@@ -314,7 +308,7 @@ async fn verify_maiden_rows(
         assert_eq!(pb_split_ids, split_ids, "player {player_id}");
     }
 
-    // player3 throws chins with two from the wrong distance.
+    // player2 throws one chin from a correct distance.
     let stats = client
         .query(
             "SELECT player_id, chins_thrown_total, chins_thrown_black, chins_thrown_red,
@@ -326,18 +320,18 @@ async fn verify_maiden_rows(
         .await
         .expect("player stats");
     assert_eq!(stats.len(), 1);
-    assert_eq!(stats[0].get::<_, i32>(0), player_ids[2]);
-    assert_eq!(stats[0].get::<_, i32>(1), 7);
-    assert_eq!(stats[0].get::<_, i32>(2), 7);
+    assert_eq!(stats[0].get::<_, i32>(0), player_ids[1]);
+    assert_eq!(stats[0].get::<_, i32>(1), 1);
+    assert_eq!(stats[0].get::<_, i32>(2), 1);
     assert_eq!(stats[0].get::<_, i32>(3), 0);
     assert_eq!(stats[0].get::<_, i32>(4), 0);
-    assert_eq!(stats[0].get::<_, i32>(5), 7);
+    assert_eq!(stats[0].get::<_, i32>(5), 1);
     assert_eq!(stats[0].get::<_, i32>(6), 0);
     assert_eq!(
         stats[0].get::<_, i32>(7),
-        7 * i32::try_from(BLACK_CHINCHOMPA_PRICE).unwrap(),
+        i32::try_from(BLACK_CHINCHOMPA_PRICE).unwrap(),
     );
-    assert_eq!(stats[0].get::<_, i32>(8), 2);
+    assert_eq!(stats[0].get::<_, i32>(8), 0);
     assert_eq!(stats[0].get::<_, i32>(9), 0);
 
     let rows = client
@@ -352,12 +346,12 @@ async fn verify_maiden_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 133),
-            (event::Type::NpcSpawn as i16, 34),
-            (event::Type::NpcDeath as i16, 34),
-            (event::Type::NpcAttack as i16, 15),
-            (event::Type::PlayerSpell as i16, 5),
-            (event::Type::TobMaidenCrabLeak as i16, 3),
+            (event::Type::PlayerAttack as i16, 122),
+            (event::Type::NpcSpawn as i16, 35),
+            (event::Type::NpcDeath as i16, 35),
+            (event::Type::NpcAttack as i16, 16),
+            (event::Type::PlayerSpell as i16, 18),
+            (event::Type::TobMaidenCrabLeak as i16, 13),
         ]),
     );
 
@@ -374,7 +368,7 @@ async fn verify_maiden_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(151));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(138));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }

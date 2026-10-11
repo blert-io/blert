@@ -4,44 +4,21 @@ use std::collections::BTreeSet;
 use std::panic::{self, AssertUnwindSafe};
 use std::time::Instant;
 
-use blert::proto::{Event, event};
-use blert::{ItemDelta, Tick, item};
+use blert::{EquipmentSlot, EventKind, PlayerState, Tick, TickState, item};
 
 use crate::lifecycle::core::types::{ClientStageStream, PrimaryMeleeGear};
-use crate::merging::{self, MergeReport, MergedEvents};
+use crate::merging::{self, MergeReport, MergedTimeline};
 use crate::metrics;
 
 use super::ChallengeInfo;
-use super::challenge_processor::{ChallengeProcessor, EventCursor, RoomNpc, StageContext};
+use super::challenge_processor::{ChallengeProcessor, StageContext};
 
 /// The interpreted result of a stage's events.
 #[derive(Debug)]
 pub struct InterpretOutput {
-    pub(super) events: MergedEvents,
-    /// Indices into `events` of the events kept for storage.
-    pub(super) kept: Vec<usize>,
+    pub(super) merged: MergedTimeline,
     pub(super) ctx: StageContext,
     pub(super) report: MergeReport,
-}
-
-impl InterpretOutput {
-    /// Consumes the output, returning the kept events in tick order.
-    pub(super) fn into_kept_events(self) -> Vec<Event> {
-        let mut kept = self.kept.into_iter().peekable();
-        self.events
-            .into_events()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, event)| {
-                if kept.peek() == Some(&index) {
-                    kept.next();
-                    Some(event)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
 }
 
 /// A failure to interpret a stage's recorded data.
@@ -108,7 +85,7 @@ fn run_interpret(
     let started = Instant::now();
     let (merged, report) = merging::merge(&merge_info, stage, records, None);
     metrics::observe_merge_duration(stage, started.elapsed().as_secs_f64() * 1000.0);
-    let Some(mut events) = merged else {
+    let Some(mut merged) = merged else {
         return Err(if report.clients.is_empty() {
             InterpretError::NoData
         } else {
@@ -117,102 +94,64 @@ fn run_interpret(
     };
 
     let mut ctx = StageContext::new(stage, party);
-    let mut kept = Vec::with_capacity(events.len());
 
-    for index in 0..events.len() {
-        {
-            let event = &events[index];
-            track_event(&mut ctx, event);
-        }
-
-        let mut cursor = EventCursor::new(&mut events, index);
-        if processor.process_challenge_event(&mut ctx, &mut cursor) {
-            kept.push(index);
-        }
+    let timeline = merged.timeline();
+    for tick in Tick(0).through(timeline.last_tick()) {
+        let Some(state) = timeline.get_state(tick) else {
+            continue;
+        };
+        track_tick(&mut ctx, state);
+        processor.process_tick(&mut ctx, tick, state, timeline);
     }
 
     if party_changed {
-        events.restrict_accuracy_to(Tick(0));
+        merged.restrict_accuracy_to(Tick(0));
     }
 
     Ok(InterpretOutput {
-        events,
-        kept,
+        merged,
         ctx,
         report,
     })
 }
 
-/// Handles a single event, updating state if necessary.
-fn track_event(ctx: &mut StageContext, event: &Event) {
-    match event.r#type() {
-        event::Type::PlayerUpdate => {
-            if let Some(player) = &event.player
-                && let Some(data) = ctx.player_mut(player.party_index as usize)
-                && data.gear.is_none()
-                && let Some(gear) = try_determine_gear(player)
-            {
-                data.gear = Some(gear);
-            }
+/// Records a tick's player deaths and any newly determined player gear.
+fn track_tick(ctx: &mut StageContext, state: &TickState) {
+    for event in &state.events {
+        if let EventKind::PlayerDeath(index) = event.kind {
+            ctx.record_death(index.as_usize());
         }
-        event::Type::PlayerDeath => {
-            if let Some(player) = &event.player {
-                ctx.record_death(player.party_index as usize);
-            }
+    }
+
+    for (index, player) in state.players.iter() {
+        if let Some(data) = ctx.player_mut(index.as_usize())
+            && data.gear.is_none()
+            && let Some(gear) = try_determine_gear(player)
+        {
+            data.gear = Some(gear);
         }
-        event::Type::NpcSpawn => {
-            if let Some(npc) = &event.npc {
-                ctx.track_npc(RoomNpc {
-                    spawn_npc_id: npc.id,
-                    room_id: npc.room_id,
-                    spawn_tick: event.tick,
-                    spawn_point: (event.x_coord, event.y_coord),
-                    death_tick: 0,
-                    death_point: (0, 0),
-                    kind: npc.r#type,
-                });
-            }
-        }
-        event::Type::NpcDeath => {
-            if let Some(npc) = &event.npc
-                && let Some(room_npc) = ctx.npc_mut(npc.room_id)
-            {
-                room_npc.death_tick = event.tick;
-                room_npc.death_point = (event.x_coord, event.y_coord);
-            }
-        }
-        _ => {}
     }
 }
 
-/// Determines a player's primary melee gear from the equipment they put on.
-fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
-    let added_in_slot = |slot: event::player::EquipmentSlot| {
-        player
-            .equipment_deltas
-            .iter()
-            .find_map(|&raw| match ItemDelta::parse(raw) {
-                ItemDelta::Add(s, item)
-                    if event::player::EquipmentSlot::try_from(s) == Ok(slot) =>
-                {
-                    Some(item.id)
-                }
-                ItemDelta::Add(..) | ItemDelta::Remove(..) => None,
-            })
-    };
+/// Determines a player's primary melee gear from their equipped torso and head.
+fn try_determine_gear(player: &PlayerState) -> Option<PrimaryMeleeGear> {
+    let mut gear = player
+        .equipped(EquipmentSlot::Torso)
+        .and_then(|item| match item.id {
+            item::id::RADIANT_OATHPLATE_CHEST => Some(PrimaryMeleeGear::RadiantOathplate),
+            item::id::OATHPLATE_CHEST => Some(PrimaryMeleeGear::Oathplate),
+            item::id::SANGUINE_TORVA_PLATEBODY => Some(PrimaryMeleeGear::Blorva),
+            item::id::TORVA_PLATEBODY => Some(PrimaryMeleeGear::Torva),
+            item::id::BANDOS_CHESTPLATE => Some(PrimaryMeleeGear::Bandos),
+            _ => None,
+        });
 
-    let mut gear = added_in_slot(event::player::EquipmentSlot::Torso).and_then(|id| match id {
-        item::id::RADIANT_OATHPLATE_CHEST => Some(PrimaryMeleeGear::RadiantOathplate),
-        item::id::OATHPLATE_CHEST => Some(PrimaryMeleeGear::Oathplate),
-        item::id::SANGUINE_TORVA_PLATEBODY => Some(PrimaryMeleeGear::Blorva),
-        item::id::TORVA_PLATEBODY => Some(PrimaryMeleeGear::Torva),
-        item::id::BANDOS_CHESTPLATE => Some(PrimaryMeleeGear::Bandos),
-        _ => None,
-    });
-
-    if added_in_slot(event::player::EquipmentSlot::Head)
-        .is_some_and(|id| matches!(id, item::id::VOID_MELEE_HELM | item::id::VOID_MELEE_HELM_OR))
-    {
+    if player.equipped(EquipmentSlot::Head).is_some_and(|item| {
+        matches!(
+            item.id,
+            item::id::VOID_MELEE_HELM | item::id::VOID_MELEE_HELM_OR
+        )
+    }) {
         gear = Some(PrimaryMeleeGear::EliteVoid);
     }
 
@@ -221,8 +160,7 @@ fn try_determine_gear(player: &event::Player) -> Option<PrimaryMeleeGear> {
 
 #[cfg(test)]
 mod tests {
-    use blert::proto::event::player::EquipmentSlot;
-    use blert::{Item, Rsn, Slot, Ticks};
+    use blert::{Item, ItemDelta, Rsn, Slot, Ticks, Timeline};
     use bytes::Bytes;
     use prost::Message;
 
@@ -230,7 +168,10 @@ mod tests {
     use super::super::db;
     use super::*;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage,
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage, StageStatus,
+    };
+    use crate::merging::fixtures::{
+        PlayerUpdateEvent, ServerTicks, merged_events, player_death_event,
     };
     use crate::proto::ChallengeEvents;
 
@@ -244,283 +185,89 @@ mod tests {
         )
     }
 
-    fn event_with_player(kind: event::Type, tick: u32, name: &str, index: u32) -> Event {
-        let mut event = Event {
-            tick,
-            ..Default::default()
-        };
-        event.set_type(kind);
-        event.player = Some(event::Player {
-            name: name.to_string(),
-            party_index: index,
-            ..Default::default()
-        });
-        event
-    }
-
-    fn update_with_deltas(name: &str, index: u32, deltas: Vec<u64>) -> Event {
-        let mut event = event_with_player(event::Type::PlayerUpdate, 1, name, index);
-        event.player.as_mut().unwrap().equipment_deltas = deltas;
-        event
-    }
-
-    #[test]
-    fn npc_lifecycle_is_tracked_with_spawn_metadata() {
-        let mut spawn = Event {
-            tick: 32,
-            x_coord: 3173,
-            y_coord: 4456,
-            ..Default::default()
-        };
-        spawn.set_type(event::Type::NpcSpawn);
-        spawn.npc = Some(event::Npc {
-            id: 8366,
-            room_id: 56729,
-            r#type: Some(event::npc::Type::MaidenCrab(event::npc::MaidenCrab {
-                spawn: 0,
-                position: 1,
-                scuffed: false,
-            })),
-            ..Default::default()
-        });
-        let mut death = Event {
-            tick: 42,
-            x_coord: 3170,
-            y_coord: 4453,
-            ..Default::default()
-        };
-        death.set_type(event::Type::NpcDeath);
-        death.npc = Some(event::Npc {
-            id: 8366,
-            room_id: 56729,
-            ..Default::default()
-        });
-
-        let mut ctx = context();
-        track_event(&mut ctx, &spawn);
-        track_event(&mut ctx, &death);
-
-        assert_eq!(
-            ctx.npc(56729),
-            Some(&RoomNpc {
-                spawn_npc_id: 8366,
-                room_id: 56729,
-                spawn_tick: 32,
-                spawn_point: (3173, 4456),
-                death_tick: 42,
-                death_point: (3170, 4453),
-                kind: Some(event::npc::Type::MaidenCrab(event::npc::MaidenCrab {
-                    spawn: 0,
-                    position: 1,
-                    scuffed: false,
-                })),
-            }),
-        );
-        assert_eq!(ctx.npcs().count(), 1);
-    }
-
-    #[test]
-    fn npc_death_without_a_tracked_spawn_is_ignored() {
-        let mut death = Event {
-            tick: 9,
-            ..Default::default()
-        };
-        death.set_type(event::Type::NpcDeath);
-        death.npc = Some(event::Npc {
-            id: 8366,
-            room_id: 250,
-            ..Default::default()
-        });
-
-        let mut ctx = context();
-        track_event(&mut ctx, &death);
-        assert_eq!(ctx.npc(250), None);
-    }
-
     #[test]
     fn player_deaths_are_recorded_by_party_index() {
+        let merged = merged_events(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
+            vec![
+                player_death_event(Tick(10), Stage::TobMaiden, (3167, 4450), "WWWWWWWWWWQQ", 1),
+                player_death_event(Tick(25), Stage::TobMaiden, (3170, 4439), "1Ogp", 0),
+            ],
+            StageStatus::Started,
+            ServerTicks::Missing,
+        );
+
         let mut ctx = context();
-        track_event(
-            &mut ctx,
-            &event_with_player(event::Type::PlayerDeath, 10, "WWWWWWWWWWQQ", 1),
-        );
-        track_event(
-            &mut ctx,
-            &event_with_player(event::Type::PlayerDeath, 25, "1Ogp", 0),
-        );
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                track_tick(&mut ctx, state);
+            }
+        }
         assert_eq!(ctx.deaths(), &[1, 0]);
     }
 
     #[test]
     fn gear_is_determined_once_from_added_equipment() {
+        let torva = ItemDelta::Add(
+            Slot(EquipmentSlot::Torso as u8),
+            Item {
+                id: item::id::TORVA_PLATEBODY,
+                quantity: 1,
+            },
+        );
+        let bandos = [
+            ItemDelta::Remove(
+                Slot(EquipmentSlot::Torso as u8),
+                Item {
+                    id: item::id::TORVA_PLATEBODY,
+                    quantity: 1,
+                },
+            ),
+            ItemDelta::Add(
+                Slot(EquipmentSlot::Torso as u8),
+                Item {
+                    id: item::id::BANDOS_CHESTPLATE,
+                    quantity: 1,
+                },
+            ),
+        ];
+        let merged = merged_events(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
+            vec![
+                PlayerUpdateEvent::new(Tick(1), Stage::TobMaiden, "1Ogp", (3167, 4450))
+                    .equipment_deltas(&[torva])
+                    .build(),
+                PlayerUpdateEvent::new(Tick(1), Stage::TobMaiden, "WWWWWWWWWWQQ", (3170, 4439))
+                    .party_index(1)
+                    .build(),
+                PlayerUpdateEvent::new(Tick(2), Stage::TobMaiden, "1Ogp", (3167, 4450))
+                    .equipment_deltas(&bandos)
+                    .build(),
+            ],
+            StageStatus::Started,
+            ServerTicks::Missing,
+        );
+
         let mut ctx = context();
-        track_event(
-            &mut ctx,
-            &update_with_deltas(
-                "1Ogp",
-                0,
-                vec![
-                    ItemDelta::Add(
-                        Slot(EquipmentSlot::Torso as u8),
-                        Item {
-                            id: item::id::TORVA_PLATEBODY,
-                            quantity: 1,
-                        },
-                    )
-                    .to_raw(),
-                ],
-            ),
-        );
-        track_event(
-            &mut ctx,
-            &update_with_deltas(
-                "1Ogp",
-                0,
-                vec![
-                    ItemDelta::Add(
-                        Slot(EquipmentSlot::Torso as u8),
-                        Item {
-                            id: item::id::BANDOS_CHESTPLATE,
-                            quantity: 1,
-                        },
-                    )
-                    .to_raw(),
-                ],
-            ),
-        );
-        let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
-        assert_eq!(gear, [Some(PrimaryMeleeGear::Torva), None]);
-    }
-
-    #[test]
-    fn removed_equipment_does_not_determine_gear() {
-        let mut ctx = context();
-        track_event(
-            &mut ctx,
-            &update_with_deltas(
-                "1Ogp",
-                0,
-                vec![
-                    ItemDelta::Remove(
-                        Slot(EquipmentSlot::Torso as u8),
-                        Item {
-                            id: item::id::TORVA_PLATEBODY,
-                            quantity: 1,
-                        },
-                    )
-                    .to_raw(),
-                ],
-            ),
-        );
-        let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
-        assert_eq!(gear, [None, None]);
-    }
-
-    #[test]
-    fn into_kept_events_returns_the_processors_kept_subsequence() {
-        struct KeepEvenMarkers;
-
-        #[async_trait::async_trait]
-        impl ChallengeProcessor for KeepEvenMarkers {
-            fn process_challenge_event(
-                &mut self,
-                _ctx: &mut StageContext,
-                events: &mut EventCursor<'_>,
-            ) -> bool {
-                events.current().x_coord % 2 == 0
-            }
-
-            async fn on_create(&mut self, _txn: &db::Transaction) -> Result<(), db::Error> {
-                Ok(())
-            }
-
-            async fn on_stage_finished(
-                &mut self,
-                _txn: &db::Transaction,
-                _price_resolver: &crate::price::PriceResolver,
-                _stored: &super::super::StoredState,
-                _ctx: &mut StageContext,
-                _stage: Stage,
-                events: &MergedEvents,
-            ) -> Result<ChallengeTicks, db::Error> {
-                Ok(ChallengeTicks::Add(events.duration()))
-            }
-
-            async fn on_finish(
-                &mut self,
-                _txn: &db::Transaction,
-                _stored: &super::super::StoredState,
-                _ctx: &mut ChallengeContext,
-                _final_ticks: Ticks,
-            ) -> Result<(), db::Error> {
-                Ok(())
-            }
-
-            fn custom_data(&self) -> Option<serde_json::Value> {
-                None
-            }
-
-            fn challenge_data(&self) -> Option<crate::proto::ChallengeData> {
-                None
-            }
-
-            fn has_fully_recorded_up_to(&self, _stage: Stage) -> bool {
-                false
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                track_tick(&mut ctx, state);
             }
         }
-
-        let marker = |tick: u32, x_coord: i32| {
-            let room_id = 40_000 + u64::try_from(x_coord).expect("nonnegative");
-            let mut event = crate::merging::fixtures::mokhaiotl_larva_leak_event(
-                Tick(tick),
-                Stage::MokhaiotlDelve1,
-                room_id,
-                5,
-            );
-            event.x_coord = x_coord;
-            event
-        };
-        let message = ChallengeEvents {
-            events: vec![
-                marker(0, 4),
-                marker(0, 7),
-                marker(1, 2),
-                marker(2, 9),
-                marker(2, 6),
-                marker(3, 1),
-            ],
-            ..Default::default()
-        };
-        let info = ChallengeInfo {
-            uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
-            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
-            challenge_type: ChallengeType::Mokhaiotl,
-            mode: ChallengeMode::NoMode,
-            party: vec![Rsn::try_from("1Ogp").unwrap()],
-            party_changed: false,
-            stage: Stage::MokhaiotlDelve1,
-            stage_attempt: None,
-            status: ChallengeStatus::InProgress,
-            created_unix_ms: 0,
-            reported_times: None,
-            finished_unix_ms: None,
-        };
-
-        let output = interpret(
-            info,
-            &[ClientStageStream::Events {
-                client_id: ClientId(1),
-                events: Bytes::from(message.encode_to_vec()),
-            }],
-            &mut KeepEvenMarkers,
-        )
-        .unwrap();
-
-        assert_eq!(output.kept, vec![0, 2, 4]);
-        assert_eq!(
-            output.into_kept_events(),
-            vec![marker(0, 4), marker(1, 2), marker(2, 6)],
-        );
+        let gear: Vec<_> = ctx.players().iter().map(|p| p.gear).collect();
+        assert_eq!(gear, [Some(PrimaryMeleeGear::Torva), None]);
     }
 
     #[test]
@@ -529,11 +276,13 @@ mod tests {
 
         #[async_trait::async_trait]
         impl ChallengeProcessor for PanicOnEvent {
-            fn process_challenge_event(
+            fn process_tick(
                 &mut self,
                 _ctx: &mut StageContext,
-                _events: &mut EventCursor<'_>,
-            ) -> bool {
+                _tick: Tick,
+                _state: &TickState,
+                _timeline: &Timeline,
+            ) {
                 panic!("Cannot read properties of undefined (reading 'event')")
             }
 
@@ -548,9 +297,9 @@ mod tests {
                 _stored: &super::super::StoredState,
                 _ctx: &mut StageContext,
                 _stage: Stage,
-                events: &MergedEvents,
+                merged: &MergedTimeline,
             ) -> Result<ChallengeTicks, db::Error> {
-                Ok(ChallengeTicks::Add(events.duration()))
+                Ok(ChallengeTicks::Add(merged.duration()))
             }
 
             async fn on_finish(

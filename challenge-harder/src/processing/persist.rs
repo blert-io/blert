@@ -3,17 +3,17 @@
 use std::collections::BTreeMap;
 
 use blert::proto::{Event, event};
-use blert::{SkillLevel, Tick};
+use blert::{RoomId, SkillLevel, Tick, Timeline};
 use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
 use crate::merging::{
-    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeStatus, MergedEvents,
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeClassification, MergeStatus, MergedTimeline,
 };
 
 use super::merging::{Capture, MergeOutcome};
 
-use super::challenge_processor::{ChallengeTicks, PlayerData, StageContext};
+use super::challenge_processor::{ChallengeTicks, PlayerData, RoomNpc, StageContext};
 use super::db;
 use super::interpret::InterpretOutput;
 use super::split::{SavedSplit, SplitExt, SplitType};
@@ -374,8 +374,8 @@ pub(super) async fn save_merge(
     capture: Option<&Capture>,
     merge: MergeOutcome<'_>,
 ) -> Result<(), db::Error> {
-    let (report, events) = match merge {
-        MergeOutcome::Merged { report, events } => (Some(report), Some(events)),
+    let (report, merged) = match merge {
+        MergeOutcome::Merged { report, merged } => (Some(report), Some(merged)),
         MergeOutcome::BadData { report } => (Some(report), None),
         MergeOutcome::Panicked => (None, None),
     };
@@ -403,12 +403,12 @@ pub(super) async fn save_merge(
                 &challenge
                     .stage_attempt
                     .map(|attempt| i16::try_from(attempt).expect("attempt fits in a smallint")),
-                &events.map(|events| events.status() as i16),
-                &events.map(|events| events.last_tick().0.cast_signed()),
-                &events.map(|events| events.missing_tick_count().cast_signed()),
-                &events.map(MergedEvents::has_precise_server_tick_count),
-                &events.map(|events| events.accurate_until().0.cast_signed()),
-                &events.map(|events| events.queryable_until().0.cast_signed()),
+                &merged.map(|merged| merged.status() as i16),
+                &merged.map(|merged| merged.last_tick().0.cast_signed()),
+                &merged.map(|merged| merged.missing_tick_count().cast_signed()),
+                &merged.map(MergedTimeline::has_precise_server_tick_count),
+                &merged.map(|merged| merged.accurate_until().0.cast_signed()),
+                &merged.map(|merged| merged.queryable_until().0.cast_signed()),
                 &reference_ticks.map(|reference| reference.method.name()),
                 &reference_ticks.map(|reference| reference.duration.0.cast_signed()),
                 &count(report.map_or(0, |report| report.merged_count)),
@@ -513,24 +513,25 @@ struct QueryableEvent {
     custom_short_2: Option<i16>,
 }
 
-/// Writes the stage's kept events within the queryable prefix to the
+/// Writes the stage's events within the queryable prefix to the
 /// `queryable_events` table. Returns the number of rows written.
 pub(super) async fn write_queryable_events(
     txn: &db::Transaction,
     challenge: &ChallengeInfo,
     output: &InterpretOutput,
+    events: &[Event],
     players: &[StoredPlayerInfo],
 ) -> Result<usize, db::Error> {
-    let queryable_until = output.events.queryable_until();
+    let queryable_until = output.merged.queryable_until();
     if queryable_until == Tick(0) {
         return Ok(0);
     }
 
+    let timeline = output.merged.timeline();
     let mut rows = Vec::new();
-    for &index in &output.kept {
-        let event = &output.events[index];
+    for event in events {
         if Tick(event.tick) < queryable_until
-            && let Some(row) = to_queryable_event(event, &output.ctx, players)
+            && let Some(row) = to_queryable_event(event, timeline, &output.ctx, players)
         {
             rows.push(row);
         }
@@ -601,6 +602,7 @@ pub(super) async fn write_queryable_events(
 #[expect(clippy::cast_possible_truncation, clippy::too_many_lines)]
 fn to_queryable_event(
     event: &Event,
+    timeline: &Timeline,
     ctx: &StageContext,
     players: &[StoredPlayerInfo],
 ) -> Option<QueryableEvent> {
@@ -668,10 +670,7 @@ fn to_queryable_event(
             let npc = event.npc.as_ref()?;
             let mut row = base();
             row.npc_id = Some(npc.id.cast_signed());
-            if let Some(kind) = ctx
-                .npc(npc.room_id)
-                .and_then(|tracked| tracked.kind.as_ref())
-            {
+            if let Some(kind) = RoomNpc::new(timeline, RoomId(npc.room_id)).kind {
                 match kind {
                     event::npc::Type::Basic(()) => row.subtype = Some(0),
                     event::npc::Type::MaidenCrab(crab) => {
@@ -706,9 +705,8 @@ fn to_queryable_event(
         }
         event::Type::TobMaidenCrabLeak => {
             let npc = event.npc.as_ref()?;
-            let Some(event::npc::Type::MaidenCrab(crab)) = ctx
-                .npc(npc.room_id)
-                .and_then(|tracked| tracked.kind.as_ref())
+            let Some(event::npc::Type::MaidenCrab(crab)) =
+                RoomNpc::new(timeline, RoomId(npc.room_id)).kind
             else {
                 return None;
             };

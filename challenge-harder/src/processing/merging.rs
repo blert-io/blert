@@ -3,8 +3,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::merging::{
-    ClientAnomaly, ClientOutcome, MergeAlert, MergeCapture, MergeReport, MergeStatus, MergedEvents,
-    QualityFlag,
+    ClientAnomaly, ClientOutcome, MergeAlert, MergeCapture, MergeReport, MergeStatus,
+    MergedTimeline, QualityFlag,
 };
 use crate::metrics;
 use crate::repository::DataRepository;
@@ -14,7 +14,7 @@ use super::ChallengeInfo;
 pub(super) enum MergeOutcome<'a> {
     Merged {
         report: &'a MergeReport,
-        events: &'a MergedEvents,
+        merged: &'a MergedTimeline,
     },
     BadData {
         report: &'a MergeReport,

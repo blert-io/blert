@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use blert::proto::{Coords, Event, event};
-use blert::{Rsn, Tick, Ticks};
+use blert::proto::{Coords, event};
+use blert::{EventKind, NpcProperties, RoomId, Rsn, Tick, TickState, Ticks, Timeline};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -14,37 +14,9 @@ use super::db;
 use super::split::{ChallengeSplit, SavedSplit, SplitType, StageSplit};
 use super::stats::PlayerStatsDelta;
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
-use crate::merging::MergedEvents;
+use crate::merging::MergedTimeline;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data};
-
-/// Read and mutation access to the stage timeline during the event loop,
-/// positioned at the event being processed.
-pub struct EventCursor<'a> {
-    events: &'a mut MergedEvents,
-    index: usize,
-}
-
-impl<'a> EventCursor<'a> {
-    pub(super) fn new(events: &'a mut MergedEvents, index: usize) -> EventCursor<'a> {
-        EventCursor { events, index }
-    }
-
-    /// The event being processed.
-    pub fn current(&self) -> &Event {
-        &self.events[self.index]
-    }
-
-    /// Returns all events occurring on `tick`.
-    pub fn events_for_tick(&self, tick: Tick) -> &[Event] {
-        self.events.events_for_tick(tick)
-    }
-
-    /// Returns all events occurring on `tick`, mutably.
-    pub fn events_for_tick_mut(&mut self, tick: Tick) -> &mut [Event] {
-        self.events.events_for_tick_mut(tick)
-    }
-}
 
 /// An NPC tracked through a stage.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -57,6 +29,48 @@ pub struct RoomNpc {
     pub death_tick: u32,
     pub death_point: (i32, i32),
     pub kind: Option<event::npc::Type>,
+}
+
+impl RoomNpc {
+    /// Constructs a [`RoomNpc`] for the given room ID in `timeline`.
+    pub fn new(timeline: &Timeline, room_id: RoomId) -> RoomNpc {
+        let npc = timeline.npc(room_id).expect("npc is in the timeline");
+        let state = timeline
+            .get_state(npc.spawn)
+            .and_then(|state| state.npcs.get(&room_id))
+            .expect("npc has state on its spawn tick");
+        let death = npc.death.and_then(|tick| {
+            timeline
+                .events_for_tick(tick)
+                .iter()
+                .find_map(|event| match &event.kind {
+                    EventKind::NpcDeath(death) if death.npc == room_id => {
+                        Some((tick, death.position))
+                    }
+                    _ => None,
+                })
+        });
+        RoomNpc {
+            spawn_npc_id: state.npc_id,
+            room_id: room_id.0,
+            spawn_tick: npc.spawn.0,
+            spawn_point: (
+                i32::from(state.position.point.0),
+                i32::from(state.position.point.1),
+            ),
+            death_tick: death.map_or(0, |(tick, _)| tick.0),
+            death_point: death.map_or((0, 0), |(_, point)| {
+                (i32::from(point.0), i32::from(point.1))
+            }),
+            kind: Some(
+                state
+                    .properties
+                    .as_ref()
+                    .and_then(NpcProperties::to_proto)
+                    .unwrap_or(event::npc::Type::Basic(())),
+            ),
+        }
+    }
 }
 
 impl From<&RoomNpc> for challenge_data::StageNpc {
@@ -162,7 +176,6 @@ impl ChallengeContext {
 pub struct StageContext {
     stage: Stage,
     challenge: ChallengeContext,
-    npcs: BTreeMap<u64, RoomNpc>,
     /// Party indices of players who died this stage, in death order.
     deaths: Vec<usize>,
     /// Local splits recorded within the stage.
@@ -174,7 +187,6 @@ impl StageContext {
         StageContext {
             stage,
             challenge: ChallengeContext::new(party),
-            npcs: BTreeMap::new(),
             deaths: Vec::new(),
             stage_splits: BTreeMap::new(),
         }
@@ -182,26 +194,6 @@ impl StageContext {
 
     pub fn stage(&self) -> Stage {
         self.stage
-    }
-
-    /// Returns the tracked NPC with the given room ID.
-    pub fn npc(&self, room_id: u64) -> Option<&RoomNpc> {
-        self.npcs.get(&room_id)
-    }
-
-    /// Returns the tracked NPC with the given room ID, mutably.
-    pub(super) fn npc_mut(&mut self, room_id: u64) -> Option<&mut RoomNpc> {
-        self.npcs.get_mut(&room_id)
-    }
-
-    /// Begins tracking a newly spawned NPC, keyed by its room ID.
-    pub(super) fn track_npc(&mut self, npc: RoomNpc) {
-        self.npcs.insert(npc.room_id, npc);
-    }
-
-    /// Iterates over every NPC tracked this stage.
-    pub fn npcs(&self) -> impl Iterator<Item = &RoomNpc> {
-        self.npcs.values()
     }
 
     /// Party indices of players who died this stage, in death order.
@@ -306,13 +298,14 @@ pub enum ChallengeTicks {
 /// Type-specific challenge processing behavior.
 #[async_trait]
 pub trait ChallengeProcessor: Send {
-    /// Handles one event during the stage processing loop, returning whether
-    /// the event should be kept for storage.
-    fn process_challenge_event(
+    /// Handles one tick of the stage's timeline during the stage processing loop.
+    fn process_tick(
         &mut self,
         ctx: &mut StageContext,
-        events: &mut EventCursor<'_>,
-    ) -> bool;
+        tick: Tick,
+        state: &TickState,
+        timeline: &Timeline,
+    );
 
     /// Invoked when the challenge's database records are created.
     async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error>;
@@ -326,7 +319,7 @@ pub trait ChallengeProcessor: Send {
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
-        events: &MergedEvents,
+        merged: &MergedTimeline,
     ) -> Result<ChallengeTicks, db::Error>;
 
     /// Invoked when the challenge finishes.

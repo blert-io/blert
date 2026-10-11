@@ -36,8 +36,7 @@ pub use trace::Tracer;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::proto::Event;
-use blert::{Rsn, Tick, Ticks};
+use blert::{BuildRejection, Recording, RecordingBuilder, Rsn, Tick, Ticks, Timeline};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, Uuid,
@@ -119,7 +118,7 @@ pub fn merge<'a>(
     stage: Stage,
     records: &[ClientStageStream],
     mut tracer: Option<&mut Tracer>,
-) -> (Option<MergedEvents>, MergeReport) {
+) -> (Option<MergedTimeline>, MergeReport) {
     let _span = tracing::info_span!("merge", uuid = %challenge.uuid, ?stage).entered();
 
     let (mut clients, bad_data_clients) =
@@ -155,7 +154,7 @@ pub fn merge<'a>(
 
     alerts.extend(classification.alert);
 
-    let mut merged = MergedTimeline::new(ctx.client(classification.base));
+    let mut merged = MergedRecording::new(ctx.client(classification.base));
     if let Some(tracer) = tracer.as_deref_mut() {
         tracer.record_intermediate_snapshot(merged.timeline.tick_states());
     }
@@ -192,8 +191,28 @@ pub fn merge<'a>(
         tracer.record_trusted_prefixes(prefixes);
     }
 
-    let events = MergedEvents::new(
-        events,
+    // TODO(frolv): Temporarily create a timeline here until the whole
+    // interpret phase is moved onto blertlib.
+    let mut builder = RecordingBuilder::new(
+        ctx.client(classification.base).info.id,
+        stage,
+        challenge.mode,
+        challenge.party.to_vec(),
+        Some(
+            events
+                .iter()
+                .map(|event| Tick(event.tick))
+                .fold(last_tick, Tick::max),
+        ),
+    );
+    builder.ingest(events);
+    log_rejections(&builder);
+    let Some(timeline) = builder.into_recording().map(Recording::finalize) else {
+        return (None, MergeReport::empty(outcomes));
+    };
+
+    let merged = MergedTimeline::new(
+        timeline,
         Metadata {
             status: ctx.stage_status(classification.base),
             last_tick,
@@ -209,9 +228,33 @@ pub fn merge<'a>(
     );
 
     (
-        Some(events),
+        Some(merged),
         MergeReport::new(outcomes, classification.reference_ticks, alerts),
     )
+}
+
+// TODO(frolv): Rejection handling moves to the client ingestion edge.
+fn log_rejections(builder: &RecordingBuilder) {
+    let mut groups: Vec<(&BuildRejection, usize)> = Vec::new();
+    for rejection in builder.rejections() {
+        match groups
+            .iter_mut()
+            .find(|(first, _)| first.kind == rejection.kind && first.reason == rejection.reason)
+        {
+            Some((_, count)) => *count += 1,
+            None => groups.push((rejection, 1)),
+        }
+    }
+
+    for (first, count) in groups {
+        tracing::warn!(
+            kind = ?first.kind,
+            reason = ?first.reason,
+            count,
+            first_tick = first.tick.0,
+            "builder rejected events",
+        );
+    }
 }
 
 /// A client participating in a merge.
@@ -378,14 +421,14 @@ impl<'a> MergeContext<'a> {
 }
 
 /// An in-progress merged timeline.
-struct MergedTimeline<'a> {
+struct MergedRecording<'a> {
     timeline: timeline::Timeline<'a>,
     /// Whether the merged output inherits its accuracy from an accurate base.
     inherited_accurate: bool,
     scorer: SimilarityScorer,
 }
 
-impl<'a> MergedTimeline<'a> {
+impl<'a> MergedRecording<'a> {
     /// Initializes a new merged timeline from a base client.
     fn new(base: &ClientEvents<'a>) -> Self {
         Self {
@@ -598,37 +641,18 @@ struct Metadata {
 
 /// A canonical timeline of stage events combined from clients' recordings.
 #[derive(Debug)]
-pub struct MergedEvents {
-    /// Events in tick order.
-    events: Vec<Event>,
+pub struct MergedTimeline {
+    timeline: Timeline,
     metadata: Metadata,
 }
 
-impl MergedEvents {
-    fn new(events: Vec<Event>, metadata: Metadata) -> MergedEvents {
-        MergedEvents { events, metadata }
+impl MergedTimeline {
+    fn new(timeline: Timeline, metadata: Metadata) -> MergedTimeline {
+        MergedTimeline { timeline, metadata }
     }
 
-    /// The number of events in the timeline.
-    pub fn len(&self) -> usize {
-        self.events.len()
-    }
-
-    /// Whether the timeline contains no events.
-    #[expect(dead_code)]
-    pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
-    }
-
-    /// The events occurring on `tick`.
-    pub fn events_for_tick(&self, tick: Tick) -> &[Event] {
-        &self.events[self.tick_range(tick)]
-    }
-
-    /// Mutable events occurring on `tick`.
-    pub fn events_for_tick_mut(&mut self, tick: Tick) -> &mut [Event] {
-        let range = self.tick_range(tick);
-        &mut self.events[range]
+    pub fn timeline(&self) -> &Timeline {
+        &self.timeline
     }
 
     /// The overall status of the stage.
@@ -683,33 +707,10 @@ impl MergedEvents {
         self.metadata.last_tick < self.metadata.queryable_until
     }
 
-    /// Consumes the timeline, returning its events in tick order.
-    pub fn into_events(self) -> Vec<Event> {
-        self.events
-    }
-
     /// Limits the accuracy and queryability of the event stream to `tick`, exclusive.
     pub fn restrict_accuracy_to(&mut self, tick: Tick) {
         self.metadata.accurate_until = self.metadata.accurate_until.min(tick);
         self.metadata.queryable_until = self.metadata.queryable_until.min(tick);
-    }
-
-    fn tick_range(&self, tick: Tick) -> std::ops::Range<usize> {
-        let start = self.events.partition_point(|event| event.tick < tick.0);
-        let end = start
-            + self.events[start..]
-                .iter()
-                .take_while(|e| e.tick == tick.0)
-                .count();
-        start..end
-    }
-}
-
-impl std::ops::Index<usize> for MergedEvents {
-    type Output = Event;
-
-    fn index(&self, index: usize) -> &Event {
-        &self.events[index]
     }
 }
 
@@ -718,7 +719,7 @@ mod tests {
     #![allow(clippy::too_many_lines)]
 
     use blert::PlayerAttack;
-    use blert::proto::event;
+    use blert::proto::{Event, event};
     use bytes::Bytes;
     use prost::Message;
 
@@ -736,7 +737,7 @@ mod tests {
         fixtures::nylo_wave_event(event::Type::TobNyloWaveSpawn, tick, wave, 0, 12)
     }
 
-    fn merge_one_client(accurate: bool, last_tick: Tick, events: Vec<Event>) -> MergedEvents {
+    fn merge_one_client(accurate: bool, last_tick: Tick, events: Vec<Event>) -> MergedTimeline {
         let challenge = nylocas_challenge();
         let payload = ChallengeEvents {
             events,
@@ -1345,42 +1346,6 @@ mod tests {
                 skipped_count: 0,
             }
         );
-    }
-
-    #[test]
-    fn events_for_tick_slices_to_a_single_tick() {
-        let merged = merge_one_client(
-            true,
-            Tick(20),
-            vec![
-                wave_event(Tick(4), 1),
-                wave_event(Tick(8), 2),
-                wave_event(Tick(12), 3),
-                wave_event(Tick(16), 4),
-            ],
-        );
-        let waves: Vec<u32> = merged
-            .events_for_tick(Tick(8))
-            .iter()
-            .map(|event| event.nylo_wave.unwrap().wave)
-            .collect();
-        assert_eq!(waves, vec![2]);
-        assert_eq!(merged.events_for_tick(Tick(6)), []);
-        assert_eq!(merged.events_for_tick(Tick(18)), []);
-    }
-
-    #[test]
-    fn mutation_through_a_tick_slice_is_visible_in_iteration() {
-        let mut merged = merge_one_client(
-            true,
-            Tick(10),
-            vec![wave_event(Tick(4), 1), wave_event(Tick(8), 2)],
-        );
-        for event in merged.events_for_tick_mut(Tick(8)) {
-            event.y_coord = 99;
-        }
-        let updated: Vec<i32> = merged.events.iter().map(|event| event.y_coord).collect();
-        assert_eq!(updated, vec![0, 99]);
     }
 
     #[test]

@@ -6,7 +6,10 @@ use blert::proto::event::attack_style::Style;
 use blert::proto::event::sote_maze::Maze;
 use blert::proto::event::{VerzikPhase, XarpusPhase};
 use blert::proto::{Coords, Event, event};
-use blert::{ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerSet, Rsn, SkillLevel};
+use blert::{
+    BuildRejection, ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerSet, RecordingBuilder,
+    Rsn, SkillLevel,
+};
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
 
@@ -16,7 +19,7 @@ use super::event::TaggedEvent;
 use super::mapping::MergeMapping;
 use super::timeline::Timeline;
 use super::{
-    ChallengeInfo, Classification, MergeContext, MergedEvents, Metadata, RegisteredClient,
+    ChallengeInfo, Classification, MergeContext, MergedTimeline, Metadata, RegisteredClient,
     StepResult, Tick, Ticks,
 };
 
@@ -29,17 +32,30 @@ pub enum ServerTicks {
 }
 
 pub fn merged_events(
+    stage: Stage,
+    mode: ChallengeMode,
+    party: Vec<Rsn>,
     events: Vec<Event>,
     status: StageStatus,
     server_ticks: ServerTicks,
-) -> MergedEvents {
+) -> MergedTimeline {
     let last_tick = match server_ticks {
         ServerTicks::Precise(tick) | ServerTicks::Rounded(tick) => tick,
         ServerTicks::Missing => events.last().map_or(0, |e| e.tick),
     };
     let recorded_ticks = events.last().map_or(0, |e| e.tick + 1);
-    MergedEvents::new(
-        events,
+    let mut builder = RecordingBuilder::new(ClientId(1), stage, mode, party, None);
+    builder.ingest(events);
+    assert_eq!(
+        builder.rejections().collect::<Vec<_>>(),
+        [] as [&BuildRejection; 0]
+    );
+    let timeline = builder
+        .into_recording()
+        .expect("fixture has events")
+        .finalize();
+    MergedTimeline::new(
+        timeline,
         Metadata {
             status,
             last_tick: Tick(last_tick),
@@ -692,25 +708,6 @@ pub fn verzik_attack_style_event(tick: Tick, npc_attack_tick: Tick, style: Style
     };
     event.set_type(event::Type::TobVerzikAttackStyle);
     event.verzik_attack_style = Some(event::AttackStyle {
-        style: style as i32,
-        npc_attack_tick: npc_attack_tick.0,
-    });
-    event
-}
-
-pub fn mokhaiotl_attack_style_event(
-    tick: Tick,
-    stage: Stage,
-    style: Style,
-    npc_attack_tick: Tick,
-) -> Event {
-    let mut event = Event {
-        tick: tick.0,
-        stage: stage as i32,
-        ..Default::default()
-    };
-    event.set_type(event::Type::MokhaiotlAttackStyle);
-    event.mokhaiotl_attack_style = Some(event::AttackStyle {
         style: style as i32,
         npc_attack_tick: npc_attack_tick.0,
     });

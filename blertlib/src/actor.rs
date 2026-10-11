@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item};
 use crate::prayer::PrayerSet;
 use crate::skill::SkillLevel;
-use crate::{AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, VerzikPhase, npc};
+use crate::{AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, VerzikPhase, npc, proto};
 
 pub use crate::proto::event::npc::maiden_crab::{
     Position as MaidenCrabPosition, Spawn as MaidenCrabSpawn,
@@ -109,7 +109,7 @@ impl std::error::Error for InvalidRsn {}
 
 /// A unique identifier for an NPC within a timeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RoomId(pub(crate) u64);
+pub struct RoomId(pub u64);
 
 /// A tracked actor in the stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -260,6 +260,48 @@ pub enum NpcProperties {
     Nylo(Nylo),
     VerzikCrab(VerzikCrab),
     Mokhaiotl(Mokhaiotl),
+}
+
+impl NpcProperties {
+    #[must_use]
+    pub fn to_proto(&self) -> Option<proto::event::npc::Type> {
+        let npc_type = match self {
+            Self::MaidenCrab(crab) => {
+                proto::event::npc::Type::MaidenCrab(proto::event::npc::MaidenCrab {
+                    spawn: crab.spawn as i32,
+                    position: crab.position as i32,
+                    scuffed: crab.scuffed,
+                })
+            }
+            Self::Nylo(nylo) => {
+                let (spawn_type, parent_room_id) = match nylo.spawn {
+                    NyloSpawn::Split(parent) => (
+                        proto::event::npc::nylo::SpawnType::Split,
+                        parent.map_or(0, |parent| parent.0),
+                    ),
+                    NyloSpawn::West => (proto::event::npc::nylo::SpawnType::West, 0),
+                    NyloSpawn::South => (proto::event::npc::nylo::SpawnType::South, 0),
+                    NyloSpawn::East => (proto::event::npc::nylo::SpawnType::East, 0),
+                    NyloSpawn::Unknown => (proto::event::npc::nylo::SpawnType::Unknown, 0),
+                };
+                proto::event::npc::Type::Nylo(proto::event::npc::Nylo {
+                    wave: nylo.wave,
+                    parent_room_id,
+                    big: nylo.big,
+                    style: proto::event::npc::nylo::Style::from(nylo.style) as i32,
+                    spawn_type: spawn_type as i32,
+                })
+            }
+            Self::VerzikCrab(crab) => {
+                proto::event::npc::Type::VerzikCrab(proto::event::npc::VerzikCrab {
+                    phase: crab.phase as i32,
+                    spawn: crab.spawn as i32,
+                })
+            }
+            Self::Mokhaiotl(_) => return None,
+        };
+        Some(npc_type)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

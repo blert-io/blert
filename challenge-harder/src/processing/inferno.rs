@@ -5,20 +5,19 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use blert::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
-use blert::proto::{Coords, event};
-use blert::{NpcAttack, Tick, Ticks, npc};
+use blert::{EventKind, NpcAttack, Point, Tick, TickState, Ticks, Timeline, npc};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
 use super::challenge_processor::{
-    ChallengeContext, ChallengeProcessor, ChallengeTicks, EventCursor, RoomNpc, StageContext,
+    ChallengeContext, ChallengeProcessor, ChallengeTicks, RoomNpc, StageContext,
 };
 use super::db;
 use super::persist;
 use super::spawn_index::{self, Arena, SpawnIndexer};
 use super::split::SplitType;
 use crate::lifecycle::core::types::{ChallengeInfo, ChallengeStatus, ProcessingError, Stage};
-use crate::merging::MergedEvents;
+use crate::merging::MergedTimeline;
 use crate::metrics;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data};
@@ -28,19 +27,18 @@ const WAVE_INTERVAL_TICKS: Ticks = Ticks(6);
 
 static ARENA: LazyLock<Arena> = LazyLock::new(|| {
     Arena::new(
-        Coords { x: 2257, y: 5358 },
+        Point(2257, 5358),
         [
-            (2258, 5330),
-            (2262, 5335),
-            (2272, 5330),
-            (2258, 5353),
-            (2273, 5341),
-            (2279, 5353),
-            (2260, 5347),
-            (2280, 5333),
-            (2280, 5346),
-        ]
-        .map(|(x, y)| Coords { x, y }),
+            Point(2258, 5330),
+            Point(2262, 5335),
+            Point(2272, 5330),
+            Point(2258, 5353),
+            Point(2273, 5341),
+            Point(2279, 5353),
+            Point(2260, 5347),
+            Point(2280, 5333),
+            Point(2280, 5346),
+        ],
         &[JAL_MEJRAH, JAL_AK, JAL_IMKOT, JAL_XIL, JAL_ZEK],
     )
 });
@@ -194,11 +192,11 @@ enum Pillar {
 }
 
 impl Pillar {
-    fn at(x: i32, y: i32) -> Option<Pillar> {
-        match (x, y) {
-            (2257, 5349) => Some(Pillar::West),
-            (2274, 5351) => Some(Pillar::East),
-            (2267, 5335) => Some(Pillar::South),
+    fn at(point: Point) -> Option<Pillar> {
+        match point {
+            Point(2257, 5349) => Some(Pillar::West),
+            Point(2274, 5351) => Some(Pillar::East),
+            Point(2267, 5335) => Some(Pillar::South),
             _ => None,
         }
     }
@@ -247,57 +245,47 @@ impl InfernoProcessor {
 
 #[async_trait]
 impl ChallengeProcessor for InfernoProcessor {
-    fn process_challenge_event(
+    fn process_tick(
         &mut self,
         _ctx: &mut StageContext,
-        events: &mut EventCursor<'_>,
-    ) -> bool {
-        let event = events.current();
-        match event.r#type() {
-            event::Type::NpcDeath => {
-                if event
-                    .npc
-                    .as_ref()
-                    .is_some_and(|npc| npc.id == npc::id::ROCKY_SUPPORT)
-                    && let Some(pillar) = Pillar::at(event.x_coord, event.y_coord)
-                {
-                    let wave = Some(stage_to_wave(event.stage()));
-                    match pillar {
-                        Pillar::West => self.data.west_pillar_collapse_wave = wave,
-                        Pillar::East => self.data.east_pillar_collapse_wave = wave,
-                        Pillar::South => self.data.south_pillar_collapse_wave = wave,
+        tick: Tick,
+        state: &TickState,
+        timeline: &Timeline,
+    ) {
+        for event in &state.events {
+            match &event.kind {
+                EventKind::NpcDeath(death) => {
+                    if death.npc_id == Some(npc::id::ROCKY_SUPPORT)
+                        && let Some(pillar) = Pillar::at(death.position)
+                    {
+                        let wave = Some(stage_to_wave(*timeline.stage()));
+                        match pillar {
+                            Pillar::West => self.data.west_pillar_collapse_wave = wave,
+                            Pillar::East => self.data.east_pillar_collapse_wave = wave,
+                            Pillar::South => self.data.south_pillar_collapse_wave = wave,
+                        }
                     }
                 }
-                true
-            }
-            event::Type::NpcAttack => {
-                match event.npc_attack.as_ref().map(event::NpcAttacked::attack) {
-                    Some(NpcAttack::InfernoMeleerDig) => self.data.meleer_digs += 1,
-                    Some(NpcAttack::InfernoMagerResurrect) => self.data.mager_revives += 1,
+                EventKind::NpcAttack(attacked) => match attacked.attack {
+                    NpcAttack::InfernoMeleerDig => self.data.meleer_digs += 1,
+                    NpcAttack::InfernoMagerResurrect => self.data.mager_revives += 1,
                     _ => {}
+                },
+                EventKind::InfernoWaveStart(overall_ticks) => {
+                    self.wave_start_tick = Some(*overall_ticks);
                 }
-                true
+                _ => {}
             }
-            event::Type::InfernoWaveStart => {
-                if let Some(wave_start) = &event.inferno_wave_start {
-                    self.wave_start_tick = Some(Ticks(wave_start.overall_ticks));
-                }
-                false
+        }
+
+        for (&room_id, npc) in &state.npcs {
+            if timeline
+                .npc(room_id)
+                .is_some_and(|stage_npc| stage_npc.spawn == tick)
+            {
+                self.spawn_indexer
+                    .track_spawn(tick, npc.npc_id, npc.position.point);
             }
-            event::Type::NpcSpawn => {
-                if let Some(npc) = &event.npc {
-                    self.spawn_indexer.track_spawn(
-                        Tick(event.tick),
-                        npc.id,
-                        Coords {
-                            x: event.x_coord,
-                            y: event.y_coord,
-                        },
-                    );
-                }
-                true
-            }
-            _ => true,
         }
     }
 
@@ -317,19 +305,20 @@ impl ChallengeProcessor for InfernoProcessor {
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
-        events: &MergedEvents,
+        merged: &MergedTimeline,
     ) -> Result<ChallengeTicks, db::Error> {
         let wave = stage_to_wave(stage);
+        let timeline = merged.timeline();
 
         let (ticks, start_tick) = match self.wave_start_tick {
             Some(start) => {
                 if let Some(split) = wave_start_split(wave) {
                     ctx.set_challenge_split(split, start, None);
                 }
-                (ChallengeTicks::Set(start + events.duration()), start)
+                (ChallengeTicks::Set(start + merged.duration()), start)
             }
             None => (
-                ChallengeTicks::Add(events.duration() + WAVE_INTERVAL_TICKS),
+                ChallengeTicks::Add(merged.duration() + WAVE_INTERVAL_TICKS),
                 stored.challenge_ticks + WAVE_INTERVAL_TICKS,
             ),
         };
@@ -337,14 +326,17 @@ impl ChallengeProcessor for InfernoProcessor {
         let split =
             SplitType::try_from(SplitType::InfernoWave1Time as i32 + wave.cast_signed() - 1)
                 .expect("wave time splits are consecutive");
-        ctx.set_stage_split(split, events.last_tick(), Tick(0), true);
+        ctx.set_stage_split(split, merged.last_tick(), Tick(0), true);
 
         self.data.waves.push(WaveData {
             stage,
-            ticks_lost: events.missing_tick_count(),
-            offset: events.offset(),
-            npcs: ctx.npcs().cloned().collect(),
-            ticks: events.duration(),
+            ticks_lost: merged.missing_tick_count(),
+            offset: merged.offset(),
+            npcs: timeline
+                .npcs()
+                .map(|(room_id, _)| RoomNpc::new(timeline, room_id))
+                .collect(),
+            ticks: merged.duration(),
             start_tick,
         });
 
@@ -373,16 +365,8 @@ impl ChallengeProcessor for InfernoProcessor {
             metrics::record_undetermined_wave_spawn(stage);
         }
         let player = spawn.as_ref().and_then(|spawn| {
-            events
-                .events_for_tick(spawn.tick())
-                .iter()
-                .find(|event| event.r#type() == event::Type::PlayerUpdate)
-                .map(|event| {
-                    ARENA.to_local(Coords {
-                        x: event.x_coord,
-                        y: event.y_coord,
-                    })
-                })
+            let (_, player) = timeline.get_state(spawn.tick())?.players.iter().next()?;
+            Some(ARENA.to_local(player.position))
         });
         spawn_index::save(txn, stage, spawn.as_ref(), player, false).await?;
 
@@ -460,8 +444,8 @@ mod tests {
         ChallengeMode, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear, StageStatus, Uuid,
     };
     use crate::merging::fixtures::{
-        NpcEvent, ServerTicks, inferno_wave_start_event, merged_events, npc_attack_event,
-        npc_death_event,
+        NpcEvent, PlayerUpdateEvent, ServerTicks, inferno_wave_start_event, merged_events,
+        npc_attack_event, npc_death_event, npc_spawn_event, npc_update_event,
     };
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::{ChallengeSplit, SavedSplit};
@@ -520,14 +504,17 @@ mod tests {
     }
 
     #[test]
-    fn wave_start_reports_are_captured_and_dropped() {
+    fn wave_start_reports_are_captured() {
         let mut processor = InfernoProcessor::new(
             challenge_info(Stage::InfernoWave25, ChallengeStatus::InProgress),
             None,
         )
         .unwrap();
         let mut ctx = StageContext::new(Stage::InfernoWave25, vec![Rsn::try_from("715").unwrap()]);
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::InfernoWave25,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("715").unwrap()],
             vec![inferno_wave_start_event(
                 Tick(0),
                 Stage::InfernoWave25,
@@ -538,8 +525,12 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        let mut cursor = EventCursor::new(&mut events, 0);
-        assert!(!processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
+        }
         assert_eq!(processor.wave_start_tick, Some(Ticks(852)));
     }
 
@@ -551,7 +542,10 @@ mod tests {
         )
         .unwrap();
         let mut ctx = StageContext::new(Stage::InfernoWave66, vec![Rsn::try_from("715").unwrap()]);
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::InfernoWave66,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("715").unwrap()],
             vec![npc_death_event(NpcEvent {
                 tick: Tick(31),
                 stage: Stage::InfernoWave66,
@@ -568,8 +562,12 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        let mut cursor = EventCursor::new(&mut events, 0);
-        assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
+        }
         assert_eq!(processor.data.west_pillar_collapse_wave, Some(66));
         assert_eq!(processor.data.east_pillar_collapse_wave, None);
         assert_eq!(processor.data.south_pillar_collapse_wave, None);
@@ -578,37 +576,112 @@ mod tests {
     #[test]
     fn meleer_digs_and_mager_revives_accumulate() {
         let mut processor = InfernoProcessor::new(
-            challenge_info(Stage::InfernoWave43, ChallengeStatus::InProgress),
+            challenge_info(Stage::InfernoWave57, ChallengeStatus::InProgress),
             None,
         )
         .unwrap();
-        let mut ctx = StageContext::new(Stage::InfernoWave43, vec![Rsn::try_from("715").unwrap()]);
-        let mut events = merged_events(
+        let mut ctx = StageContext::new(Stage::InfernoWave57, vec![Rsn::try_from("715").unwrap()]);
+        let merged = merged_events(
+            Stage::InfernoWave57,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("715").unwrap()],
             vec![
+                npc_spawn_event(NpcEvent {
+                    tick: Tick(0),
+                    stage: Stage::InfernoWave57,
+                    coords: (2280, 5346),
+                    npc_id: JAL_ZEK,
+                    room_id: 40778,
+                    hitpoints: SkillLevel {
+                        current: 220,
+                        base: 220,
+                    },
+                    ..Default::default()
+                }),
+                npc_spawn_event(NpcEvent {
+                    tick: Tick(0),
+                    stage: Stage::InfernoWave57,
+                    coords: (2272, 5330),
+                    npc_id: JAL_IMKOT,
+                    room_id: 40780,
+                    hitpoints: SkillLevel {
+                        current: 75,
+                        base: 75,
+                    },
+                    ..Default::default()
+                }),
+                npc_update_event(NpcEvent {
+                    tick: Tick(50),
+                    stage: Stage::InfernoWave57,
+                    coords: (2276, 5343),
+                    npc_id: JAL_IMKOT,
+                    room_id: 40780,
+                    hitpoints: SkillLevel {
+                        current: 75,
+                        base: 75,
+                    },
+                    ..Default::default()
+                }),
                 npc_attack_event(
-                    Tick(12),
-                    Stage::InfernoWave43,
-                    (2272, 5347),
-                    7697,
-                    61001,
+                    Tick(50),
+                    Stage::InfernoWave57,
+                    (2276, 5343),
+                    JAL_IMKOT,
+                    40780,
                     NpcAttack::InfernoMeleerDig,
                     None,
                 ),
+                npc_spawn_event(NpcEvent {
+                    tick: Tick(103),
+                    stage: Stage::InfernoWave57,
+                    coords: (2275, 5343),
+                    npc_id: JAL_IMKOT,
+                    room_id: 41706,
+                    hitpoints: SkillLevel {
+                        current: 38,
+                        base: 75,
+                    },
+                    ..Default::default()
+                }),
+                npc_update_event(NpcEvent {
+                    tick: Tick(103),
+                    stage: Stage::InfernoWave57,
+                    coords: (2277, 5351),
+                    npc_id: JAL_ZEK,
+                    room_id: 40778,
+                    hitpoints: SkillLevel {
+                        current: 98,
+                        base: 220,
+                    },
+                    ..Default::default()
+                }),
                 npc_attack_event(
-                    Tick(30),
-                    Stage::InfernoWave43,
-                    (2277, 5340),
-                    7699,
-                    61002,
+                    Tick(103),
+                    Stage::InfernoWave57,
+                    (2277, 5351),
+                    JAL_ZEK,
+                    40778,
                     NpcAttack::InfernoMagerResurrect,
                     None,
                 ),
+                npc_update_event(NpcEvent {
+                    tick: Tick(152),
+                    stage: Stage::InfernoWave57,
+                    coords: (2273, 5344),
+                    npc_id: JAL_IMKOT,
+                    room_id: 41706,
+                    hitpoints: SkillLevel {
+                        current: 38,
+                        base: 75,
+                    },
+                    ..Default::default()
+                }),
                 npc_attack_event(
-                    Tick(55),
-                    Stage::InfernoWave43,
-                    (2274, 5347),
-                    7697,
-                    61001,
+                    Tick(152),
+                    Stage::InfernoWave57,
+                    (2273, 5344),
+                    JAL_IMKOT,
+                    41706,
                     NpcAttack::InfernoMeleerDig,
                     None,
                 ),
@@ -617,9 +690,11 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        for index in [0, 1, 2] {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
         assert_eq!(processor.data.meleer_digs, 2);
         assert_eq!(processor.data.mager_revives, 1);
@@ -736,7 +811,19 @@ mod tests {
             challenge_ticks: Ticks(846),
             custom_data: None,
         };
-        let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(42));
+        let merged = merged_events(
+            Stage::InfernoWave25,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("715").unwrap()],
+            vec![inferno_wave_start_event(
+                Tick(0),
+                Stage::InfernoWave25,
+                25,
+                Ticks(852),
+            )],
+            StageStatus::Completed,
+            ServerTicks::Precise(42),
+        );
         let price_resolver = PriceResolver::new(None);
         let ticks = processor
             .on_stage_finished(
@@ -745,7 +832,7 @@ mod tests {
                 &stored,
                 &mut ctx,
                 Stage::InfernoWave25,
-                &events,
+                &merged,
             )
             .await
             .unwrap();
@@ -769,8 +856,8 @@ mod tests {
             processor.data.waves,
             vec![WaveData {
                 stage: Stage::InfernoWave25,
-                ticks_lost: 42,
-                offset: Ticks(42),
+                ticks_lost: 41,
+                offset: Ticks(41),
                 npcs: Vec::new(),
                 ticks: Ticks(42),
                 start_tick: Ticks(852),
@@ -789,7 +876,16 @@ mod tests {
             challenge_ticks: Ticks(894),
             custom_data: None,
         };
-        let events = merged_events(Vec::new(), StageStatus::Completed, ServerTicks::Precise(36));
+        let merged = merged_events(
+            Stage::InfernoWave26,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("715").unwrap()],
+            vec![
+                PlayerUpdateEvent::new(Tick(0), Stage::InfernoWave26, "715", (2273, 5353)).build(),
+            ],
+            StageStatus::Completed,
+            ServerTicks::Precise(36),
+        );
         let ticks = processor
             .on_stage_finished(
                 &txn,
@@ -797,7 +893,7 @@ mod tests {
                 &stored,
                 &mut ctx,
                 Stage::InfernoWave26,
-                &events,
+                &merged,
             )
             .await
             .unwrap();

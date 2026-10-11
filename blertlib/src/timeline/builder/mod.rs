@@ -57,8 +57,8 @@ pub enum RejectionReason {
     BeyondLastTick,
 }
 
-/// A `Warning` describes an issue with an optional field of an event. The event
-/// is still processed, but the field's data is ignored and cleared.
+/// A `Warning` describes an issue with a field of an event. The event is still
+/// processed, but the offending data is ignored.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildWarning {
     pub tick: Tick,
@@ -277,6 +277,7 @@ struct TickBuilder<'a> {
     state: TickState,
     processed: usize,
     changed: Option<Tick>,
+    attack_styles: Vec<&'a proto::Event>,
     attack_references: Vec<Event>,
     recording: &'a mut Recording,
     last_seen_actors: &'a mut HashMap<Actor, Tick>,
@@ -315,6 +316,7 @@ impl<'a> TickBuilder<'a> {
             },
             processed: 0,
             changed: None,
+            attack_styles: Vec::new(),
             attack_references: Vec::new(),
             recording,
             last_seen_actors: &mut builder.last_seen_actors,
@@ -325,7 +327,7 @@ impl<'a> TickBuilder<'a> {
 
     /// Handles a single raw event occurring on the tick.
     #[expect(clippy::too_many_lines, reason = "it's an exhaustive enum folks")]
-    fn process_event(&mut self, event: &proto::Event) {
+    fn process_event(&mut self, event: &'a proto::Event) {
         let tick = self.tick;
         self.processed += 1;
         let kind = match Type::try_from(event.r#type) {
@@ -551,26 +553,22 @@ impl<'a> TickBuilder<'a> {
                             return Ok(());
                         }
 
-                        let maze = parse_maze(sote_maze)?;
-                        let pivots = if sote_maze.underworld_pivots.is_empty() {
-                            SoteMazePivots {
-                                maze,
-                                overworld: parse_coords(
-                                    "sote_maze.overworld_pivots",
-                                    &sote_maze.overworld_pivots,
-                                )?,
-                                underworld: Vec::new(),
-                            }
-                        } else {
-                            SoteMazePivots {
-                                maze,
-                                overworld: Vec::new(),
-                                underworld: parse_coords(
-                                    "sote_maze.underworld_pivots",
-                                    &sote_maze.underworld_pivots,
-                                )?,
-                            }
+                        let pivots = SoteMazePivots {
+                            maze: parse_maze(sote_maze)?,
+                            overworld: parse_points(
+                                "sote_maze.overworld_pivots",
+                                &sote_maze.overworld_pivots,
+                            )?,
+                            underworld: parse_points(
+                                "sote_maze.underworld_pivots",
+                                &sote_maze.underworld_pivots,
+                            )?,
                         };
+                        if pivots.overworld.is_empty() && pivots.underworld.is_empty() {
+                            return Err(RejectionReason::MissingPayload(
+                                "sote_maze.overworld_pivots",
+                            ));
+                        }
                         self.state.events.push(Event::recorded(
                             self.client_id,
                             EventKind::SoteMazePivots(pivots),
@@ -587,21 +585,7 @@ impl<'a> TickBuilder<'a> {
 
             // Modifies a past attack.
             Type::TobVerzikAttackStyle | Type::MokhaiotlAttackStyle => {
-                match resolve_attack_style(self.recording, &mut self.state, event) {
-                    Ok(Some(attack_tick)) => {
-                        self.changed = Some(
-                            self.changed
-                                .map_or(attack_tick, |changed| changed.min(attack_tick)),
-                        );
-                    }
-                    Ok(None) => {}
-                    Err(reason) => {
-                        self.rejections
-                            .entry(tick)
-                            .or_default()
-                            .push(BuildRejection { tick, kind, reason });
-                    }
-                }
+                self.attack_styles.push(event);
             }
 
             // Event types.
@@ -681,6 +665,7 @@ impl<'a> TickBuilder<'a> {
 
     /// Finalizes the tick's state, inserting it into the recording.
     /// Returns the earliest tick whose state was modified.
+    #[expect(clippy::too_many_lines, reason = "another event match")]
     fn finish(mut self) -> Option<Tick> {
         let tick = self.tick;
         let TickState {
@@ -719,28 +704,37 @@ impl<'a> TickBuilder<'a> {
                         Some(_) => attack == NpcAttack::TobVerzikP2Bounce,
                         None => matches!(
                             attack,
-                            NpcAttack::TobVerzikP2Cabbage
+                            NpcAttack::TobVerzikP2Bounce
+                                | NpcAttack::TobVerzikP2Cabbage
                                 | NpcAttack::TobVerzikP2Zap
                                 | NpcAttack::TobVerzikP2Purple
                                 | NpcAttack::TobVerzikP2Mage
                         ),
                     };
-                    let p2_attack = |e: &Event| {
-                        matches!(
-                            &e.kind,
-                            EventKind::NpcAttack(attack) if expected(attack.attack)
-                        )
+                    let attack_events = if bounce.attack_tick == tick {
+                        Some(&mut *events)
+                    } else {
+                        self.recording
+                            .get_state_mut(bounce.attack_tick)
+                            .map(|state| &mut state.events)
                     };
-                    (
-                        Type::TobVerzikBounce,
-                        if bounce.attack_tick == tick {
-                            events.iter().any(p2_attack)
-                        } else {
-                            self.recording
-                                .events_for_tick(bounce.attack_tick)
-                                .any(p2_attack)
-                        },
-                    )
+                    let attack = attack_events.and_then(|events| {
+                        events.iter_mut().find_map(|e| match &mut e.kind {
+                            EventKind::NpcAttack(attack) if expected(attack.attack) => Some(attack),
+                            _ => None,
+                        })
+                    });
+                    let found = attack.is_some();
+                    if let Some(attack) = attack
+                        && let Some(player) = bounce.bounced
+                        && attack.target != Some(Actor::Player(player))
+                    {
+                        attack.target = Some(Actor::Player(player));
+                        self.changed = Some(self.changed.map_or(bounce.attack_tick, |changed| {
+                            changed.min(bounce.attack_tick)
+                        }));
+                    }
+                    (Type::TobVerzikBounce, found)
                 }
                 EventKind::SolGrapple(grapple) => (
                     Type::ColosseumSolGrapple,
@@ -767,6 +761,28 @@ impl<'a> TickBuilder<'a> {
                         kind,
                         reason: RejectionReason::AttackNotFound,
                     });
+            }
+        }
+
+        for event in self.attack_styles {
+            match resolve_attack_style(self.recording, &mut self.state, event) {
+                Ok(Some(attack_tick)) => {
+                    self.changed = Some(
+                        self.changed
+                            .map_or(attack_tick, |changed| changed.min(attack_tick)),
+                    );
+                }
+                Ok(None) => {}
+                Err(reason) => {
+                    self.rejections
+                        .entry(tick)
+                        .or_default()
+                        .push(BuildRejection {
+                            tick,
+                            kind: event.r#type(),
+                            reason,
+                        });
+                }
             }
         }
 
@@ -1284,22 +1300,26 @@ fn convert_or_reject(party: &[Rsn], event: &proto::Event) -> Result<EventOutcome
             }
             let players_in_range =
                 in_domain(bounce.players_in_range, "verzik_bounce.players_in_range")?;
-            let bounced = bounce
-                .bounced_player
-                .as_deref()
-                .map(|name| resolve_index(party, name))
-                .transpose()
-                .map_err(|error| RejectionReason::InvalidField {
+            let (bounced, error) = match bounce.bounced_player.as_deref() {
+                Some(name) => match resolve_index(party, name) {
+                    Ok(bounced) => (Some(bounced), None),
+                    Err(error) => (None, Some(error)),
+                },
+                None => (None, None),
+            };
+            let event = EventKind::VerzikBounce(VerzikBounce {
+                attack_tick,
+                players_in_range,
+                bounced,
+            });
+            Ok(match error {
+                Some(error) => EventOutcome::PartiallyAccepted {
+                    event,
                     field: "verzik_bounce.bounced_player",
                     error,
-                })?;
-            Ok(EventOutcome::Accepted(EventKind::VerzikBounce(
-                VerzikBounce {
-                    attack_tick,
-                    players_in_range,
-                    bounced,
                 },
-            )))
+                None => EventOutcome::Accepted(event),
+            })
         }
 
         Type::TobVerzikHeal => {

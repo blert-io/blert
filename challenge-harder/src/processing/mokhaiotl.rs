@@ -3,21 +3,19 @@
 use std::collections::BTreeSet;
 
 use async_trait::async_trait;
-use blert::proto::event;
-use blert::proto::event::attack_style::Style;
-use blert::{NpcAttack, Tick, Ticks};
+use blert::{EventKind, Tick, TickState, Ticks, Timeline};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
 use super::challenge_processor::{
-    ChallengeContext, ChallengeProcessor, ChallengeTicks, EventCursor, RoomNpc, StageContext,
+    ChallengeContext, ChallengeProcessor, ChallengeTicks, RoomNpc, StageContext,
 };
 use super::db;
 use super::split::SplitType;
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::MergedEvents;
+use crate::merging::MergedTimeline;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data};
 
@@ -84,7 +82,6 @@ fn delve(stage: Stage, attempt: Option<u32>) -> u32 {
 #[derive(Debug, Default)]
 struct DelveState {
     larvae_leaked: u32,
-    missing_npc_attacks: Vec<Tick>,
 }
 
 #[derive(Debug)]
@@ -121,65 +118,17 @@ impl MokhaiotlProcessor {
 
 #[async_trait]
 impl ChallengeProcessor for MokhaiotlProcessor {
-    fn process_challenge_event(
+    fn process_tick(
         &mut self,
         _ctx: &mut StageContext,
-        events: &mut EventCursor<'_>,
-    ) -> bool {
-        match events.current().r#type() {
-            event::Type::MokhaiotlAttackStyle => {
-                let Some(attack_style) = events.current().mokhaiotl_attack_style else {
-                    return false;
-                };
-                let tick = Tick(attack_style.npc_attack_tick);
-                let npc_attack = events
-                    .events_for_tick_mut(tick)
-                    .iter_mut()
-                    .find_map(|event| {
-                        if event.r#type() != event::Type::NpcAttack {
-                            return None;
-                        }
-                        event.npc_attack.as_mut().filter(|attack| {
-                            matches!(
-                                attack.attack(),
-                                NpcAttack::MokhaiotlAuto | NpcAttack::MokhaiotlBall
-                            )
-                        })
-                    });
-                let Some(npc_attack) = npc_attack else {
-                    self.current_delve.missing_npc_attacks.push(tick);
-                    return false;
-                };
-
-                let attack = if npc_attack.attack() == NpcAttack::MokhaiotlBall {
-                    match attack_style.style() {
-                        Style::Range => NpcAttack::MokhaiotlRangedBall,
-                        Style::Mage => NpcAttack::MokhaiotlMageBall,
-                        Style::Melee => {
-                            tracing::warn!(
-                                uuid = %self.challenge.uuid,
-                                stage = ?self.challenge.stage,
-                                %tick,
-                                "mokhaiotl_attack_style_invalid",
-                            );
-                            NpcAttack::MokhaiotlBall
-                        }
-                    }
-                } else {
-                    match attack_style.style() {
-                        Style::Melee => NpcAttack::MokhaiotlMeleeAuto,
-                        Style::Range => NpcAttack::MokhaiotlRangedAuto,
-                        Style::Mage => NpcAttack::MokhaiotlMageAuto,
-                    }
-                };
-                npc_attack.set_attack(attack);
-                false
-            }
-            event::Type::MokhaiotlLarvaLeak => {
+        _tick: Tick,
+        state: &TickState,
+        _timeline: &Timeline,
+    ) {
+        for event in &state.events {
+            if matches!(event.kind, EventKind::MokhaiotlLarvaLeak(_)) {
                 self.current_delve.larvae_leaked += 1;
-                true
             }
-            _ => true,
         }
     }
 
@@ -203,19 +152,23 @@ impl ChallengeProcessor for MokhaiotlProcessor {
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
-        events: &MergedEvents,
+        merged: &MergedTimeline,
     ) -> Result<ChallengeTicks, db::Error> {
-        let completed = events.status() == StageStatus::Completed;
-        let challenge_ticks = stored.challenge_ticks + events.duration();
+        let completed = merged.status() == StageStatus::Completed;
+        let challenge_ticks = stored.challenge_ticks + merged.duration();
         let delve = delve(stage, self.challenge.stage_attempt);
+        let timeline = merged.timeline();
 
         self.data.delves.push(DelveData {
             stage,
-            ticks_lost: events.missing_tick_count(),
-            offset: events.offset(),
-            npcs: ctx.npcs().cloned().collect(),
+            ticks_lost: merged.missing_tick_count(),
+            offset: merged.offset(),
+            npcs: timeline
+                .npcs()
+                .map(|(room_id, _)| RoomNpc::new(timeline, room_id))
+                .collect(),
             delve,
-            challenge_ticks: events.duration(),
+            challenge_ticks: merged.duration(),
             larvae_leaked: self.current_delve.larvae_leaked,
         });
 
@@ -226,7 +179,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
             let index = (stage as i32) - (Stage::MokhaiotlDelve1 as i32);
             let split = SplitType::try_from(SplitType::MokhaiotlDelve1 as i32 + index)
                 .expect("delve splits are consecutive");
-            ctx.set_stage_split(split, events.last_tick(), Tick(0), true);
+            ctx.set_stage_split(split, merged.last_tick(), Tick(0), true);
 
             if completed
                 && stage > Stage::MokhaiotlDelve1
@@ -238,7 +191,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
                 ctx.set_challenge_split(
                     split,
                     challenge_ticks,
-                    Some(!self.challenge.party_changed && events.has_precise_server_tick_count()),
+                    Some(!self.challenge.party_changed && merged.has_precise_server_tick_count()),
                 );
             }
         }
@@ -277,14 +230,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
         )
         .await?;
 
-        if !self.current_delve.missing_npc_attacks.is_empty() {
-            tracing::warn!(
-                uuid = %self.challenge.uuid,
-                ticks = ?self.current_delve.missing_npc_attacks,
-                "challenge_events_missing_npc_attack",
-            );
-        }
-        Ok(ChallengeTicks::Add(events.duration()))
+        Ok(ChallengeTicks::Add(merged.duration()))
     }
 
     async fn on_finish(
@@ -354,10 +300,7 @@ mod tests {
         ChallengeMode, ChallengeStatus, ChallengeType, JournalSeq, PlayerId, PrimaryMeleeGear,
         StageStatus, Uuid,
     };
-    use crate::merging::fixtures::{
-        ServerTicks, merged_events, mokhaiotl_attack_style_event, mokhaiotl_larva_leak_event,
-        npc_attack_event,
-    };
+    use crate::merging::fixtures::{ServerTicks, merged_events, mokhaiotl_larva_leak_event};
     use crate::processing::StoredPlayerInfo;
     use crate::processing::split::ChallengeSplit;
     use crate::processing::stats::PlayerStatsDelta;
@@ -575,153 +518,6 @@ mod tests {
     }
 
     #[test]
-    fn attack_style_events_update_the_referenced_attack() {
-        let challenge = ChallengeInfo {
-            uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
-            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
-            challenge_type: ChallengeType::Mokhaiotl,
-            mode: ChallengeMode::NoMode,
-            party: vec![Rsn::try_from("1Ogp").unwrap()],
-            party_changed: false,
-            stage: Stage::MokhaiotlDelve2,
-            stage_attempt: None,
-            status: ChallengeStatus::InProgress,
-            created_unix_ms: 0,
-            reported_times: None,
-            finished_unix_ms: None,
-        };
-        for (initial, style, expected) in [
-            (
-                NpcAttack::MokhaiotlAuto,
-                Style::Melee,
-                NpcAttack::MokhaiotlMeleeAuto,
-            ),
-            (
-                NpcAttack::MokhaiotlAuto,
-                Style::Range,
-                NpcAttack::MokhaiotlRangedAuto,
-            ),
-            (
-                NpcAttack::MokhaiotlAuto,
-                Style::Mage,
-                NpcAttack::MokhaiotlMageAuto,
-            ),
-            (
-                NpcAttack::MokhaiotlBall,
-                Style::Range,
-                NpcAttack::MokhaiotlRangedBall,
-            ),
-            (
-                NpcAttack::MokhaiotlBall,
-                Style::Mage,
-                NpcAttack::MokhaiotlMageBall,
-            ),
-            (
-                NpcAttack::MokhaiotlBall,
-                Style::Melee,
-                NpcAttack::MokhaiotlBall,
-            ),
-        ] {
-            let mut processor = MokhaiotlProcessor::new(challenge.clone(), None).unwrap();
-            let mut ctx =
-                StageContext::new(Stage::MokhaiotlDelve2, vec![Rsn::try_from("1Ogp").unwrap()]);
-            let mut events = merged_events(
-                vec![
-                    npc_attack_event(
-                        Tick(6),
-                        Stage::MokhaiotlDelve2,
-                        (3421, 6435),
-                        14707,
-                        54445,
-                        initial,
-                        Some("1Ogp"),
-                    ),
-                    mokhaiotl_attack_style_event(Tick(8), Stage::MokhaiotlDelve2, style, Tick(6)),
-                ],
-                StageStatus::Started,
-                ServerTicks::Missing,
-            );
-
-            let mut cursor = EventCursor::new(&mut events, 1);
-            assert!(!processor.process_challenge_event(&mut ctx, &mut cursor));
-            assert_eq!(
-                events.events_for_tick(Tick(6))[0]
-                    .npc_attack
-                    .as_ref()
-                    .unwrap()
-                    .attack(),
-                expected,
-                "{initial:?} + {style:?}",
-            );
-        }
-    }
-
-    #[test]
-    fn unmatched_attack_style_events_are_collected() {
-        let challenge = ChallengeInfo {
-            uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
-            session_uuid: "5e55b41c-6a3f-4a89-9e10-c1a7d2f3b804".parse().unwrap(),
-            challenge_type: ChallengeType::Mokhaiotl,
-            mode: ChallengeMode::NoMode,
-            party: vec![Rsn::try_from("1Ogp").unwrap()],
-            party_changed: false,
-            stage: Stage::MokhaiotlDelve2,
-            stage_attempt: None,
-            status: ChallengeStatus::InProgress,
-            created_unix_ms: 0,
-            reported_times: None,
-            finished_unix_ms: None,
-        };
-        let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
-        let mut ctx =
-            StageContext::new(Stage::MokhaiotlDelve2, vec![Rsn::try_from("1Ogp").unwrap()]);
-        let mut events = merged_events(
-            vec![
-                npc_attack_event(
-                    Tick(39),
-                    Stage::MokhaiotlDelve2,
-                    (3421, 6435),
-                    14707,
-                    54445,
-                    NpcAttack::MokhaiotlCharge,
-                    Some("1Ogp"),
-                ),
-                mokhaiotl_attack_style_event(
-                    Tick(41),
-                    Stage::MokhaiotlDelve2,
-                    Style::Range,
-                    Tick(39),
-                ),
-                mokhaiotl_attack_style_event(
-                    Tick(45),
-                    Stage::MokhaiotlDelve2,
-                    Style::Mage,
-                    Tick(43),
-                ),
-            ],
-            StageStatus::Started,
-            ServerTicks::Missing,
-        );
-
-        for index in [1, 2] {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(!processor.process_challenge_event(&mut ctx, &mut cursor));
-        }
-        assert_eq!(
-            processor.current_delve.missing_npc_attacks,
-            vec![Tick(39), Tick(43)]
-        );
-        assert_eq!(
-            events.events_for_tick(Tick(39))[0]
-                .npc_attack
-                .as_ref()
-                .unwrap()
-                .attack(),
-            NpcAttack::MokhaiotlCharge,
-        );
-    }
-
-    #[test]
     fn larva_leaks_are_counted() {
         let challenge = ChallengeInfo {
             uuid: "a8cb035f-410a-45de-a4d3-2b0a5d8b464d".parse().unwrap(),
@@ -740,7 +536,10 @@ mod tests {
         let mut processor = MokhaiotlProcessor::new(challenge, None).unwrap();
         let mut ctx =
             StageContext::new(Stage::MokhaiotlDelve8, vec![Rsn::try_from("1Ogp").unwrap()]);
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::MokhaiotlDelve8,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("1Ogp").unwrap()],
             vec![
                 mokhaiotl_larva_leak_event(Tick(78), Stage::MokhaiotlDelve8, 45389, 23),
                 mokhaiotl_larva_leak_event(Tick(93), Stage::MokhaiotlDelve8, 45662, 24),
@@ -749,9 +548,11 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        for index in [0, 1] {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
         assert_eq!(processor.current_delve.larvae_leaked, 2);
     }

@@ -4,17 +4,15 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
 use async_trait::async_trait;
-use blert::proto::event::attack_style::Style as AttackStyle;
-use blert::proto::event::npc::maiden_crab::Spawn as MaidenCrabSpawn;
-use blert::proto::event::npc::nylo::Style as NyloStyle;
-use blert::proto::event::sote_maze::Maze;
-use blert::proto::event::{VerzikPhase, XarpusPhase};
-use blert::proto::{Coords, event};
-use blert::{ChallengeMode, CombatStyle, NpcAttack, PlayerAttack, SkillLevel, Tick, Ticks, npc};
+use blert::{
+    Actor, CombatStyle, EventKind, MaidenCrabSpawn, Maze, NpcAttack, NpcProperties, NpcState,
+    NyloSpawn, PlayerAttack, PlayerAttacked, Point, SoteMazePivots, Tick, TickState, Ticks,
+    Timeline, VerzikPhase, XarpusExhumed, XarpusPhase, npc,
+};
 use serde::{Deserialize, Serialize};
 
 use super::challenge_processor::{
-    ChallengeContext, ChallengeProcessor, ChallengeTicks, EventCursor, RoomNpc, StageContext,
+    ChallengeContext, ChallengeProcessor, ChallengeTicks, RoomNpc, StageContext,
 };
 use super::db;
 use super::split::SplitType;
@@ -22,12 +20,12 @@ use super::{StoredState, TheatreConfig};
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::MergedEvents;
+use crate::merging::MergedTimeline;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data};
 
 /// Southwest corner of the Bloat room.
-const BLOAT_ROOM_ORIGIN: (i32, i32) = (3288, 4440);
+const BLOAT_ROOM_ORIGIN: Point = Point(3288, 4440);
 
 /// In-flight state stored between stages.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -180,10 +178,10 @@ impl Pivots {
     }
 }
 
-fn full_pivots(coords: &[Coords]) -> Option<[u32; NUM_SOTETSEG_MAZE_PIVOTS]> {
-    let mut pivots: [Coords; NUM_SOTETSEG_MAZE_PIVOTS] = coords.try_into().ok()?;
-    pivots.sort_unstable_by_key(|pivot| pivot.y);
-    Some(pivots.map(|pivot| pivot.x.cast_unsigned()))
+fn full_pivots(points: &[Point]) -> Option<[u32; NUM_SOTETSEG_MAZE_PIVOTS]> {
+    let mut pivots: [Point; NUM_SOTETSEG_MAZE_PIVOTS] = points.try_into().ok()?;
+    pivots.sort_unstable_by_key(|pivot| pivot.1);
+    Some(pivots.map(|pivot| u32::from(pivot.0)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,7 +189,7 @@ struct SotetsegMaze {
     pivots: Pivots,
     start_tick: Tick,
     end_tick: Tick,
-    chosen_player: Option<String>,
+    chosen_player: Option<usize>,
 }
 
 impl SotetsegMaze {
@@ -216,37 +214,12 @@ struct XarpusState {
     healing: Option<i32>,
 }
 
-fn exhumed_healing_for_scale(challenge: &ChallengeInfo) -> i32 {
-    let hmt = matches!(challenge.mode, ChallengeMode::TobHard);
-    match challenge.scale() {
-        1 => {
-            if hmt {
-                21
-            } else {
-                20
-            }
-        }
-        2 => {
-            if hmt {
-                14
-            } else {
-                16
-            }
-        }
-        3 => 12,
-        4 => 9,
-        5 => 8,
-        _ => 0,
-    }
-}
-
 const VERZIK_P1_TRANSITION_TICKS: Ticks = Ticks(13);
 const VERZIK_P2_TRANSITION_TICKS: Ticks = Ticks(6);
 
 #[derive(Debug, Default)]
 struct VerzikState {
     red_spawn_ticks: Vec<Tick>,
-    missing_attack_ticks: Vec<Tick>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -259,7 +232,7 @@ struct ChinThrow {
 struct RoomFinish<'a> {
     txn: &'a db::Transaction,
     ctx: &'a mut StageContext,
-    events: &'a MergedEvents,
+    merged: &'a MergedTimeline,
     room: &'a mut RoomData,
     last_tick: Tick,
     deaths: i32,
@@ -331,10 +304,10 @@ impl TheatreProcessor {
         }
     }
 
-    fn process_npc_spawn(&mut self, ctx: &mut StageContext, tick: Tick, npc: &event::Npc) {
-        match &npc.r#type {
-            Some(event::npc::Type::MaidenCrab(crab)) => {
-                match crab.spawn() {
+    fn process_npc_spawn(&mut self, ctx: &mut StageContext, tick: Tick, npc: &NpcState) {
+        match &npc.properties {
+            Some(NpcProperties::MaidenCrab(crab)) => {
+                match crab.spawn {
                     MaidenCrabSpawn::Seventies => {
                         ctx.set_stage_split(SplitType::TobEntryMaiden70s, tick, Tick(0), false);
                     }
@@ -366,23 +339,19 @@ impl TheatreProcessor {
                     self.maiden.scuffed_spawns = true;
                 }
             }
-            Some(event::npc::Type::Nylo(nylo)) => {
-                if let event::npc::nylo::SpawnType::Split = nylo.spawn_type() {
-                    match nylo.style() {
-                        NyloStyle::Mage => self.nylocas.split_styles.mage += 1,
-                        NyloStyle::Range => self.nylocas.split_styles.ranged += 1,
-                        NyloStyle::Melee => self.nylocas.split_styles.melee += 1,
+            Some(NpcProperties::Nylo(nylo)) => {
+                if let NyloSpawn::Split(_) = nylo.spawn {
+                    match nylo.style {
+                        CombatStyle::Magic => self.nylocas.split_styles.mage += 1,
+                        CombatStyle::Ranged => self.nylocas.split_styles.ranged += 1,
+                        CombatStyle::Melee => self.nylocas.split_styles.melee += 1,
                     }
                 }
             }
             _ => {}
         }
 
-        if let Some(style) = npc::nylocas_vasilias_style(npc.id) {
-            self.update_nylocas_boss_style(style);
-        }
-
-        if npc::is_verzik_matomenos(npc.id) {
+        if npc::is_verzik_matomenos(npc.npc_id) {
             match self.verzik.red_spawn_ticks.last() {
                 None => {
                     ctx.set_stage_split(SplitType::TobEntryVerzikReds, tick, Tick(0), false);
@@ -394,91 +363,85 @@ impl TheatreProcessor {
         }
     }
 
-    fn process_npc_update(&mut self, ctx: &mut StageContext, _tick: Tick, npc: &event::Npc) {
-        if ctx.stage() == Stage::TobNylocas
-            && let Some(style) = npc::nylocas_vasilias_style(npc.id)
-        {
-            self.update_nylocas_boss_style(style);
-        }
-    }
-
     fn process_player_attack(
         &mut self,
         ctx: &mut StageContext,
-        stage: Stage,
-        player: &event::Player,
-        attack: &event::Attack,
+        room: Stage,
+        state: &TickState,
+        attack: &PlayerAttacked,
     ) {
-        let target = attack.target.as_ref();
+        let target = match attack.target {
+            Some(Actor::Npc(room_id)) => state.npcs.get(&room_id),
+            Some(Actor::Player(_)) | None => None,
+        };
+        let distance = target
+            .zip(state.players.get(attack.player))
+            .map(|(npc, player)| npc.position.distance(player.position));
         let in_nylo_cleanup = ctx.stage_split(SplitType::TobEntryNyloWaves).is_some()
             && ctx.stage_split(SplitType::TobEntryNyloCleanup).is_none();
 
-        let Some(data) = ctx.player_mut(player.party_index as usize) else {
+        let Some(data) = ctx.player_mut(attack.player.as_usize()) else {
             return;
         };
-        let stats = &mut data.stats;
 
-        match attack.r#type() {
+        match attack.attack {
             PlayerAttack::GodswordSmack
             | PlayerAttack::HammerBop
             | PlayerAttack::ChallySwipe
             | PlayerAttack::ElderMaul
             | PlayerAttack::TonalzticsAuto => {
-                if stage == Stage::TobVerzik
-                    && target.is_some_and(|npc| npc::is_verzik_matomenos(npc.id))
+                if room == Stage::TobVerzik
+                    && target.is_some_and(|npc| npc::is_verzik_matomenos(npc.npc_id))
                 {
                     // Can 6t or 7t a red crab to tick fix; not a troll.
                     return;
                 }
 
-                if attack.r#type() != PlayerAttack::TonalzticsAuto
-                    && stage == Stage::TobNylocas
+                if attack.attack != PlayerAttack::TonalzticsAuto
+                    && room == Stage::TobNylocas
                     && in_nylo_cleanup
-                    && target.is_none_or(|npc| npc::is_nylocas(npc.id))
+                    && target.is_none_or(|npc| npc::is_nylocas(npc.npc_id))
                 {
                     // Ok to overkill a nylo during cleanup.
                     return;
                 }
 
-                match attack.r#type() {
-                    PlayerAttack::GodswordSmack => stats.bgs_smacks += 1,
-                    PlayerAttack::HammerBop => stats.hammer_bops += 1,
-                    PlayerAttack::ChallySwipe => stats.chally_pokes += 1,
-                    PlayerAttack::ElderMaul => stats.elder_maul_smacks += 1,
-                    _ => stats.ralos_autos += 1,
+                match attack.attack {
+                    PlayerAttack::GodswordSmack => data.stats.bgs_smacks += 1,
+                    PlayerAttack::HammerBop => data.stats.hammer_bops += 1,
+                    PlayerAttack::ChallySwipe => data.stats.chally_pokes += 1,
+                    PlayerAttack::ElderMaul => data.stats.elder_maul_smacks += 1,
+                    _ => data.stats.ralos_autos += 1,
                 }
             }
 
             PlayerAttack::ChinBlack | PlayerAttack::ChinGrey | PlayerAttack::ChinRed => {
-                if let Some(weapon) = &attack.weapon {
+                if let Some(weapon) = attack.weapon {
                     self.chins_thrown.push(ChinThrow {
-                        party_index: player.party_index as usize,
+                        party_index: attack.player.as_usize(),
                         weapon_id: weapon.id,
                     });
                 }
 
-                let is_wrong_throw_distance = attack.distance_to_target != -1
-                    && !(4..=6).contains(&attack.distance_to_target);
+                data.stats.chins_thrown_total += 1;
 
-                stats.chins_thrown_total += 1;
-
-                match stage {
-                    Stage::TobMaiden => stats.chins_thrown_maiden += 1,
-                    Stage::TobNylocas => stats.chins_thrown_nylocas += 1,
+                match room {
+                    Stage::TobMaiden => data.stats.chins_thrown_maiden += 1,
+                    Stage::TobNylocas => data.stats.chins_thrown_nylocas += 1,
                     _ => {}
                 }
 
-                match attack.r#type() {
-                    PlayerAttack::ChinBlack => stats.chins_thrown_black += 1,
-                    PlayerAttack::ChinRed => stats.chins_thrown_red += 1,
-                    _ => stats.chins_thrown_grey += 1,
+                match attack.attack {
+                    PlayerAttack::ChinBlack => data.stats.chins_thrown_black += 1,
+                    PlayerAttack::ChinRed => data.stats.chins_thrown_red += 1,
+                    _ => data.stats.chins_thrown_grey += 1,
                 }
 
                 // Only consider incorrect throw distances on Maiden crabs.
-                if is_wrong_throw_distance
-                    && target.is_some_and(|npc| npc::is_maiden_matomenos(npc.id))
+                if target.is_some_and(|crab| npc::is_maiden_matomenos(crab.npc_id))
+                    && distance.is_some_and(|distance| !(4..=6).contains(&distance))
                 {
-                    stats.chins_thrown_incorrectly_maiden += 1;
+                    data.stats.chins_thrown_incorrectly_maiden += 1;
                 }
             }
 
@@ -491,36 +454,36 @@ impl TheatreProcessor {
             | PlayerAttack::ElderMaulSpec
             | PlayerAttack::TonalzticsSpec
             | PlayerAttack::VolatileNmSpec => {
-                if target.is_some_and(|npc| npc::is_verzik_p1(npc.id)) {
-                    stats.tob_verzik_p1_troll_specs += 1;
+                if target.is_some_and(|npc| npc::is_verzik_p1(npc.npc_id)) {
+                    data.stats.tob_verzik_p1_troll_specs += 1;
                 }
             }
 
-            PlayerAttack::ScytheUncharged => stats.uncharged_scythe_swings += 1,
+            PlayerAttack::ScytheUncharged => data.stats.uncharged_scythe_swings += 1,
 
             PlayerAttack::SangBarrage
             | PlayerAttack::ShadowBarrage
             | PlayerAttack::ToxicTridentBarrage
             | PlayerAttack::TridentBarrage
-            | PlayerAttack::UnknownBarrage => stats.tob_barrages_without_proper_weapon += 1,
+            | PlayerAttack::UnknownBarrage => data.stats.tob_barrages_without_proper_weapon += 1,
 
             _ => {}
         }
     }
 
-    fn capture_bloat_hands(&mut self, tick: Tick, hands: &[Coords]) {
+    fn capture_bloat_hands(&mut self, tick: Tick, hands: &[Point]) {
         #![allow(clippy::cast_possible_truncation, reason = "16x16")]
         let mut hands_by_chunk: [Vec<i16>; 4] = [const { Vec::new() }; 4];
 
         for hand in hands {
-            let x = hand.x - BLOAT_ROOM_ORIGIN.0;
-            let y = hand.y - BLOAT_ROOM_ORIGIN.1;
+            let x = i32::from(hand.0) - i32::from(BLOAT_ROOM_ORIGIN.0);
+            let y = i32::from(hand.1) - i32::from(BLOAT_ROOM_ORIGIN.1);
 
             if !(0..16).contains(&x) || !(0..16).contains(&y) {
                 tracing::warn!(
                     %tick,
-                    x = hand.x,
-                    y = hand.y,
+                    x = hand.0,
+                    y = hand.1,
                     "tob_bloat_hand_invalid_coordinates",
                 );
                 continue;
@@ -576,9 +539,9 @@ impl TheatreProcessor {
         slot.as_mut()
     }
 
-    fn record_maze_path(&mut self, sote_maze: &event::SoteMaze) {
+    fn record_maze_path(&mut self, maze_pivots: &SoteMazePivots) {
         let uuid = self.challenge.uuid;
-        let kind = sote_maze.maze();
+        let kind = maze_pivots.maze;
         let Some(maze) = self.maze_mut(kind) else {
             return;
         };
@@ -586,43 +549,42 @@ impl TheatreProcessor {
             return;
         };
 
-        if let Some(pivots) = full_pivots(&sote_maze.underworld_pivots)
-            .or_else(|| full_pivots(&sote_maze.overworld_pivots))
+        if let Some(pivots) =
+            full_pivots(&maze_pivots.underworld).or_else(|| full_pivots(&maze_pivots.overworld))
         {
             maze.pivots = Pivots::Complete(pivots);
             return;
         }
-        if !sote_maze.overworld_pivots.is_empty() {
+        if !maze_pivots.overworld.is_empty() {
             tracing::warn!(
                 uuid = %uuid,
                 maze = ?kind,
                 reason = "partial_overworld_pivots",
-                pivots = ?sote_maze.overworld_pivots,
+                pivots = ?maze_pivots.overworld,
                 "tob_sote_maze_error",
             );
         }
 
-        for pivot in &sote_maze.underworld_pivots {
-            let row = (pivot.y % 2 == 0)
-                .then(|| usize::try_from(pivot.y / 2).ok())
-                .flatten()
+        for pivot in &maze_pivots.underworld {
+            let row = (pivot.1 % 2 == 0)
+                .then_some(usize::from(pivot.1 / 2))
                 .and_then(|row| partial.get_mut(row));
             match row {
                 Some(Some(_)) => tracing::warn!(
                     uuid = %uuid,
                     maze = ?kind,
                     reason = "duplicate_underworld_pivot",
-                    x = pivot.x,
-                    y = pivot.y,
+                    x = pivot.0,
+                    y = pivot.1,
                     "tob_sote_maze_error",
                 ),
-                Some(row) => *row = Some(pivot.x.cast_unsigned()),
+                Some(row) => *row = Some(u32::from(pivot.0)),
                 None => tracing::warn!(
                     uuid = %uuid,
                     maze = ?kind,
                     reason = "invalid_underworld_pivot",
-                    x = pivot.x,
-                    y = pivot.y,
+                    x = pivot.0,
+                    y = pivot.1,
                     "tob_sote_maze_error",
                 ),
             }
@@ -687,7 +649,7 @@ impl TheatreProcessor {
         };
 
         let save_hands = async {
-            if finish.events.fully_queryable() {
+            if finish.merged.fully_queryable() {
                 self.save_bloat_hands(txn).await
             } else {
                 Ok(())
@@ -695,7 +657,7 @@ impl TheatreProcessor {
         };
         tokio::try_join!(
             save_stats,
-            self.save_bloat_downs(txn, finish.events.accurate_until()),
+            self.save_bloat_downs(txn, finish.merged.accurate_until()),
             save_hands,
         )?;
 
@@ -770,19 +732,16 @@ impl TheatreProcessor {
     }
 
     async fn finish_sotetseg(&mut self, finish: &mut RoomFinish<'_>) -> Result<(), db::Error> {
+        let party = &self.challenge.party;
         if let Some(maze) = &self.sotetseg.maze_1 {
             finish.room.sotetseg_maze_1_pivots = maze.pivots.to_vec();
-            finish
-                .room
-                .sotetseg_maze_1_chosen
-                .clone_from(&maze.chosen_player);
+            finish.room.sotetseg_maze_1_chosen =
+                maze.chosen_player.map(|index| party[index].to_string());
         }
         if let Some(maze) = &self.sotetseg.maze_2 {
             finish.room.sotetseg_maze_2_pivots = maze.pivots.to_vec();
-            finish
-                .room
-                .sotetseg_maze_2_chosen
-                .clone_from(&maze.chosen_player);
+            finish.room.sotetseg_maze_2_chosen =
+                maze.chosen_player.map(|index| party[index].to_string());
             if maze.end_tick > Tick(0) {
                 finish.ctx.set_stage_split(
                     SplitType::TobEntrySotetsegP3,
@@ -845,14 +804,6 @@ impl TheatreProcessor {
         let reds_count = u32::try_from(self.verzik.red_spawn_ticks.len()).expect("reds");
         finish.room.verzik_reds_count = reds_count;
         let reds_count = (reds_count > 0).then_some(reds_count.cast_signed());
-
-        if !self.verzik.missing_attack_ticks.is_empty() {
-            tracing::warn!(
-                uuid = %self.challenge.uuid,
-                ticks = ?self.verzik.missing_attack_ticks,
-                "challenge_events_missing_npc_attack",
-            );
-        }
 
         finish
             .txn
@@ -983,199 +934,156 @@ impl ChallengeProcessor for TheatreProcessor {
         clippy::too_many_lines,
         reason = "when you handle a bunch of events its long"
     )]
-    fn process_challenge_event(
+    fn process_tick(
         &mut self,
         ctx: &mut StageContext,
-        events: &mut EventCursor<'_>,
-    ) -> bool {
-        let event = events.current();
-        let tick = Tick(event.tick);
+        tick: Tick,
+        state: &TickState,
+        timeline: &Timeline,
+    ) {
+        let room = ctx.stage();
 
-        match event.r#type() {
-            event::Type::PlayerDeath => {
-                if let Some(player) = &event.player
-                    && let Some(data) = ctx.player_mut(player.party_index as usize)
-                {
-                    data.stats.deaths_total += 1;
-                    match event.stage() {
-                        Stage::TobMaiden => data.stats.deaths_maiden += 1,
-                        Stage::TobBloat => data.stats.deaths_bloat += 1,
-                        Stage::TobNylocas => data.stats.deaths_nylocas += 1,
-                        Stage::TobSotetseg => data.stats.deaths_sotetseg += 1,
-                        Stage::TobXarpus => data.stats.deaths_xarpus += 1,
-                        Stage::TobVerzik => data.stats.deaths_verzik += 1,
-                        _ => {}
+        for (&room_id, npc) in &state.npcs {
+            if timeline
+                .npc(room_id)
+                .is_some_and(|stage_npc| stage_npc.spawn == tick)
+            {
+                self.process_npc_spawn(ctx, tick, npc);
+            }
+            if let Some(style) = npc::nylocas_vasilias_style(npc.npc_id) {
+                self.update_nylocas_boss_style(style);
+            }
+        }
+
+        for event in &state.events {
+            match &event.kind {
+                EventKind::PlayerDeath(index) => {
+                    if let Some(data) = ctx.player_mut(index.as_usize()) {
+                        data.stats.deaths_total += 1;
+                        match room {
+                            Stage::TobMaiden => data.stats.deaths_maiden += 1,
+                            Stage::TobBloat => data.stats.deaths_bloat += 1,
+                            Stage::TobNylocas => data.stats.deaths_nylocas += 1,
+                            Stage::TobSotetseg => data.stats.deaths_sotetseg += 1,
+                            Stage::TobXarpus => data.stats.deaths_xarpus += 1,
+                            Stage::TobVerzik => data.stats.deaths_verzik += 1,
+                            _ => {}
+                        }
                     }
                 }
-                true
-            }
-            event::Type::PlayerAttack => {
-                if let Some(player) = &event.player
-                    && let Some(attack) = &event.player_attack
-                {
-                    self.process_player_attack(ctx, event.stage(), player, attack);
+                EventKind::PlayerAttack(attack) => {
+                    self.process_player_attack(ctx, room, state, attack);
                 }
-                true
-            }
-            event::Type::NpcSpawn => {
-                if let Some(npc) = &event.npc {
-                    self.process_npc_spawn(ctx, tick, npc);
-                }
-                true
-            }
-            event::Type::NpcUpdate => {
-                if let Some(npc) = &event.npc {
-                    self.process_npc_update(ctx, tick, npc);
-                }
-                true
-            }
-            event::Type::NpcAttack => {
-                if let Some(attack) = &event.npc_attack
-                    && attack.attack() == NpcAttack::TobVerzikP3Melee
-                {
-                    let tank = attack.target.as_ref();
-                    if let Some(index) = tank.and_then(|name| ctx.party_index(name))
-                        && let Some(player) = ctx.player_mut(index)
+                EventKind::NpcAttack(attack) => {
+                    if attack.attack == NpcAttack::TobVerzikP3Melee
+                        && let Some(Actor::Player(tank)) = attack.target
+                        && let Some(player) = ctx.player_mut(tank.as_usize())
                     {
                         player.stats.tob_verzik_p3_melees += 1;
                     }
                 }
-                true
-            }
 
-            event::Type::TobMaidenCrabLeak => {
-                if let Some(npc) = &event.npc
-                    && matches!(npc.r#type, Some(event::npc::Type::MaidenCrab(_)))
-                {
-                    let hitpoints = SkillLevel::from_raw(npc.hitpoints);
-                    if hitpoints.current == hitpoints.base {
+                EventKind::MaidenCrabLeak(room_id) => {
+                    let crab = state.npcs.get(room_id).or_else(|| {
+                        tick.up_to()
+                            .rev()
+                            .find_map(|earlier| timeline.get_state(earlier)?.npcs.get(room_id))
+                    });
+                    if let Some(crab) = crab
+                        && matches!(crab.properties, Some(NpcProperties::MaidenCrab(_)))
+                        && crab.hitpoints.current == crab.hitpoints.base
+                    {
                         self.maiden.full_leaks += 1;
                     }
                 }
-                true
-            }
 
-            event::Type::TobBloatDown => {
-                if let Some(down) = &event.bloat_down {
+                EventKind::BloatDown(down) => {
                     self.bloat.downs.push(BloatDown {
                         down_number: down.down_number,
                         tick,
-                        walk_ticks: Ticks(down.up_ticks.saturating_sub(1)),
+                        walk_ticks: down.walk_ticks(),
                     });
-
-                    if down.down_number == 1 {
-                        let bloat = events.events_for_tick(tick).iter().find(|e| {
-                            e.r#type() == event::Type::NpcUpdate
-                                && e.npc.as_ref().is_some_and(|npc| npc::is_bloat(npc.id))
-                        });
-                        if let Some(npc) = bloat.and_then(|e| e.npc.as_ref()) {
-                            self.bloat.first_down_hp_percent =
-                                Some(SkillLevel::from_raw(npc.hitpoints).percentage());
-                        }
+                    if down.down_number == 1
+                        && let Some(bloat) =
+                            state.npcs.values().find(|npc| npc::is_bloat(npc.npc_id))
+                    {
+                        self.bloat.first_down_hp_percent = Some(bloat.hitpoints.percentage());
                     }
                 }
-                true
-            }
-            event::Type::TobBloatHandsDrop => {
-                self.capture_bloat_hands(tick, &event.bloat_hands);
-                true
-            }
+                EventKind::BloatHandsDrop(hands) => self.capture_bloat_hands(tick, hands),
 
-            event::Type::TobNyloWaveSpawn => {
-                if let Some(wave) = event.nylo_wave {
+                EventKind::NyloWaveSpawn(wave) => {
                     if wave.wave == 20 {
                         ctx.set_stage_split(SplitType::TobEntryNyloCap, tick, Tick(0), false);
                     } else if wave.wave == 31 {
                         ctx.set_stage_split(SplitType::TobEntryNyloWaves, tick, Tick(0), false);
                     }
                 }
-                true
-            }
-            event::Type::TobNyloWaveStall => {
-                if let Some(wave) = event.nylo_wave {
-                    self.nylocas.stalled_waves.push(wave.wave);
+                EventKind::NyloWaveStall(wave) => {
+                    self.nylocas.stalled_waves.push(u32::from(wave.wave));
                 }
-                true
-            }
-            event::Type::TobNyloCleanupEnd => {
-                ctx.set_stage_split(SplitType::TobEntryNyloCleanup, tick, Tick(0), false);
-                true
-            }
-            event::Type::TobNyloBossSpawn => {
-                ctx.set_stage_split(SplitType::TobEntryNyloBossSpawn, tick, Tick(0), false);
-                true
-            }
+                EventKind::NyloCleanupEnd => {
+                    ctx.set_stage_split(SplitType::TobEntryNyloCleanup, tick, Tick(0), false);
+                }
+                EventKind::NyloBossSpawn => {
+                    ctx.set_stage_split(SplitType::TobEntryNyloBossSpawn, tick, Tick(0), false);
+                }
 
-            event::Type::TobSoteMazeProc => {
-                let Some(sote_maze) = &event.sote_maze else {
-                    tracing::warn!(
-                        uuid = %self.challenge.uuid,
-                        %tick,
-                        "tob_sote_maze_proc_no_maze",
-                    );
-                    return false;
-                };
-                let maze = SotetsegMaze::new(tick);
-                match sote_maze.maze() {
-                    Maze::Maze66 => {
-                        ctx.set_stage_split(SplitType::TobEntrySotetseg66, tick, Tick(0), false);
-                        self.sotetseg.maze_1 = Some(maze);
-                    }
-                    Maze::Maze33 => {
-                        ctx.set_stage_split(SplitType::TobEntrySotetseg33, tick, Tick(0), false);
-                        if let Some(maze_1) = &self.sotetseg.maze_1 {
+                EventKind::SoteMazeProc(maze) => {
+                    let maze_data = SotetsegMaze::new(tick);
+                    match maze {
+                        Maze::Maze66 => {
                             ctx.set_stage_split(
-                                SplitType::TobEntrySotetsegP2,
+                                SplitType::TobEntrySotetseg66,
                                 tick,
-                                maze_1.end_tick,
+                                Tick(0),
                                 false,
                             );
+                            self.sotetseg.maze_1 = Some(maze_data);
                         }
-                        self.sotetseg.maze_2 = Some(maze);
+                        Maze::Maze33 => {
+                            ctx.set_stage_split(
+                                SplitType::TobEntrySotetseg33,
+                                tick,
+                                Tick(0),
+                                false,
+                            );
+                            if let Some(maze_1) = &self.sotetseg.maze_1 {
+                                ctx.set_stage_split(
+                                    SplitType::TobEntrySotetsegP2,
+                                    tick,
+                                    maze_1.end_tick,
+                                    false,
+                                );
+                            }
+                            self.sotetseg.maze_2 = Some(maze_data);
+                        }
                     }
                 }
-                true
-            }
-            event::Type::TobSoteMazePath => {
-                // Path is two events in a trenchcoat: the visible tiles for replays,
-                // and the structured pivot events solely for the processor.
-                if let Some(sote_maze) = &event.sote_maze
-                    && sote_maze.overworld_tiles.is_empty()
-                {
-                    self.record_maze_path(sote_maze);
-                    return false;
-                }
-                true
-            }
-            event::Type::TobSoteMazeEnd => {
-                if let Some(sote_maze) = &event.sote_maze
-                    && let Some(maze) = self.maze_mut(sote_maze.maze())
-                {
-                    maze.end_tick = tick;
-                    if sote_maze.chosen_player.is_some() {
-                        maze.chosen_player.clone_from(&sote_maze.chosen_player);
+                EventKind::SoteMazePivots(pivots) => self.record_maze_path(pivots),
+                EventKind::SoteMazeEnd(end) => {
+                    if let Some(maze) = self.maze_mut(end.maze) {
+                        maze.end_tick = tick;
+                        if let Some(chosen) = end.chosen {
+                            maze.chosen_player = Some(chosen.as_usize());
+                        }
+                        let split = match end.maze {
+                            Maze::Maze66 => SplitType::TobEntrySotetsegMaze1,
+                            Maze::Maze33 => SplitType::TobEntrySotetsegMaze2,
+                        };
+                        ctx.set_stage_split(split, tick, maze.start_tick, false);
                     }
-                    let split = match sote_maze.maze() {
-                        Maze::Maze66 => SplitType::TobEntrySotetsegMaze1,
-                        Maze::Maze33 => SplitType::TobEntrySotetsegMaze2,
-                    };
-                    ctx.set_stage_split(split, tick, maze.start_tick, false);
                 }
-                false
-            }
 
-            event::Type::TobXarpusExhumed => {
-                if let Some(exhumed) = &event.xarpus_exhumed {
-                    let heals = i32::try_from(exhumed.heal_ticks.len()).expect("heals fit in i32");
-                    self.xarpus.healing = Some(
-                        self.xarpus.healing.unwrap_or(0)
-                            + exhumed_healing_for_scale(&self.challenge) * heals,
-                    );
+                EventKind::XarpusExhumed(exhumed) => {
+                    let heals = u32::try_from(exhumed.heal_ticks.len()).expect("heals fit in u32");
+                    let healing =
+                        XarpusExhumed::heal_amount(self.challenge.mode, self.challenge.party.len())
+                            * heals;
+                    self.xarpus.healing =
+                        Some(self.xarpus.healing.unwrap_or(0) + healing.cast_signed());
                 }
-                true
-            }
-            event::Type::TobXarpusPhase => {
-                match event.xarpus_phase() {
+                EventKind::XarpusPhase(phase) => match phase {
                     XarpusPhase::XarpusP1 => {}
                     XarpusPhase::XarpusP2 => {
                         ctx.set_stage_split(SplitType::TobEntryXarpusExhumes, tick, Tick(0), false);
@@ -1191,12 +1099,9 @@ impl ChallengeProcessor for TheatreProcessor {
                             );
                         }
                     }
-                }
-                true
-            }
+                },
 
-            event::Type::TobVerzikPhase => {
-                match event.verzik_phase() {
+                EventKind::VerzikPhase(phase) => match phase {
                     VerzikPhase::VerzikIdle | VerzikPhase::VerzikP1 => {}
                     VerzikPhase::VerzikP2 => {
                         ctx.set_stage_split(SplitType::TobEntryVerzikP1End, tick, Tick(0), false);
@@ -1212,80 +1117,9 @@ impl ChallengeProcessor for TheatreProcessor {
                             );
                         }
                     }
-                }
-                true
+                },
+                _ => {}
             }
-            event::Type::TobVerzikBounce => {
-                let Some(bounce) = &event.verzik_bounce else {
-                    return false;
-                };
-                let Ok(attack_tick) = u32::try_from(bounce.npc_attack_tick).map(Tick) else {
-                    return false;
-                };
-                let Some(bounced_player) = bounce.bounced_player.clone() else {
-                    // Chance event.
-                    return true;
-                };
-
-                let attack = events
-                    .events_for_tick_mut(attack_tick)
-                    .iter_mut()
-                    .filter(|e| e.r#type() == event::Type::NpcAttack)
-                    .find_map(|e| {
-                        e.npc_attack
-                            .as_mut()
-                            .filter(|attack| attack.attack() == NpcAttack::TobVerzikP2Bounce)
-                    });
-                match attack {
-                    Some(attack) => attack.target = Some(bounced_player),
-                    None => self.verzik.missing_attack_ticks.push(attack_tick),
-                }
-                true
-            }
-            // TODO(frolv): This event is legacy as of plugin 0.9.22 and this
-            // handling should be removed once the server's min supported
-            // version advances past that.
-            event::Type::TobVerzikAttackStyle => {
-                let Some(attack_style) = event.verzik_attack_style else {
-                    return false;
-                };
-                let tick = Tick(attack_style.npc_attack_tick);
-                let attack = events
-                    .events_for_tick_mut(tick)
-                    .iter_mut()
-                    .filter(|e| e.r#type() == event::Type::NpcAttack)
-                    .find_map(|e| {
-                        e.npc_attack
-                            .as_mut()
-                            .filter(|attack| attack.attack() == NpcAttack::TobVerzikP3Auto)
-                    });
-                let Some(attack) = attack else {
-                    self.verzik.missing_attack_ticks.push(tick);
-                    return false;
-                };
-
-                let tank = match attack_style.style() {
-                    AttackStyle::Melee => {
-                        attack.set_attack(NpcAttack::TobVerzikP3Melee);
-                        attack.target.as_ref()
-                    }
-                    AttackStyle::Range => {
-                        attack.set_attack(NpcAttack::TobVerzikP3Range);
-                        None
-                    }
-                    AttackStyle::Mage => {
-                        attack.set_attack(NpcAttack::TobVerzikP3Mage);
-                        None
-                    }
-                };
-                if let Some(index) = tank.and_then(|name| ctx.party_index(name))
-                    && let Some(player) = ctx.player_mut(index)
-                {
-                    player.stats.tob_verzik_p3_melees += 1;
-                }
-                false
-            }
-            _ => true,
         }
     }
 
@@ -1305,9 +1139,9 @@ impl ChallengeProcessor for TheatreProcessor {
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
-        events: &MergedEvents,
+        merged: &MergedTimeline,
     ) -> Result<ChallengeTicks, db::Error> {
-        let last_tick = events.last_tick();
+        let last_tick = merged.last_tick();
 
         let mut chin_prices: HashMap<u32, i32> = HashMap::new();
         for chin in &self.chins_thrown {
@@ -1330,12 +1164,16 @@ impl ChallengeProcessor for TheatreProcessor {
             .iter()
             .map(|&index| self.challenge.party[index].to_string())
             .collect();
+        let timeline = merged.timeline();
         let mut room = RoomData {
             stage,
-            ticks_lost: events.missing_tick_count(),
-            offset: events.offset(),
+            ticks_lost: merged.missing_tick_count(),
+            offset: merged.offset(),
             deaths,
-            npcs: ctx.npcs().cloned().collect(),
+            npcs: timeline
+                .npcs()
+                .map(|(room_id, _)| RoomNpc::new(timeline, room_id))
+                .collect(),
             ..RoomData::default()
         };
         let deaths = i32::try_from(room.deaths.len()).expect("max 5 deaths");
@@ -1343,7 +1181,7 @@ impl ChallengeProcessor for TheatreProcessor {
         let mut finish = RoomFinish {
             txn,
             ctx,
-            events,
+            merged,
             room: &mut room,
             last_tick,
             deaths,
@@ -1362,14 +1200,14 @@ impl ChallengeProcessor for TheatreProcessor {
 
         ctx.set_stage_split(room_split(stage), last_tick, Tick(0), true);
 
-        if events.status() == StageStatus::Completed
+        if merged.status() == StageStatus::Completed
             && self.has_fully_recorded_up_to(stage)
             && let Some(next_entry) = next_stage_entry_split(stage)
         {
             ctx.set_challenge_split(
                 next_entry,
                 stored.challenge_ticks + last_tick.duration(),
-                Some(!self.challenge.party_changed && events.has_precise_server_tick_count()),
+                Some(!self.challenge.party_changed && merged.has_precise_server_tick_count()),
             );
         }
 
@@ -1438,10 +1276,11 @@ impl ChallengeProcessor for TheatreProcessor {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::too_many_lines)]
-    use blert::Rsn;
-    use blert::proto::Event;
     use blert::proto::event::npc::MaidenCrab;
-    use blert::proto::event::npc::maiden_crab::Position as MaidenCrabPosition;
+    use blert::proto::event::npc::nylo::Style as NyloStyle;
+    use blert::proto::event::sote_maze::Maze;
+    use blert::proto::{Event, event};
+    use blert::{MaidenCrabPosition, Rsn, SkillLevel};
     use serde_json::json;
 
     use super::*;
@@ -1558,6 +1397,25 @@ mod tests {
         })
     }
 
+    fn crab_update(
+        tick: Tick,
+        room_id: u64,
+        coords: (i32, i32),
+        current: u16,
+        kind: event::npc::Type,
+    ) -> Event {
+        npc_update_event(NpcEvent {
+            tick,
+            stage: Stage::TobMaiden,
+            coords,
+            npc_id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+            room_id,
+            hitpoints: SkillLevel { current, base: 75 },
+            kind: Some(kind),
+            ..Default::default()
+        })
+    }
+
     #[test]
     fn maiden_crab_spawns_record_splits() {
         let mut processor = TheatreProcessor::new(
@@ -1571,79 +1429,155 @@ mod tests {
             vec![
                 Rsn::try_from("1Ogp").unwrap(),
                 Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+                Rsn::try_from("715").unwrap(),
             ],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+                Rsn::try_from("715").unwrap(),
+            ],
             vec![
                 crab_spawn(
-                    Tick(56),
-                    45952,
-                    (3185, 4454),
-                    maiden_crab(
-                        MaidenCrabSpawn::Seventies,
-                        MaidenCrabPosition::N4Inner,
-                        false,
-                    ),
-                ),
-                crab_spawn(
-                    Tick(56),
-                    45954,
+                    Tick(48),
+                    64483,
                     (3173, 4456),
                     maiden_crab(MaidenCrabSpawn::Seventies, MaidenCrabPosition::N1, false),
                 ),
+                crab_update(
+                    Tick(54),
+                    64483,
+                    (3167, 4450),
+                    49,
+                    maiden_crab(MaidenCrabSpawn::Seventies, MaidenCrabPosition::N1, false),
+                ),
                 crab_leak(
-                    Tick(62),
-                    45954,
+                    Tick(54),
+                    64483,
+                    (3167, 4450),
+                    49,
+                    maiden_crab(MaidenCrabSpawn::Seventies, MaidenCrabPosition::N1, false),
+                ),
+                crab_spawn(
+                    Tick(99),
+                    65525,
+                    (3173, 4456),
+                    maiden_crab(MaidenCrabSpawn::Fifties, MaidenCrabPosition::N1, false),
+                ),
+                crab_spawn(
+                    Tick(154),
+                    34241,
+                    (3174, 4435),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S1, true),
+                ),
+                crab_spawn(
+                    Tick(154),
+                    34242,
+                    (3182, 4457),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N3, true),
+                ),
+                crab_spawn(
+                    Tick(154),
+                    34243,
+                    (3178, 4457),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N2, true),
+                ),
+                crab_spawn(
+                    Tick(154),
+                    34244,
+                    (3174, 4457),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N1, true),
+                ),
+                crab_spawn(
+                    Tick(154),
+                    34239,
+                    (3186, 4455),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N4Inner, true),
+                ),
+                crab_update(
+                    Tick(161),
+                    34244,
                     (3167, 4450),
                     75,
-                    maiden_crab(MaidenCrabSpawn::Seventies, MaidenCrabPosition::N1, false),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N1, true),
                 ),
                 crab_leak(
-                    Tick(108),
-                    45952,
+                    Tick(161),
+                    34244,
+                    (3167, 4450),
+                    75,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N1, true),
+                ),
+                crab_update(
+                    Tick(164),
+                    34243,
+                    (3168, 4447),
+                    75,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N2, true),
+                ),
+                crab_leak(
+                    Tick(164),
+                    34243,
+                    (3168, 4447),
+                    75,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N2, true),
+                ),
+                crab_update(
+                    Tick(196),
+                    34241,
+                    (3167, 4442),
+                    59,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S1, true),
+                ),
+                crab_leak(
+                    Tick(196),
+                    34241,
+                    (3167, 4442),
+                    59,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S1, true),
+                ),
+                crab_update(
+                    Tick(203),
+                    34242,
                     (3168, 4444),
-                    3,
-                    maiden_crab(
-                        MaidenCrabSpawn::Seventies,
-                        MaidenCrabPosition::N4Inner,
-                        false,
-                    ),
-                ),
-                crab_spawn(
-                    Tick(108),
-                    47648,
-                    (3173, 4456),
-                    maiden_crab(MaidenCrabSpawn::Fifties, MaidenCrabPosition::N1, true),
-                ),
-                crab_leak(
-                    Tick(114),
-                    47648,
-                    (3167, 4450),
                     17,
-                    maiden_crab(MaidenCrabSpawn::Fifties, MaidenCrabPosition::N1, true),
-                ),
-                crab_spawn(
-                    Tick(173),
-                    49452,
-                    (3181, 4436),
-                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S3, false),
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N3, true),
                 ),
                 crab_leak(
-                    Tick(179),
-                    49452,
-                    (3167, 4450),
-                    15,
-                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::S3, false),
+                    Tick(203),
+                    34242,
+                    (3168, 4444),
+                    17,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N3, true),
                 ),
-                player_death_event(Tick(231), Stage::TobMaiden, (3167, 4450), "WWWWWWWWWWQQ", 1),
+                crab_update(
+                    Tick(207),
+                    34239,
+                    (3168, 4444),
+                    6,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N4Inner, true),
+                ),
+                crab_leak(
+                    Tick(207),
+                    34239,
+                    (3168, 4444),
+                    6,
+                    maiden_crab(MaidenCrabSpawn::Thirties, MaidenCrabPosition::N4Inner, true),
+                ),
+                player_death_event(Tick(213), Stage::TobMaiden, (3165, 4450), "715", 0),
             ],
             StageStatus::Started,
             ServerTicks::Missing,
         );
 
-        for index in 0..events.len() {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
 
         assert_eq!(
@@ -1652,7 +1586,7 @@ mod tests {
                 (
                     SplitType::TobEntryMaiden70s,
                     StageSplit {
-                        tick: Tick(56),
+                        tick: Tick(48),
                         start: Tick(0),
                         requires_completion: false,
                     },
@@ -1660,7 +1594,7 @@ mod tests {
                 (
                     SplitType::TobEntryMaiden50s,
                     StageSplit {
-                        tick: Tick(108),
+                        tick: Tick(99),
                         start: Tick(0),
                         requires_completion: false,
                     },
@@ -1668,7 +1602,7 @@ mod tests {
                 (
                     SplitType::TobEntryMaiden30s,
                     StageSplit {
-                        tick: Tick(173),
+                        tick: Tick(154),
                         start: Tick(0),
                         requires_completion: false,
                     },
@@ -1676,28 +1610,29 @@ mod tests {
                 (
                     SplitType::TobEntryMaiden70s50s,
                     StageSplit {
-                        tick: Tick(108),
-                        start: Tick(56),
+                        tick: Tick(99),
+                        start: Tick(48),
                         requires_completion: false,
                     },
                 ),
                 (
                     SplitType::TobEntryMaiden50s30s,
                     StageSplit {
-                        tick: Tick(173),
-                        start: Tick(108),
+                        tick: Tick(154),
+                        start: Tick(99),
                         requires_completion: false,
                     },
                 ),
             ],
         );
         assert!(processor.maiden.scuffed_spawns);
-        assert_eq!(processor.maiden.full_leaks, 1);
+        assert_eq!(processor.maiden.full_leaks, 2);
 
         let stats: Vec<_> = ctx.players().iter().map(|player| player.stats).collect();
         assert_eq!(
             stats,
             [
+                PlayerStatsDelta::default(),
                 PlayerStatsDelta::default(),
                 PlayerStatsDelta {
                     deaths_total: 1,
@@ -1725,20 +1660,32 @@ mod tests {
         );
         let maiden = Some(event::Npc {
             id: 8360,
-            room_id: 45947,
+            room_id: 42338,
             ..Default::default()
         });
-        let crab = Some(event::Npc {
+        let s3_crab = Some(event::Npc {
             id: npc::id::MAIDEN_MATOMENOS_REGULAR,
-            room_id: 45952,
+            room_id: 42835,
             ..Default::default()
         });
-        let mut events = merged_events(
+        let n4_crab = Some(event::Npc {
+            id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+            room_id: 42834,
+            ..Default::default()
+        });
+        let merged = merged_events(
+            Stage::TobMaiden,
+            ChallengeMode::TobRegular,
             vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
+            vec![
+                PlayerUpdateEvent::new(Tick(10), Stage::TobMaiden, "1Ogp", (3168, 4445)).build(),
                 player_attack_event(PlayerAttackEvent {
-                    tick: Tick(21),
+                    tick: Tick(10),
                     stage: Stage::TobMaiden,
-                    coords: (3167, 4450),
+                    coords: (3168, 4445),
                     name: "1Ogp",
                     party_index: Some(0),
                     attack: PlayerAttack::ElderMaul,
@@ -1746,43 +1693,11 @@ mod tests {
                     distance_to_target: 1,
                     target: maiden,
                 }),
+                PlayerUpdateEvent::new(Tick(16), Stage::TobMaiden, "1Ogp", (3168, 4445)).build(),
                 player_attack_event(PlayerAttackEvent {
-                    tick: Tick(71),
+                    tick: Tick(16),
                     stage: Stage::TobMaiden,
-                    coords: (3170, 4439),
-                    name: "WWWWWWWWWWQQ",
-                    party_index: Some(1),
-                    attack: PlayerAttack::ChinBlack,
-                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
-                    distance_to_target: 5,
-                    target: crab,
-                }),
-                player_attack_event(PlayerAttackEvent {
-                    tick: Tick(74),
-                    stage: Stage::TobMaiden,
-                    coords: (3168, 4439),
-                    name: "WWWWWWWWWWQQ",
-                    party_index: Some(1),
-                    attack: PlayerAttack::ChinBlack,
-                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
-                    distance_to_target: 5,
-                    target: crab,
-                }),
-                player_attack_event(PlayerAttackEvent {
-                    tick: Tick(80),
-                    stage: Stage::TobMaiden,
-                    coords: (3166, 4441),
-                    name: "WWWWWWWWWWQQ",
-                    party_index: Some(1),
-                    attack: PlayerAttack::ChinBlack,
-                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
-                    distance_to_target: 3,
-                    target: crab,
-                }),
-                player_attack_event(PlayerAttackEvent {
-                    tick: Tick(92),
-                    stage: Stage::TobMaiden,
-                    coords: (3167, 4450),
+                    coords: (3168, 4445),
                     name: "1Ogp",
                     party_index: Some(0),
                     attack: PlayerAttack::ScytheUncharged,
@@ -1790,14 +1705,128 @@ mod tests {
                     distance_to_target: 1,
                     target: maiden,
                 }),
+                npc_spawn_event(NpcEvent {
+                    tick: Tick(57),
+                    stage: Stage::TobMaiden,
+                    coords: (3185, 4456),
+                    npc_id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+                    room_id: 42834,
+                    hitpoints: SkillLevel {
+                        current: 87,
+                        base: 87,
+                    },
+                    kind: Some(maiden_crab(
+                        MaidenCrabSpawn::Fifties,
+                        MaidenCrabPosition::N4Outer,
+                        false,
+                    )),
+                    ..Default::default()
+                }),
+                npc_spawn_event(NpcEvent {
+                    tick: Tick(57),
+                    stage: Stage::TobMaiden,
+                    coords: (3181, 4436),
+                    npc_id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+                    room_id: 42835,
+                    hitpoints: SkillLevel {
+                        current: 87,
+                        base: 87,
+                    },
+                    kind: Some(maiden_crab(
+                        MaidenCrabSpawn::Fifties,
+                        MaidenCrabPosition::S3,
+                        false,
+                    )),
+                    ..Default::default()
+                }),
+                PlayerUpdateEvent::new(Tick(69), Stage::TobMaiden, "WWWWWWWWWWQQ", (3174, 4447))
+                    .party_index(1)
+                    .build(),
+                npc_update_event(NpcEvent {
+                    tick: Tick(69),
+                    stage: Stage::TobMaiden,
+                    coords: (3170, 4444),
+                    npc_id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+                    room_id: 42835,
+                    hitpoints: SkillLevel {
+                        current: 54,
+                        base: 87,
+                    },
+                    ..Default::default()
+                }),
+                player_attack_event(PlayerAttackEvent {
+                    tick: Tick(69),
+                    stage: Stage::TobMaiden,
+                    coords: (3174, 4447),
+                    name: "WWWWWWWWWWQQ",
+                    party_index: Some(1),
+                    attack: PlayerAttack::ChinBlack,
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
+                    distance_to_target: 3,
+                    target: s3_crab,
+                }),
+                PlayerUpdateEvent::new(Tick(72), Stage::TobMaiden, "WWWWWWWWWWQQ", (3174, 4449))
+                    .party_index(1)
+                    .build(),
+                npc_update_event(NpcEvent {
+                    tick: Tick(72),
+                    stage: Stage::TobMaiden,
+                    coords: (3170, 4444),
+                    npc_id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+                    room_id: 42834,
+                    hitpoints: SkillLevel {
+                        current: 76,
+                        base: 87,
+                    },
+                    ..Default::default()
+                }),
+                player_attack_event(PlayerAttackEvent {
+                    tick: Tick(72),
+                    stage: Stage::TobMaiden,
+                    coords: (3174, 4449),
+                    name: "WWWWWWWWWWQQ",
+                    party_index: Some(1),
+                    attack: PlayerAttack::ChinBlack,
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
+                    distance_to_target: 4,
+                    target: n4_crab,
+                }),
+                PlayerUpdateEvent::new(Tick(75), Stage::TobMaiden, "WWWWWWWWWWQQ", (3174, 4449))
+                    .party_index(1)
+                    .build(),
+                npc_update_event(NpcEvent {
+                    tick: Tick(75),
+                    stage: Stage::TobMaiden,
+                    coords: (3169, 4444),
+                    npc_id: npc::id::MAIDEN_MATOMENOS_REGULAR,
+                    room_id: 42834,
+                    hitpoints: SkillLevel {
+                        current: 50,
+                        base: 87,
+                    },
+                    ..Default::default()
+                }),
+                player_attack_event(PlayerAttackEvent {
+                    tick: Tick(75),
+                    stage: Stage::TobMaiden,
+                    coords: (3174, 4449),
+                    name: "WWWWWWWWWWQQ",
+                    party_index: Some(1),
+                    attack: PlayerAttack::ChinBlack,
+                    weapon_id: blert::item::id::BLACK_CHINCHOMPA,
+                    distance_to_target: 4,
+                    target: n4_crab,
+                }),
             ],
             StageStatus::Started,
             ServerTicks::Missing,
         );
 
-        for index in 0..events.len() {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
 
         assert_eq!(
@@ -1845,7 +1874,13 @@ mod tests {
                 Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
             ],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::TobBloat,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             vec![
                 npc_update_event(NpcEvent {
                     tick: Tick(41),
@@ -1921,9 +1956,11 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        for index in 0..events.len() {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
 
         assert_eq!(
@@ -2048,7 +2085,7 @@ mod tests {
     }
 
     #[test]
-    fn nylocas_events_record_splits_stalls_and_styles() {
+    fn nylocas_events_record_splits_and_styles() {
         let mut processor = TheatreProcessor::new(
             TheatreConfig::default(),
             challenge_info(Stage::TobNylocas, ChallengeStatus::InProgress),
@@ -2062,15 +2099,18 @@ mod tests {
                 Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
             ],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::TobNylocas,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             vec![
                 nylo_split_spawn(Tick(26), 53938, (3295, 4237), 8342, 5, NyloStyle::Melee),
                 nylo_split_spawn(Tick(31), 54068, (3287, 4248), 8343, 5, NyloStyle::Range),
                 nylo_split_spawn(Tick(51), 54374, (3296, 4239), 8344, 7, NyloStyle::Mage),
                 nylo_wave_event(event::Type::TobNyloWaveSpawn, Tick(152), 20, 12, 24),
-                nylo_wave_event(event::Type::TobNyloWaveStall, Tick(232), 29, 28, 24),
-                nylo_wave_event(event::Type::TobNyloWaveStall, Tick(236), 29, 28, 24),
-                nylo_wave_event(event::Type::TobNyloWaveStall, Tick(240), 29, 25, 24),
                 nylo_wave_event(event::Type::TobNyloWaveSpawn, Tick(244), 30, 23, 24),
                 nylo_wave_event(event::Type::TobNyloWaveSpawn, Tick(248), 31, 26, 24),
                 nylo_split_event(event::Type::TobNyloCleanupEnd, Tick(273)),
@@ -2100,9 +2140,11 @@ mod tests {
             ServerTicks::Precise(362),
         );
 
-        for index in 0..events.len() {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
 
         assert_eq!(
@@ -2142,7 +2184,6 @@ mod tests {
                 ),
             ],
         );
-        assert_eq!(processor.nylocas.stalled_waves, vec![29, 29, 29]);
         assert_eq!(
             processor.nylocas.split_styles,
             NylocasStyles {
@@ -2178,7 +2219,14 @@ mod tests {
                 Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
             ],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::TobSotetseg,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("715").unwrap(),
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             vec![
                 sote_maze_proc_event(Tick(42), Maze::Maze66),
                 sote_maze_path_event(
@@ -2262,19 +2310,12 @@ mod tests {
             ServerTicks::Precise(169),
         );
 
-        let kept: Vec<bool> = (0..events.len())
-            .map(|index| {
-                let mut cursor = EventCursor::new(&mut events, index);
-                processor.process_challenge_event(&mut ctx, &mut cursor)
-            })
-            .collect();
-        assert_eq!(
-            kept,
-            vec![
-                true, false, false, true, true, true, true, true, true, true, true, true, true,
-                false, false,
-            ],
-        );
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
+        }
 
         assert_eq!(
             ctx.stage_splits().collect::<Vec<_>>(),
@@ -2327,7 +2368,7 @@ mod tests {
                 pivots: Pivots::Complete([4, 2, 4, 4, 1, 1, 3, 0]),
                 start_tick: Tick(42),
                 end_tick: Tick(64),
-                chosen_player: Some("715".to_string()),
+                chosen_player: Some(0),
             }),
         );
         assert_eq!(
@@ -2336,7 +2377,7 @@ mod tests {
                 pivots: Pivots::Complete([7, 10, 11, 12, 10, 9, 11, 12]),
                 start_tick: Tick(106),
                 end_tick: Tick(124),
-                chosen_player: Some("1Ogp".to_string()),
+                chosen_player: Some(1),
             }),
         );
     }
@@ -2356,7 +2397,13 @@ mod tests {
                 Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
             ],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::TobXarpus,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            ],
             vec![
                 xarpus_exhumed_event(Tick(19), Tick(8), &[]),
                 xarpus_exhumed_event(Tick(27), Tick(16), &[Tick(19)]),
@@ -2374,9 +2421,11 @@ mod tests {
             ServerTicks::Precise(311),
         );
 
-        for index in 0..events.len() {
-            let mut cursor = EventCursor::new(&mut events, index);
-            assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
         }
 
         assert_eq!(
@@ -2412,7 +2461,7 @@ mod tests {
     }
 
     #[test]
-    fn verzik_records_splits_and_applies_attack_style() {
+    fn verzik_records_splits_reds_and_p3_melees() {
         let mut processor = TheatreProcessor::new(
             TheatreConfig::default(),
             challenge_info(Stage::TobVerzik, ChallengeStatus::InProgress),
@@ -2441,62 +2490,76 @@ mod tests {
                 ..Default::default()
             })
         };
-        let p3_auto = |tick: Tick, coords: (i32, i32)| {
-            npc_attack_event(
-                tick,
-                Stage::TobVerzik,
-                coords,
-                8374,
-                39798,
-                NpcAttack::TobVerzikP3Auto,
-                Some("715"),
-            )
-        };
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::TobVerzik,
+            ChallengeMode::TobRegular,
             vec![
-                verzik_phase_event(Tick(66), VerzikPhase::VerzikP2),
-                red(Tick(174), 44478, (3163, 4314)),
-                red(Tick(174), 44479, (3171, 4314)),
-                red(Tick(218), 45588, (3163, 4314)),
-                red(Tick(218), 45589, (3171, 4314)),
-                verzik_bounce_event(Tick(230), Tick(230), 0, 3, None),
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+                Rsn::try_from("715").unwrap(),
+            ],
+            vec![
+                verzik_phase_event(Tick(88), VerzikPhase::VerzikP2),
+                red(Tick(204), 41885, (3163, 4314)),
+                red(Tick(204), 41886, (3171, 4314)),
+                red(Tick(248), 42718, (3163, 4314)),
+                red(Tick(248), 42719, (3171, 4314)),
+                red(Tick(292), 43489, (3163, 4314)),
+                red(Tick(292), 43490, (3171, 4314)),
+                verzik_phase_event(Tick(332), VerzikPhase::VerzikP3),
+                npc_update_event(NpcEvent {
+                    tick: Tick(344),
+                    stage: Stage::TobVerzik,
+                    coords: (3165, 4311),
+                    npc_id: 8374,
+                    room_id: 37433,
+                    hitpoints: SkillLevel {
+                        current: 2322,
+                        base: 2437,
+                    },
+                    ..Default::default()
+                }),
                 npc_attack_event(
-                    Tick(234),
+                    Tick(344),
                     Stage::TobVerzik,
-                    (3167, 4313),
-                    8372,
-                    39798,
-                    NpcAttack::TobVerzikP2Bounce,
-                    None,
+                    (3165, 4311),
+                    8374,
+                    37433,
+                    NpcAttack::TobVerzikP3Mage,
+                    Some("WWWWWWWWWWQQ"),
                 ),
-                verzik_bounce_event(Tick(235), Tick(234), 2, 1, Some("WWWWWWWWWWQQ")),
-                verzik_phase_event(Tick(235), VerzikPhase::VerzikP3),
-                p3_auto(Tick(247), (3165, 4309)),
-                verzik_attack_style_event(Tick(249), Tick(247), AttackStyle::Mage),
-                p3_auto(Tick(254), (3165, 4309)),
-                verzik_attack_style_event(Tick(257), Tick(254), AttackStyle::Range),
-                p3_auto(Tick(348), (3165, 4309)),
-                verzik_attack_style_event(Tick(353), Tick(348), AttackStyle::Melee),
-                p3_auto(Tick(353), (3165, 4309)),
-                verzik_attack_style_event(Tick(356), Tick(353), AttackStyle::Range),
+                npc_update_event(NpcEvent {
+                    tick: Tick(393),
+                    stage: Stage::TobVerzik,
+                    coords: (3167, 4309),
+                    npc_id: 8374,
+                    room_id: 37433,
+                    hitpoints: SkillLevel {
+                        current: 1366,
+                        base: 2437,
+                    },
+                    ..Default::default()
+                }),
+                npc_attack_event(
+                    Tick(393),
+                    Stage::TobVerzik,
+                    (3167, 4309),
+                    8374,
+                    37433,
+                    NpcAttack::TobVerzikP3Melee,
+                    Some("WWWWWWWWWWQQ"),
+                ),
             ],
             StageStatus::Completed,
-            ServerTicks::Precise(375),
+            ServerTicks::Precise(524),
         );
 
-        let kept: Vec<bool> = (0..events.len())
-            .map(|index| {
-                let mut cursor = EventCursor::new(&mut events, index);
-                processor.process_challenge_event(&mut ctx, &mut cursor)
-            })
-            .collect();
-        assert_eq!(
-            kept,
-            vec![
-                true, true, true, true, true, true, true, true, true, true, false, true, false,
-                true, false, true, false,
-            ],
-        );
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
+        }
 
         assert_eq!(
             ctx.stage_splits().collect::<Vec<_>>(),
@@ -2504,7 +2567,7 @@ mod tests {
                 (
                     SplitType::TobEntryVerzikP1End,
                     StageSplit {
-                        tick: Tick(66),
+                        tick: Tick(88),
                         start: Tick(0),
                         requires_completion: false,
                     },
@@ -2512,7 +2575,7 @@ mod tests {
                 (
                     SplitType::TobEntryVerzikReds,
                     StageSplit {
-                        tick: Tick(174),
+                        tick: Tick(204),
                         start: Tick(0),
                         requires_completion: false,
                     },
@@ -2520,7 +2583,7 @@ mod tests {
                 (
                     SplitType::TobEntryVerzikP2End,
                     StageSplit {
-                        tick: Tick(235),
+                        tick: Tick(332),
                         start: Tick(0),
                         requires_completion: false,
                     },
@@ -2528,35 +2591,23 @@ mod tests {
                 (
                     SplitType::TobEntryVerzikP2,
                     StageSplit {
-                        tick: Tick(235),
-                        start: Tick(79),
+                        tick: Tick(332),
+                        start: Tick(101),
                         requires_completion: false,
                     },
                 ),
             ],
         );
-        assert_eq!(processor.verzik.red_spawn_ticks, vec![Tick(174), Tick(218)]);
-        assert_eq!(processor.verzik.missing_attack_ticks, []);
-
-        let attack = |tick: Tick| {
-            events
-                .events_for_tick(tick)
-                .iter()
-                .find_map(|e| e.npc_attack.as_ref())
-                .unwrap()
-        };
-        assert_eq!(attack(Tick(234)).attack(), NpcAttack::TobVerzikP2Bounce);
-        assert_eq!(attack(Tick(234)).target.as_deref(), Some("WWWWWWWWWWQQ"));
-        assert_eq!(attack(Tick(247)).attack(), NpcAttack::TobVerzikP3Mage);
-        assert_eq!(attack(Tick(254)).attack(), NpcAttack::TobVerzikP3Range);
-        assert_eq!(attack(Tick(348)).attack(), NpcAttack::TobVerzikP3Melee);
-        assert_eq!(attack(Tick(353)).attack(), NpcAttack::TobVerzikP3Range);
+        assert_eq!(
+            processor.verzik.red_spawn_ticks,
+            vec![Tick(204), Tick(248), Tick(292)],
+        );
         assert_eq!(
             ctx.players()
                 .iter()
                 .map(|player| player.stats.tob_verzik_p3_melees)
                 .collect::<Vec<_>>(),
-            vec![0, 0, 1],
+            vec![0, 1, 0],
         );
     }
 
