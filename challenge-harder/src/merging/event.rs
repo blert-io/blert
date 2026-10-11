@@ -306,6 +306,7 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Opti
                 ChallengeType::Cox => Some(PLAYER_DEATH_RESPAWN_WINDOW),
                 ChallengeType::Tob
                 | ChallengeType::Toa
+                | ChallengeType::Tfa
                 | ChallengeType::Mokhaiotl
                 | ChallengeType::Colosseum
                 | ChallengeType::Inferno

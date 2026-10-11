@@ -444,6 +444,7 @@ fn type_label(challenge_type: ChallengeType) -> &'static str {
         ChallengeType::Tob => "tob",
         ChallengeType::Cox => "cox",
         ChallengeType::Toa => "toa",
+        ChallengeType::Tfa => "tfa",
         ChallengeType::Colosseum => "colosseum",
         ChallengeType::Inferno => "inferno",
         ChallengeType::Mokhaiotl => "mokhaiotl",
@@ -483,7 +484,7 @@ fn stage_label(stage: Stage) -> String {
         Some(ChallengeType::Colosseum) => "colosseum_any".to_owned(),
         Some(ChallengeType::Inferno) => "inferno_any".to_owned(),
         Some(ChallengeType::Mokhaiotl) => "mokhaiotl_any".to_owned(),
-        Some(ChallengeType::Tob | ChallengeType::Cox | ChallengeType::Toa) => {
+        Some(ChallengeType::Tob | ChallengeType::Cox | ChallengeType::Toa | ChallengeType::Tfa) => {
             stage.as_str_name().to_lowercase()
         }
         Some(ChallengeType::UnknownChallenge) | None => "unknown".to_owned(),

@@ -304,6 +304,7 @@ export function FilterableSetupList({
               <option value={ChallengeType.TOB}>Theatre of Blood</option>
               <option value={ChallengeType.COX}>Chambers of Xeric</option>
               <option value={ChallengeType.TOA}>Tombs of Amascut</option>
+              <option value={ChallengeType.TFA}>Fractured Archive</option>
               <option value={ChallengeType.INFERNO}>Inferno</option>
               <option value={ChallengeType.COLOSSEUM}>Colosseum</option>
             </select>

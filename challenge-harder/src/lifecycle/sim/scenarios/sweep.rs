@@ -28,6 +28,7 @@ const SWEEP_CONFIG: LifecycleConfig = LifecycleConfig {
         tob: Duration::from_mins(1),
         cox: Duration::from_mins(1),
         toa: Duration::from_mins(1),
+        tfa: Duration::from_mins(1),
         colosseum: Duration::from_mins(1),
         inferno: Duration::from_mins(1),
         mokhaiotl: Duration::from_mins(1),

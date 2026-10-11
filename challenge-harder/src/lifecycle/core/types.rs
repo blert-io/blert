@@ -369,6 +369,7 @@ impl StageExt for Stage {
             20..=32 => Some(ChallengeType::Cox),
             40..=48 => Some(ChallengeType::Toa),
             50..=58 => Some(ChallengeType::Mokhaiotl),
+            60..=67 => Some(ChallengeType::Tfa),
             100..=111 => Some(ChallengeType::Colosseum),
             200..=268 => Some(ChallengeType::Inferno),
             _ => None,
@@ -386,6 +387,22 @@ impl StageExt for Stage {
         match self.challenge_type() {
             // TODO(frolv): Handle toa.
             None | Some(ChallengeType::Toa) => Vec::new(),
+            Some(ChallengeType::Tfa) => {
+                // Players pick one boss out of each of the middle three rows;
+                // count both as equal progress.
+                const ROWS: [&[Stage]; 5] = [
+                    &[Stage::TfaGuardian],
+                    &[Stage::TfaEzekiel, Stage::TfaBork],
+                    &[Stage::TfaNecromancer, Stage::TfaDreadnoth],
+                    &[Stage::TfaXarth, Stage::TfaDagonhai],
+                    &[Stage::TfaFinal],
+                ];
+                ROWS.iter()
+                    .skip_while(|row| !row.contains(&self))
+                    .skip(1)
+                    .flat_map(|row| row.iter().copied())
+                    .collect()
+            }
             Some(ty) => ((self as i32 + 1)..)
                 .map_while(|value| {
                     Stage::try_from(value)
@@ -411,6 +428,7 @@ impl ChallengeTypeExt for ChallengeType {
             ChallengeType::Cox => Some(Stage::CoxTekton),
             // TODO(frolv): handle toa
             ChallengeType::Toa => Some(Stage::ToaApmeken),
+            ChallengeType::Tfa => Some(Stage::TfaGuardian),
             ChallengeType::Mokhaiotl => Some(Stage::MokhaiotlDelve1),
             ChallengeType::Colosseum => Some(Stage::ColosseumWave1),
             ChallengeType::Inferno => Some(Stage::InfernoWave1),
@@ -424,6 +442,7 @@ impl ChallengeTypeExt for ChallengeType {
             ChallengeType::Tob => Some(Stage::TobVerzik),
             ChallengeType::Cox => Some(Stage::CoxOlm),
             ChallengeType::Toa => Some(Stage::ToaWardens),
+            ChallengeType::Tfa => Some(Stage::TfaFinal),
             ChallengeType::Mokhaiotl => Some(Stage::MokhaiotlDelve8),
             ChallengeType::Colosseum => Some(Stage::ColosseumWave12),
             ChallengeType::Inferno => Some(Stage::InfernoWave69),
@@ -460,6 +479,7 @@ mod tests {
             (Stage::TobMaiden, Stage::TobVerzik, ChallengeType::Tob),
             (Stage::CoxTekton, Stage::CoxOlm, ChallengeType::Cox),
             (Stage::ToaApmeken, Stage::ToaWardens, ChallengeType::Toa),
+            (Stage::TfaGuardian, Stage::TfaFinal, ChallengeType::Tfa),
             (
                 Stage::MokhaiotlDelve1,
                 Stage::MokhaiotlDelve8plus,
@@ -486,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    fn later_stages_follow_the_linear_stage_order() {
+    fn later_stages_follow_challenge_progression() {
         assert_eq!(
             Stage::TobSotetseg.later_stages(),
             vec![Stage::TobXarpus, Stage::TobVerzik]
@@ -498,6 +518,33 @@ mod tests {
         );
         assert_eq!(Stage::CoxMuttadile.later_stages(), vec![Stage::CoxOlm]);
         assert_eq!(Stage::ColosseumWave12.later_stages(), vec![]);
+        assert_eq!(
+            Stage::TfaGuardian.later_stages(),
+            vec![
+                Stage::TfaEzekiel,
+                Stage::TfaBork,
+                Stage::TfaNecromancer,
+                Stage::TfaDreadnoth,
+                Stage::TfaXarth,
+                Stage::TfaDagonhai,
+                Stage::TfaFinal,
+            ]
+        );
+        assert_eq!(
+            Stage::TfaEzekiel.later_stages(),
+            vec![
+                Stage::TfaNecromancer,
+                Stage::TfaDreadnoth,
+                Stage::TfaXarth,
+                Stage::TfaDagonhai,
+                Stage::TfaFinal,
+            ]
+        );
+        assert_eq!(
+            Stage::TfaDreadnoth.later_stages(),
+            vec![Stage::TfaXarth, Stage::TfaDagonhai, Stage::TfaFinal]
+        );
+        assert_eq!(Stage::TfaFinal.later_stages(), vec![]);
     }
 
     #[test]

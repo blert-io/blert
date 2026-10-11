@@ -6,6 +6,7 @@ const CHALLENGE_TYPE_MAP = {
   tob: ChallengeType.TOB,
   cox: ChallengeType.COX,
   toa: ChallengeType.TOA,
+  tfa: ChallengeType.TFA,
   colosseum: ChallengeType.COLOSSEUM,
   inferno: ChallengeType.INFERNO,
   mokhaiotl: ChallengeType.MOKHAIOTL,

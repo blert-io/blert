@@ -279,7 +279,7 @@ describe('aggregatesAreMeaningful', () => {
     ).toBe(false);
   });
 
-  it('requires a single scale and mode for a variable-scale type', () => {
+  it('requires a single scale, and a single mode if the type has modes', () => {
     expect(aggregatesAreMeaningful(withFilters([ChallengeType.TOB], []))).toBe(
       false,
     );
@@ -300,6 +300,15 @@ describe('aggregatesAreMeaningful', () => {
         withFilters([ChallengeType.TOB], [5], [ChallengeMode.TOB_HARD]),
       ),
     ).toBe(true);
+    expect(aggregatesAreMeaningful(withFilters([ChallengeType.TFA], []))).toBe(
+      false,
+    );
+    expect(
+      aggregatesAreMeaningful(withFilters([ChallengeType.TFA], [3, 4])),
+    ).toBe(false);
+    expect(aggregatesAreMeaningful(withFilters([ChallengeType.TFA], [4]))).toBe(
+      true,
+    );
   });
 
   it('needs no scale for solo-only types', () => {
