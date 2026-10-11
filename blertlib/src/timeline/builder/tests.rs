@@ -1450,6 +1450,78 @@ fn builder_ingest_sote_maze_pivots() {
     );
     assert_eq!(builder.rejections().count(), 0);
 
+    let mut builder = RecordingBuilder::new(
+        ClientId(627),
+        Stage::TobSotetseg,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("Amili").unwrap()],
+        None,
+    );
+
+    let mut merged = proto::Event {
+        tick: 85,
+        stage: Stage::TobSotetseg as i32,
+        ..Default::default()
+    };
+    merged.set_type(proto::event::Type::TobSoteMazePath);
+    merged.sote_maze = Some(proto::event::SoteMaze {
+        maze: proto::event::sote_maze::Maze::Maze66 as i32,
+        overworld_tiles: vec![],
+        overworld_pivots: vec![
+            proto::Coords { x: 8, y: 0 },
+            proto::Coords { x: 8, y: 2 },
+            proto::Coords { x: 11, y: 4 },
+            proto::Coords { x: 7, y: 6 },
+            proto::Coords { x: 2, y: 8 },
+            proto::Coords { x: 7, y: 10 },
+            proto::Coords { x: 7, y: 12 },
+        ],
+        underworld_pivots: vec![
+            proto::Coords { x: 8, y: 0 },
+            proto::Coords { x: 8, y: 2 },
+            proto::Coords { x: 11, y: 4 },
+            proto::Coords { x: 7, y: 6 },
+            proto::Coords { x: 2, y: 8 },
+            proto::Coords { x: 7, y: 10 },
+            proto::Coords { x: 7, y: 12 },
+            proto::Coords { x: 3, y: 14 },
+        ],
+        chosen_player: None,
+    });
+
+    assert_eq!(builder.ingest([merged]), Some(Tick(85)));
+    let state = builder.recording().unwrap().get_state(Tick(85)).unwrap();
+    assert!(state.objects.is_empty());
+    assert_eq!(
+        state.events,
+        [Event::recorded(
+            ClientId(627),
+            EventKind::SoteMazePivots(SoteMazePivots {
+                maze: Maze::Maze66,
+                overworld: vec![
+                    Point(8, 0),
+                    Point(8, 2),
+                    Point(11, 4),
+                    Point(7, 6),
+                    Point(2, 8),
+                    Point(7, 10),
+                    Point(7, 12),
+                ],
+                underworld: vec![
+                    Point(8, 0),
+                    Point(8, 2),
+                    Point(11, 4),
+                    Point(7, 6),
+                    Point(2, 8),
+                    Point(7, 10),
+                    Point(7, 12),
+                    Point(3, 14),
+                ],
+            })
+        )]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+
     let mut missing_sote_maze = proto::Event {
         tick: 95,
         stage: Stage::TobSotetseg as i32,
@@ -1653,7 +1725,7 @@ fn builder_ingest_attack_style_same_tick() {
         target: Some("1Ogp".to_string()),
     });
 
-    builder.ingest([doom.clone(), auto]);
+    builder.ingest([doom.clone(), auto.clone()]);
 
     let mut style = proto::Event {
         tick: 26,
@@ -1667,7 +1739,36 @@ fn builder_ingest_attack_style_same_tick() {
     });
     doom.tick = 26;
 
-    assert_eq!(builder.ingest([style, doom]), Some(Tick(26)));
+    assert_eq!(
+        builder.ingest([style.clone(), doom.clone()]),
+        Some(Tick(26))
+    );
+    assert_eq!(
+        builder
+            .recording()
+            .unwrap()
+            .get_state(Tick(26))
+            .unwrap()
+            .events,
+        [Event::recorded(
+            ClientId(378),
+            EventKind::NpcAttack(NpcAttacked {
+                npc: RoomId(47491),
+                attack: NpcAttack::MokhaiotlMageAuto,
+                target: Some(Actor::Player(PartyIndex::from_usize(0))),
+            })
+        )]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+
+    let mut builder = RecordingBuilder::new(
+        ClientId(378),
+        Stage::MokhaiotlDelve4,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("1Ogp").unwrap()],
+        None,
+    );
+    assert_eq!(builder.ingest([style, auto, doom]), Some(Tick(26)));
     assert_eq!(
         builder
             .recording()
@@ -1797,11 +1898,11 @@ fn builder_ingest_attack_reference() {
             cabbage,
             bounce_chance,
             verzik_bounce.clone(),
-            bounce,
-            bounced.clone()
+            bounce.clone(),
         ]),
         Some(Tick(83))
     );
+    assert_eq!(builder.ingest([bounced.clone()]), Some(Tick(215)));
     let recording = builder.recording().unwrap();
     assert_eq!(
         recording.get_state(Tick(83)).unwrap().events,
@@ -1831,7 +1932,7 @@ fn builder_ingest_attack_reference() {
             EventKind::NpcAttack(NpcAttacked {
                 npc: RoomId(45910),
                 attack: NpcAttack::TobVerzikP2Bounce,
-                target: None,
+                target: Some(Actor::Player(PartyIndex::from_usize(0))),
             })
         )]
     );
@@ -1858,7 +1959,10 @@ fn builder_ingest_attack_reference() {
         ],
         None,
     );
-    assert_eq!(builder.ingest([verzik_bounce, bounced]), Some(Tick(215)));
+    assert_eq!(
+        builder.ingest([verzik_bounce.clone(), bounced.clone()]),
+        Some(Tick(215))
+    );
     assert!(builder.recording().unwrap().get_state(Tick(216)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -1866,6 +1970,60 @@ fn builder_ingest_attack_reference() {
             tick: Tick(216),
             kind: proto::event::Type::TobVerzikBounce,
             reason: RejectionReason::AttackNotFound,
+        }]
+    );
+
+    let mut builder = RecordingBuilder::new(
+        ClientId(2),
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+        ],
+        None,
+    );
+    bounced.verzik_bounce = Some(proto::event::VerzikBounce {
+        npc_attack_tick: 215,
+        players_in_range: 1,
+        players_not_in_range: 2,
+        bounced_player: Some("255 Nylo".to_string()),
+    });
+    assert_eq!(
+        builder.ingest([verzik_bounce, bounce, bounced]),
+        Some(Tick(215))
+    );
+    let recording = builder.recording().unwrap();
+    assert_eq!(
+        recording.get_state(Tick(215)).unwrap().events,
+        [Event::recorded(
+            ClientId(2),
+            EventKind::NpcAttack(NpcAttacked {
+                npc: RoomId(45910),
+                attack: NpcAttack::TobVerzikP2Bounce,
+                target: None,
+            })
+        )]
+    );
+    assert_eq!(
+        recording.get_state(Tick(216)).unwrap().events,
+        [Event::recorded(
+            ClientId(2),
+            EventKind::VerzikBounce(VerzikBounce {
+                attack_tick: Tick(215),
+                players_in_range: 1,
+                bounced: None,
+            })
+        )]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(
+        builder.warnings().cloned().collect::<Vec<_>>(),
+        [BuildWarning {
+            tick: Tick(216),
+            kind: proto::event::Type::TobVerzikBounce,
+            field: "verzik_bounce.bounced_player",
+            error: FieldError::UnknownActor(RawActor::Player("255 Nylo".to_string())),
         }]
     );
 }
@@ -4285,10 +4443,15 @@ fn convert_verzik_bounce() {
     });
     assert_eq!(
         convert_event(&party, &unknown_bounced_player),
-        EventOutcome::Rejected(RejectionReason::InvalidField {
+        EventOutcome::PartiallyAccepted {
+            event: EventKind::VerzikBounce(VerzikBounce {
+                attack_tick: Tick(289),
+                players_in_range: 1,
+                bounced: None,
+            }),
             field: "verzik_bounce.bounced_player",
             error: FieldError::UnknownActor(RawActor::Player("Dedion".to_string())),
-        })
+        }
     );
 
     let mut missing_verzik_bounce = proto::Event {

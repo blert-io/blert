@@ -5,13 +5,13 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use blert::npc::id::{JAVELIN_COLOSSUS, MANTICORE, SERPENT_SHAMAN, SHOCKWAVE_COLOSSUS};
-use blert::proto::{Coords, event};
-use blert::{Tick, Ticks};
+use blert::proto::event;
+use blert::{EventKind, Point, Tick, TickState, Ticks, Timeline};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
 use super::challenge_processor::{
-    ChallengeContext, ChallengeProcessor, ChallengeTicks, EventCursor, RoomNpc, StageContext,
+    ChallengeContext, ChallengeProcessor, ChallengeTicks, RoomNpc, StageContext,
 };
 use super::db;
 use super::spawn_index::{self, Arena, SpawnIndexer};
@@ -19,7 +19,7 @@ use super::split::SplitType;
 use crate::lifecycle::core::types::{
     ChallengeInfo, ChallengeStatus, ProcessingError, Stage, StageStatus,
 };
-use crate::merging::MergedEvents;
+use crate::merging::MergedTimeline;
 use crate::metrics;
 use crate::price::PriceResolver;
 use crate::proto::{ChallengeData, challenge_data};
@@ -31,22 +31,21 @@ const NUM_HANDICAPS: usize = 14;
 
 static ARENA: LazyLock<Arena> = LazyLock::new(|| {
     Arena::new(
-        Coords { x: 1808, y: 3123 },
+        Point(1808, 3123),
         [
-            (1811, 3109),
-            (1817, 3106),
-            (1825, 3114),
-            (1821, 3109),
-            (1827, 3109),
-            (1836, 3109),
-            (1832, 3107),
-            (1811, 3104),
-            (1836, 3104),
-            (1821, 3103),
-            (1827, 3103),
-            (1824, 3099),
-        ]
-        .map(|(x, y)| Coords { x, y }),
+            Point(1811, 3109),
+            Point(1817, 3106),
+            Point(1825, 3114),
+            Point(1821, 3109),
+            Point(1827, 3109),
+            Point(1836, 3109),
+            Point(1832, 3107),
+            Point(1811, 3104),
+            Point(1836, 3104),
+            Point(1821, 3103),
+            Point(1827, 3103),
+            Point(1824, 3099),
+        ],
         &[
             SERPENT_SHAMAN,
             JAVELIN_COLOSSUS,
@@ -193,19 +192,23 @@ impl ColosseumProcessor {
 
 #[async_trait]
 impl ChallengeProcessor for ColosseumProcessor {
-    fn process_challenge_event(
+    fn process_tick(
         &mut self,
         _ctx: &mut StageContext,
-        events: &mut EventCursor<'_>,
-    ) -> bool {
-        if events.current().r#type() == event::Type::ColosseumHandicapChoice {
-            let event = events.current();
-            let base = event.handicap.unwrap_or(0).cast_unsigned();
+        tick: Tick,
+        state: &TickState,
+        timeline: &Timeline,
+    ) {
+        for event in &state.events {
+            let EventKind::HandicapChoice(choice) = &event.kind else {
+                continue;
+            };
+            let base = (choice.handicap as i32).cast_unsigned();
             let selected = self.level_handicap(base);
-            let options = event
-                .handicap_options
+            let options = choice
+                .options
                 .iter()
-                .map(|&option| self.level_handicap(option.cast_unsigned()))
+                .map(|&option| self.level_handicap((option as i32).cast_unsigned()))
                 .collect();
 
             self.selected_handicap = Some(selected);
@@ -226,20 +229,15 @@ impl ChallengeProcessor for ColosseumProcessor {
             }
         }
 
-        if events.current().r#type() == event::Type::NpcSpawn
-            && let Some(npc) = &events.current().npc
-        {
-            let event = events.current();
-            self.spawn_indexer.track_spawn(
-                Tick(event.tick),
-                npc.id,
-                Coords {
-                    x: event.x_coord,
-                    y: event.y_coord,
-                },
-            );
+        for (&room_id, npc) in &state.npcs {
+            if timeline
+                .npc(room_id)
+                .is_some_and(|stage_npc| stage_npc.spawn == tick)
+            {
+                self.spawn_indexer
+                    .track_spawn(tick, npc.npc_id, npc.position.point);
+            }
         }
-        true
     }
 
     async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error> {
@@ -258,24 +256,28 @@ impl ChallengeProcessor for ColosseumProcessor {
         stored: &StoredState,
         ctx: &mut StageContext,
         stage: Stage,
-        events: &MergedEvents,
+        merged: &MergedTimeline,
     ) -> Result<ChallengeTicks, db::Error> {
-        let completed = events.status() == StageStatus::Completed;
-        let challenge_ticks = stored.challenge_ticks + events.duration();
+        let completed = merged.status() == StageStatus::Completed;
+        let challenge_ticks = stored.challenge_ticks + merged.duration();
         let index = wave_index(stage);
+        let timeline = merged.timeline();
 
         self.data.waves.push(WaveData {
             stage,
-            ticks_lost: events.missing_tick_count(),
-            offset: events.offset(),
+            ticks_lost: merged.missing_tick_count(),
+            offset: merged.offset(),
             handicap: self.selected_handicap.unwrap_or(0),
             options: self.wave_handicap_options.clone(),
-            npcs: ctx.npcs().cloned().collect(),
+            npcs: timeline
+                .npcs()
+                .map(|(room_id, _)| RoomNpc::new(timeline, room_id))
+                .collect(),
         });
 
         let split = SplitType::try_from(SplitType::ColosseumWave1 as i32 + index)
             .expect("wave splits are consecutive");
-        ctx.set_stage_split(split, events.last_tick(), Tick(0), true);
+        ctx.set_stage_split(split, merged.last_tick(), Tick(0), true);
 
         if completed
             && stage > Stage::ColosseumWave1
@@ -287,7 +289,7 @@ impl ChallengeProcessor for ColosseumProcessor {
             ctx.set_challenge_split(
                 split,
                 challenge_ticks,
-                Some(!self.challenge.party_changed && events.has_precise_server_tick_count()),
+                Some(!self.challenge.party_changed && merged.has_precise_server_tick_count()),
             );
         }
 
@@ -316,20 +318,12 @@ impl ChallengeProcessor for ColosseumProcessor {
             metrics::record_undetermined_wave_spawn(stage);
         }
         let player = spawn.as_ref().and_then(|spawn| {
-            events
-                .events_for_tick(spawn.tick())
-                .iter()
-                .find(|event| event.r#type() == event::Type::PlayerUpdate)
-                .map(|event| {
-                    ARENA.to_local(Coords {
-                        x: event.x_coord,
-                        y: event.y_coord,
-                    })
-                })
+            let (_, player) = timeline.get_state(spawn.tick())?.players.iter().next()?;
+            Some(ARENA.to_local(player.position))
         });
         spawn_index::save(txn, stage, spawn.as_ref(), player, !extra.is_empty()).await?;
 
-        Ok(ChallengeTicks::Add(events.duration()))
+        Ok(ChallengeTicks::Add(merged.duration()))
     }
 
     async fn on_finish(
@@ -480,7 +474,10 @@ mod tests {
             Stage::ColosseumWave1,
             vec![Rsn::try_from("aSaradomin").unwrap()],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::ColosseumWave1,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("aSaradomin").unwrap()],
             vec![colosseum_handicap_choice_event(
                 Tick(0),
                 Stage::ColosseumWave1,
@@ -495,8 +492,12 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        let mut cursor = EventCursor::new(&mut events, 0);
-        assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
+        }
         assert_eq!(processor.selected_handicap, Some(4));
         assert_eq!(processor.wave_handicap_options, vec![4, 5, 12]);
         assert_eq!(processor.data.handicaps, vec![4]);
@@ -514,7 +515,10 @@ mod tests {
             Stage::ColosseumWave2,
             vec![Rsn::try_from("aSaradomin").unwrap()],
         );
-        let mut events = merged_events(
+        let merged = merged_events(
+            Stage::ColosseumWave2,
+            ChallengeMode::NoMode,
+            vec![Rsn::try_from("aSaradomin").unwrap()],
             vec![colosseum_handicap_choice_event(
                 Tick(0),
                 Stage::ColosseumWave2,
@@ -529,8 +533,12 @@ mod tests {
             ServerTicks::Missing,
         );
 
-        let mut cursor = EventCursor::new(&mut events, 0);
-        assert!(processor.process_challenge_event(&mut ctx, &mut cursor));
+        let timeline = merged.timeline();
+        for tick in Tick(0).through(timeline.last_tick()) {
+            if let Some(state) = timeline.get_state(tick) {
+                processor.process_tick(&mut ctx, tick, state, timeline);
+            }
+        }
         assert_eq!(processor.selected_handicap, Some(34));
         assert_eq!(processor.wave_handicap_options, vec![34, 11, 7]);
         assert_eq!(processor.data.handicaps, vec![34]);

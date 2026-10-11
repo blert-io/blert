@@ -8,6 +8,8 @@
 //! 3. `persist` receives the results and writes them to the database and
 //!    blob store.
 
+use blert::proto::Event;
+
 use crate::lifecycle::core::types::{
     ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
 };
@@ -121,8 +123,8 @@ async fn persist(
     metrics::record_merge_report(challenge.stage, &output.report);
     metrics::record_stage_completion(
         challenge.stage,
-        output.events.status(),
-        output.events.fully_accurate(),
+        output.merged.status(),
+        output.merged.fully_accurate(),
         output.report.unmerged_count > 0,
         output.report.skipped_count > 0,
     );
@@ -134,7 +136,7 @@ async fn persist(
             stored,
             &mut output.ctx,
             challenge.stage,
-            &output.events,
+            &output.merged,
         )
     })
     .await?;
@@ -144,8 +146,8 @@ async fn persist(
             &run.txn,
             challenge,
             output.ctx.splits(
-                output.events.accurate_until(),
-                output.events.status() == StageStatus::Completed,
+                output.merged.accurate_until(),
+                output.merged.status() == StageStatus::Completed,
             ),
             &stored.players,
         )
@@ -172,7 +174,7 @@ async fn persist(
                 capture.as_ref(),
                 MergeOutcome::Merged {
                     report: &output.report,
-                    events: &output.events,
+                    merged: &output.merged,
                 },
             )
         )
@@ -281,13 +283,13 @@ async fn write_challenge_data(
     output: InterpretOutput,
 ) -> Result<(), ProcessingError> {
     let challenge = &run.request.challenge;
+    let events: Vec<Event> = output.merged.timeline().to_proto().collect();
     let queryable_events = time(&mut run.timings.writes, || {
-        write_queryable_events(&run.txn, challenge, &output, &stored.players)
+        write_queryable_events(&run.txn, challenge, &output, &events, &stored.players)
     })
     .await?;
 
-    let queryable_until = output.events.queryable_until();
-    let events = output.into_kept_events();
+    let queryable_until = output.merged.queryable_until();
     let total_events = events.len();
 
     let challenge_data = processor.challenge_data();
@@ -348,8 +350,8 @@ async fn write_merge(
 fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingPayload {
     match result {
         Ok(output) => ProcessingPayload::Stage {
-            status: output.events.status(),
-            ticks: output.events.duration().0,
+            status: output.merged.status(),
+            ticks: output.merged.duration().0,
         },
         Err(InterpretError::NoData | InterpretError::BadData(_) | InterpretError::Panicked(_)) => {
             ProcessingPayload::None
@@ -457,14 +459,14 @@ mod tests {
             end(1, StageStatus::Completed, 200),
         ])
         .unwrap();
-        assert_eq!(result.events.status(), StageStatus::Completed);
-        assert_eq!(result.events.last_tick(), Tick(200));
+        assert_eq!(result.merged.status(), StageStatus::Completed);
+        assert_eq!(result.merged.last_tick(), Tick(200));
     }
 
     #[test]
     fn client_without_a_report_processes_from_its_events() {
         let result = run_interpret(&[events(1, &[0, 1, 4])]).unwrap();
-        assert_eq!(result.events.status(), StageStatus::Started);
-        assert_eq!(result.events.last_tick(), Tick(4));
+        assert_eq!(result.merged.status(), StageStatus::Started);
+        assert_eq!(result.merged.last_tick(), Tick(4));
     }
 }

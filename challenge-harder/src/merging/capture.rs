@@ -392,7 +392,7 @@ fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<s
         queryable_until: merged.queryable_until(),
     });
     let events = ChallengeEvents {
-        events: merged.into_events(),
+        events: merged.timeline().to_proto().collect(),
         ..Default::default()
     };
     (report, Some(events.encode_to_vec()), tracer)

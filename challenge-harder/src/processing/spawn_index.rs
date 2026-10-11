@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use blert::Tick;
-use blert::proto::Coords;
+use blert::{Point, Tick};
 
 use super::db;
 use crate::lifecycle::core::types::Stage;
@@ -52,7 +51,7 @@ impl SpawnKey {
 
 #[derive(Debug)]
 pub(super) struct Arena {
-    base: Coords,
+    base: Point,
     spawn_locations: HashSet<LocalCoords>,
     npc_types: &'static [u32],
 }
@@ -64,8 +63,8 @@ impl Arena {
     /// `npc_types` defines the IDs of the NPCs that can spawn in waves. The
     /// index in the array is used as a type ID and must be stable.
     pub fn new(
-        base: Coords,
-        spawn_locations: impl IntoIterator<Item = Coords>,
+        base: Point,
+        spawn_locations: impl IntoIterator<Item = Point>,
         npc_types: &'static [u32],
     ) -> Self {
         let mut arena = Self {
@@ -75,19 +74,19 @@ impl Arena {
         };
         arena.spawn_locations = spawn_locations
             .into_iter()
-            .map(|coords| arena.to_local(coords))
+            .map(|point| arena.to_local(point))
             .collect();
         arena
     }
 
     /// Converts a world position to the arena's local coordinate space.
-    pub fn to_local(&self, coords: Coords) -> LocalCoords {
+    pub fn to_local(&self, point: Point) -> LocalCoords {
         #![expect(clippy::cast_possible_truncation)]
         // y is inverted from the game because that's what popular spawn
         // analysis tools use and we want to be compatible.
         LocalCoords(
-            (coords.x - self.base.x) as i16,
-            (self.base.y - coords.y) as i16,
+            (i32::from(point.0) - i32::from(self.base.0)) as i16,
+            (i32::from(self.base.1) - i32::from(point.1)) as i16,
         )
     }
 }
@@ -115,8 +114,8 @@ impl<'a> SpawnIndexer<'a> {
         }
     }
 
-    pub fn track_spawn(&mut self, tick: Tick, npc: u32, coords: Coords) {
-        let local = self.arena.to_local(coords);
+    pub fn track_spawn(&mut self, tick: Tick, npc: u32, point: Point) {
+        let local = self.arena.to_local(point);
         self.spawns_by_tick
             .entry(tick)
             .or_default()
@@ -191,41 +190,39 @@ mod tests {
 
     fn colosseum_arena() -> Arena {
         Arena::new(
-            Coords { x: 1808, y: 3123 },
+            Point(1808, 3123),
             [
-                (1811, 3109),
-                (1817, 3106),
-                (1825, 3114),
-                (1821, 3109),
-                (1827, 3109),
-                (1836, 3109),
-                (1832, 3107),
-                (1811, 3104),
-                (1836, 3104),
-                (1821, 3103),
-                (1827, 3103),
-                (1824, 3099),
-            ]
-            .map(|(x, y)| Coords { x, y }),
+                Point(1811, 3109),
+                Point(1817, 3106),
+                Point(1825, 3114),
+                Point(1821, 3109),
+                Point(1827, 3109),
+                Point(1836, 3109),
+                Point(1832, 3107),
+                Point(1811, 3104),
+                Point(1836, 3104),
+                Point(1821, 3103),
+                Point(1827, 3103),
+                Point(1824, 3099),
+            ],
             &[12811, 12817, 12818, 12819],
         )
     }
 
     fn inferno_arena() -> Arena {
         Arena::new(
-            Coords { x: 2257, y: 5358 },
+            Point(2257, 5358),
             [
-                (2258, 5330),
-                (2262, 5335),
-                (2272, 5330),
-                (2258, 5353),
-                (2273, 5341),
-                (2279, 5353),
-                (2260, 5347),
-                (2280, 5333),
-                (2280, 5346),
-            ]
-            .map(|(x, y)| Coords { x, y }),
+                Point(2258, 5330),
+                Point(2262, 5335),
+                Point(2272, 5330),
+                Point(2258, 5353),
+                Point(2273, 5341),
+                Point(2279, 5353),
+                Point(2260, 5347),
+                Point(2280, 5333),
+                Point(2280, 5346),
+            ],
             &[7692, 7693, 7697, 7698, 7699],
         )
     }
@@ -235,11 +232,11 @@ mod tests {
         // A wave 2 where the ranged fremmy spawns on the shaman.
         let arena = colosseum_arena();
         let mut indexer = SpawnIndexer::new(&arena, [12811, 12817]);
-        indexer.track_spawn(Tick(0), 12816, Coords { x: 1822, y: 3110 });
-        indexer.track_spawn(Tick(0), 12814, Coords { x: 1821, y: 3109 });
-        indexer.track_spawn(Tick(0), 12815, Coords { x: 1823, y: 3109 });
-        indexer.track_spawn(Tick(0), 12811, Coords { x: 1821, y: 3109 });
-        indexer.track_spawn(Tick(0), 12817, Coords { x: 1836, y: 3104 });
+        indexer.track_spawn(Tick(0), 12816, Point(1822, 3110));
+        indexer.track_spawn(Tick(0), 12814, Point(1821, 3109));
+        indexer.track_spawn(Tick(0), 12815, Point(1823, 3109));
+        indexer.track_spawn(Tick(0), 12811, Point(1821, 3109));
+        indexer.track_spawn(Tick(0), 12817, Point(1836, 3104));
         assert_eq!(
             indexer.check(&[]).map(|key| key.iter().collect::<Vec<_>>()),
             Some(vec![430, 1939]),
@@ -251,15 +248,15 @@ mod tests {
         // A wave 42 where the meleer is resurrected.
         let arena = inferno_arena();
         let mut indexer = SpawnIndexer::new(&arena, [7697, 7699]);
-        indexer.track_spawn(Tick(0), 7709, Coords { x: 2257, y: 5349 });
-        indexer.track_spawn(Tick(0), 7709, Coords { x: 2267, y: 5335 });
-        indexer.track_spawn(Tick(0), 7709, Coords { x: 2274, y: 5351 });
-        indexer.track_spawn(Tick(0), 7699, Coords { x: 2258, y: 5353 });
-        indexer.track_spawn(Tick(0), 7697, Coords { x: 2279, y: 5353 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2267, y: 5347 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2266, y: 5347 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2266, y: 5346 });
-        indexer.track_spawn(Tick(119), 7697, Coords { x: 2274, y: 5341 });
+        indexer.track_spawn(Tick(0), 7709, Point(2257, 5349));
+        indexer.track_spawn(Tick(0), 7709, Point(2267, 5335));
+        indexer.track_spawn(Tick(0), 7709, Point(2274, 5351));
+        indexer.track_spawn(Tick(0), 7699, Point(2258, 5353));
+        indexer.track_spawn(Tick(0), 7697, Point(2279, 5353));
+        indexer.track_spawn(Tick(0), 7691, Point(2267, 5347));
+        indexer.track_spawn(Tick(0), 7691, Point(2266, 5347));
+        indexer.track_spawn(Tick(0), 7691, Point(2266, 5346));
+        indexer.track_spawn(Tick(119), 7697, Point(2274, 5341));
         assert_eq!(
             indexer.check(&[]).map(|key| key.iter().collect::<Vec<_>>()),
             Some(vec![2757, 4133]),
@@ -270,10 +267,10 @@ mod tests {
     fn partially_recorded_spawns_are_undetermined() {
         let arena = colosseum_arena();
         let mut indexer = SpawnIndexer::new(&arena, [12811, 12817]);
-        indexer.track_spawn(Tick(0), 12816, Coords { x: 1822, y: 3110 });
-        indexer.track_spawn(Tick(0), 12814, Coords { x: 1821, y: 3109 });
-        indexer.track_spawn(Tick(0), 12815, Coords { x: 1823, y: 3109 });
-        indexer.track_spawn(Tick(0), 12811, Coords { x: 1821, y: 3109 });
+        indexer.track_spawn(Tick(0), 12816, Point(1822, 3110));
+        indexer.track_spawn(Tick(0), 12814, Point(1821, 3109));
+        indexer.track_spawn(Tick(0), 12815, Point(1823, 3109));
+        indexer.track_spawn(Tick(0), 12811, Point(1821, 3109));
         assert!(indexer.check(&[]).is_none());
     }
 
@@ -281,11 +278,11 @@ mod tests {
     fn npcs_which_have_moved_off_their_spawn_tiles_fail() {
         let arena = colosseum_arena();
         let mut indexer = SpawnIndexer::new(&arena, [12811, 12817]);
-        indexer.track_spawn(Tick(1), 12816, Coords { x: 1822, y: 3110 });
-        indexer.track_spawn(Tick(1), 12814, Coords { x: 1821, y: 3109 });
-        indexer.track_spawn(Tick(1), 12815, Coords { x: 1823, y: 3109 });
-        indexer.track_spawn(Tick(1), 12811, Coords { x: 1822, y: 3108 });
-        indexer.track_spawn(Tick(1), 12817, Coords { x: 1835, y: 3103 });
+        indexer.track_spawn(Tick(1), 12816, Point(1822, 3110));
+        indexer.track_spawn(Tick(1), 12814, Point(1821, 3109));
+        indexer.track_spawn(Tick(1), 12815, Point(1823, 3109));
+        indexer.track_spawn(Tick(1), 12811, Point(1822, 3108));
+        indexer.track_spawn(Tick(1), 12817, Point(1835, 3103));
         assert!(indexer.check(&[]).is_none());
     }
 
@@ -294,13 +291,13 @@ mod tests {
         // Configured for wave 2, but given a recording of wave 3.
         let arena = colosseum_arena();
         let mut indexer = SpawnIndexer::new(&arena, [12811, 12817]);
-        indexer.track_spawn(Tick(0), 12816, Coords { x: 1823, y: 3110 });
-        indexer.track_spawn(Tick(0), 12814, Coords { x: 1822, y: 3109 });
-        indexer.track_spawn(Tick(0), 12815, Coords { x: 1824, y: 3109 });
-        indexer.track_spawn(Tick(0), 12811, Coords { x: 1821, y: 3109 });
-        indexer.track_spawn(Tick(0), 12817, Coords { x: 1825, y: 3114 });
-        indexer.track_spawn(Tick(0), 12817, Coords { x: 1824, y: 3099 });
-        indexer.track_spawn(Tick(66), 12810, Coords { x: 1825, y: 3120 });
+        indexer.track_spawn(Tick(0), 12816, Point(1823, 3110));
+        indexer.track_spawn(Tick(0), 12814, Point(1822, 3109));
+        indexer.track_spawn(Tick(0), 12815, Point(1824, 3109));
+        indexer.track_spawn(Tick(0), 12811, Point(1821, 3109));
+        indexer.track_spawn(Tick(0), 12817, Point(1825, 3114));
+        indexer.track_spawn(Tick(0), 12817, Point(1824, 3099));
+        indexer.track_spawn(Tick(66), 12810, Point(1825, 3120));
         assert!(indexer.check(&[]).is_none());
     }
 
@@ -309,14 +306,14 @@ mod tests {
         // A wave 7 with Dynamic Duo whose extra colossus spawns on a new tile.
         let arena = colosseum_arena();
         let mut indexer = SpawnIndexer::new(&arena, [12817, 12818, 12819]);
-        indexer.track_spawn(Tick(0), 12816, Coords { x: 1822, y: 3107 });
-        indexer.track_spawn(Tick(0), 12814, Coords { x: 1821, y: 3106 });
-        indexer.track_spawn(Tick(0), 12815, Coords { x: 1823, y: 3106 });
-        indexer.track_spawn(Tick(0), 12818, Coords { x: 1836, y: 3104 });
-        indexer.track_spawn(Tick(0), 12817, Coords { x: 1827, y: 3109 });
-        indexer.track_spawn(Tick(0), 12819, Coords { x: 1824, y: 3099 });
-        indexer.track_spawn(Tick(0), 12819, Coords { x: 1823, y: 3101 });
-        indexer.track_spawn(Tick(66), 12812, Coords { x: 1825, y: 3120 });
+        indexer.track_spawn(Tick(0), 12816, Point(1822, 3107));
+        indexer.track_spawn(Tick(0), 12814, Point(1821, 3106));
+        indexer.track_spawn(Tick(0), 12815, Point(1823, 3106));
+        indexer.track_spawn(Tick(0), 12818, Point(1836, 3104));
+        indexer.track_spawn(Tick(0), 12817, Point(1827, 3109));
+        indexer.track_spawn(Tick(0), 12819, Point(1824, 3099));
+        indexer.track_spawn(Tick(0), 12819, Point(1823, 3101));
+        indexer.track_spawn(Tick(66), 12812, Point(1825, 3120));
         assert_eq!(
             indexer
                 .check(&[12819])
@@ -330,15 +327,15 @@ mod tests {
         // A wave 3, which only has nibblers.
         let arena = inferno_arena();
         let mut indexer = SpawnIndexer::new(&arena, []);
-        indexer.track_spawn(Tick(0), 7709, Coords { x: 2257, y: 5349 });
-        indexer.track_spawn(Tick(0), 7709, Coords { x: 2267, y: 5335 });
-        indexer.track_spawn(Tick(0), 7709, Coords { x: 2274, y: 5351 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2266, y: 5347 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2265, y: 5347 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2266, y: 5345 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2267, y: 5345 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2265, y: 5345 });
-        indexer.track_spawn(Tick(0), 7691, Coords { x: 2266, y: 5346 });
+        indexer.track_spawn(Tick(0), 7709, Point(2257, 5349));
+        indexer.track_spawn(Tick(0), 7709, Point(2267, 5335));
+        indexer.track_spawn(Tick(0), 7709, Point(2274, 5351));
+        indexer.track_spawn(Tick(0), 7691, Point(2266, 5347));
+        indexer.track_spawn(Tick(0), 7691, Point(2265, 5347));
+        indexer.track_spawn(Tick(0), 7691, Point(2266, 5345));
+        indexer.track_spawn(Tick(0), 7691, Point(2267, 5345));
+        indexer.track_spawn(Tick(0), 7691, Point(2265, 5345));
+        indexer.track_spawn(Tick(0), 7691, Point(2266, 5346));
         assert!(indexer.check(&[]).is_none());
     }
 }

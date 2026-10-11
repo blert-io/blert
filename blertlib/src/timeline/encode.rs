@@ -3,9 +3,7 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-use crate::actor::{
-    Actor, DataSource, NpcProperties, NpcState, NyloSpawn, PartyIndex, PlayerState, RoomId,
-};
+use crate::actor::{Actor, DataSource, NpcProperties, NpcState, PartyIndex, PlayerState, RoomId};
 use crate::event::{EventKind, Maze, SolDust, XarpusExhumed, XarpusSplatSource};
 use crate::item::{EQUIPMENT_SLOTS, Item, ItemDelta, Slot};
 use crate::objects::{ObjectKind, TickObjects};
@@ -185,7 +183,7 @@ impl<'a> Encoder<'a> {
                 .filter(|&properties| {
                     previous.and_then(|previous| previous.properties.as_ref()) != Some(properties)
                 })
-                .and_then(npc_type),
+                .and_then(NpcProperties::to_proto),
         });
         event
     }
@@ -448,7 +446,7 @@ impl<'a> Encoder<'a> {
                     room_id: room_id.0,
                     hitpoints: npc.hitpoints.to_raw(),
                     active_prayers: npc.prayers.to_raw(),
-                    r#type: npc.properties.as_ref().and_then(npc_type),
+                    r#type: npc.properties.as_ref().and_then(NpcProperties::to_proto),
                 });
                 Some(event)
             }
@@ -789,45 +787,6 @@ fn off_cooldown_tick(tick: Tick, state: &TickState, player: PartyIndex) -> Optio
         }
         Some(tick + attack.attack.cooldown())
     })
-}
-
-fn npc_type(properties: &NpcProperties) -> Option<proto::event::npc::Type> {
-    let npc_type = match properties {
-        NpcProperties::MaidenCrab(crab) => {
-            proto::event::npc::Type::MaidenCrab(proto::event::npc::MaidenCrab {
-                spawn: crab.spawn as i32,
-                position: crab.position as i32,
-                scuffed: crab.scuffed,
-            })
-        }
-        NpcProperties::Nylo(nylo) => {
-            let (spawn_type, parent_room_id) = match nylo.spawn {
-                NyloSpawn::Split(parent) => (
-                    proto::event::npc::nylo::SpawnType::Split,
-                    parent.map_or(0, |parent| parent.0),
-                ),
-                NyloSpawn::West => (proto::event::npc::nylo::SpawnType::West, 0),
-                NyloSpawn::South => (proto::event::npc::nylo::SpawnType::South, 0),
-                NyloSpawn::East => (proto::event::npc::nylo::SpawnType::East, 0),
-                NyloSpawn::Unknown => (proto::event::npc::nylo::SpawnType::Unknown, 0),
-            };
-            proto::event::npc::Type::Nylo(proto::event::npc::Nylo {
-                wave: nylo.wave,
-                parent_room_id,
-                big: nylo.big,
-                style: proto::event::npc::nylo::Style::from(nylo.style) as i32,
-                spawn_type: spawn_type as i32,
-            })
-        }
-        NpcProperties::VerzikCrab(crab) => {
-            proto::event::npc::Type::VerzikCrab(proto::event::npc::VerzikCrab {
-                phase: crab.phase as i32,
-                spawn: crab.spawn as i32,
-            })
-        }
-        NpcProperties::Mokhaiotl(_) => return None,
-    };
-    Some(npc_type)
 }
 
 fn encode_equipment_deltas(
