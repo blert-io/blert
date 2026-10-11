@@ -99,7 +99,6 @@ fn challenge_key(uuid: Uuid) -> String {
 }
 
 /// The challenge's published clients.
-/// Matches `challengeClientsKey` in `//common/db/redis.ts`.
 fn challenge_clients_key(uuid: Uuid) -> String {
     format!("{CHALLENGE_KEY_PREFIX}{uuid}:clients")
 }
@@ -207,7 +206,6 @@ fn lease_deadline() -> u64 {
 }
 
 /// Unique identity for a party running a particular challenge type.
-/// Matches `challengePartyKey` in `//common/db/redis.ts`.
 fn party_identifier(challenge_type: ChallengeType, party: &[Rsn]) -> String {
     let mut names: Vec<String> = party.iter().map(Rsn::normalized).collect();
     names.sort_unstable();

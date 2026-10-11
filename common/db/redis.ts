@@ -1,12 +1,5 @@
-import { createHash } from 'crypto';
-
-import { ChallengeType, Stage, StageStatus } from '../challenge';
+import { Stage, StageStatus } from '../challenge';
 import { normalizeRsn } from '../player';
-
-function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
-  const party = partyMembers.toSorted().map(normalizeRsn).join('-');
-  return `${type}-${party}`;
-}
 
 /**
  * Returns the Redis key for a challenge with the given UUID.
@@ -15,55 +8,6 @@ function challengePartyKey(type: ChallengeType, partyMembers: string[]) {
  */
 export function challengesKey(uuid: string) {
   return `challenge:${uuid}`;
-}
-
-/**
- * Returns the Redis key for a client's active challenge.
- * @param id ID of the client.
- * @returns Key for the client's active challenge.
- */
-export function clientChallengesKey(id: number) {
-  return `client-challenges:${id}`;
-}
-
-/**
- * Returns a hash of a party's members.
- * @param party Members of the party.
- * @returns Hash of the party's members.
- */
-export function partyHash(party: string[]) {
-  return createHash('sha256')
-    .update(party.toSorted().map(normalizeRsn).join('-'))
-    .digest('hex');
-}
-
-/**
- * Returns the Redis key for a session with the given type and party.
- * @param type Type of challenges in the session.
- * @param partyOrHash Either the members of the party or the hash of the party.
- * @returns Key for the session.
- */
-export function sessionKey(
-  type: ChallengeType,
-  partyOrHash: string[] | string,
-) {
-  const hash = Array.isArray(partyOrHash)
-    ? partyHash(partyOrHash)
-    : partyOrHash;
-  return `session:${type}:${hash}`;
-}
-
-/**
- * Returns the Redis key for the list of active challenges for a specific party.
- * @param type Type of challenge.
- * @param partyMembers Names of players in the party.
- * @returns Key for the list of active challenges.
- */
-export function partyKeyChallengeList(
-  type: ChallengeType,
-  partyMembers: string[],
-) {
-  return `party:${challengePartyKey(type, partyMembers)}`;
 }
 
 /** The key of the pubsub channel for challenge updates. */
@@ -128,31 +72,6 @@ export enum ActivityFeedItemType {
 
 export type ChallengeEndItem = {
   challengeId: string;
-};
-
-/** The key of the list used for client event notifications. */
-export const CLIENT_EVENTS_KEY = 'client-events';
-
-export enum ClientEventType {
-  STATUS,
-}
-
-export enum ClientStatus {
-  ACTIVE,
-  IDLE,
-  DISCONNECTED,
-}
-
-export type ClientEvent = {
-  type: ClientEventType;
-  userId: number;
-  clientId: number;
-  sessionToken: string;
-};
-
-export type ClientStatusEvent = ClientEvent & {
-  type: ClientEventType.STATUS;
-  status: ClientStatus;
 };
 
 export type StageUpdate = {
@@ -263,41 +182,6 @@ export function stageStreamToRecord(
   }
 
   return evt;
-}
-
-export function stageStreamFromRecord(
-  event: Record<string, string | Buffer>,
-): ClientStageStream {
-  const type: StageStreamType = Number.parseInt(event.type.toString());
-  const clientId = Number.parseInt(event.clientId.toString());
-
-  switch (type) {
-    case StageStreamType.STAGE_EVENTS:
-      return {
-        type,
-        clientId,
-        events: event.events,
-      } as StageStreamEvents;
-
-    case StageStreamType.STAGE_END:
-      return {
-        type,
-        clientId,
-        update: JSON.parse(event.update.toString()) as StageUpdate,
-      };
-
-    case StageStreamType.CLIENT_METADATA:
-      return {
-        type,
-        clientId,
-        userId: Number.parseInt(event.userId.toString()),
-        pluginVersion: event.pluginVersion.toString(),
-        runeLiteVersion: event.runeLiteVersion.toString(),
-      };
-  }
-
-  const _exhaustive: never = type;
-  throw new Error(`Unknown stage stream type: ${type as unknown as number}`);
 }
 
 /**

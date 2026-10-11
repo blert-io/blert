@@ -397,7 +397,7 @@ pub struct LastCompleted {
 }
 
 /// A client's state as published for external readers.
-/// Mirrors `ChallengeClient` in `//challenge-server/redis-client.ts`.
+/// Read by live-server as `ChallengeClient` in `//live-server/src/redis.rs`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishedClient {

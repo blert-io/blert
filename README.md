@@ -20,7 +20,6 @@ blert/
 ├── live-server/        # Live challenge streaming server (Rust)
 ├── effect-runner/      # Post-challenge side effects (e.g. webhooks)
 ├── blertbank/          # Blertcoin accounts and ledger
-├── challenge-server/   # Original challenge server (legacy)
 └── compose.yaml        # Local development stack
 ```
 

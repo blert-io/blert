@@ -2,7 +2,6 @@ import {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
-  ClientStatus,
   RecordingType,
   Stage,
   StageStatus,
@@ -48,6 +47,12 @@ export type ChallengeInfo = {
   stageAttempt: number | null;
   party: string[];
 };
+
+export enum ClientStatus {
+  ACTIVE = 0,
+  IDLE = 1,
+  DISCONNECTED = 2,
+}
 
 export default abstract class ChallengeManager {
   /**

@@ -44,7 +44,6 @@ jobs:
           [
             web,
             socket-server,
-            challenge-server,
             blertbank,
             effect-runner,
             live-server,
@@ -103,8 +102,7 @@ jobs:
       - name: Smoke test image
         if: >-
           contains(
-            fromJSON('["socket-server", "challenge-server", "blertbank",
-            "effect-runner"]'),
+            fromJSON('["socket-server", "blertbank", "effect-runner"]'),
             matrix.service
           )
         run: |

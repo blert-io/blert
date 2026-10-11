@@ -157,7 +157,7 @@ impl ChallengeState {
 }
 
 /// A connected client recording a challenge.
-// Matches `ChallengeClient` in `//common/challenge-server/redis-client.ts`.
+// Matches `PublishedClient` in `//challenge-harder/src/lifecycle/core/state.rs`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
