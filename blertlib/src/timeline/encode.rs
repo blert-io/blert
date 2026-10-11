@@ -173,7 +173,7 @@ impl<'a> Encoder<'a> {
         };
         let mut event = self.event(kind, tick, Some(npc.position.point));
         event.npc = Some(proto::event::Npc {
-            id: npc.npc_id,
+            id: npc.id,
             room_id: room_id.0,
             hitpoints: npc.hitpoints.to_raw(),
             active_prayers: npc.prayers.to_raw(),
@@ -345,7 +345,7 @@ impl<'a> Encoder<'a> {
                         }
                     }),
                     target: target.map(|(room_id, npc)| proto::event::Npc {
-                        id: npc.map_or(0, |npc| npc.npc_id),
+                        id: npc.map_or(0, |npc| npc.id),
                         room_id: room_id.0,
                         ..Default::default()
                     }),
@@ -367,7 +367,7 @@ impl<'a> Encoder<'a> {
                     ),
                     Some(Actor::Npc(room_id)) => {
                         proto::event::spell::Target::TargetNpc(proto::event::Npc {
-                            id: state.npcs.get(&room_id).map_or(0, |npc| npc.npc_id),
+                            id: state.npcs.get(&room_id).map_or(0, |npc| npc.id),
                             room_id: room_id.0,
                             ..Default::default()
                         })
@@ -396,9 +396,7 @@ impl<'a> Encoder<'a> {
                 let mut event =
                     self.event(proto::event::Type::NpcDeath, tick, Some(death.position));
                 event.npc = Some(proto::event::Npc {
-                    id: death
-                        .npc_id
-                        .unwrap_or_else(|| npc.map_or(0, |npc| npc.npc_id)),
+                    id: death.npc_id.unwrap_or_else(|| npc.map_or(0, |npc| npc.id)),
                     room_id: death.npc.0,
                     hitpoints: npc.map_or(0, |npc| npc.hitpoints.to_raw()),
                     active_prayers: npc.map_or(0, |npc| npc.prayers.to_raw()),
@@ -418,7 +416,7 @@ impl<'a> Encoder<'a> {
                     Some(npc.position.point),
                 );
                 event.npc = Some(proto::event::Npc {
-                    id: npc.npc_id,
+                    id: npc.id,
                     room_id: attack.npc.0,
                     ..Default::default()
                 });
@@ -442,7 +440,7 @@ impl<'a> Encoder<'a> {
                     Some(npc.position.point),
                 );
                 event.npc = Some(proto::event::Npc {
-                    id: npc.npc_id,
+                    id: npc.id,
                     room_id: room_id.0,
                     hitpoints: npc.hitpoints.to_raw(),
                     active_prayers: npc.prayers.to_raw(),
@@ -455,7 +453,7 @@ impl<'a> Encoder<'a> {
                 let position = state
                     .npcs
                     .values()
-                    .find(|npc| npc::is_bloat(npc.npc_id))
+                    .find(|npc| npc::is_bloat(npc.id))
                     .map(|bloat| bloat.position.point);
                 let mut event = self.event(proto::event::Type::TobBloatDown, tick, position);
                 event.bloat_down = Some(proto::event::BloatDown {
@@ -629,12 +627,12 @@ impl<'a> Encoder<'a> {
                 let mut event = self.event(proto::event::Type::ColosseumTotemHeal, tick, None);
                 event.colosseum_totem_heal = Some(proto::event::ColosseumTotemHeal {
                     source: Some(proto::event::Npc {
-                        id: self.npcs.get(&heal.totem).map_or(0, |npc| npc.npc_id),
+                        id: self.npcs.get(&heal.totem).map_or(0, |npc| npc.id),
                         room_id: heal.totem.0,
                         ..Default::default()
                     }),
                     target: Some(proto::event::Npc {
-                        id: self.npcs.get(&heal.target).map_or(0, |npc| npc.npc_id),
+                        id: self.npcs.get(&heal.target).map_or(0, |npc| npc.id),
                         room_id: heal.target.0,
                         ..Default::default()
                     }),

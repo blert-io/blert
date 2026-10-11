@@ -324,7 +324,7 @@ mod tests {
                     RoomId(1),
                     NpcState {
                         source: Source::Client(ClientId(1)),
-                        npc_id: 8372,
+                        id: 8372,
                         position: Rect::square(Point(3166, 4324), 3),
                         hitpoints: SkillLevel {
                             current: 1180,
@@ -371,7 +371,7 @@ mod tests {
         );
 
         let state = recording.get_state(Tick(5)).unwrap();
-        assert_eq!(state.npcs[&RoomId(1)].npc_id, 8372);
+        assert_eq!(state.npcs[&RoomId(1)].id, 8372);
         assert!(matches!(
             state.events.as_slice(),
             [Event {

@@ -217,7 +217,7 @@ pub enum DataSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NpcState {
     pub source: Source,
-    pub npc_id: u32,
+    pub id: u32,
     pub position: Rect,
     pub hitpoints: SkillLevel,
     pub prayers: PrayerSet,
@@ -228,7 +228,7 @@ impl NpcState {
     /// Returns whether a player's attack on this NPC puts them on cooldown.
     #[must_use]
     pub fn attack_applies_cooldown(&self, attack: PlayerAttack) -> bool {
-        if npc::is_mokhaiotl_larva(self.npc_id) {
+        if npc::is_mokhaiotl_larva(self.id) {
             let ignores = attack.has_class(AttackClass::Demonbane)
                 || matches!(
                     attack,
@@ -248,8 +248,8 @@ impl NpcState {
             self.properties,
             Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true }))
         );
-        !(npc::is_mokhaiotl_larva(self.npc_id)
-            || self.npc_id == npc::id::VOLATILE_EARTH
+        !(npc::is_mokhaiotl_larva(self.id)
+            || self.id == npc::id::VOLATILE_EARTH
             || (charging && attack.style() == Some(CombatStyle::Melee)))
     }
 }
@@ -415,7 +415,7 @@ mod tests {
     fn npc_attack_cooldown_rules() {
         let larva = NpcState {
             source: Source::Client(ClientId(179)),
-            npc_id: npc::id::DEMONIC_LARVA,
+            id: npc::id::DEMONIC_LARVA,
             position: Rect::square(Point(1309, 9567), 1),
             hitpoints: SkillLevel::from_raw(131_074),
             prayers: PrayerSet::from_raw(262_144),
@@ -426,7 +426,7 @@ mod tests {
 
         let range_larva = NpcState {
             source: Source::Client(ClientId(560)),
-            npc_id: npc::id::DEMONIC_RANGE_LARVA,
+            id: npc::id::DEMONIC_RANGE_LARVA,
             position: Rect::square(Point(3421, 6435), 1),
             hitpoints: SkillLevel::from_raw(131_074),
             prayers: PrayerSet::from_raw(327_680),
@@ -437,7 +437,7 @@ mod tests {
 
         let magic_larva = NpcState {
             source: Source::Client(ClientId(40)),
-            npc_id: npc::id::DEMONIC_MAGIC_LARVA,
+            id: npc::id::DEMONIC_MAGIC_LARVA,
             position: Rect::square(Point(3549, 6439), 1),
             hitpoints: SkillLevel::from_raw(131_074),
             prayers: PrayerSet::from_raw(393_216),
@@ -448,7 +448,7 @@ mod tests {
 
         let volatile_earth = NpcState {
             source: Source::Client(ClientId(638)),
-            npc_id: npc::id::VOLATILE_EARTH,
+            id: npc::id::VOLATILE_EARTH,
             position: Rect::square(Point(3547, 6435), 1),
             hitpoints: SkillLevel::from_raw(65_537),
             prayers: PrayerSet::from_raw(0),
@@ -459,7 +459,7 @@ mod tests {
 
         let charging_doom = NpcState {
             source: Source::Client(ClientId(282)),
-            npc_id: npc::id::MOKHAIOTL,
+            id: npc::id::MOKHAIOTL,
             position: Rect::square(Point(3549, 6435), 5),
             hitpoints: SkillLevel::from_raw(35_783_331),
             prayers: PrayerSet::from_raw(196_608),
@@ -472,7 +472,7 @@ mod tests {
 
         let regular_doom = NpcState {
             source: Source::Client(ClientId(293)),
-            npc_id: npc::id::MOKHAIOTL,
+            id: npc::id::MOKHAIOTL,
             position: Rect::square(Point(3549, 6435), 5),
             hitpoints: SkillLevel::from_raw(36_176_547),
             prayers: PrayerSet::from_raw(0),

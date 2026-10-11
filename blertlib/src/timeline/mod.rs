@@ -273,7 +273,7 @@ mod tests {
                     RoomId(64386),
                     NpcState {
                         source: Source::Synthetic,
-                        npc_id: 8360,
+                        id: 8360,
                         position: Rect::square(Point(3162, 4444), 6),
                         hitpoints: SkillLevel {
                             current: 3062,
@@ -296,7 +296,7 @@ mod tests {
                         RoomId(64386),
                         NpcState {
                             source: Source::Client(ClientId(344)),
-                            npc_id: 8361,
+                            id: 8361,
                             position: Rect::square(Point(3162, 4444), 6),
                             hitpoints: SkillLevel {
                                 current: 2078,
@@ -310,7 +310,7 @@ mod tests {
                         RoomId(64745),
                         NpcState {
                             source: Source::Client(ClientId(344)),
-                            npc_id: 8366,
+                            id: 8366,
                             position: Rect::square(Point(3177, 4456), 2),
                             hitpoints: SkillLevel {
                                 current: 87,
@@ -338,7 +338,7 @@ mod tests {
                         RoomId(64386),
                         NpcState {
                             source: Source::Client(ClientId(344)),
-                            npc_id: 8362,
+                            id: 8362,
                             position: Rect::square(Point(3162, 4444), 6),
                             hitpoints: SkillLevel {
                                 current: 1343,
@@ -352,7 +352,7 @@ mod tests {
                         RoomId(64745),
                         NpcState {
                             source: Source::Client(ClientId(344)),
-                            npc_id: 8366,
+                            id: 8366,
                             position: Rect::square(Point(3171, 4450), 2),
                             hitpoints: SkillLevel {
                                 current: 0,
@@ -379,7 +379,7 @@ mod tests {
                     RoomId(64386),
                     NpcState {
                         source: Source::Client(ClientId(344)),
-                        npc_id: 8362,
+                        id: 8362,
                         position: Rect::square(Point(3162, 4444), 6),
                         hitpoints: SkillLevel {
                             current: 1343,
