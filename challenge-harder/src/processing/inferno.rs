@@ -284,7 +284,7 @@ impl ChallengeProcessor for InfernoProcessor {
                 .is_some_and(|stage_npc| stage_npc.spawn == tick)
             {
                 self.spawn_indexer
-                    .track_spawn(tick, npc.npc_id, npc.position.point);
+                    .track_spawn(tick, npc.id, npc.position.point);
             }
         }
     }

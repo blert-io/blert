@@ -460,7 +460,7 @@ fn builder_ingest_npc_spawn() {
             RoomId(48416),
             NpcState {
                 source: Source::Client(ClientId(3)),
-                npc_id: 8343,
+                id: 8343,
                 position: Rect::square(Point(3281, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
@@ -548,7 +548,7 @@ fn builder_ingest_moves_maiden_spawn_to_tick_0() {
     let recording = builder.recording().unwrap();
     let maiden = NpcState {
         source: Source::Client(ClientId(1)),
-        npc_id: 8360,
+        id: 8360,
         position: Rect::square(Point(3162, 4444), 6),
         hitpoints: SkillLevel::from_raw(172_034_625),
         prayers: PrayerSet::from_raw(0),
@@ -666,7 +666,7 @@ fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
             RoomId(49403),
             NpcState {
                 source: Source::Client(ClientId(1)),
-                npc_id: 8360,
+                id: 8360,
                 position: Rect::square(Point(3162, 4444), 6),
                 hitpoints: SkillLevel::from_raw(172_034_625),
                 prayers: PrayerSet::from_raw(0),
@@ -754,7 +754,7 @@ fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
             RoomId(39349),
             NpcState {
                 source: Source::Client(ClientId(1)),
-                npc_id: 8360,
+                id: 8360,
                 position: Rect::square(Point(3162, 4444), 6),
                 hitpoints: SkillLevel::from_raw(172_034_625),
                 prayers: PrayerSet::from_raw(0),
@@ -2667,7 +2667,7 @@ fn extract_npc_state_spawn() {
             RoomId(48416),
             NpcState {
                 source: Source::Client(ClientId(3)),
-                npc_id: 8343,
+                id: 8343,
                 position: Rect::square(Point(3281, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
@@ -2746,7 +2746,7 @@ fn extract_npc_state_update_last_seen_tick() {
                 RoomId(48416),
                 NpcState {
                     source: Source::Client(ClientId(3)),
-                    npc_id: 8343,
+                    id: 8343,
                     position: Rect::square(Point(3281, 4248), 1),
                     hitpoints: SkillLevel::from_raw(524_296),
                     prayers: PrayerSet::from_raw(0),
@@ -2780,7 +2780,7 @@ fn extract_npc_state_update_last_seen_tick() {
             RoomId(48416),
             NpcState {
                 source: Source::Client(ClientId(3)),
-                npc_id: 8343,
+                id: 8343,
                 position: Rect::square(Point(3283, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),

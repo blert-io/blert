@@ -51,7 +51,7 @@ impl RoomNpc {
                 })
         });
         RoomNpc {
-            spawn_npc_id: state.npc_id,
+            spawn_npc_id: state.id,
             room_id: room_id.0,
             spawn_tick: npc.spawn.0,
             spawn_point: (

@@ -897,7 +897,7 @@ fn extract_npc_state(
         .and_then(|state| state.npcs.get(&room_id));
 
     let npc_id = if npc.id == 0 {
-        prior.map_or(0, |prior| prior.npc_id)
+        prior.map_or(0, |prior| prior.id)
     } else {
         npc.id
     };
@@ -947,7 +947,7 @@ fn extract_npc_state(
         room_id,
         NpcState {
             source: Source::Client(client_id),
-            npc_id,
+            id: npc_id,
             position,
             hitpoints: SkillLevel::from_raw(npc.hitpoints),
             prayers: PrayerSet::from_raw(npc.active_prayers),
@@ -1698,11 +1698,7 @@ fn correct_offset_maiden_spawn(recording: &mut Recording, tick: Tick, state: &Ti
         return false;
     }
 
-    let Some((&room_id, maiden)) = state
-        .npcs
-        .iter()
-        .find(|(_, npc)| npc::is_maiden(npc.npc_id))
-    else {
+    let Some((&room_id, maiden)) = state.npcs.iter().find(|(_, npc)| npc::is_maiden(npc.id)) else {
         return false;
     };
 
@@ -1751,7 +1747,7 @@ fn should_backfill_maiden(
             earlier_state
                 .npcs
                 .values()
-                .any(|npc| npc.source != Source::Synthetic && npc::is_maiden(npc.npc_id))
+                .any(|npc| npc.source != Source::Synthetic && npc::is_maiden(npc.id))
         })
     })
 }

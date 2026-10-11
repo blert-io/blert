@@ -1545,7 +1545,7 @@ mod tests {
             .unwrap();
         let positions: Vec<_> = state.players.iter().map(|(_, p)| p.position).collect();
         assert_eq!(positions, vec![Point(3182, 4448)]);
-        let npc_ids: Vec<_> = state.npcs.values().map(|npc| npc.npc_id).collect();
+        let npc_ids: Vec<_> = state.npcs.values().map(|npc| npc.id).collect();
         assert_eq!(npc_ids, vec![8360]);
     }
 

@@ -96,9 +96,9 @@ impl NylocasFinalizer {
             .npcs
             .values()
             .map(|npc| {
-                if npc::is_nylocas(npc.npc_id) {
+                if npc::is_nylocas(npc.id) {
                     1
-                } else if npc::is_nylocas_prinkipas(npc.npc_id) {
+                } else if npc::is_nylocas_prinkipas(npc.id) {
                     3
                 } else {
                     0
@@ -157,7 +157,7 @@ impl Finalizer for NylocasFinalizer {
         if state
             .npcs
             .values()
-            .any(|npc| npc::is_nylocas_vasilias(npc.npc_id))
+            .any(|npc| npc::is_nylocas_vasilias(npc.id))
         {
             state
                 .events
@@ -224,7 +224,7 @@ impl Finalizer for MokhaiotlFinalizer {
         let Some((&room_id, mokhaiotl)) = state
             .npcs
             .iter()
-            .find(|(_, npc)| npc.npc_id == npc::id::MOKHAIOTL)
+            .find(|(_, npc)| npc.id == npc::id::MOKHAIOTL)
         else {
             return;
         };
@@ -241,7 +241,7 @@ impl Finalizer for MokhaiotlFinalizer {
         let Some((&room_id, mokhaiotl)) = state
             .npcs
             .iter_mut()
-            .find(|(_, npc)| npc.npc_id == npc::id::MOKHAIOTL)
+            .find(|(_, npc)| npc.id == npc::id::MOKHAIOTL)
         else {
             self.charging = false;
             return;

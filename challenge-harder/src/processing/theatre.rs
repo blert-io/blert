@@ -351,7 +351,7 @@ impl TheatreProcessor {
             _ => {}
         }
 
-        if npc::is_verzik_matomenos(npc.npc_id) {
+        if npc::is_verzik_matomenos(npc.id) {
             match self.verzik.red_spawn_ticks.last() {
                 None => {
                     ctx.set_stage_split(SplitType::TobEntryVerzikReds, tick, Tick(0), false);
@@ -391,7 +391,7 @@ impl TheatreProcessor {
             | PlayerAttack::ElderMaul
             | PlayerAttack::TonalzticsAuto => {
                 if room == Stage::TobVerzik
-                    && target.is_some_and(|npc| npc::is_verzik_matomenos(npc.npc_id))
+                    && target.is_some_and(|npc| npc::is_verzik_matomenos(npc.id))
                 {
                     // Can 6t or 7t a red crab to tick fix; not a troll.
                     return;
@@ -400,7 +400,7 @@ impl TheatreProcessor {
                 if attack.attack != PlayerAttack::TonalzticsAuto
                     && room == Stage::TobNylocas
                     && in_nylo_cleanup
-                    && target.is_none_or(|npc| npc::is_nylocas(npc.npc_id))
+                    && target.is_none_or(|npc| npc::is_nylocas(npc.id))
                 {
                     // Ok to overkill a nylo during cleanup.
                     return;
@@ -438,7 +438,7 @@ impl TheatreProcessor {
                 }
 
                 // Only consider incorrect throw distances on Maiden crabs.
-                if target.is_some_and(|crab| npc::is_maiden_matomenos(crab.npc_id))
+                if target.is_some_and(|crab| npc::is_maiden_matomenos(crab.id))
                     && distance.is_some_and(|distance| !(4..=6).contains(&distance))
                 {
                     data.stats.chins_thrown_incorrectly_maiden += 1;
@@ -454,7 +454,7 @@ impl TheatreProcessor {
             | PlayerAttack::ElderMaulSpec
             | PlayerAttack::TonalzticsSpec
             | PlayerAttack::VolatileNmSpec => {
-                if target.is_some_and(|npc| npc::is_verzik_p1(npc.npc_id)) {
+                if target.is_some_and(|npc| npc::is_verzik_p1(npc.id)) {
                     data.stats.tob_verzik_p1_troll_specs += 1;
                 }
             }
@@ -950,7 +950,7 @@ impl ChallengeProcessor for TheatreProcessor {
             {
                 self.process_npc_spawn(ctx, tick, npc);
             }
-            if let Some(style) = npc::nylocas_vasilias_style(npc.npc_id) {
+            if let Some(style) = npc::nylocas_vasilias_style(npc.id) {
                 self.update_nylocas_boss_style(style);
             }
         }
@@ -1004,8 +1004,7 @@ impl ChallengeProcessor for TheatreProcessor {
                         walk_ticks: down.walk_ticks(),
                     });
                     if down.down_number == 1
-                        && let Some(bloat) =
-                            state.npcs.values().find(|npc| npc::is_bloat(npc.npc_id))
+                        && let Some(bloat) = state.npcs.values().find(|npc| npc::is_bloat(npc.id))
                     {
                         self.bloat.first_down_hp_percent = Some(bloat.hitpoints.percentage());
                     }
