@@ -11,6 +11,10 @@ import {
   type SetupMetadata,
 } from '@/actions/setup';
 import Button from '@/components/button';
+import DebugOverlay, {
+  DebugRow,
+  DebugSection,
+} from '@/components/debug-overlay';
 import Input from '@/components/input';
 import Item from '@/components/item';
 import MarkdownEditor from '@/components/markdown-editor';
@@ -24,7 +28,6 @@ import { useDisplay, useIsApple, useWidthThreshold } from '@/display';
 import { slotIdFromString } from '../../container-grid';
 import { ContextMenuWrapper } from './context-menu';
 import DeleteModal from '../../delete-modal';
-import DebugOverlay from './debug-overlay';
 import {
   EditableGearSetup,
   EditingContext,
@@ -704,7 +707,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
         open={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}
       />
-      {process.env.NODE_ENV === 'development' && <DebugOverlay />}
+      <SetupDebug context={context} />
     </SetupEditingContext.Provider>
   );
 }
@@ -1111,5 +1114,62 @@ function KeyboardShortcutsModal({
         ))}
       </div>
     </Modal>
+  );
+}
+
+function SetupDebug({ context }: { context: EditingContext }) {
+  const {
+    activeSearchSlot,
+    clipboard,
+    operationMode,
+    placementOffset,
+    selectedItem,
+    selection,
+  } = context;
+
+  return (
+    <DebugOverlay>
+      <DebugSection title="Editing">
+        <DebugRow label="mode" value={operationMode} />
+        <DebugRow
+          label="item"
+          value={
+            selectedItem === null
+              ? null
+              : `${selectedItem.name} (${selectedItem.id})`
+          }
+        />
+        <DebugRow label="search slot" value={activeSearchSlot} />
+      </DebugSection>
+      <DebugSection title="Selection">
+        <DebugRow label="type" value={selection?.type ?? null} />
+        <DebugRow label="slots" value={selection?.slots.size ?? null} />
+        <DebugRow
+          label="bounds"
+          value={
+            selection === null
+              ? null
+              : `${selection.bounds.width}x${selection.bounds.height}`
+          }
+        />
+        <DebugRow
+          label="container"
+          value={selection?.bounds.container ?? null}
+        />
+        <DebugRow
+          label="player"
+          value={selection?.bounds.playerIndex ?? null}
+        />
+        <DebugRow
+          label="offset"
+          value={placementOffset === null ? null : placementOffset.join(', ')}
+        />
+      </DebugSection>
+      <DebugSection title="Clipboard">
+        <DebugRow label="operation" value={clipboard?.operation ?? null} />
+        <DebugRow label="slots" value={clipboard?.region.slots.size ?? null} />
+        <DebugRow label="paste mode" value={clipboard?.pasteMode ?? null} />
+      </DebugSection>
+    </DebugOverlay>
   );
 }
