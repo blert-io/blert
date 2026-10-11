@@ -124,6 +124,7 @@ function formatScale(type: ChallengeType, scale: number): string {
     case ChallengeType.TOA:
     case ChallengeType.TOB:
     case ChallengeType.COX:
+    case ChallengeType.TFA:
       switch (scale) {
         case 1:
           return 'Solo';
@@ -169,6 +170,8 @@ function challengeUrl(challenge: ChallengeInfo): string {
       return `/raids/cox/${challenge.uuid}`;
     case ChallengeType.TOA:
       return `/raids/toa/${challenge.uuid}`;
+    case ChallengeType.TFA:
+      return `/raids/tfa/${challenge.uuid}`;
     case ChallengeType.COLOSSEUM:
       return `/challenges/colosseum/${challenge.uuid}`;
     case ChallengeType.INFERNO:
@@ -188,6 +191,8 @@ function challengeLogo(type: ChallengeType): string {
       return `/images/cox.webp`;
     case ChallengeType.TOA:
       return `/images/toa.webp`;
+    case ChallengeType.TFA:
+      return `/images/tfa.webp`;
     case ChallengeType.COLOSSEUM:
       return `/images/colosseum.png`;
     case ChallengeType.INFERNO:

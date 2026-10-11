@@ -38,6 +38,7 @@ pub struct InactivityConfig {
     pub tob: Duration,
     pub cox: Duration,
     pub toa: Duration,
+    pub tfa: Duration,
     pub colosseum: Duration,
     pub inferno: Duration,
     pub mokhaiotl: Duration,
@@ -50,6 +51,7 @@ impl Default for InactivityConfig {
             tob: Duration::from_mins(15),
             cox: Duration::from_mins(15),
             toa: Duration::from_mins(15),
+            tfa: Duration::from_mins(15),
             colosseum: Duration::from_mins(15),
             inferno: Duration::from_mins(60),
             mokhaiotl: Duration::from_mins(15),
@@ -65,6 +67,7 @@ impl InactivityConfig {
             ChallengeType::Tob => self.tob,
             ChallengeType::Cox => self.cox,
             ChallengeType::Toa => self.toa,
+            ChallengeType::Tfa => self.tfa,
             ChallengeType::Colosseum => self.colosseum,
             ChallengeType::Inferno => self.inferno,
             ChallengeType::Mokhaiotl => self.mokhaiotl,
@@ -77,6 +80,7 @@ impl InactivityConfig {
             .max(self.tob)
             .max(self.cox)
             .max(self.toa)
+            .max(self.tfa)
             .max(self.colosseum)
             .max(self.inferno)
             .max(self.mokhaiotl)
@@ -88,6 +92,7 @@ impl InactivityConfig {
             tob: self.tob / factor,
             cox: self.cox / factor,
             toa: self.toa / factor,
+            tfa: self.tfa / factor,
             colosseum: self.colosseum / factor,
             inferno: self.inferno / factor,
             mokhaiotl: self.mokhaiotl / factor,
@@ -274,6 +279,7 @@ mod tests {
                 tob: Duration::from_mins(15),
                 cox: Duration::from_mins(15),
                 toa: Duration::from_mins(15),
+                tfa: Duration::from_mins(15),
                 colosseum: Duration::from_mins(15),
                 inferno: Duration::from_mins(60),
                 mokhaiotl: Duration::from_mins(15),

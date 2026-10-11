@@ -18,6 +18,7 @@ export enum ChallengeType {
   TOB = ChallengeProto.TOB,
   COX = ChallengeProto.COX,
   TOA = ChallengeProto.TOA,
+  TFA = ChallengeProto.TFA,
   COLOSSEUM = ChallengeProto.COLOSSEUM,
   INFERNO = ChallengeProto.INFERNO,
   MOKHAIOTL = ChallengeProto.MOKHAIOTL,
@@ -369,6 +370,15 @@ export enum Stage {
   TOA_CRONDIS = StageProto.TOA_CRONDIS,
   TOA_ZEBAK = StageProto.TOA_ZEBAK,
   TOA_WARDENS = StageProto.TOA_WARDENS,
+
+  TFA_GUARDIAN = StageProto.TFA_GUARDIAN,
+  TFA_EZEKIEL = StageProto.TFA_EZEKIEL,
+  TFA_BORK = StageProto.TFA_BORK,
+  TFA_NECROMANCER = StageProto.TFA_NECROMANCER,
+  TFA_DREADNOTH = StageProto.TFA_DREADNOTH,
+  TFA_XARTH = StageProto.TFA_XARTH,
+  TFA_DAGONHAI = StageProto.TFA_DAGONHAI,
+  TFA_FINAL = StageProto.TFA_FINAL,
 
   MOKHAIOTL_DELVE_1 = StageProto.MOKHAIOTL_DELVE_1,
   MOKHAIOTL_DELVE_2 = StageProto.MOKHAIOTL_DELVE_2,
@@ -967,6 +977,8 @@ export function challengeName(type: ChallengeType): string {
       return 'Chambers of Xeric';
     case ChallengeType.TOA:
       return 'Tombs of Amascut';
+    case ChallengeType.TFA:
+      return 'Fractured Archive';
     case ChallengeType.COLOSSEUM:
       return 'Colosseum';
     case ChallengeType.INFERNO:
@@ -1017,6 +1029,23 @@ export function stageName(stage: Stage, short: boolean = false): string {
       return 'Kephri';
     case Stage.TOA_WARDENS:
       return 'Wardens';
+
+    case Stage.TFA_GUARDIAN:
+      return 'Guardian';
+    case Stage.TFA_EZEKIEL:
+      return 'Ezekiel';
+    case Stage.TFA_BORK:
+      return 'Bork';
+    case Stage.TFA_NECROMANCER:
+      return 'Necromancer';
+    case Stage.TFA_DREADNOTH:
+      return 'Dreadnoth';
+    case Stage.TFA_XARTH:
+      return 'Xarth';
+    case Stage.TFA_DAGONHAI:
+      return "Dagon'hai Trio";
+    case Stage.TFA_FINAL:
+      return 'Final Boss';
 
     case Stage.COX_TEKTON:
       return 'Tekton';
@@ -1100,6 +1129,16 @@ const STAGES_BY_CHALLENGE = {
     Stage.TOA_SCABARAS,
     Stage.TOA_KEPHRI,
     Stage.TOA_WARDENS,
+  ],
+  [ChallengeType.TFA]: [
+    Stage.TFA_GUARDIAN,
+    Stage.TFA_EZEKIEL,
+    Stage.TFA_BORK,
+    Stage.TFA_NECROMANCER,
+    Stage.TFA_DREADNOTH,
+    Stage.TFA_XARTH,
+    Stage.TFA_DAGONHAI,
+    Stage.TFA_FINAL,
   ],
   [ChallengeType.COX]: [
     Stage.COX_TEKTON,
@@ -1268,6 +1307,25 @@ export type ToaStage =
  */
 export function isToaStage(stage: Stage): stage is ToaStage {
   return stage >= Stage.TOA_APMEKEN && stage <= Stage.TOA_WARDENS;
+}
+
+export type TfaStage =
+  | Stage.TFA_GUARDIAN
+  | Stage.TFA_EZEKIEL
+  | Stage.TFA_BORK
+  | Stage.TFA_NECROMANCER
+  | Stage.TFA_DREADNOTH
+  | Stage.TFA_XARTH
+  | Stage.TFA_DAGONHAI
+  | Stage.TFA_FINAL;
+
+/**
+ * Returns true if the stage is part of the Fractured Archive.
+ * @param stage The stage to check.
+ * @returns True if the stage is a TFA stage.
+ */
+export function isTfaStage(stage: Stage): stage is TfaStage {
+  return stage >= Stage.TFA_GUARDIAN && stage <= Stage.TFA_FINAL;
 }
 
 export type ColosseumStage =

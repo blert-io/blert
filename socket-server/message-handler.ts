@@ -352,6 +352,12 @@ export default class MessageHandler {
         }
         break;
 
+      case ChallengeType.TFA:
+        if (!checkPartySize(1, 8)) {
+          return;
+        }
+        break;
+
       case ChallengeType.COLOSSEUM:
       case ChallengeType.INFERNO:
       case ChallengeType.MOKHAIOTL:

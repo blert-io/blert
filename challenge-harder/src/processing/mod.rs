@@ -68,7 +68,10 @@ fn processor_for(
             challenge.clone(),
             custom_data,
         )?))),
-        ChallengeType::Cox | ChallengeType::Toa | ChallengeType::UnknownChallenge => Ok(None),
+        ChallengeType::Cox
+        | ChallengeType::Toa
+        | ChallengeType::Tfa
+        | ChallengeType::UnknownChallenge => Ok(None),
     }
 }
 

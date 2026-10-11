@@ -7,6 +7,7 @@ enum Logos {
   TOB = '/images/tob.webp',
   COX = '/images/cox.webp',
   TOA = '/images/toa.webp',
+  TFA = '/images/tfa.webp',
   COLOSSEUM = '/images/colosseum.png',
   INFERNO = '/images/inferno.png',
   MOKHAIOTL = '/images/mokhaiotl.webp',
@@ -27,6 +28,8 @@ export function challengeLogo(challengeType: ChallengeType): string {
       return Logos.COX;
     case ChallengeType.TOA:
       return Logos.TOA;
+    case ChallengeType.TFA:
+      return Logos.TFA;
     case ChallengeType.COLOSSEUM:
       return Logos.COLOSSEUM;
     case ChallengeType.INFERNO:

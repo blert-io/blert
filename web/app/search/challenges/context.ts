@@ -245,6 +245,9 @@ export function aggregatesAreMeaningful(filters: SearchFilters): boolean {
     case ChallengeType.TOA:
       return filters.mode.length === 1 && filters.scale.length === 1;
 
+    case ChallengeType.TFA:
+      return filters.scale.length === 1;
+
     // Solo challenges.
     case ChallengeType.COLOSSEUM:
     case ChallengeType.INFERNO:

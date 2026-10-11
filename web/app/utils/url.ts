@@ -45,6 +45,8 @@ export function challengeUrl(type: ChallengeType, id: string): string {
       return `/raids/cox/${id}`;
     case ChallengeType.TOA:
       return `/raids/toa/${id}`;
+    case ChallengeType.TFA:
+      return `/raids/tfa/${id}`;
     case ChallengeType.COLOSSEUM:
       return `/challenges/colosseum/${id}`;
     case ChallengeType.INFERNO:
@@ -91,6 +93,14 @@ const STAGE_PATHS: Record<NonWaveStage, string> = {
   [Stage.TOA_CRONDIS]: 'crondis',
   [Stage.TOA_ZEBAK]: 'zebak',
   [Stage.TOA_WARDENS]: 'wardens',
+  [Stage.TFA_GUARDIAN]: 'guardian',
+  [Stage.TFA_EZEKIEL]: 'ezekiel',
+  [Stage.TFA_BORK]: 'bork',
+  [Stage.TFA_NECROMANCER]: 'necromancer',
+  [Stage.TFA_DREADNOTH]: 'dreadnoth',
+  [Stage.TFA_XARTH]: 'xarth',
+  [Stage.TFA_DAGONHAI]: 'dagonhai',
+  [Stage.TFA_FINAL]: 'final',
 };
 
 /**
@@ -130,6 +140,8 @@ export function challengeApiUrl(type: ChallengeType, id: string): string {
       return `/api/v1/raids/cox/${id}`;
     case ChallengeType.TOA:
       return `/api/v1/raids/toa/${id}`;
+    case ChallengeType.TFA:
+      return `/api/v1/raids/tfa/${id}`;
     case ChallengeType.COLOSSEUM:
       return `/api/v1/challenges/colosseum/${id}`;
     case ChallengeType.INFERNO:

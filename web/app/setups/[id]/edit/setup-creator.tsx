@@ -564,11 +564,17 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                       value={ChallengeType.TOA}
                     />
                     <RadioInput.Option
+                      checked={context.setup.challenge === ChallengeType.TFA}
+                      id={`setup-challenge-type-${ChallengeType.TFA}`}
+                      label="TFA"
+                      value={ChallengeType.TFA}
+                    />
+                    <RadioInput.Option
                       checked={
                         context.setup.challenge === ChallengeType.INFERNO
                       }
                       id={`setup-challenge-type-${ChallengeType.INFERNO}`}
-                      label="Inferno"
+                      label={display.isCompact() ? 'Inf' : 'Inferno'}
                       value={ChallengeType.INFERNO}
                     />
                     <RadioInput.Option
@@ -576,7 +582,7 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                         context.setup.challenge === ChallengeType.COLOSSEUM
                       }
                       id={`setup-challenge-type-${ChallengeType.COLOSSEUM}`}
-                      label={display.isCompact() ? 'Colo' : 'Colosseum'}
+                      label="Colo"
                       value={ChallengeType.COLOSSEUM}
                     />
                   </RadioInput.Group>

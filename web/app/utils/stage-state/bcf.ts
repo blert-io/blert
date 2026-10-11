@@ -554,6 +554,7 @@ function firstDisplayTick(type: ChallengeType): number {
     case ChallengeType.TOB:
     case ChallengeType.COX:
     case ChallengeType.TOA:
+    case ChallengeType.TFA:
     case ChallengeType.MOKHAIOTL:
       return 1;
 

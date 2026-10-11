@@ -84,6 +84,7 @@ describe('isRecordingEnabled', () => {
     [ChallengeType.TOB, ChallengeMode.TOB_HARD],
     [ChallengeType.COX, ChallengeMode.NO_MODE],
     [ChallengeType.TOA, ChallengeMode.NO_MODE],
+    [ChallengeType.TFA, ChallengeMode.NO_MODE],
     [ChallengeType.COLOSSEUM, ChallengeMode.NO_MODE],
     [ChallengeType.INFERNO, ChallengeMode.NO_MODE],
     [ChallengeType.MOKHAIOTL, ChallengeMode.NO_MODE],
@@ -99,7 +100,7 @@ describe('isRecordingEnabled', () => {
 
   it('disallows all starts when a challenge type is disabled', async () => {
     const { config, setKey } = createFakeConfig();
-    setKey(DISABLED_CHALLENGES_KEY, ['colosseum', 'tob']);
+    setKey(DISABLED_CHALLENGES_KEY, ['colosseum', 'tob', 'tfa']);
 
     await expect(
       config.isRecordingEnabled(ChallengeType.COLOSSEUM, ChallengeMode.NO_MODE),
@@ -109,6 +110,9 @@ describe('isRecordingEnabled', () => {
     ).resolves.toBe(false);
     await expect(
       config.isRecordingEnabled(ChallengeType.TOB, ChallengeMode.TOB_HARD),
+    ).resolves.toBe(false);
+    await expect(
+      config.isRecordingEnabled(ChallengeType.TFA, ChallengeMode.NO_MODE),
     ).resolves.toBe(false);
   });
 
