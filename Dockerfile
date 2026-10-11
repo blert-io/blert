@@ -22,7 +22,6 @@ COPY bcf/package.json bcf/
 COPY blertbank-client/package.json blertbank-client/
 COPY web/package.json web/
 COPY socket-server/package.json socket-server/
-COPY challenge-server/package.json challenge-server/
 COPY blertbank/package.json blertbank/
 COPY effect-runner/package.json effect-runner/
 
@@ -41,7 +40,6 @@ COPY bcf/package.json bcf/
 COPY blertbank-client/package.json blertbank-client/
 COPY web/package.json web/
 COPY socket-server/package.json socket-server/
-COPY challenge-server/package.json challenge-server/
 COPY blertbank/package.json blertbank/
 COPY effect-runner/package.json effect-runner/
 
@@ -108,14 +106,6 @@ COPY socket-server/ socket-server/
 RUN npm run -w @blert/socket-server build
 
 # ==============================================================================
-# Build challenge-server
-# ==============================================================================
-FROM common-build AS challenge-server-build
-
-COPY challenge-server/ challenge-server/
-RUN npm run -w @blert/challenge-server build
-
-# ==============================================================================
 # Build blertbank
 # ==============================================================================
 FROM common-build AS blertbank-build
@@ -171,27 +161,6 @@ ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
 
 EXPOSE 3003
 CMD ["node", "socket-server/dist/app.js"]
-
-# ==============================================================================
-# Runtime: challenge-server
-# ==============================================================================
-FROM base AS challenge-server
-
-ENV NODE_ENV=production
-ENV PORT=3003
-
-COPY --from=deps-prod /app/node_modules/ node_modules/
-COPY --from=common-build /app/common/dist/ common/dist/
-COPY --from=common-build /app/common/generated/ common/generated/
-COPY --from=challenge-server-build /app/challenge-server/dist/ challenge-server/dist/
-COPY common/package.json common/
-COPY challenge-server/package.json challenge-server/
-
-ARG BLERT_COMMIT_SHA
-ENV BLERT_COMMIT_SHA=$BLERT_COMMIT_SHA
-
-EXPOSE 3003
-CMD ["node", "challenge-server/dist/app.js"]
 
 # ==============================================================================
 # Runtime: blertbank

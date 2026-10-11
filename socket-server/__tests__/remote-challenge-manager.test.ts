@@ -3,15 +3,13 @@ import {
   ChallengeMode,
   ChallengeType,
   ChallengeUpdateAction,
-  CLIENT_EVENTS_KEY,
-  ClientEventType,
-  ClientStatus,
   RecordingType,
   Stage,
 } from '@blert/common';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
 
+import { ClientStatus } from '../challenge-manager';
 import Client from '../client';
 import { RemoteOperation } from '../metrics';
 import { RemoteChallengeManager } from '../remote-challenge-manager';
@@ -19,14 +17,12 @@ import { RemoteChallengeManager } from '../remote-challenge-manager';
 describe('RemoteChallengeManager', () => {
   let manager: RemoteChallengeManager;
   let fetchMock: jest.SpyInstance;
-  let lPush: jest.Mock;
   let pubsubHandler: ((message: string, channel: string) => void) | null;
 
   beforeEach(() => {
     jest.useFakeTimers();
     fetchMock = jest.spyOn(global, 'fetch');
 
-    lPush = jest.fn().mockResolvedValue(1);
     pubsubHandler = null;
     const duplicate = {
       connect: jest.fn().mockResolvedValue(undefined),
@@ -43,7 +39,6 @@ describe('RemoteChallengeManager', () => {
     const redisClient = {
       duplicate: () => duplicate,
       get: jest.fn().mockResolvedValue(null),
-      lPush,
     } as unknown as RedisClientType;
 
     manager = new RemoteChallengeManager(
@@ -53,7 +48,6 @@ describe('RemoteChallengeManager', () => {
   });
 
   afterEach(() => {
-    delete process.env.BLERT_CLIENT_STATUS_HTTP;
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
@@ -165,13 +159,11 @@ describe('RemoteChallengeManager', () => {
   });
 
   describe('updateClientStatus', () => {
-    test('posts the event over HTTP when enabled', async () => {
-      process.env.BLERT_CLIENT_STATUS_HTTP = '1';
+    test('posts the event over HTTP', async () => {
       fetchMock.mockResolvedValueOnce(makeResponse(200));
 
       await manager.updateClientStatus(makeClient().client, ClientStatus.IDLE);
 
-      expect(lPush).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url, init] = fetchMock.mock.calls[0];
       expect(url).toBe('http://challenge-server/client-status');
@@ -184,7 +176,6 @@ describe('RemoteChallengeManager', () => {
     });
 
     test('resolves when the server rejects the status', async () => {
-      process.env.BLERT_CLIENT_STATUS_HTTP = '1';
       fetchMock.mockResolvedValueOnce(
         makeResponse(400, { error: { message: 'unknown client' } }),
       );
@@ -195,7 +186,6 @@ describe('RemoteChallengeManager', () => {
     });
 
     test('resolves when every attempt fails to reach the server', async () => {
-      process.env.BLERT_CLIENT_STATUS_HTTP = '1';
       fetchMock.mockRejectedValue(new Error('connection refused'));
 
       const status = manager.updateClientStatus(
@@ -206,25 +196,6 @@ describe('RemoteChallengeManager', () => {
       await status;
 
       expect(fetchMock).toHaveBeenCalledTimes(8);
-    });
-
-    test('pushes the event to the queue by default', async () => {
-      await manager.updateClientStatus(
-        makeClient().client,
-        ClientStatus.DISCONNECTED,
-      );
-
-      expect(fetchMock).not.toHaveBeenCalled();
-      expect(lPush).toHaveBeenCalledTimes(1);
-      const [key, payload] = lPush.mock.calls[0];
-      expect(key).toBe(CLIENT_EVENTS_KEY);
-      expect(JSON.parse(payload as string)).toEqual({
-        type: ClientEventType.STATUS,
-        userId: 435,
-        clientId: 286,
-        sessionToken: 'session-token',
-        status: ClientStatus.DISCONNECTED,
-      });
     });
   });
 

@@ -1,6 +1,4 @@
 //! HTTP API through which clients drive challenges.
-//!
-//! Routes and body shapes mirror the current `challenge-server/api.ts`.
 
 use std::sync::Arc;
 use std::time::Instant;

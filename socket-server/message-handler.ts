@@ -1,7 +1,6 @@
 import {
   ChallengeMode,
   ChallengeType,
-  ClientStatus,
   isPostgresUniqueViolation,
   normalizeRsn,
   RecordingType,
@@ -23,6 +22,7 @@ import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import ChallengeManager, {
   ChallengeStatusResponse,
   ChallengeUpdate,
+  ClientStatus,
 } from './challenge-manager';
 import Client from './client';
 import { ConfigManager } from './config';

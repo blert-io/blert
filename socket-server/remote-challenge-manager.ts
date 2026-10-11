@@ -4,10 +4,6 @@ import {
   ChallengeServerUpdate,
   ChallengeType,
   ChallengeUpdateAction,
-  CLIENT_EVENTS_KEY,
-  ClientEventType,
-  ClientStatus,
-  ClientStatusEvent,
   RecordingType,
   Stage,
   StageStatus,
@@ -37,6 +33,7 @@ import ChallengeManager, {
   ChallengeInfo,
   ChallengeStatusResponse,
   ChallengeUpdate,
+  ClientStatus,
   RecordedTimes,
 } from './challenge-manager';
 import Client from './client';
@@ -51,6 +48,13 @@ type ChallengeServerError = {
   error: {
     message: string;
   };
+};
+
+type ClientStatusRequest = {
+  userId: number;
+  clientId: number;
+  sessionToken: string;
+  status: ClientStatus;
 };
 
 export class RemoteChallengeManager extends ChallengeManager {
@@ -492,8 +496,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     client: Client,
     status: ClientStatus,
   ): Promise<void> {
-    const event: ClientStatusEvent = {
-      type: ClientEventType.STATUS,
+    const request: ClientStatusRequest = {
       userId: client.getUserId(),
       clientId: client.getClientId(),
       sessionToken: client.getSessionToken(),
@@ -505,56 +508,39 @@ export class RemoteChallengeManager extends ChallengeManager {
       CaptureOp.STATUS,
       client.getActiveChallengeId(),
       client,
-      event,
+      request,
     );
 
     if (status === ClientStatus.DISCONNECTED) {
       this.removeClientFromChallenge(client);
     }
 
-    if (process.env.BLERT_CLIENT_STATUS_HTTP) {
-      await this.postClientStatus(event);
-    } else {
-      void this.redisClient
-        .lPush(CLIENT_EVENTS_KEY, JSON.stringify(event))
-        .catch((e) => {
-          logger.error('remote_client_status_redis_error', {
-            clientId: event.clientId,
-            status: event.status,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        });
-    }
+    await this.postClientStatus(request);
   }
 
-  private async postClientStatus(event: ClientStatusEvent): Promise<void> {
+  private async postClientStatus(request: ClientStatusRequest): Promise<void> {
     try {
       const res = await this.request('status', '/client-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: event.userId,
-          clientId: event.clientId,
-          sessionToken: event.sessionToken,
-          status: event.status,
-        }),
+        body: JSON.stringify(request),
       });
 
       if (!res.ok) {
         const { error } = (await res.json()) as ChallengeServerError;
         logger.error('remote_client_status_failed', {
-          clientId: event.clientId,
-          status: event.status,
+          clientId: request.clientId,
+          status: request.status,
           statusCode: res.status,
           message: error.message,
         });
       }
     } catch (e) {
       logger.warn('remote_client_status_failed', {
-        clientId: event.clientId,
-        status: event.status,
+        clientId: request.clientId,
+        status: request.status,
         error: e instanceof Error ? e.message : String(e),
       });
     }

@@ -7,7 +7,6 @@ import {
   Stage,
   SessionStatus,
   normalizeRsn,
-  partyHash,
 } from '@blert/common';
 
 import {
@@ -32,9 +31,9 @@ afterAll(async () => {
 describe('sessions', () => {
   let playerIds: number[];
   let sessionIds: number[];
-  let partyHash1: string;
-  let partyHash2: string;
-  let partyHash3: string;
+  const partyHash1 = 'party-a-b';
+  const partyHash2 = 'party-a-b-c';
+  const partyHash3 = 'party-a';
 
   beforeEach(async () => {
     const players = [
@@ -46,13 +45,6 @@ describe('sessions', () => {
       INSERT INTO players ${sql(players, ['username', 'normalized_username'])} RETURNING id
     `;
     playerIds = playerResults.map((p) => p.id);
-
-    const party1 = ['PlayerA', 'PlayerB'];
-    const party2 = ['PlayerA', 'PlayerB', 'PlayerC'];
-    const party3 = ['PlayerA'];
-    partyHash1 = partyHash(party1);
-    partyHash2 = partyHash(party2);
-    partyHash3 = partyHash(party3);
 
     const sessions = [
       // 0: ToB duo, completed, 1hr duration
@@ -824,7 +816,7 @@ describe('challenges', () => {
           challenge_type: ChallengeType.TOB,
           challenge_mode: ChallengeMode.TOB_REGULAR,
           scale: 2,
-          party_hash: partyHash(['PlayerA']),
+          party_hash: 'party-a',
           start_time: new Date('2024-01-01T10:00:00Z'),
           end_time: new Date('2024-01-01T10:30:00Z'),
           status: SessionStatus.COMPLETED,

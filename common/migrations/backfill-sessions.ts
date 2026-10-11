@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import postgres from 'postgres';
 import { parseArgs } from 'util';
 
@@ -8,7 +9,20 @@ import {
   SessionStatus,
   Stage,
 } from '../challenge';
-import { partyHash, sessionKey } from '../db/redis';
+import { normalizeRsn } from '../player';
+
+function partyHash(party: string[]) {
+  return createHash('sha256')
+    .update(party.map(normalizeRsn).toSorted().join('-'))
+    .digest('hex');
+}
+
+function sessionKey(type: ChallengeType, partyOrHash: string[] | string) {
+  const hash = Array.isArray(partyOrHash)
+    ? partyHash(partyOrHash)
+    : partyOrHash;
+  return `session:${type}:${hash}`;
+}
 
 type ActiveSession = {
   challenges: any[];
