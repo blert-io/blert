@@ -18,10 +18,15 @@ import { flushSync } from 'react-dom';
 
 import BcfRenderer, {
   CellOverlay,
+  HitTestResult,
   InteractionHandler,
   RegionOverlay,
 } from '@/components/attack-timeline';
 import Button from '@/components/button';
+import DebugOverlay, {
+  DebugRow,
+  DebugSection,
+} from '@/components/debug-overlay';
 import { useModifierKey } from '@/hooks/modifier-key';
 import { clamp } from '@/utils/math';
 
@@ -36,7 +41,13 @@ import {
 import { placeAction, removeAction, removeCell } from './bcf-mutator';
 import { CellBar } from './cell-bar';
 import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
-import { CellCoord, currentDocument, displayWindow } from './editor-state';
+import {
+  CellCoord,
+  currentDocument,
+  displayWindow,
+  EditorAction,
+  EditorState,
+} from './editor-state';
 import { Hotbar } from './hotbar';
 import { Palette } from './palette';
 import { Toolbar } from './toolbar';
@@ -95,7 +106,7 @@ function findConflictSpans(conflicts: CooldownConflict[]): ConflictSpan[] {
 
 export function ChartEditor() {
   const editor = useChartEditor(DEFAULT_CHART);
-  const { dispatch, slotsLoaded, state, update } = editor;
+  const { dispatch, lastAction, slotsLoaded, state, update } = editor;
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [cellSize, rawSetCellSize] = useState(DEFAULT_CELL_SIZE);
 
@@ -154,6 +165,7 @@ export function ChartEditor() {
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const [hover, setHover] = useState<CellCoord | null>(null);
+  const [lastHit, setLastHit] = useState<string | null>(null);
   const [rejection, setRejection] = useState<{
     at: number;
     focus: CellCoord;
@@ -198,6 +210,7 @@ export function ChartEditor() {
         }
       },
       onPointerMove: (hit) => {
+        setLastHit(describeHit(hit));
         setHover((previous) => {
           if (hit?.type !== 'cell') {
             return null;
@@ -588,6 +601,12 @@ export function ChartEditor() {
           slots={slots}
         />
       </div>
+      <EditorDebug
+        gridWidth={gridWidth}
+        hit={lastHit}
+        lastAction={lastAction}
+        state={state}
+      />
     </div>
   );
 }
@@ -637,4 +656,56 @@ function Ghost({ hover, brush, altHeld, bcf, resolver, cellSize }: GhostProps) {
       <ActionIcon action={brush} size={cellSize - 2} />
     </CellOverlay>
   );
+}
+
+type EditorDebugProps = {
+  gridWidth: number | null;
+  hit: string | null;
+  lastAction: EditorAction | null;
+  state: EditorState;
+};
+
+function EditorDebug({ gridWidth, hit, lastAction, state }: EditorDebugProps) {
+  const { coalesce } = state;
+
+  let action = lastAction?.type ?? null;
+  if (lastAction?.type === 'update' && lastAction.coalesce !== undefined) {
+    action += ` · ${lastAction.coalesce}`;
+  }
+
+  return (
+    <DebugOverlay>
+      <DebugSection title="History">
+        <DebugRow label="position" value={state.position} />
+        <DebugRow label="entries" value={state.history.length} />
+        <DebugRow
+          label="coalescing"
+          value={
+            coalesce !== null && coalesce.position === state.position
+              ? coalesce.key
+              : null
+          }
+        />
+        <DebugRow label="last action" value={action} />
+      </DebugSection>
+      <DebugSection title="Chart">
+        <DebugRow
+          label="stored ticks"
+          value={currentDocument(state).timeline.ticks.length}
+        />
+        <DebugRow label="hit" value={hit} />
+        <DebugRow label="grid width" value={gridWidth} />
+      </DebugSection>
+    </DebugOverlay>
+  );
+}
+
+function describeHit(hit: HitTestResult | null): string | null {
+  if (hit === null) {
+    return null;
+  }
+  if (hit.type === 'tick-header') {
+    return `tick header ${hit.tick}`;
+  }
+  return `cell ${hit.rowId}:${hit.tick} (row ${hit.rowIndex})`;
 }

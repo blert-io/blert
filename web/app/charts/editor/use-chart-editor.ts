@@ -13,10 +13,11 @@ import {
 } from './editor-state';
 
 export type ChartEditor = {
-  state: EditorState;
+  dispatch: (action: EditorAction) => void;
+  lastAction: EditorAction | null;
   /** Whether the saved hotbar slots have replaced the initial empty ones. */
   slotsLoaded: boolean;
-  dispatch: (action: EditorAction) => void;
+  state: EditorState;
   update: (
     mutate: (bcf: BlertChartFormat) => BlertChartFormat,
     coalesce?: string,
@@ -24,7 +25,13 @@ export type ChartEditor = {
 };
 
 export function useChartEditor(bcf: BlertChartFormat): ChartEditor {
-  const [state, dispatch] = useReducer(reduce, bcf, initialState);
+  const [state, dispatchToReducer] = useReducer(reduce, bcf, initialState);
+  const [lastAction, setLastAction] = useState<EditorAction | null>(null);
+
+  const dispatch = useCallback((action: EditorAction) => {
+    setLastAction(action);
+    dispatchToReducer(action);
+  }, []);
 
   const { isLoading } = useSettingsContext();
   const [savedSlots, saveSlots] = useSetting<HotbarSlots>({
@@ -38,7 +45,7 @@ export function useChartEditor(bcf: BlertChartFormat): ChartEditor {
       dispatch({ type: 'set-slots', slots: savedSlots });
       setSlotsLoaded(true);
     }
-  }, [isLoading, savedSlots, slotsLoaded]);
+  }, [dispatch, isLoading, savedSlots, slotsLoaded]);
 
   useEffect(() => {
     if (slotsLoaded && state.slots !== savedSlots) {
@@ -49,8 +56,8 @@ export function useChartEditor(bcf: BlertChartFormat): ChartEditor {
   const update = useCallback(
     (mutate: (bcf: BlertChartFormat) => BlertChartFormat, coalesce?: string) =>
       dispatch({ type: 'update', mutate, coalesce, at: Date.now() }),
-    [],
+    [dispatch],
   );
 
-  return { state, slotsLoaded, dispatch, update };
+  return { dispatch, lastAction, slotsLoaded, state, update };
 }
