@@ -7,7 +7,11 @@ import {
   validate,
 } from '@blert/bcf';
 
-import { deriveState, findOffCooldownTick } from '../attack-cycle';
+import {
+  actionFillTicks,
+  deriveState,
+  findOffCooldownTick,
+} from '../attack-cycle';
 
 const VERZIK: BCFActor = {
   id: 'verzik',
@@ -183,5 +187,15 @@ describe('findOffCooldownTick', () => {
     );
     expect(backward).toEqual([12, 5, null]);
     expect(findOffCooldownTick(resolver, 'verzik', 0, 'forward')).toBeNull();
+  });
+});
+
+describe('actionFillTicks', () => {
+  it('spaces attacks by cooldowns and fills anything else on every tick', () => {
+    expect(actionFillTicks(SCYTHE, 3, 14, true)).toEqual([3, 8, 13]);
+    expect(actionFillTicks(SCYTHE, 14, 3, true)).toEqual([14, 9, 4]);
+    expect(actionFillTicks(SCYTHE, 7, 7, true)).toEqual([7]);
+    expect(actionFillTicks(SCYTHE, 3, 6, false)).toEqual([3, 4, 5, 6]);
+    expect(actionFillTicks(SURGE_POTION, 5, 3, true)).toEqual([5, 4, 3]);
   });
 });

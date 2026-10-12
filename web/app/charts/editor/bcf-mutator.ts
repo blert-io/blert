@@ -402,22 +402,45 @@ export function placeAction(
   tick: number,
   action: BCFAction,
 ): BlertChartFormat {
-  assertTick(bcf, tick);
-  assertCompatibleCell(bcf, actorId, tick, { actions: [action] });
+  return placeActions(bcf, actorId, [tick], action);
+}
+
+/**
+ * Adds `action` to the cells for `actorId` at each of `ticks`, replacing any
+ * action of the same type already there. Creates cells and tick entries as
+ * needed.
+ *
+ * @throws Error if any tick is outside `[0, totalTicks)`, if `actorId` does
+ *   not reference an actor in the document, or if the action does not fit the
+ *   actor.
+ */
+export function placeActions(
+  bcf: BlertChartFormat,
+  actorId: string,
+  ticks: number[],
+  action: BCFAction,
+): BlertChartFormat {
+  for (const tick of ticks) {
+    assertTick(bcf, tick);
+    assertCompatibleCell(bcf, actorId, tick, { actions: [action] });
+  }
 
   const next = structuredClone(bcf);
-  const { ticks } = next.timeline;
-  const placed = structuredClone(action);
-
-  const { entry, cellIndex } = locate(ticks, actorId, tick);
-  if (entry !== null && cellIndex !== null) {
-    const cell = entry.cells[cellIndex];
-    cell.actions = [
-      ...(cell.actions ?? []).filter((a) => a.type !== placed.type),
-      placed,
-    ];
-  } else {
-    setUnchecked(ticks, actorId, tick, { actorId, actions: [placed] });
+  for (const tick of ticks) {
+    const placed = structuredClone(action);
+    const { entry, cellIndex } = locate(next.timeline.ticks, actorId, tick);
+    if (entry !== null && cellIndex !== null) {
+      const cell = entry.cells[cellIndex];
+      cell.actions = [
+        ...(cell.actions ?? []).filter((a) => a.type !== placed.type),
+        placed,
+      ];
+    } else {
+      setUnchecked(next.timeline.ticks, actorId, tick, {
+        actorId,
+        actions: [placed],
+      });
+    }
   }
   return next;
 }
@@ -490,6 +513,34 @@ export function clearCells(
 ): BlertChartFormat {
   const next = structuredClone(bcf);
   next.timeline.ticks = clear(next.timeline.ticks, region);
+  return next;
+}
+
+/**
+ * Removes every action of `type` within `region`, removing the cells left
+ * without actions.
+ */
+export function clearActions(
+  bcf: BlertChartFormat,
+  region: CellRegion,
+  type: BCFAction['type'],
+): BlertChartFormat {
+  const actorIds = new Set(region.actorIds);
+
+  const next = structuredClone(bcf);
+  next.timeline.ticks = next.timeline.ticks.filter((entry) => {
+    if (entry.tick < region.startTick || entry.tick > region.endTick) {
+      return true;
+    }
+    entry.cells = entry.cells.filter((cell) => {
+      if (!actorIds.has(cell.actorId) || cell.actions === undefined) {
+        return true;
+      }
+      cell.actions = cell.actions.filter((a) => a.type !== type);
+      return cell.actions.length > 0;
+    });
+    return entry.cells.length > 0;
+  });
   return next;
 }
 

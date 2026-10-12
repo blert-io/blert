@@ -54,6 +54,7 @@ export type EditorAction =
   | { type: 'move-focus'; rows: number; ticks: number }
   | { type: 'place-slot-at-focus'; slot: number; at: number }
   | { type: 'set-brush'; brush: BCFAction | null }
+  | { type: 'set-respect-cooldowns'; respectCooldowns: boolean }
   | { type: 'add-to-hotbar'; action: BCFAction }
   | { type: 'select-slot'; slot: number }
   | { type: 'set-slot'; slot: number; action: BCFAction | null }
@@ -238,6 +239,9 @@ function apply(state: EditorState, action: EditorAction): EditorState {
 
     case 'set-brush':
       return { ...state, brush: action.brush, activeSlot: null };
+
+    case 'set-respect-cooldowns':
+      return { ...state, respectCooldowns: action.respectCooldowns };
 
     case 'add-to-hotbar': {
       const slot = state.activeSlot ?? state.slots.indexOf(null);

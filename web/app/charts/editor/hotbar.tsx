@@ -8,6 +8,7 @@ import {
   bcfToPlayerAttack,
   isSpecialAttack,
 } from '@/components/attack-timeline';
+import Checkbox from '@/components/checkbox';
 import { useModifierKey } from '@/hooks/modifier-key';
 
 import { useActionDrag } from './action-drag';
@@ -24,10 +25,12 @@ type HotbarProps = {
   brush: BCFAction | null;
   disabled: boolean;
   onClearBrush: () => void;
+  onRespectCooldownsChange: (respectCooldowns: boolean) => void;
   onSelectSlot: (slot: number) => void;
   onSetSlot: (slot: number, action: BCFAction | null) => void;
   onSwapSlots: (from: number, to: number) => void;
   pulse: { at: number; slot: number } | null;
+  respectCooldowns: boolean;
   slots: HotbarSlots;
 };
 
@@ -36,10 +39,12 @@ export function Hotbar({
   brush,
   disabled,
   onClearBrush,
+  onRespectCooldownsChange,
   onSelectSlot,
   onSetSlot,
   onSwapSlots,
   pulse,
+  respectCooldowns,
   slots,
 }: HotbarProps) {
   const shiftHeld = useModifierKey('Shift');
@@ -89,6 +94,15 @@ export function Hotbar({
         ) : (
           <BrushChip brush={brush} onClear={onClearBrush} />
         )}
+      </div>
+      <div className={styles.cooldowns}>
+        <i className="fa-solid fa-stopwatch" />
+        <Checkbox
+          checked={respectCooldowns}
+          label="Respect cooldowns"
+          onChange={onRespectCooldownsChange}
+          simple
+        />
       </div>
     </>
   );

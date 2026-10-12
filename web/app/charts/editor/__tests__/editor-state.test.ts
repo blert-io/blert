@@ -517,6 +517,27 @@ describe('set-brush', () => {
   });
 });
 
+describe('set-respect-cooldowns', () => {
+  it('sets whether fills respect cooldowns', () => {
+    const start = initialState({
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+      timeline: { actors: [VERZIK, P1], ticks: [] },
+    });
+
+    const off = reduce(start, {
+      type: 'set-respect-cooldowns',
+      respectCooldowns: false,
+    });
+    expect(off).toEqual({ ...start, respectCooldowns: false });
+    const on = reduce(off, {
+      type: 'set-respect-cooldowns',
+      respectCooldowns: true,
+    });
+    expect(on).toEqual(start);
+  });
+});
+
 describe('add-to-hotbar', () => {
   it('binds the action to the active slot', () => {
     const scythe = {

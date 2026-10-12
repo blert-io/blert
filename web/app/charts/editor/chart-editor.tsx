@@ -27,8 +27,14 @@ import { clamp } from '@/utils/math';
 
 import { useActionDrag } from './action-drag';
 import { ActionIcon } from './action-icon';
-import { CooldownConflict, deriveState } from './attack-cycle';
-import { placeAction, removeAction, removeCell } from './bcf-mutator';
+import { CooldownConflict, actionFillTicks, deriveState } from './attack-cycle';
+import {
+  clearActions,
+  placeAction,
+  placeActions,
+  removeAction,
+  removeCell,
+} from './bcf-mutator';
 import { CellBar } from './cell-bar';
 import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
 import {
@@ -39,6 +45,7 @@ import {
 } from './editor-state';
 import { Hotbar } from './hotbar';
 import {
+  Fill,
   InputContext,
   Keypress,
   canPlace,
@@ -129,7 +136,8 @@ export function ChartEditor() {
       derivedResolver: new BCFResolver(derived),
     };
   }, [bcf]);
-  const { activeSlot, brush, focus, focusedBy, slots } = state;
+  const { activeSlot, brush, focus, focusedBy, respectCooldowns, slots } =
+    state;
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridWidth, setGridWidth] = useState<number | null>(null);
@@ -160,6 +168,7 @@ export function ChartEditor() {
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const [hover, setHover] = useState<CellCoord | null>(null);
+  const [fill, setFill] = useState<Fill | null>(null);
   const [lastHit, setLastHit] = useState<string | null>(null);
   const [rejection, setRejection] = useState<{
     at: number;
@@ -180,6 +189,51 @@ export function ChartEditor() {
     [dispatch, resolver, update],
   );
 
+  useEffect(() => {
+    if (fill === null) {
+      return;
+    }
+
+    const { action, actorId, endTick, startTick } = fill;
+    const commit = () => {
+      const ticks = actionFillTicks(
+        action,
+        startTick,
+        endTick,
+        respectCooldowns,
+      );
+      const span = {
+        actorIds: [actorId],
+        startTick: Math.min(startTick, endTick),
+        endTick: Math.max(startTick, endTick),
+      };
+      update((doc) => {
+        const cleared =
+          action.type === 'attack' ? clearActions(doc, span, 'attack') : doc;
+        return placeActions(cleared, actorId, ticks, action);
+      });
+      const tick = ticks[ticks.length - 1];
+      dispatch({ type: 'set-focus', focus: { actorId, tick } });
+      setFill(null);
+    };
+    const cancel = () => setFill(null);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        cancel();
+      }
+    };
+
+    window.addEventListener('pointerup', commit);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('pointerup', commit);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [dispatch, fill, respectCooldowns, update]);
+
   const interactionHandler = useMemo<InteractionHandler>(
     () => ({
       onPointerDown: (hit, e) => {
@@ -191,8 +245,8 @@ export function ChartEditor() {
           { brush, resolver },
           { altKey: e.altKey, cell: { actorId: hit.rowId, tick: hit.tick } },
         );
-        if (intent?.type === 'place-action') {
-          place(intent.cell, intent.action);
+        if (intent?.type === 'start-fill') {
+          setFill(intent.fill);
         } else if (intent !== null) {
           dispatch(intent);
         }
@@ -212,6 +266,13 @@ export function ChartEditor() {
           }
           return { actorId: hit.rowId, tick: hit.tick };
         });
+        if (hit !== null) {
+          setFill((previous) =>
+            previous === null || previous.endTick === hit.tick
+              ? previous
+              : { ...previous, endTick: hit.tick },
+          );
+        }
 
         if (drag === null) {
           return;
@@ -377,14 +438,23 @@ export function ChartEditor() {
               tick={focus.tick}
             />
           )}
-          <Ghost
-            hover={hover}
-            brush={drag?.action ?? brush}
-            altHeld={altHeld}
-            bcf={bcf}
-            resolver={resolver}
-            cellSize={cellSize}
-          />
+          {fill === null ? (
+            <Ghost
+              hover={hover}
+              brush={drag?.action ?? brush}
+              altHeld={altHeld}
+              bcf={bcf}
+              resolver={resolver}
+              cellSize={cellSize}
+            />
+          ) : (
+            <FillPreview
+              cellSize={cellSize}
+              fill={fill}
+              resolver={resolver}
+              respectCooldowns={respectCooldowns}
+            />
+          )}
         </BcfRenderer>
       </div>
       <aside
@@ -411,6 +481,9 @@ export function ChartEditor() {
           brush={brush}
           disabled={!slotsLoaded}
           onClearBrush={() => dispatch({ type: 'set-brush', brush: null })}
+          onRespectCooldownsChange={(respectCooldowns) =>
+            dispatch({ type: 'set-respect-cooldowns', respectCooldowns })
+          }
           onSelectSlot={(slot) => {
             if (slots[slot] === null && brush !== null) {
               dispatch({ type: 'set-slot', slot, action: brush });
@@ -422,6 +495,7 @@ export function ChartEditor() {
           }
           onSwapSlots={(from, to) => dispatch({ type: 'swap-slots', from, to })}
           pulse={rejection !== null && !rejection.invalid ? rejection : null}
+          respectCooldowns={respectCooldowns}
           slots={slots}
         />
       </div>
@@ -479,6 +553,66 @@ function Ghost({ hover, brush, altHeld, bcf, resolver, cellSize }: GhostProps) {
     >
       <ActionIcon action={brush} size={cellSize - 2} />
     </CellOverlay>
+  );
+}
+
+type FillPreviewProps = {
+  cellSize: number;
+  fill: Fill;
+  resolver: BCFResolver;
+  respectCooldowns: boolean;
+};
+
+function FillPreview({
+  cellSize,
+  fill,
+  resolver,
+  respectCooldowns,
+}: FillPreviewProps) {
+  const { action, actorId, endTick, startTick } = fill;
+  const ticks = actionFillTicks(action, startTick, endTick, respectCooldowns);
+
+  // Existing attacks between filled attack ticks that would be removed.
+  const removed: number[] = [];
+  if (action.type === 'attack') {
+    const landing = new Set(ticks);
+    const last = Math.max(startTick, endTick);
+    for (let tick = Math.min(startTick, endTick); tick <= last; tick++) {
+      const actions = resolver.getCell(actorId, tick)?.actions ?? [];
+      if (!landing.has(tick) && actions.some((a) => a.type === 'attack')) {
+        removed.push(tick);
+      }
+    }
+  }
+
+  return (
+    <>
+      <RegionOverlay
+        className={styles.fillRegion}
+        endRowId={actorId}
+        endTick={endTick}
+        startRowId={actorId}
+        startTick={startTick}
+      />
+      {removed.map((tick) => (
+        <CellOverlay
+          className={styles.removed}
+          key={tick}
+          rowId={actorId}
+          tick={tick}
+        />
+      ))}
+      {ticks.map((tick) => (
+        <CellOverlay
+          className={`${styles.ghost} ${styles.valid}`}
+          key={tick}
+          rowId={actorId}
+          tick={tick}
+        >
+          <ActionIcon action={action} size={cellSize - 2} />
+        </CellOverlay>
+      ))}
+    </>
   );
 }
 
