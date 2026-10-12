@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  BCFAction,
-  BCFResolver,
-  BlertChartFormat,
-  actorTypeSupportsAction,
-} from '@blert/bcf';
+import { BCFAction, BCFResolver, BlertChartFormat } from '@blert/bcf';
 import {
   SetStateAction,
   useCallback,
@@ -31,24 +26,25 @@ import { useModifierKey } from '@/hooks/modifier-key';
 import { clamp } from '@/utils/math';
 
 import { useActionDrag } from './action-drag';
-import { cycleAttack } from './action-registry';
 import { ActionIcon } from './action-icon';
-import {
-  CooldownConflict,
-  deriveState,
-  findOffCooldownTick,
-} from './attack-cycle';
+import { CooldownConflict, deriveState } from './attack-cycle';
 import { placeAction, removeAction, removeCell } from './bcf-mutator';
 import { CellBar } from './cell-bar';
 import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
 import {
   CellCoord,
   currentDocument,
-  displayWindow,
   EditorAction,
   EditorState,
 } from './editor-state';
 import { Hotbar } from './hotbar';
+import {
+  InputContext,
+  Keypress,
+  canPlace,
+  keyIntents,
+  pressIntent,
+} from './input';
 import { Palette } from './palette';
 import { Toolbar } from './toolbar';
 import { useChartEditor } from './use-chart-editor';
@@ -69,17 +65,6 @@ const DEFAULT_CHART: BlertChartFormat = {
     ticks: [],
   },
 };
-
-function canPlace(
-  resolver: BCFResolver,
-  actorId: string,
-  action: BCFAction,
-): boolean {
-  const actor = resolver.getActor(actorId);
-  return (
-    actor !== undefined && actorTypeSupportsAction(actor.type, action.type)
-  );
-}
 
 type ConflictSpan = { actorId: string; endTick: number; startTick: number };
 
@@ -102,6 +87,16 @@ function findConflictSpans(conflicts: CooldownConflict[]): ConflictSpan[] {
     }
   }
   return spans;
+}
+
+function keyTarget(target: EventTarget | null): Keypress['target'] {
+  if (
+    (target instanceof HTMLInputElement && target.type !== 'checkbox') ||
+    target instanceof HTMLTextAreaElement
+  ) {
+    return 'text';
+  }
+  return target === document.body ? 'body' : 'control';
 }
 
 export function ChartEditor() {
@@ -192,21 +187,14 @@ export function ChartEditor() {
           return;
         }
 
-        const cell = { actorId: hit.rowId, tick: hit.tick };
-        if (e.altKey) {
-          const actions =
-            resolver.getCell(cell.actorId, cell.tick)?.actions ?? [];
-          const picked = actions.find((a) => a.type === 'attack') ?? actions[0];
-          if (picked !== undefined) {
-            dispatch({ type: 'set-brush', brush: picked });
-          }
-          return;
-        }
-
-        if (brush === null) {
-          dispatch({ type: 'set-focus', focus: cell });
-        } else {
-          place(cell, brush);
+        const intent = pressIntent(
+          { brush, resolver },
+          { altKey: e.altKey, cell: { actorId: hit.rowId, tick: hit.tick } },
+        );
+        if (intent?.type === 'place-action') {
+          place(intent.cell, intent.action);
+        } else if (intent !== null) {
+          dispatch(intent);
         }
       },
       onPointerMove: (hit) => {
@@ -266,226 +254,62 @@ export function ChartEditor() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-
-      // Keep DOM focus working as usual.
-      if (
-        (e.key === 'Enter' || e.key === 'Tab') &&
-        e.target !== document.body
-      ) {
-        return;
-      }
-
-      const modifier = e.ctrlKey || e.metaKey;
-
-      const focusRowEdge = (edge: 'end' | 'start') => {
-        if (focus === null) {
-          return;
-        }
-        e.preventDefault();
-        const [first, last] = displayWindow(bcf);
-        const tick = edge === 'start' ? first : last;
-        dispatch({ type: 'move-focus', rows: 0, ticks: tick - focus.tick });
+      const context: InputContext = {
+        at: Date.now(),
+        derivedResolver,
+        resolver,
+        state,
       };
+      const intents = keyIntents(context, {
+        altKey: e.altKey,
+        ctrlKey: e.ctrlKey,
+        key: e.key,
+        metaKey: e.metaKey,
+        shiftKey: e.shiftKey,
+        target: keyTarget(e.target),
+      });
+      if (intents.length > 0) {
+        e.preventDefault();
+      }
 
-      switch (e.key) {
-        case 'z':
-        case 'Z':
-          if (modifier) {
-            e.preventDefault();
-            dispatch({ type: e.shiftKey ? 'redo' : 'undo' });
-          }
-          break;
-
-        case 'y':
-          if (modifier) {
-            e.preventDefault();
-            dispatch({ type: 'redo' });
-          }
-          break;
-
-        case '-':
-        case '=':
-        case '+':
-          if (modifier) {
-            e.preventDefault();
-            setCellSize((size) => size + (e.key == '-' ? -2 : 2));
-          }
-          break;
-
-        case 'ArrowUp':
-        case 'ArrowDown':
-        case 'ArrowLeft':
-        case 'ArrowRight':
-          if (
-            e.metaKey &&
-            !e.ctrlKey &&
-            !e.altKey &&
-            (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
-          ) {
-            focusRowEdge(e.key === 'ArrowLeft' ? 'start' : 'end');
-          } else if (!modifier && !e.altKey) {
-            e.preventDefault();
-            dispatch({
-              type: 'move-focus',
-              rows: e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0,
-              ticks:
-                e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0,
-            });
-          }
-          break;
-
-        case 'Home':
-        case 'End':
-          if (!modifier && !e.altKey) {
-            focusRowEdge(e.key === 'Home' ? 'start' : 'end');
-          }
-          break;
-
-        case 'Enter':
-          if (
-            focus !== null &&
-            !modifier &&
-            !e.altKey &&
-            focusedBy === 'pointer'
-          ) {
-            e.preventDefault();
-            // Switch focus to keyboard mode on the same cell.
-            dispatch({ type: 'move-focus', rows: 0, ticks: 0 });
-          }
-          break;
-
-        case 'Tab':
-          if (focus !== null && !modifier && !e.altKey) {
-            e.preventDefault();
-            const target = findOffCooldownTick(
-              derivedResolver,
-              focus.actorId,
-              focus.tick,
-              e.shiftKey ? 'backward' : 'forward',
-            );
-            const [first, last] = displayWindow(bcf);
-            const visible =
-              target !== null && target >= first && target <= last;
-            dispatch({
-              type: 'move-focus',
-              rows: 0,
-              ticks: visible ? target - focus.tick : 0,
-            });
-          }
-          break;
-
-        case 'Delete':
-          if (
-            focus !== null &&
-            resolver.getCell(focus.actorId, focus.tick) !== undefined
-          ) {
-            e.preventDefault();
-            update((doc) => removeCell(doc, focus.actorId, focus.tick));
-          }
-          break;
-
-        case 'Backspace':
-          if (focus === null) {
-            return;
-          }
-          e.preventDefault();
-          if (resolver.getCell(focus.actorId, focus.tick) !== undefined) {
-            update((doc) => removeCell(doc, focus.actorId, focus.tick));
-          }
-          dispatch({ type: 'move-focus', rows: 0, ticks: -1 });
-          break;
-
-        case 'a':
-        case 'A':
-          if (!modifier && !e.altKey) {
-            e.preventDefault();
-            setDrawerOpen((open) => !open);
-          }
-          break;
-
-        case 's':
-        case 'S':
-          if (!modifier && brush !== null) {
-            const next = cycleAttack(brush, e.shiftKey ? -1 : 1);
-            if (next !== null) {
-              e.preventDefault();
-              dispatch({ type: 'set-brush', brush: next });
-            }
-          }
-          break;
-
-        case '/':
-          if (!modifier) {
-            e.preventDefault();
+      for (const intent of intents) {
+        switch (intent.type) {
+          case 'open-search':
             flushSync(() => setDrawerOpen(true));
             searchRef.current?.focus({ preventScroll: true });
-          }
-          break;
+            break;
 
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-          if (!modifier && !e.altKey) {
-            e.preventDefault();
-            const slot = Number(e.key) - 1;
-            if (focus !== null && focusedBy === 'keyboard') {
-              const action = slots[slot];
-              if (
-                action !== null &&
-                canPlace(resolver, focus.actorId, action)
-              ) {
-                dispatch({ type: 'place-slot-at-focus', slot, at: Date.now() });
-              } else {
-                setRejection({
-                  at: Date.now(),
-                  focus,
-                  invalid: action !== null,
-                  slot,
-                });
-              }
-            } else {
-              dispatch({ type: 'select-slot', slot });
-            }
+          case 'reject-slot': {
+            const { focus, invalid, slot } = intent;
+            setRejection({ at: context.at, focus, invalid, slot });
+            break;
           }
-          break;
 
-        case 'Escape':
-          if (brush !== null || activeSlot !== null) {
-            dispatch({ type: 'set-brush', brush: null });
-          } else if (focus !== null) {
-            dispatch({ type: 'set-focus', focus: null });
+          case 'remove-cell': {
+            const { actorId, tick } = intent.cell;
+            update((doc) => removeCell(doc, actorId, tick));
+            break;
           }
-          break;
+
+          case 'toggle-drawer':
+            setDrawerOpen((open) => !open);
+            break;
+
+          case 'zoom': {
+            const { delta } = intent;
+            setCellSize((size) => size + delta);
+            break;
+          }
+
+          default:
+            dispatch(intent);
+        }
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
-    activeSlot,
-    bcf,
-    brush,
-    derivedResolver,
-    dispatch,
-    focus,
-    focusedBy,
-    resolver,
-    setCellSize,
-    slots,
-    update,
-  ]);
+  }, [derivedResolver, dispatch, resolver, setCellSize, state, update]);
 
   let focusClass = styles.focusOverlay;
   if (focusedBy === 'keyboard') {
