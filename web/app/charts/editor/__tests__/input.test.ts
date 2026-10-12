@@ -363,9 +363,8 @@ describe('pressIntent', () => {
         cell: { actorId: 'p1', tick: 4 },
       }),
     ).toEqual({
-      type: 'place-action',
-      action: SCYTHE,
-      cell: { actorId: 'p1', tick: 4 },
+      type: 'start-fill',
+      fill: { action: SCYTHE, actorId: 'p1', endTick: 4, startTick: 4 },
     });
     expect(
       pressIntent(withBrush, {

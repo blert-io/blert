@@ -137,3 +137,28 @@ export function findOffCooldownTick(
     }
   }
 }
+
+/**
+ * Returns the ticks between `startTick` and `endTick`, inclusive, in either
+ * direction, where `action` would be filled. When `respectCooldown` is set,
+ * attacks are spaced by their cooldowns; everything else fills every tick.
+ */
+export function actionFillTicks(
+  action: BCFAction,
+  startTick: number,
+  endTick: number,
+  respectCooldown: boolean,
+): number[] {
+  const interval =
+    respectCooldown && action.type === 'attack'
+      ? attackCooldown(action.attackType)
+      : 1;
+  const step = endTick >= startTick ? interval : -interval;
+  const length = Math.abs(endTick - startTick);
+
+  const ticks: number[] = [];
+  for (let t = startTick; Math.abs(t - startTick) <= length; t += step) {
+    ticks.push(t);
+  }
+  return ticks;
+}

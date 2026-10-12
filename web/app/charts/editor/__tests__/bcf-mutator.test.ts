@@ -9,20 +9,22 @@ import {
 import {
   CellBlock,
   addActor,
+  clearActions,
   clearCells,
   duplicateActor,
   insertTicks,
   pasteCells,
   placeAction,
-  removeTicks,
+  placeActions,
   removeAction,
   removeActor,
   removeCell,
+  removeTicks,
   setCell,
   setRowOrder,
   setTotalTicks,
-  updateMeta,
   translateCells,
+  updateMeta,
 } from '../bcf-mutator';
 
 const VERZIK: BCFActor = {
@@ -683,6 +685,36 @@ describe('placeAction', () => {
   });
 });
 
+describe('placeActions', () => {
+  it('places the action on every tick, merging it into existing cells', () => {
+    let bcf = setCell(makeChart(), 'p1', 5, { actions: [VENGEANCE] });
+    bcf = setCell(bcf, 'p1', 10, { actions: [DAWN_SPEC] });
+    bcf = setCell(bcf, 'p2', 10, { actions: [SCYTHE] });
+    const before = structuredClone(bcf);
+
+    const result = placeActions(bcf, 'p1', [15, 10, 5], SCYTHE);
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 5, cells: [{ actorId: 'p1', actions: [VENGEANCE, SCYTHE] }] },
+      {
+        tick: 10,
+        cells: [
+          { actorId: 'p1', actions: [SCYTHE] },
+          { actorId: 'p2', actions: [SCYTHE] },
+        ],
+      },
+      { tick: 15, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+    ]);
+    expect(bcf).toEqual(before);
+  });
+
+  it('throws if any of the ticks is out of bounds', () => {
+    expect(() => placeActions(makeChart(), 'p1', [5, 30], SCYTHE)).toThrow(
+      'out of bounds',
+    );
+  });
+});
+
 describe('removeAction', () => {
   it('removes one action, keeping the rest of the cell', () => {
     const bcf = setCell(makeChart(), 'p1', 5, {
@@ -836,6 +868,52 @@ describe('clearCells', () => {
     const before = structuredClone(bcf);
 
     clearCells(bcf, { actorIds: ['p1', 'p2'], startTick: 0, endTick: 29 });
+    expect(bcf).toEqual(before);
+  });
+});
+
+describe('clearActions', () => {
+  it('removes actions of the type within the region, dropping empty cells', () => {
+    let bcf = setCell(makeChart(), 'p1', 5, { actions: [VENGEANCE, SCYTHE] });
+    bcf = setCell(bcf, 'p1', 7, { actions: [DAWN_SPEC] });
+    bcf = setCell(bcf, 'p1', 9, { actions: [SCYTHE] });
+    bcf = setCell(bcf, 'p2', 9, { actions: [SCYTHE] });
+    bcf = setCell(bcf, 'p1', 14, { actions: [SCYTHE] });
+
+    const result = clearActions(
+      bcf,
+      { actorIds: ['p1'], startTick: 5, endTick: 10 },
+      'attack',
+    );
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 5, cells: [{ actorId: 'p1', actions: [VENGEANCE] }] },
+      { tick: 9, cells: [{ actorId: 'p2', actions: [SCYTHE] }] },
+      { tick: 14, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+    ]);
+  });
+
+  it('does nothing if there are no actions of the type', () => {
+    const bcf = setCell(makeChart(), 'p1', 5, { actions: [VENGEANCE] });
+
+    expect(
+      clearActions(
+        bcf,
+        { actorIds: ['p1'], startTick: 0, endTick: 29 },
+        'attack',
+      ),
+    ).toEqual(bcf);
+  });
+
+  it('does not modify the input document', () => {
+    const bcf = makeChart(SILLY_P1);
+    const before = structuredClone(bcf);
+
+    clearActions(
+      bcf,
+      { actorIds: ['p1', 'p2'], startTick: 0, endTick: 29 },
+      'attack',
+    );
     expect(bcf).toEqual(before);
   });
 });

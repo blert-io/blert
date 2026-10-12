@@ -129,6 +129,21 @@
   color: var(--blert-font-color-secondary);
 }
 
+.cooldowns {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  white-space: nowrap;
+
+  i {
+    position: relative;
+    top: 1px;
+    font-size: 0.85rem;
+    color: var(--blert-font-color-secondary);
+  }
+}
+
 .chip {
   display: inline-flex;
   align-items: center;

@@ -26,6 +26,14 @@ export type Keypress = {
 /** A primary button press on a cell. */
 export type Press = { altKey: boolean; cell: CellCoord };
 
+/** An in-progress fill spanning from `startTick` to `endTick`. */
+export type Fill = {
+  action: BCFAction;
+  actorId: string;
+  endTick: number;
+  startTick: number;
+};
+
 export type InputContext = {
   at: number;
   /** Resolves the document with its derived cell state. */
@@ -60,7 +68,7 @@ export type KeyIntent =
 
 export type PressIntent =
   | Extract<EditorAction, { type: 'set-brush' | 'set-focus' }>
-  | { type: 'place-action'; action: BCFAction; cell: CellCoord };
+  | { type: 'start-fill'; fill: Fill };
 
 export function canPlace(
   resolver: BCFResolver,
@@ -263,5 +271,13 @@ export function pressIntent(
   if (!canPlace(resolver, cell.actorId, brush)) {
     return null;
   }
-  return { type: 'place-action', action: brush, cell };
+  return {
+    type: 'start-fill',
+    fill: {
+      action: brush,
+      actorId: cell.actorId,
+      endTick: cell.tick,
+      startTick: cell.tick,
+    },
+  };
 }
