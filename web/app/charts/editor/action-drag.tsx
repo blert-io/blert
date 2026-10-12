@@ -15,7 +15,7 @@ import { ActionIcon } from './action-icon';
 
 import styles from './action-drag.module.scss';
 
-const DRAG_THRESHOLD_PX = 4;
+export const DRAG_THRESHOLD_PX = 4;
 
 type Point = { x: number; y: number };
 
@@ -44,13 +44,30 @@ function moveFloat(float: HTMLElement, { x, y }: Point): void {
 }
 
 /** Stops the click that follows the current pointer release. */
-function swallowNextClick(): void {
+export function swallowNextClick(): void {
   const stop = (e: MouseEvent) => e.stopPropagation();
   window.addEventListener('click', stop, { capture: true, once: true });
   setTimeout(
     () => window.removeEventListener('click', stop, { capture: true }),
     0,
   );
+}
+
+/**
+ * Returns the place taken by the item at `index` while the item at `source`
+ * is held over `target`.
+ */
+export function placeOf(index: number, source: number, target: number): number {
+  if (index === source) {
+    return target;
+  }
+  if (source < index && index <= target) {
+    return index - 1;
+  }
+  if (target <= index && index < source) {
+    return index + 1;
+  }
+  return index;
 }
 
 export function ActionDragProvider({

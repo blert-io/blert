@@ -3,8 +3,10 @@ import { BCFActor, BlertChartFormat } from '@blert/bcf';
 import { placeAction, removeActor, setTotalTicks } from '../bcf-mutator';
 import {
   EditorState,
+  actorCopy,
   currentDocument,
   initialState,
+  newPlayer,
   reduce,
 } from '../editor-state';
 
@@ -25,6 +27,48 @@ function withHistory(documents: BlertChartFormat[]): EditorState {
     position: documents.length - 1,
   };
 }
+
+describe('newPlayer', () => {
+  it('numbers the player with the lowest unused id', () => {
+    const P3: BCFActor = { id: 'p3', type: 'player', name: 'Player 3' };
+    expect(
+      newPlayer({
+        version: '1.0',
+        config: { totalTicks: 30 },
+        timeline: { actors: [VERZIK, P1, P3], ticks: [] },
+      }),
+    ).toEqual({ type: 'player', id: 'p2', name: 'Player 2' });
+    expect(
+      newPlayer({
+        version: '1.0',
+        config: { totalTicks: 30 },
+        timeline: { actors: [VERZIK], ticks: [] },
+      }),
+    ).toEqual({ type: 'player', id: 'p1', name: 'Player 1' });
+  });
+});
+
+describe('actorCopy', () => {
+  it('copies the actor under the lowest unused id for its type', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 30 },
+      timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+    };
+
+    expect(actorCopy(bcf, P1)).toEqual({
+      type: 'player',
+      id: 'p3',
+      name: 'Player 1 (copy)',
+    });
+    expect(actorCopy(bcf, VERZIK)).toEqual({
+      type: 'npc',
+      id: 'npc1',
+      name: 'Verzik Vitur (copy)',
+      npcId: 8370,
+    });
+  });
+});
 
 describe('initialState', () => {
   it('keeps an existing row order and starts unmodified', () => {

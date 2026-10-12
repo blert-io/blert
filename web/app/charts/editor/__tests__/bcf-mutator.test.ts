@@ -20,6 +20,7 @@ import {
   removeActor,
   removeCell,
   removeTicks,
+  renameActor,
   setCell,
   setRowOrder,
   setTotalTicks,
@@ -427,6 +428,35 @@ describe('removeActor', () => {
 
     removeActor(bcf, 'maiden');
     expect(bcf).toEqual(before);
+  });
+});
+
+describe('renameActor', () => {
+  it('renames the actor without modifying the input document', () => {
+    const bcf = makeChart(SILLY_P1);
+    const before = structuredClone(bcf);
+
+    const result = renameActor(bcf, 'p1', 'Serafina');
+
+    expectValid(result);
+    expect(result).toEqual({
+      ...before,
+      timeline: {
+        ...before.timeline,
+        actors: [
+          VERZIK,
+          { id: 'p1', type: 'player', name: 'Serafina' },
+          { id: 'p2', type: 'player', name: 'Player 2' },
+        ],
+      },
+    });
+    expect(bcf).toEqual(before);
+  });
+
+  it('throws for an unknown actor', () => {
+    expect(() => renameActor(makeChart(), 'nonexistent', 'Serafina')).toThrow(
+      'Unknown actor: nonexistent',
+    );
   });
 });
 

@@ -366,6 +366,26 @@ export function removeActor(
 }
 
 /**
+ * Sets the name of the actor with `actorId`.
+ *
+ * @throws Error if the document has no actor with `actorId`.
+ */
+export function renameActor(
+  bcf: BlertChartFormat,
+  actorId: string,
+  name: string,
+): BlertChartFormat {
+  const index = bcf.timeline.actors.findIndex((a) => a.id === actorId);
+  if (index === -1) {
+    throw new Error(`Unknown actor: ${actorId}`);
+  }
+
+  const next = structuredClone(bcf);
+  next.timeline.actors[index].name = name;
+  return next;
+}
+
+/**
  * Sets the cell for `actorId` at `tick`, replacing any existing cell for that
  * actor on that tick. Creates the tick entry if it does not yet exist.
  *

@@ -84,7 +84,7 @@ describe('keyIntents', () => {
       );
     }
     expect(keyIntents(context, keypress('a', { target: 'control' }))).toEqual([
-      { type: 'toggle-drawer' },
+      { type: 'toggle-drawer', panel: 'actions' },
     ]);
     expect(keyIntents(context, keypress('Enter'))).toEqual([
       { type: 'move-focus', rows: 0, ticks: 0 },
@@ -306,9 +306,12 @@ describe('keyIntents', () => {
     expect(intents('=', { metaKey: true })).toEqual([
       { type: 'zoom', delta: 2 },
     ]);
-    expect(intents('a')).toEqual([{ type: 'toggle-drawer' }]);
-    expect(intents('a', { altKey: true })).toEqual([]);
+    expect(intents('a')).toEqual([{ type: 'toggle-drawer', panel: 'actions' }]);
+    expect(intents('r')).toEqual([{ type: 'toggle-drawer', panel: 'rows' }]);
+    expect(intents('r', { altKey: true })).toEqual([]);
     expect(intents('/')).toEqual([{ type: 'open-search' }]);
+    expect(intents('F2')).toEqual([{ type: 'rename-row', actorId: 'p1' }]);
+    expect(keyIntents(contextFor(start, 0), keypress('F2'))).toEqual([]);
   });
 
   it('cycles brush on s', () => {

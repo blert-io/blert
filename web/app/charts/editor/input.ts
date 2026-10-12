@@ -63,7 +63,8 @@ export type KeyIntent =
   | { type: 'open-search' }
   | { type: 'reject-slot'; focus: CellCoord; invalid: boolean; slot: number }
   | { type: 'remove-cell'; cell: CellCoord }
-  | { type: 'toggle-drawer' }
+  | { type: 'rename-row'; actorId: string }
+  | { type: 'toggle-drawer'; panel: 'actions' | 'rows' }
   | { type: 'zoom'; delta: number };
 
 export type PressIntent =
@@ -179,6 +180,12 @@ export function keyIntents(
       ];
     }
 
+    case 'F2':
+      if (focus === null || modifier || altKey) {
+        return [];
+      }
+      return [{ type: 'rename-row', actorId: focus.actorId }];
+
     case 'Delete':
       if (
         focus === null ||
@@ -204,7 +211,14 @@ export function keyIntents(
       if (modifier || altKey) {
         return [];
       }
-      return [{ type: 'toggle-drawer' }];
+      return [{ type: 'toggle-drawer', panel: 'actions' }];
+
+    case 'r':
+    case 'R':
+      if (modifier || altKey) {
+        return [];
+      }
+      return [{ type: 'toggle-drawer', panel: 'rows' }];
 
     case 's':
     case 'S': {

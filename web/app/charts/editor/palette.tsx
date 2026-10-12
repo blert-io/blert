@@ -7,7 +7,7 @@ import Button from '@/components/button';
 import Input from '@/components/input';
 import { useSetting } from '@/utils/user-settings';
 
-import { useActionDrag } from './action-drag';
+import { placeOf, useActionDrag } from './action-drag';
 import { ActionIcon } from './action-icon';
 import {
   ACTION_ENTRIES,
@@ -17,7 +17,6 @@ import {
   filterEntries,
 } from './action-registry';
 import { specCost } from './attack-cycle';
-import { DismissButton } from './dismiss-button';
 
 import styles from './palette.module.scss';
 
@@ -54,23 +53,6 @@ function orderEntriesByKey(
   return [...entries].sort((a, b) => rankOf(a) - rankOf(b));
 }
 
-/**
- * Returns the place taken by the tile at `index` while the tile at `source`
- * is held over `target`.
- */
-function placeOf(index: number, source: number, target: number): number {
-  if (index === source) {
-    return target;
-  }
-  if (source < index && index <= target) {
-    return index - 1;
-  }
-  if (target <= index && index < source) {
-    return index + 1;
-  }
-  return index;
-}
-
 function boxOf(tile: HTMLElement): Box {
   return {
     left: tile.offsetLeft,
@@ -83,7 +65,6 @@ function boxOf(tile: HTMLElement): Box {
 type PaletteProps = {
   brush: BCFAction | null;
   onAddToHotbar: (action: BCFAction) => void;
-  onClose: () => void;
   onSelect: (action: BCFAction | null) => void;
   searchRef: React.Ref<HTMLInputElement>;
 };
@@ -91,7 +72,6 @@ type PaletteProps = {
 export function Palette({
   brush,
   onAddToHotbar,
-  onClose,
   onSelect,
   searchRef,
 }: PaletteProps) {
@@ -246,10 +226,6 @@ export function Palette({
 
   return (
     <div className={styles.palette}>
-      <div className={styles.header}>
-        <span className={styles.title}>Actions</span>
-        <DismissButton label="Close" onClick={onClose} />
-      </div>
       <div className={styles.search}>
         <Input
           faIcon="fa-solid fa-magnifying-glass"
