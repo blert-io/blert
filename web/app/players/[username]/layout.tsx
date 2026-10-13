@@ -14,6 +14,7 @@ import {
 } from '@/actions/challenge';
 import { isFollowing } from '@/actions/feed';
 import { getSession } from '@/auth';
+import { withIndefiniteArticle } from '@/utils/copy';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import FollowButton from './follow-button';
@@ -239,7 +240,7 @@ export async function generateMetadata(
     `${player.username}'s Theatre of Blood statistics on Blert${since}: ` +
     `${stats.tobCompletions} completion${stats.tobCompletions === 1 ? '' : 's'} ` +
     `out of ${totalRaids} raid${totalRaids === 1 ? '' : 's'}, ` +
-    `with a ${completionRate}% success rate. ` +
+    `with ${withIndefiniteArticle(`${completionRate}% success rate`)}. ` +
     (bestTobTime !== null
       ? `Best time: ${ticksToFormattedSeconds(bestTobTime)} (${scaleName(bestTobScale!)}). `
       : '') +
