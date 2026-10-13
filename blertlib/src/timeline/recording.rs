@@ -155,7 +155,7 @@ mod tests {
     use crate::{
         Actor, BloatDown, ClientId, EventKind, NpcAttack, NpcAttacked, NpcState, PartyIndex,
         Players, Point, PrayerBook, PrayerSet, Rect, RoomId, SkillLevel, Source, TickObjects,
-        VerzikBounce, XarpusPhase,
+        VerzikBounce, XarpusPhase, timeline::interpret::RawObjects,
     };
 
     #[test]
@@ -180,6 +180,7 @@ mod tests {
                 players: Players::empty(1),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             },
         );
@@ -209,6 +210,7 @@ mod tests {
                 players: Players::empty(1),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             },
         );
@@ -265,6 +267,7 @@ mod tests {
                 players: Players::empty(1),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             },
         );
@@ -287,6 +290,7 @@ mod tests {
                 players: Players::empty(2),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: vec![Event::recorded(
                     ClientId(14),
                     EventKind::XarpusPhase(XarpusPhase::XarpusP2),
@@ -335,6 +339,7 @@ mod tests {
                     },
                 )]),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: vec![Event::recorded(
                     ClientId(1),
                     EventKind::NpcAttack(NpcAttacked {
@@ -351,6 +356,7 @@ mod tests {
                 players: Players::empty(1),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: vec![Event::recorded(
                     ClientId(1),
                     EventKind::VerzikBounce(VerzikBounce {

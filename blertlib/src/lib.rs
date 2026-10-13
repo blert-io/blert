@@ -30,8 +30,8 @@ pub use prayer::{Prayer, PrayerBook, PrayerSet};
 pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
 pub use timeline::{
-    BuildRejection, BuildWarning, FieldError, RawActor, Recording, RecordingBuilder,
-    RejectionReason, StageNpc, TickState, Timeline,
+    BuildMismatch, BuildRejection, BuildWarning, ConfigVersion, FieldError, InvalidVersion,
+    RawActor, Recording, RecordingBuilder, RejectionReason, StageNpc, TickState, Timeline,
 };
 
 /// A location in the game world.
@@ -89,6 +89,12 @@ impl Rect {
     #[must_use]
     pub fn distance(self, point: Point) -> u16 {
         self.clamp(point).distance(point)
+    }
+
+    /// Returns `true` if `point` is located inside the rectangle.
+    #[must_use]
+    pub fn contains(self, point: Point) -> bool {
+        self.distance(point) == 0
     }
 }
 
@@ -232,5 +238,21 @@ mod tests {
         assert_eq!(verzik_p3.distance(Point(3168, 4318)), 1);
         assert_eq!(verzik_p3.distance(Point(3164, 4314)), 1);
         assert_eq!(verzik_p3.distance(Point(3169, 4315)), 0);
+    }
+
+    #[test]
+    fn rect_contains_point() {
+        let sote_maze = Rect {
+            point: Point(3273, 4310),
+            width: 14,
+            height: 15,
+        };
+        assert!(sote_maze.contains(Point(3282, 4310)));
+        assert!(sote_maze.contains(Point(3286, 4324)));
+        assert!(sote_maze.contains(Point(3273, 4318)));
+        assert!(!sote_maze.contains(Point(3287, 4317)));
+        assert!(!sote_maze.contains(Point(3279, 4325)));
+        assert!(!sote_maze.contains(Point(3272, 4313)));
+        assert!(!sote_maze.contains(Point(3281, 4309)));
     }
 }

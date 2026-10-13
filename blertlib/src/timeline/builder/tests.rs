@@ -9,6 +9,7 @@ use crate::{ChallengeMode, Stage, item};
 fn builder_ingest_returns_none_if_all_rejected() {
     let mut builder = RecordingBuilder::new(
         ClientId(7),
+        ConfigVersion::LATEST,
         Stage::TobBloat,
         ChallengeMode::TobRegular,
         vec![
@@ -91,6 +92,7 @@ fn builder_ingest_returns_none_if_all_rejected() {
 fn builder_ingest_rejects_event_from_another_stage() {
     let mut builder = RecordingBuilder::new(
         ClientId(13),
+        ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("Dedion").unwrap()],
@@ -121,6 +123,7 @@ fn builder_ingest_rejects_event_from_another_stage() {
 fn builder_ingest_drops_action_without_actor() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
+        ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![
@@ -172,6 +175,7 @@ fn builder_ingest_drops_action_without_actor() {
 fn builder_ingest_player_update() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
+        ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         vec![
@@ -297,6 +301,7 @@ fn builder_ingest_player_update() {
 fn builder_ingest_reverts_last_seen_when_cleared() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
+        ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         vec![
@@ -424,6 +429,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
 fn builder_ingest_npc_spawn() {
     let mut builder = RecordingBuilder::new(
         ClientId(3),
+        ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("Caps lock13").unwrap()],
@@ -482,6 +488,7 @@ fn builder_ingest_npc_spawn() {
 fn builder_ingest_moves_maiden_spawn_to_tick_0() {
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("715").unwrap()],
@@ -593,6 +600,7 @@ fn builder_ingest_moves_maiden_spawn_to_tick_0() {
 fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("TobDataEgirl").unwrap()],
@@ -682,6 +690,7 @@ fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
 fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
@@ -767,9 +776,461 @@ fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
 }
 
 #[test]
+fn builder_ingest_objects() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(5),
+        ConfigVersion::LATEST,
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("1Ogp").unwrap()],
+        None,
+    );
+
+    let mut first = proto::Event {
+        tick: 19,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    first.set_type(proto::event::Type::Objects);
+    first.objects = Some(proto::event::Objects {
+        snapshot: true,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Graphics as i32,
+            id: 1579,
+            added: vec![
+                proto::Coords { x: 3168, y: 4449 },
+                proto::Coords { x: 3168, y: 4447 },
+                proto::Coords { x: 3164, y: 4443 },
+                proto::Coords { x: 3168, y: 4444 },
+                proto::Coords { x: 3166, y: 4450 },
+                proto::Coords { x: 3170, y: 4448 },
+                proto::Coords { x: 3169, y: 4450 },
+            ],
+            removed: vec![],
+            snapshot: true,
+        }],
+    });
+    let mut second = proto::Event {
+        tick: 32,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    second.set_type(proto::event::Type::Objects);
+    second.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![
+            proto::event::ObjectUpdate {
+                r#type: proto::event::object_update::Type::Game as i32,
+                id: 32984,
+                added: vec![proto::Coords { x: 3168, y: 4449 }],
+                removed: vec![],
+                snapshot: false,
+            },
+            proto::event::ObjectUpdate {
+                r#type: proto::event::object_update::Type::Graphics as i32,
+                id: 1579,
+                added: vec![],
+                removed: vec![],
+                snapshot: true,
+            },
+        ],
+    });
+    let mut third = proto::Event {
+        tick: 34,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    third.set_type(proto::event::Type::Objects);
+    third.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![proto::Coords { x: 3169, y: 4450 }],
+            removed: vec![],
+            snapshot: false,
+        }],
+    });
+
+    assert_eq!(builder.ingest([first, second, third]), Some(Tick(19)));
+    let recording = builder.recording().unwrap();
+    assert_eq!(
+        recording
+            .get_state(Tick(19))
+            .unwrap()
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Graphics, 1579))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [
+            Point(3164, 4443),
+            Point(3166, 4450),
+            Point(3168, 4444),
+            Point(3168, 4447),
+            Point(3168, 4449),
+            Point(3169, 4450),
+            Point(3170, 4448),
+        ]
+    );
+    let state = recording.get_state(Tick(32)).unwrap();
+    assert_eq!(
+        state
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Graphics, 1579)),
+        None
+    );
+    assert_eq!(
+        state
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [Point(3168, 4449)]
+    );
+    let state = recording.get_state(Tick(34)).unwrap();
+    assert_eq!(
+        state
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [Point(3168, 4449), Point(3169, 4450)]
+    );
+    assert_eq!(state.objects.len(), 0);
+    assert_eq!(state.events, []);
+    assert_eq!(
+        builder.mismatches().cloned().collect::<Vec<_>>(),
+        [
+            BuildMismatch {
+                tick: Tick(19),
+                kind: "MaidenBloodSplats".to_string(),
+                bespoke: vec![],
+                interpreted: vec![
+                    "(3164,4443)".to_string(),
+                    "(3166,4450)".to_string(),
+                    "(3168,4444)".to_string(),
+                    "(3168,4447)".to_string(),
+                    "(3168,4449)".to_string(),
+                    "(3169,4450)".to_string(),
+                    "(3170,4448)".to_string(),
+                ],
+            },
+            BuildMismatch {
+                tick: Tick(32),
+                kind: "MaidenBloodSplats".to_string(),
+                bespoke: vec![],
+                interpreted: vec!["(3168,4449)".to_string()],
+            },
+            BuildMismatch {
+                tick: Tick(34),
+                kind: "MaidenBloodSplats".to_string(),
+                bespoke: vec![],
+                interpreted: vec!["(3168,4449)".to_string(), "(3169,4450)".to_string()],
+            },
+        ]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_objects_warns_on_inconsistent_deltas() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(10),
+        ConfigVersion::LATEST,
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
+        None,
+    );
+
+    let mut first = proto::Event {
+        tick: 54,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    first.set_type(proto::event::Type::Objects);
+    first.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![proto::Coords { x: 3168, y: 4443 }],
+            removed: vec![],
+            snapshot: false,
+        }],
+    });
+    let mut second = proto::Event {
+        tick: 84,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    second.set_type(proto::event::Type::Objects);
+    second.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![],
+            removed: vec![proto::Coords { x: 3168, y: 4442 }],
+            snapshot: false,
+        }],
+    });
+    let mut third = proto::Event {
+        tick: 150,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    third.set_type(proto::event::Type::Objects);
+    third.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![proto::Coords { x: 3168, y: 4443 }],
+            removed: vec![],
+            snapshot: false,
+        }],
+    });
+    let mut fourth = proto::Event {
+        tick: 160,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    fourth.set_type(proto::event::Type::Objects);
+    fourth.objects = Some(proto::event::Objects {
+        snapshot: true,
+        updates: vec![],
+    });
+
+    assert_eq!(
+        builder.ingest([first, second, third, fourth]),
+        Some(Tick(54))
+    );
+    let recording = builder.recording().unwrap();
+    assert_eq!(
+        recording
+            .get_state(Tick(54))
+            .unwrap()
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [Point(3168, 4443)]
+    );
+    assert_eq!(
+        recording
+            .get_state(Tick(84))
+            .unwrap()
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [Point(3168, 4443)]
+    );
+    assert_eq!(
+        recording
+            .get_state(Tick(150))
+            .unwrap()
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [Point(3168, 4443)]
+    );
+    assert_eq!(
+        recording
+            .get_state(Tick(160))
+            .unwrap()
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984)),
+        None
+    );
+    assert_eq!(
+        builder.warnings().cloned().collect::<Vec<_>>(),
+        [
+            BuildWarning {
+                tick: Tick(84),
+                kind: proto::event::Type::Objects,
+                field: "objects.updates.removed",
+                error: FieldError::UnknownObject {
+                    r#type: proto::event::object_update::Type::Game,
+                    id: 32984,
+                    coords: proto::Coords { x: 3168, y: 4442 },
+                },
+            },
+            BuildWarning {
+                tick: Tick(150),
+                kind: proto::event::Type::Objects,
+                field: "objects.updates.added",
+                error: FieldError::DuplicateObject {
+                    r#type: proto::event::object_update::Type::Game,
+                    id: 32984,
+                    coords: proto::Coords { x: 3168, y: 4443 },
+                },
+            },
+        ]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+}
+
+#[test]
+fn builder_ingest_objects_rejects_malformed_updates() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(12),
+        ConfigVersion::LATEST,
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("715").unwrap()],
+        None,
+    );
+
+    let mut unspecified = proto::Event {
+        tick: 32,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    unspecified.set_type(proto::event::Type::Objects);
+    unspecified.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![
+            proto::event::ObjectUpdate {
+                r#type: proto::event::object_update::Type::Game as i32,
+                id: 32984,
+                added: vec![proto::Coords { x: 3168, y: 4449 }],
+                removed: vec![],
+                snapshot: false,
+            },
+            proto::event::ObjectUpdate {
+                r#type: proto::event::object_update::Type::Unspecified as i32,
+                id: 1579,
+                added: vec![],
+                removed: vec![],
+                snapshot: true,
+            },
+        ],
+    });
+    let mut valid = proto::Event {
+        tick: 34,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    valid.set_type(proto::event::Type::Objects);
+    valid.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![proto::Coords { x: 3169, y: 4450 }],
+            removed: vec![],
+            snapshot: false,
+        }],
+    });
+    let mut out_of_domain = proto::Event {
+        tick: 35,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    out_of_domain.set_type(proto::event::Type::Objects);
+    out_of_domain.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![proto::event::ObjectUpdate {
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![proto::Coords { x: 70000, y: 4451 }],
+            removed: vec![],
+            snapshot: false,
+        }],
+    });
+    let mut empty = proto::Event {
+        tick: 36,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    empty.set_type(proto::event::Type::Objects);
+    let mut empty_delta = proto::Event {
+        tick: 37,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    empty_delta.set_type(proto::event::Type::Objects);
+    empty_delta.objects = Some(proto::event::Objects {
+        snapshot: false,
+        updates: vec![],
+    });
+
+    assert_eq!(
+        builder.ingest([unspecified, valid, out_of_domain, empty, empty_delta]),
+        Some(Tick(34))
+    );
+    let recording = builder.recording().unwrap();
+    assert!(recording.get_state(Tick(32)).is_none());
+    assert_eq!(
+        recording
+            .get_state(Tick(34))
+            .unwrap()
+            .raw_objects
+            .get(ObjectDef(object_update::Type::Game, 32984))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>(),
+        [Point(3169, 4450)]
+    );
+    assert!(recording.get_state(Tick(35)).is_none());
+    assert!(recording.get_state(Tick(36)).is_none());
+    assert!(recording.get_state(Tick(37)).is_none());
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [
+            BuildRejection {
+                tick: Tick(32),
+                kind: proto::event::Type::Objects,
+                reason: RejectionReason::InvalidField {
+                    field: "objects.updates.type",
+                    error: FieldError::OutOfDomain("0".to_string()),
+                },
+            },
+            BuildRejection {
+                tick: Tick(35),
+                kind: proto::event::Type::Objects,
+                reason: RejectionReason::InvalidField {
+                    field: "objects.updates.added",
+                    error: FieldError::OutOfDomain("(70000,4451)".to_string()),
+                },
+            },
+            BuildRejection {
+                tick: Tick(36),
+                kind: proto::event::Type::Objects,
+                reason: RejectionReason::MissingPayload("objects"),
+            },
+            BuildRejection {
+                tick: Tick(37),
+                kind: proto::event::Type::Objects,
+                reason: RejectionReason::MissingPayload("objects.updates"),
+            },
+        ]
+    );
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
 fn builder_ingest_maiden_blood_splats() {
     let mut builder = RecordingBuilder::new(
         ClientId(4),
+        ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("aSaradomin").unwrap()],
@@ -809,6 +1270,7 @@ fn builder_ingest_maiden_blood_splats() {
     );
     assert_eq!(state.objects.len(), 6);
     assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.mismatches().count(), 0);
 
     let mut out_of_domain = proto::Event {
         tick: 40,
@@ -841,6 +1303,7 @@ fn builder_ingest_maiden_blood_splats() {
 fn builder_ingest_verzik_yellows() {
     let mut builder = RecordingBuilder::new(
         ClientId(11),
+        ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("LC8").unwrap()],
@@ -888,6 +1351,7 @@ fn builder_ingest_verzik_yellows() {
 fn builder_ingest_mokhaiotl_shockwave() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        ConfigVersion::LATEST,
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
         vec![Rsn::try_from("Dedion").unwrap()],
@@ -1047,6 +1511,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
 fn builder_ingest_colosseum_reentry_pools() {
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        ConfigVersion::LATEST,
         Stage::ColosseumWave12,
         ChallengeMode::NoMode,
         vec![Rsn::try_from("Sacolyn").unwrap()],
@@ -1099,13 +1564,13 @@ fn builder_ingest_colosseum_reentry_pools() {
     );
     assert_eq!(state.objects.len(), 7);
 
-    let mut shrunk = proto::Event {
+    let mut unchanged = proto::Event {
         tick: 5,
         stage: Stage::ColosseumWave12 as i32,
         ..Default::default()
     };
-    shrunk.set_type(proto::event::Type::ColosseumReentryPools);
-    shrunk.colosseum_reentry_pools = Some(proto::event::ColosseumReentryPools {
+    unchanged.set_type(proto::event::Type::ColosseumReentryPools);
+    unchanged.colosseum_reentry_pools = Some(proto::event::ColosseumReentryPools {
         primary_spawned: vec![
             proto::Coords { x: 1818, y: 3112 },
             proto::Coords { x: 1816, y: 3116 },
@@ -1130,13 +1595,34 @@ fn builder_ingest_colosseum_reentry_pools() {
         ],
     });
 
-    assert_eq!(builder.ingest([shrunk]), Some(Tick(5)));
+    assert_eq!(builder.ingest([unchanged]), Some(Tick(5)));
     let state = builder.recording().unwrap().get_state(Tick(5)).unwrap();
-    assert!(state.objects.is_empty());
+    assert_eq!(
+        state
+            .objects
+            .iter_of(ObjectKind::ColosseumReentryPrimaryPool)
+            .collect::<Vec<_>>(),
+        [
+            Point(1816, 3116),
+            Point(1818, 3112),
+            Point(1822, 3118),
+            Point(1824, 3118),
+            Point(1832, 3117),
+        ]
+    );
+    assert_eq!(
+        state
+            .objects
+            .iter_of(ObjectKind::ColosseumReentrySecondaryPool)
+            .collect::<Vec<_>>(),
+        [Point(1817, 3111), Point(1831, 3116)]
+    );
+    assert_eq!(state.objects.len(), 7);
     assert_eq!(builder.rejections().count(), 0);
 
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        ConfigVersion::LATEST,
         Stage::ColosseumWave5,
         ChallengeMode::NoMode,
         vec![Rsn::try_from("Sacolyn").unwrap()],
@@ -1174,6 +1660,7 @@ fn builder_ingest_colosseum_reentry_pools() {
 fn builder_ingest_mokhaiotl_objects() {
     let mut builder = RecordingBuilder::new(
         ClientId(8),
+        ConfigVersion::LATEST,
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
         vec![Rsn::try_from("LC8").unwrap()],
@@ -1286,6 +1773,7 @@ fn builder_ingest_mokhaiotl_objects() {
 fn builder_ingest_sote_maze_tiles() {
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("Yieldofin").unwrap()],
@@ -1340,6 +1828,7 @@ fn builder_ingest_sote_maze_tiles() {
 fn builder_ingest_sote_maze_pivots() {
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("Yieldofin").unwrap()],
@@ -1396,6 +1885,7 @@ fn builder_ingest_sote_maze_pivots() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(11),
+        ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("Caywu").unwrap()],
@@ -1452,6 +1942,7 @@ fn builder_ingest_sote_maze_pivots() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(627),
+        ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("Amili").unwrap()],
@@ -1567,6 +2058,7 @@ fn builder_ingest_sote_maze_pivots() {
 fn builder_ingest_attack_style() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![
@@ -1685,6 +2177,7 @@ fn builder_ingest_attack_style() {
 fn builder_ingest_attack_style_same_tick() {
     let mut builder = RecordingBuilder::new(
         ClientId(378),
+        ConfigVersion::LATEST,
         Stage::MokhaiotlDelve4,
         ChallengeMode::NoMode,
         vec![Rsn::try_from("1Ogp").unwrap()],
@@ -1763,6 +2256,7 @@ fn builder_ingest_attack_style_same_tick() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(378),
+        ConfigVersion::LATEST,
         Stage::MokhaiotlDelve4,
         ChallengeMode::NoMode,
         vec![Rsn::try_from("1Ogp").unwrap()],
@@ -1792,6 +2286,7 @@ fn builder_ingest_attack_style_same_tick() {
 fn builder_ingest_attack_reference() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![
@@ -1951,6 +2446,7 @@ fn builder_ingest_attack_reference() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![
@@ -1975,6 +2471,7 @@ fn builder_ingest_attack_reference() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
         vec![
@@ -2478,6 +2975,7 @@ fn extract_player_state_update_from_last_seen_tick() {
             players,
             npcs: BTreeMap::new(),
             objects: TickObjects::default(),
+            raw_objects: RawObjects::default(),
             events: vec![],
         },
     );
@@ -2754,6 +3252,7 @@ fn extract_npc_state_update_last_seen_tick() {
                 },
             )]),
             objects: TickObjects::default(),
+            raw_objects: RawObjects::default(),
             events: vec![],
         },
     );

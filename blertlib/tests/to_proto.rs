@@ -6,8 +6,8 @@ use std::sync::LazyLock;
 
 use blert::golden::assert_golden;
 use blert::{
-    ChallengeMode, ClientId, Mokhaiotl, NpcProperties, RecordingBuilder, Rsn, Stage, Tick,
-    TickState, Timeline, proto,
+    ChallengeMode, ClientId, ConfigVersion, Mokhaiotl, NpcProperties, RecordingBuilder, Rsn, Stage,
+    Tick, TickState, Timeline, proto,
 };
 use flate2::read::GzDecoder;
 use prost::Message;
@@ -114,6 +114,7 @@ fn assert_golden_output(fixture: &Fixture) {
     for (client_id, client) in &fixture.clients {
         let mut builder = RecordingBuilder::new(
             *client_id,
+            ConfigVersion::LATEST,
             fixture.stage,
             fixture.mode,
             fixture.party.clone(),
@@ -143,6 +144,7 @@ fn assert_refresh_matches_snapshot(fixture: &Fixture) {
     for (client_id, client) in &fixture.clients {
         let mut builder = RecordingBuilder::new(
             *client_id,
+            ConfigVersion::LATEST,
             fixture.stage,
             fixture.mode,
             fixture.party.clone(),
@@ -270,6 +272,7 @@ fn mokhaiotl_delve_8() {
         .expect("fixture has a client");
     let mut builder = RecordingBuilder::new(
         client_id,
+        ConfigVersion::LATEST,
         fixture.stage,
         fixture.mode,
         fixture.party.clone(),
