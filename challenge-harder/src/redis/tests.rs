@@ -2426,6 +2426,27 @@ fn stream_records_parse_from_typescript_encoding() {
             user_id: UserId(527),
             plugin_version: "0.9.14-RUNELITE".into(),
             runelite_version: "runelite-1.12.33".into(),
+            recording_config_version: None,
+        },
+    );
+
+    let with_recording_config = parse_stream_record(&stream_fields(&[
+        ("type", b"2"),
+        ("clientId", b"999"),
+        ("userId", b"777"),
+        ("pluginVersion", b"0.9.24"),
+        ("runeLiteVersion", b"1.13.1"),
+        ("recordingConfigVersion", b"3"),
+    ]))
+    .unwrap();
+    assert_eq!(
+        with_recording_config,
+        ClientStageStream::Metadata {
+            client_id: ClientId(999),
+            user_id: UserId(777),
+            plugin_version: "0.9.24".into(),
+            runelite_version: "1.13.1".into(),
+            recording_config_version: Some(3),
         },
     );
 
@@ -2557,6 +2578,7 @@ async fn stage_streams_read_in_order_skipping_invalid_records() {
                 user_id: UserId(527),
                 plugin_version: "0.9.14".into(),
                 runelite_version: "1.12.33".into(),
+                recording_config_version: None,
             },
             ClientStageStream::Events {
                 client_id: ClientId(380),

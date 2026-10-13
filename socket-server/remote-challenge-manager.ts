@@ -398,16 +398,18 @@ export class RemoteChallengeManager extends ChallengeManager {
 
       const streamKey = challengeStageStreamKey(challengeId, stage, attempt);
 
-      if (!client.hasWrittenMetadata(streamKey)) {
+      const recordingConfigVersion = client.getRecordingConfigVersion(stage);
+      if (!client.hasWrittenMetadata(streamKey, recordingConfigVersion)) {
         const metadata: StageStreamMetadata = {
           type: StageStreamType.CLIENT_METADATA,
           clientId: client.getClientId(),
           userId: client.getUserId(),
           pluginVersion: client.getPluginVersions().getVersion(),
           runeLiteVersion: client.getPluginVersions().getRuneLiteVersion(),
+          recordingConfigVersion,
         };
         multi.xAdd(streamKey, '*', stageStreamToRecord(metadata));
-        client.recordMetadataWritten(streamKey);
+        client.recordMetadataWritten(streamKey, recordingConfigVersion);
         hasWrites = true;
       }
 

@@ -397,6 +397,10 @@ fn parse_stream_record(fields: &HashMap<String, Vec<u8>>) -> Result<ClientStageS
             user_id: UserId(int_field(fields, "userId")?),
             plugin_version: string_field(fields, "pluginVersion")?.into(),
             runelite_version: string_field(fields, "runeLiteVersion")?.into(),
+            recording_config_version: fields
+                .contains_key("recordingConfigVersion")
+                .then(|| int_field(fields, "recordingConfigVersion"))
+                .transpose()?,
         }),
         other => Err(format!("unknown record type {other}")),
     }

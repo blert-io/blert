@@ -123,6 +123,12 @@ export const challengeUpdateSchema = z.object({
   stageUpdate: stageUpdateSchema.optional(),
 });
 
+// RecordingInfo
+export const recordingInfoSchema = z.object({
+  stage: enumValueSchema,
+  configVersion: z.number().int().nonnegative(),
+});
+
 // AttackDefinition.Projectile
 export const projectileSchema = z.object({
   id: z.number().int().nonnegative(),
@@ -246,6 +252,21 @@ export const spellSchema = z.object({
   noTarget: z.object({}).optional(),
   targetPlayer: z.string().optional(),
   targetNpc: npcSchema.optional(),
+});
+
+// Event.ObjectUpdate
+export const objectUpdateSchema = z.object({
+  type: enumValueSchema,
+  id: z.number().int().nonnegative(),
+  added: z.array(coordsSchema),
+  removed: z.array(coordsSchema),
+  snapshot: z.boolean().optional(),
+});
+
+// Event.Objects
+export const objectsSchema = z.object({
+  snapshot: z.boolean().optional(),
+  updates: z.array(objectUpdateSchema),
 });
 
 // Event.NpcAttacked
@@ -415,6 +436,7 @@ export const eventSchema = z.object({
   npc: npcSchema.optional(),
   npcAttack: npcAttackSchema.optional(),
   playerSpell: spellSchema.optional(),
+  objects: objectsSchema.optional(),
 
   // ToB events
   maidenBloodSplats: z.array(coordsSchema).optional(),
@@ -470,6 +492,7 @@ export const serverMessageSchema = z.object({
   challengeUpdate: challengeUpdateSchema.optional(),
   attackDefinitions: z.array(attackDefinitionSchema).optional(),
   spellDefinitions: z.array(spellDefinitionSchema).optional(),
+  recordingInfo: recordingInfoSchema.optional(),
   requestId: z.number().int().nonnegative().optional(),
 });
 

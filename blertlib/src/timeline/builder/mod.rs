@@ -387,6 +387,9 @@ impl<'a> TickBuilder<'a> {
                 }
             }
 
+            #[expect(clippy::match_same_arms, reason = "temporarily ignored")]
+            Type::Objects => {}
+
             // Full snapshot legacy graphics.
             Type::TobMaidenBloodSplats | Type::TobVerzikYellows | Type::MokhaiotlShockwave => {
                 let objects = match kind {

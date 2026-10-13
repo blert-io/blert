@@ -81,6 +81,7 @@ async fn prepare_fixture(uuid: Uuid, stage: Stage, records: &[ClientStageStream]
                 user_id,
                 plugin_version,
                 runelite_version,
+                recording_config_version,
                 ..
             } => {
                 fields.push((
@@ -90,6 +91,9 @@ async fn prepare_fixture(uuid: Uuid, stage: Stage, records: &[ClientStageStream]
                 fields.push(("userId", user_id.0.to_string().into_bytes()));
                 fields.push(("pluginVersion", plugin_version.clone().into_bytes()));
                 fields.push(("runeLiteVersion", runelite_version.clone().into_bytes()));
+                if let Some(version) = recording_config_version {
+                    fields.push(("recordingConfigVersion", version.to_string().into_bytes()));
+                }
             }
         }
 

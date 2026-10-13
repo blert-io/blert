@@ -100,6 +100,7 @@ export type StageStreamMetadata = {
   userId: number;
   pluginVersion: string;
   runeLiteVersion: string;
+  recordingConfigVersion: number | null;
 };
 
 export type StageStreamEvents = {
@@ -172,6 +173,9 @@ export function stageStreamToRecord(
       evt.userId = event.userId.toString();
       evt.pluginVersion = event.pluginVersion;
       evt.runeLiteVersion = event.runeLiteVersion;
+      if (event.recordingConfigVersion !== null) {
+        evt.recordingConfigVersion = event.recordingConfigVersion.toString();
+      }
       break;
     case StageStreamType.STAGE_EVENTS:
       evt.events = Buffer.from(event.events);

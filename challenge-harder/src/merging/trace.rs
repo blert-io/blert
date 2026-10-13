@@ -707,11 +707,7 @@ impl Tracer {
         self.output.input_clients.push(InputClient {
             client_id: info.id,
             primary_player: info.primary_player.map(str::to_string),
-            metadata: info.plugin_info.as_ref().map(|plugin_info| ClientMetadata {
-                user_id: plugin_info.user_id,
-                plugin_version: plugin_info.plugin_version.clone(),
-                runelite_version: plugin_info.runelite_version.clone(),
-            }),
+            metadata: info.plugin_info.as_ref().map(ClientMetadata::from),
             reported_accurate: info.reported_accurate,
             accurate,
             recorded_ticks: info.last_recorded_tick.0 + 1,

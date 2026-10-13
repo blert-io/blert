@@ -267,12 +267,14 @@ pub struct ServerTicks {
 /// Matches `ClientStageStream` in `//common/db/redis.ts`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClientStageStream {
-    /// Identifies the plugin build behind a client's records.
+    /// Identifies the plugin build and recording config behind a client's
+    /// records.
     Metadata {
         client_id: ClientId,
         user_id: UserId,
         plugin_version: String,
         runelite_version: String,
+        recording_config_version: Option<u32>,
     },
     /// A batch of events recorded by a client, as a serialized
     /// `ChallengeEvents` proto.

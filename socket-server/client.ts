@@ -59,8 +59,12 @@ type ActiveChallengeInfo = {
   uuid: string;
   /** Mapping of stage to attempt number. */
   stages: Map<Stage, number | null>;
-  /** Set of stage streams to which the client has written its metadata. */
-  metadataWritten: Set<string>;
+  recordingConfigVersions: Map<Stage, number>;
+  /**
+   * Stage streams for which the client has written metadata, and the
+   * recording config versions written in those messages.
+   */
+  metadataWritten: Map<string, number | null>;
 };
 
 export type Session = {
@@ -276,7 +280,8 @@ export default class Client {
     this.activeChallenge = {
       uuid: challengeId,
       stages: new Map<Stage, number | null>(),
-      metadataWritten: new Set<string>(),
+      recordingConfigVersions: new Map<Stage, number>(),
+      metadataWritten: new Map<string, number | null>(),
     };
     logger.info(
       'client_active_challenge_set',
@@ -315,13 +320,40 @@ export default class Client {
     return this.activeChallenge?.stages.get(stage) ?? null;
   }
 
-  public hasWrittenMetadata(streamKey: string): boolean {
-    return this.activeChallenge?.metadataWritten.has(streamKey) ?? false;
+  public setRecordingConfigVersion(stage: Stage, version: number): void {
+    if (this.activeChallenge !== null) {
+      logger.debug(
+        'client_recording_config_version_set',
+        this.logContext({
+          challengeUuid: this.activeChallenge.uuid,
+          stage,
+          version,
+        }),
+      );
+      this.activeChallenge.recordingConfigVersions.set(stage, version);
+    }
   }
 
-  public recordMetadataWritten(streamKey: string): void {
+  public getRecordingConfigVersion(stage: Stage): number | null {
+    return this.activeChallenge?.recordingConfigVersions.get(stage) ?? null;
+  }
+
+  public hasWrittenMetadata(
+    streamKey: string,
+    version: number | null,
+  ): boolean {
+    return (
+      this.activeChallenge?.metadataWritten.has(streamKey) === true &&
+      this.activeChallenge.metadataWritten.get(streamKey) === version
+    );
+  }
+
+  public recordMetadataWritten(
+    streamKey: string,
+    version: number | null,
+  ): void {
     if (this.activeChallenge !== null) {
-      this.activeChallenge.metadataWritten.add(streamKey);
+      this.activeChallenge.metadataWritten.set(streamKey, version);
     }
   }
 
@@ -465,7 +497,6 @@ export default class Client {
       clientId: this.getClientId(),
       username: this.user.username,
       sessionId: this.session?.id ?? undefined,
-      sessionToken: this.session?.token ?? undefined,
       loggedInRsn: this.loggedInRsn ?? undefined,
       validated: this.validated,
       pluginVersion: this.pluginVersions.getVersion(),
