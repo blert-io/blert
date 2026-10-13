@@ -29,19 +29,28 @@ import { useActionDrag } from './action-drag';
 import { ActionIcon } from './action-icon';
 import { CooldownConflict, actionFillTicks, deriveState } from './attack-cycle';
 import {
+  addActor,
   clearActions,
+  duplicateActor,
   placeAction,
   placeActions,
   removeAction,
+  removeActor,
   removeCell,
+  renameActor,
+  setRowOrder,
 } from './bcf-mutator';
 import { CellBar } from './cell-bar';
 import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
+import { DismissButton } from './dismiss-button';
 import {
+  actorCopy,
   CellCoord,
   currentDocument,
+  displayWindow,
   EditorAction,
   EditorState,
+  newPlayer,
 } from './editor-state';
 import { Hotbar } from './hotbar';
 import {
@@ -53,6 +62,7 @@ import {
   pressIntent,
 } from './input';
 import { Palette } from './palette';
+import { RowsPanel } from './rows-panel';
 import { Toolbar } from './toolbar';
 import { useChartEditor } from './use-chart-editor';
 
@@ -106,10 +116,16 @@ function keyTarget(target: EventTarget | null): Keypress['target'] {
   return target === document.body ? 'body' : 'control';
 }
 
+type Drawer = { open: boolean; panel: 'actions' | 'rows' };
+
 export function ChartEditor() {
   const editor = useChartEditor(DEFAULT_CHART);
   const { dispatch, lastAction, slotsLoaded, state, update } = editor;
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawer, setDrawer] = useState<Drawer>({
+    open: true,
+    panel: 'actions',
+  });
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [cellSize, rawSetCellSize] = useState(DEFAULT_CELL_SIZE);
 
   const setCellSize = useCallback((size: SetStateAction<number>) => {
@@ -119,6 +135,14 @@ export function ChartEditor() {
         MIN_CELL_SIZE,
         MAX_CELL_SIZE,
       ),
+    );
+  }, []);
+
+  const toggleDrawer = useCallback((panel: Drawer['panel']) => {
+    setDrawer((current) =>
+      current.open && current.panel === panel
+        ? { ...current, open: false }
+        : { open: true, panel },
     );
   }, []);
 
@@ -336,7 +360,7 @@ export function ChartEditor() {
       for (const intent of intents) {
         switch (intent.type) {
           case 'open-search':
-            flushSync(() => setDrawerOpen(true));
+            flushSync(() => setDrawer({ open: true, panel: 'actions' }));
             searchRef.current?.focus({ preventScroll: true });
             break;
 
@@ -352,8 +376,13 @@ export function ChartEditor() {
             break;
           }
 
+          case 'rename-row':
+            setDrawer({ open: true, panel: 'rows' });
+            setRenaming(intent.actorId);
+            break;
+
           case 'toggle-drawer':
-            setDrawerOpen((open) => !open);
+            toggleDrawer(intent.panel);
             break;
 
           case 'zoom': {
@@ -370,7 +399,20 @@ export function ChartEditor() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [derivedResolver, dispatch, resolver, setCellSize, state, update]);
+  }, [
+    derivedResolver,
+    dispatch,
+    resolver,
+    setCellSize,
+    state,
+    toggleDrawer,
+    update,
+  ]);
+
+  const focusActor = (actorId: string) => {
+    const tick = focus?.tick ?? displayWindow(bcf)[0];
+    dispatch({ type: 'set-focus', focus: { actorId, tick } });
+  };
 
   let focusClass = styles.focusOverlay;
   if (focusedBy === 'keyboard') {
@@ -392,9 +434,19 @@ export function ChartEditor() {
           onCellSizeChange={setCellSize}
         >
           <Button
-            aria-pressed={drawerOpen}
+            aria-pressed={drawer.open && drawer.panel === 'rows'}
             icon
-            onClick={() => setDrawerOpen((open) => !open)}
+            onClick={() => toggleDrawer('rows')}
+            toolbar
+            tooltip="Rows (R)"
+          >
+            <i className="fa-solid fa-users" />
+            <span className="sr-only">Rows</span>
+          </Button>
+          <Button
+            aria-pressed={drawer.open && drawer.panel === 'actions'}
+            icon
+            onClick={() => toggleDrawer('actions')}
             toolbar
             tooltip="Actions (A)"
           >
@@ -459,21 +511,64 @@ export function ChartEditor() {
       </div>
       <aside
         className={
-          drawerOpen ? `${styles.drawer} ${styles.open}` : styles.drawer
+          drawer.open ? `${styles.drawer} ${styles.open}` : styles.drawer
         }
-        inert={!drawerOpen}
+        inert={!drawer.open}
       >
-        <Palette
-          brush={brush}
-          onAddToHotbar={(action) => {
-            if (slotsLoaded) {
-              dispatch({ type: 'add-to-hotbar', action });
+        <div className={styles.drawerHeader}>
+          <span className={styles.drawerTitle}>
+            {drawer.panel === 'rows' ? 'Rows' : 'Actions'}
+          </span>
+          <DismissButton
+            label="Close"
+            onClick={() =>
+              setDrawer((current) => ({ ...current, open: false }))
             }
-          }}
-          onClose={() => setDrawerOpen(false)}
-          onSelect={(action) => dispatch({ type: 'set-brush', brush: action })}
-          searchRef={searchRef}
-        />
+          />
+        </div>
+        {drawer.panel === 'rows' ? (
+          <RowsPanel
+            bcf={bcf}
+            focusedActorId={focus?.actorId ?? null}
+            onAddPlayer={() => {
+              const player = newPlayer(bcf);
+              update((doc) => addActor(doc, player));
+              focusActor(player.id);
+            }}
+            onDuplicateActor={(actor) => {
+              const copy = actorCopy(bcf, actor);
+              update((doc) =>
+                duplicateActor(doc, actor.id, copy.id, copy.name),
+              );
+            }}
+            onFocusActor={focusActor}
+            onRemoveActor={(actorId) =>
+              update((doc) => removeActor(doc, actorId))
+            }
+            onRenameActor={(actorId, name) => {
+              setRenaming(null);
+              update((doc) => renameActor(doc, actorId, name));
+            }}
+            onRenamingChange={setRenaming}
+            onReorderRows={(rowOrder) =>
+              update((doc) => setRowOrder(doc, rowOrder))
+            }
+            renamingActorId={renaming}
+          />
+        ) : (
+          <Palette
+            brush={brush}
+            onAddToHotbar={(action) => {
+              if (slotsLoaded) {
+                dispatch({ type: 'add-to-hotbar', action });
+              }
+            }}
+            onSelect={(action) =>
+              dispatch({ type: 'set-brush', brush: action })
+            }
+            searchRef={searchRef}
+          />
+        )}
       </aside>
       <div className={styles.hotbar}>
         <Hotbar

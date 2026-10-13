@@ -260,6 +260,25 @@ $aero-chrome-shadow: rgba(60, 120, 165, 0.25);
   }
 }
 
+.drawerHeader {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  height: 3rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--blert-divider-color);
+
+  :global([data-theme='aero']) & {
+    border-bottom-color: $aero-chrome-border;
+  }
+}
+
+.drawerTitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .hotbar {
   display: flex;
   grid-area: hotbar;

@@ -1,6 +1,7 @@
 import {
   BCFAction,
   BCFActor,
+  BCFPlayerActor,
   BlertChartFormat,
   actorTypeSupportsAction,
 } from '@blert/bcf';
@@ -74,6 +75,19 @@ export function displayWindow(bcf: BlertChartFormat): [number, number] {
     bcf.config.startTick ?? 0,
     bcf.config.endTick ?? bcf.config.totalTicks - 1,
   ];
+}
+
+/** Returns a new player to add to `bcf`, with a unique actor ID. */
+export function newPlayer(bcf: BlertChartFormat): BCFPlayerActor {
+  const n = unusedIdNumber(bcf, 'p');
+  return { type: 'player', id: `p${n}`, name: `Player ${n}` };
+}
+
+/** Returns a copy of `actor` to add to `bcf`, with a unique actor ID. */
+export function actorCopy(bcf: BlertChartFormat, actor: BCFActor): BCFActor {
+  const prefix = actor.type === 'player' ? 'p' : 'npc';
+  const id = `${prefix}${unusedIdNumber(bcf, prefix)}`;
+  return { ...actor, id, name: `${actor.name} (copy)` };
 }
 
 export function initialState(bcf: BlertChartFormat): EditorState {
@@ -295,6 +309,16 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       return { ...state, slots, activeSlot };
     }
   }
+}
+
+/** Returns the lowest N for which `bcf` has no actor with ID `${prefix}N`. */
+function unusedIdNumber(bcf: BlertChartFormat, prefix: string): number {
+  const ids = new Set(bcf.timeline.actors.map((a) => a.id));
+  let n = 1;
+  while (ids.has(`${prefix}${n}`)) {
+    n++;
+  }
+  return n;
 }
 
 function defaultRowOrder(actors: BCFActor[]): string[] {
