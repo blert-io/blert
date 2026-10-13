@@ -132,25 +132,3 @@
     text-shadow: none;
   }
 }
-
-.liveIndicator {
-  color: var(--blert-green) !important;
-  text-shadow: 0 0 3px rgba(var(--blert-green-base), 0.4);
-  animation: pulseGlow 2s ease-in-out infinite;
-
-  :global([data-theme='aero']) & {
-    text-shadow: none;
-    animation: none;
-  }
-}
-
-@keyframes pulseGlow {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.8;
-    text-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
-  }
-}
