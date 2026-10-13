@@ -285,6 +285,74 @@ describe('jsonToServerMessage', () => {
       const event = proto.getChallengeEventsList()[0];
       expect(event.getVerzikDawnDrop()?.getDropped()).toBe(true);
     });
+
+    it('converts OBJECTS events', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.OBJECTS,
+            stage: 10,
+            tick: 10,
+            xCoord: 0,
+            yCoord: 0,
+            objects: { snapshot: true, updates: [] },
+          },
+          {
+            type: Event.Type.OBJECTS,
+            stage: 10,
+            tick: 32,
+            xCoord: 0,
+            yCoord: 0,
+            objects: {
+              updates: [
+                {
+                  type: Event.ObjectUpdate.Type.GAME,
+                  id: 32984,
+                  added: [{ x: 3168, y: 4449 }],
+                  removed: [],
+                },
+                {
+                  type: Event.ObjectUpdate.Type.GRAPHICS,
+                  id: 1579,
+                  snapshot: true,
+                  added: [],
+                  removed: [],
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const [snapshot, delta] = proto.getChallengeEventsList();
+      expect(snapshot.getType()).toBe(Event.Type.OBJECTS);
+      expect(snapshot.getObjects()?.toObject()).toEqual({
+        snapshot: true,
+        updatesList: [],
+      });
+      expect(delta.getType()).toBe(Event.Type.OBJECTS);
+      expect(delta.getObjects()?.toObject()).toEqual({
+        snapshot: false,
+        updatesList: [
+          {
+            type: Event.ObjectUpdate.Type.GAME,
+            id: 32984,
+            addedList: [{ x: 3168, y: 4449 }],
+            removedList: [],
+            snapshot: false,
+          },
+          {
+            type: Event.ObjectUpdate.Type.GRAPHICS,
+            id: 1579,
+            addedList: [],
+            removedList: [],
+            snapshot: true,
+          },
+        ],
+      });
+    });
   });
 
   describe('attack definitions', () => {
@@ -568,6 +636,26 @@ describe('jsonToServerMessage', () => {
       expect(update?.getPartyList()).toEqual(['Player1', 'Player2', 'Player3']);
       expect(update?.getStageUpdate()?.getStage()).toBe(11);
       expect(update?.getStageUpdate()?.getAccurate()).toBe(true);
+    });
+
+    it('converts recording info', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.RECORDING_INFO,
+        activeChallengeId: '6f0c2a7e-3b9d-4e51-8a14-d2c97b5e0f38',
+        recordingInfo: {
+          stage: 13,
+          configVersion: 4,
+        },
+      };
+
+      const proto = jsonToServerMessage(json);
+
+      expect(proto.getType()).toBe(ServerMessage.Type.RECORDING_INFO);
+      expect(proto.getActiveChallengeId()).toBe(
+        '6f0c2a7e-3b9d-4e51-8a14-d2c97b5e0f38',
+      );
+      expect(proto.getRecordingInfo()?.getStage()).toBe(13);
+      expect(proto.getRecordingInfo()?.getConfigVersion()).toBe(4);
     });
   });
 

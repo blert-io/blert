@@ -11,6 +11,7 @@ import {
   ChallengeEndRequest,
   ChallengeStartRequest,
   ChallengeUpdate,
+  RecordingInfo,
   ServerMessage,
   SpellDefinition,
 } from '../generated/server_message_pb';
@@ -224,6 +225,13 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
     msg.setSpellDefinitionsList(defs);
   }
 
+  if (json.recordingInfo !== undefined) {
+    const info = new RecordingInfo();
+    info.setStage(json.recordingInfo.stage as AnyEnum);
+    info.setConfigVersion(json.recordingInfo.configVersion);
+    msg.setRecordingInfo(info);
+  }
+
   if (json.requestId !== undefined) {
     msg.setRequestId(json.requestId);
   }
@@ -328,6 +336,27 @@ export function jsonToProtoEvent(json: EventJson): Event {
       spell.setNoTarget(new Empty());
     }
     event.setPlayerSpell(spell);
+  }
+
+  if (json.objects !== undefined) {
+    const objects = new Event.Objects();
+    if (json.objects.snapshot !== undefined) {
+      objects.setSnapshot(json.objects.snapshot);
+    }
+    objects.setUpdatesList(
+      json.objects.updates.map((update) => {
+        const objectUpdate = new Event.ObjectUpdate();
+        objectUpdate.setType(update.type as AnyEnum);
+        objectUpdate.setId(update.id);
+        objectUpdate.setAddedList(update.added.map(coordsJsonToProto));
+        objectUpdate.setRemovedList(update.removed.map(coordsJsonToProto));
+        if (update.snapshot !== undefined) {
+          objectUpdate.setSnapshot(update.snapshot);
+        }
+        return objectUpdate;
+      }),
+    );
+    event.setObjects(objects);
   }
 
   // ToB events

@@ -228,6 +228,29 @@ export default class MessageHandler {
         }
         break;
 
+      case ServerMessage.Type.RECORDING_INFO: {
+        if (!client.isValidated()) {
+          logger.warn('unvalidated_challenge_request', {
+            type: 'recording_info',
+          });
+          return;
+        }
+        const challengeId = message.getActiveChallengeId();
+        if (challengeId !== client.getActiveChallengeId()) {
+          logger.warn('recording_info_challenge_mismatch', {
+            challengeUuid: challengeId,
+            activeChallengeUuid: client.getActiveChallengeId(),
+          });
+          return;
+        }
+        const info = message.getRecordingInfo()!;
+        client.setRecordingConfigVersion(
+          info.getStage(),
+          info.getConfigVersion(),
+        );
+        break;
+      }
+
       case ServerMessage.Type.EVENT_STREAM: {
         if (!client.isValidated()) {
           logger.warn('unvalidated_challenge_request', {

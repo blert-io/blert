@@ -61,6 +61,7 @@ pub(super) struct PluginInfo {
     pub user_id: UserId,
     pub plugin_version: String,
     pub runelite_version: String,
+    pub recording_config_version: Option<u32>,
 }
 
 /// A client's report of a how it recorded a stage.
@@ -255,12 +256,18 @@ impl<'a> StreamParser<'a> {
                     user_id,
                     plugin_version,
                     runelite_version,
+                    recording_config_version,
                     ..
                 } => {
+                    let reported_version = info
+                        .plugin_info
+                        .as_ref()
+                        .and_then(|plugin_info| plugin_info.recording_config_version);
                     info.plugin_info = Some(PluginInfo {
                         user_id: *user_id,
                         plugin_version: plugin_version.clone(),
                         runelite_version: runelite_version.clone(),
+                        recording_config_version: recording_config_version.or(reported_version),
                     });
                 }
                 ClientStageStream::Events { events, .. } => {
@@ -361,6 +368,11 @@ impl<'a> StreamParser<'a> {
 
         events.retain_mut(|event| {
             let kind = event.r#type();
+            // TODO(frolv): Temporary until everything is migrated to blertlib.
+            if kind == event::Type::Objects {
+                return false;
+            }
+
             if let Some(player) = event.player.as_mut() {
                 let Some(index) = party.iter().position(|name| *name == *player.name) else {
                     *unknown_players.entry(player.name.clone()).or_default() += 1;
@@ -458,6 +470,7 @@ mod tests {
             user_id: UserId(i64::from(client) * 10),
             plugin_version: "0.9.14".into(),
             runelite_version: "1.12.33".into(),
+            recording_config_version: None,
         }
     }
 
@@ -558,6 +571,68 @@ mod tests {
         assert_eq!(clients.len(), 1);
         assert_eq!(clients[0].info.status, StageStatus::Completed);
         assert_eq!(clients[0].info.last_recorded_tick, Tick(190));
+    }
+
+    #[test]
+    fn metadata_without_config_version_keeps_previously_reported_version() {
+        let challenge = test_challenge(Stage::TobNylocas);
+        let (clients, bad_data_clients) = from_stage_stream(
+            &challenge,
+            Stage::TobNylocas,
+            &[
+                ClientStageStream::Metadata {
+                    client_id: ClientId(1),
+                    user_id: UserId(10),
+                    plugin_version: "0.9.24".into(),
+                    runelite_version: "1.13.1".into(),
+                    recording_config_version: Some(3),
+                },
+                events(1, &[4, 9]),
+                metadata(1),
+                end(1, StageStatus::Completed, 120),
+            ],
+        );
+        assert!(bad_data_clients.is_empty());
+        assert_eq!(clients.len(), 1);
+        assert_eq!(
+            clients[0]
+                .info
+                .plugin_info
+                .as_ref()
+                .and_then(|plugin_info| plugin_info.recording_config_version),
+            Some(3),
+        );
+    }
+
+    #[test]
+    fn metadata_with_recording_config_version_fills_in_previous_missing_version() {
+        let challenge = test_challenge(Stage::TobNylocas);
+        let (clients, bad_data_clients) = from_stage_stream(
+            &challenge,
+            Stage::TobNylocas,
+            &[
+                metadata(1),
+                events(1, &[6, 11]),
+                ClientStageStream::Metadata {
+                    client_id: ClientId(1),
+                    user_id: UserId(10),
+                    plugin_version: "0.9.24".into(),
+                    runelite_version: "1.13.1".into(),
+                    recording_config_version: Some(5),
+                },
+                end(1, StageStatus::Completed, 140),
+            ],
+        );
+        assert!(bad_data_clients.is_empty());
+        assert_eq!(clients.len(), 1);
+        assert_eq!(
+            clients[0]
+                .info
+                .plugin_info
+                .as_ref()
+                .and_then(|plugin_info| plugin_info.recording_config_version),
+            Some(5),
+        );
     }
 
     #[test]

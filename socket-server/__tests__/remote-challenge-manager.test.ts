@@ -6,13 +6,17 @@ import {
   RecordingType,
   Stage,
 } from '@blert/common';
+import { Event, StageMap } from '@blert/common/generated/event_pb';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RedisClientType } from 'redis';
+import { WebSocket } from 'ws';
 
 import { ClientStatus } from '../challenge-manager';
 import Client from '../client';
+import type MessageHandler from '../message-handler';
 import { RemoteOperation } from '../metrics';
 import { RemoteChallengeManager } from '../remote-challenge-manager';
+import { PluginVersions } from '../verification';
 
 describe('RemoteChallengeManager', () => {
   let manager: RemoteChallengeManager;
@@ -276,6 +280,202 @@ describe('RemoteChallengeManager', () => {
       finishChallenge('challenge-a');
       expect(mock.sendMessage).not.toHaveBeenCalled();
       expect(mock.activeChallengeId()).toBe('challenge-b');
+    });
+  });
+
+  describe('processEvents', () => {
+    const challengeId = '0b7e4c19-62d8-4f3a-9c5e-a81f2d6b4370';
+    const streamKey = `challenge-events:${challengeId}:${Stage.TOB_BLOAT}`;
+
+    let xAdd: jest.Mock;
+    let client: Client;
+
+    beforeEach(() => {
+      xAdd = jest.fn();
+      const redisClient = {
+        duplicate: () => ({
+          connect: jest.fn().mockResolvedValue(undefined),
+          on: jest.fn(),
+          subscribe: jest.fn().mockResolvedValue(undefined),
+        }),
+        get: jest.fn().mockResolvedValue(null),
+        exists: jest.fn().mockResolvedValue(1),
+        multi: () => {
+          const multi = {
+            sIsMember: () => multi,
+            xAdd: (...args: unknown[]) => {
+              xAdd(...args);
+              return multi;
+            },
+            sAdd: () => multi,
+            expire: () => multi,
+            exec: jest.fn().mockResolvedValue([0]),
+          };
+          return multi;
+        },
+      } as unknown as RedisClientType;
+      manager = new RemoteChallengeManager(
+        'http://challenge-server',
+        redisClient,
+      );
+
+      const socket = { on: jest.fn(), send: jest.fn() };
+      client = new Client(
+        socket as unknown as WebSocket,
+        {} as MessageHandler,
+        { id: 123, keyId: 456, username: '1Ogp', linkedPlayerId: 789 },
+        PluginVersions.fromHeaders({
+          'blert-version': '0.9.24',
+          'blert-revision': 'ffaaaaff',
+          'blert-jar-hash': '10101010',
+          'blert-runelite-version': '1.13.1',
+        })!,
+      );
+      client.setActiveChallenge(challengeId);
+    });
+
+    test('writes the reported recording config version in client metadata', async () => {
+      client.setRecordingConfigVersion(Stage.TOB_BLOAT, 4);
+      const event = new Event();
+      event.setStage(Stage.TOB_BLOAT as StageMap[keyof StageMap]);
+      event.setTick(17);
+
+      await manager.processEvents(client, challengeId, [event]);
+
+      expect(xAdd.mock.calls).toEqual([
+        [
+          streamKey,
+          '*',
+          {
+            type: '2',
+            clientId: '456',
+            userId: '123',
+            pluginVersion: '0.9.24',
+            runeLiteVersion: '1.13.1',
+            recordingConfigVersion: '4',
+          },
+        ],
+        [
+          streamKey,
+          '*',
+          { type: '0', clientId: '456', events: expect.any(Buffer) },
+        ],
+      ]);
+    });
+
+    test('omits recording config version until the client reports one', async () => {
+      const event = new Event();
+      event.setStage(Stage.TOB_BLOAT as StageMap[keyof StageMap]);
+      event.setTick(23);
+
+      await manager.processEvents(client, challengeId, [event]);
+
+      expect(xAdd.mock.calls).toEqual([
+        [
+          streamKey,
+          '*',
+          {
+            type: '2',
+            clientId: '456',
+            userId: '123',
+            pluginVersion: '0.9.24',
+            runeLiteVersion: '1.13.1',
+          },
+        ],
+        [
+          streamKey,
+          '*',
+          { type: '0', clientId: '456', events: expect.any(Buffer) },
+        ],
+      ]);
+    });
+
+    test('writes new client metadata when a version is reported after events', async () => {
+      const first = new Event();
+      first.setStage(Stage.TOB_BLOAT as StageMap[keyof StageMap]);
+      first.setTick(31);
+      const second = new Event();
+      second.setStage(Stage.TOB_BLOAT as StageMap[keyof StageMap]);
+      second.setTick(32);
+
+      await manager.processEvents(client, challengeId, [first]);
+      client.setRecordingConfigVersion(Stage.TOB_BLOAT, 6);
+      await manager.processEvents(client, challengeId, [second]);
+
+      expect(xAdd.mock.calls).toEqual([
+        [
+          streamKey,
+          '*',
+          {
+            type: '2',
+            clientId: '456',
+            userId: '123',
+            pluginVersion: '0.9.24',
+            runeLiteVersion: '1.13.1',
+          },
+        ],
+        [
+          streamKey,
+          '*',
+          { type: '0', clientId: '456', events: expect.any(Buffer) },
+        ],
+        [
+          streamKey,
+          '*',
+          {
+            type: '2',
+            clientId: '456',
+            userId: '123',
+            pluginVersion: '0.9.24',
+            runeLiteVersion: '1.13.1',
+            recordingConfigVersion: '6',
+          },
+        ],
+        [
+          streamKey,
+          '*',
+          { type: '0', clientId: '456', events: expect.any(Buffer) },
+        ],
+      ]);
+    });
+
+    test('only writes metadata once if the version does not change', async () => {
+      client.setRecordingConfigVersion(Stage.TOB_BLOAT, 9);
+      const first = new Event();
+      first.setStage(Stage.TOB_BLOAT as StageMap[keyof StageMap]);
+      first.setTick(44);
+      const second = new Event();
+      second.setStage(Stage.TOB_BLOAT as StageMap[keyof StageMap]);
+      second.setTick(45);
+
+      await manager.processEvents(client, challengeId, [first]);
+      client.setRecordingConfigVersion(Stage.TOB_BLOAT, 9);
+      await manager.processEvents(client, challengeId, [second]);
+
+      expect(xAdd.mock.calls).toEqual([
+        [
+          streamKey,
+          '*',
+          {
+            type: '2',
+            clientId: '456',
+            userId: '123',
+            pluginVersion: '0.9.24',
+            runeLiteVersion: '1.13.1',
+            recordingConfigVersion: '9',
+          },
+        ],
+        [
+          streamKey,
+          '*',
+          { type: '0', clientId: '456', events: expect.any(Buffer) },
+        ],
+        [
+          streamKey,
+          '*',
+          { type: '0', clientId: '456', events: expect.any(Buffer) },
+        ],
+      ]);
     });
   });
 });

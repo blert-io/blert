@@ -20,6 +20,8 @@ pub struct ClientMetadata {
     pub plugin_version: String,
     #[serde(rename = "runeLiteVersion")]
     pub runelite_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recording_config_version: Option<u32>,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -116,6 +118,7 @@ impl From<&PluginInfo> for ClientMetadata {
             user_id: plugin_info.user_id,
             plugin_version: plugin_info.plugin_version.clone(),
             runelite_version: plugin_info.runelite_version.clone(),
+            recording_config_version: plugin_info.recording_config_version,
         }
     }
 }

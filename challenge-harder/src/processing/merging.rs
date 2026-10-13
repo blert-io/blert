@@ -203,7 +203,7 @@ pub fn capture_reasons(report: &MergeReport, development: bool) -> Vec<CaptureRe
         reasons.insert(CaptureReason::UnmergedClients);
     }
 
-    if development && report.clients.len() > 1 {
+    if development {
         reasons.insert(CaptureReason::Development);
     }
 

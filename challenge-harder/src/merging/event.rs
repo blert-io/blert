@@ -86,6 +86,8 @@ pub(super) fn validate(event: &Event) -> Result<(), MalformedEvent> {
             field: "type",
         }),
 
+        event::Type::Objects => unreachable!("objects are dropped on ingestion"),
+
         event::Type::PlayerUpdate | event::Type::PlayerDeath => {
             require(event.player.is_some(), "player")
         }
@@ -212,6 +214,8 @@ pub enum Class {
 pub const fn classify(kind: event::Type) -> Class {
     match kind {
         event::Type::Unspecified => Class::Unspecified,
+
+        event::Type::Objects => unreachable!(),
 
         event::Type::ColosseumHandicapChoice
         | event::Type::ColosseumDoomApplied

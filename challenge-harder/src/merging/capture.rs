@@ -144,6 +144,8 @@ struct RawRecord {
     plugin_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     rune_lite_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    recording_config_version: Option<u32>,
 }
 
 /// The serialized form of an event batch.
@@ -184,6 +186,7 @@ impl RawRecord {
                 user_id: UserId(self.user_id.ok_or(missing("userId"))?),
                 plugin_version: self.plugin_version.ok_or(missing("pluginVersion"))?,
                 runelite_version: self.rune_lite_version.ok_or(missing("runeLiteVersion"))?,
+                recording_config_version: self.recording_config_version,
             }),
             tag => Err(CaptureError::UnknownRecordType { index, tag }),
         }
@@ -200,6 +203,7 @@ impl From<&ClientStageStream> for RawRecord {
             user_id: None,
             plugin_version: None,
             rune_lite_version: None,
+            recording_config_version: None,
         };
         match record {
             ClientStageStream::Events { events, .. } => RawRecord {
@@ -216,12 +220,14 @@ impl From<&ClientStageStream> for RawRecord {
                 user_id,
                 plugin_version,
                 runelite_version,
+                recording_config_version,
                 ..
             } => RawRecord {
                 tag: ClientStageStream::METADATA_TAG,
                 user_id: Some(user_id.0),
                 plugin_version: Some(plugin_version.clone()),
                 rune_lite_version: Some(runelite_version.clone()),
+                recording_config_version: *recording_config_version,
                 ..empty
             },
         }
@@ -452,6 +458,7 @@ mod tests {
                     user_id: UserId(0),
                     plugin_version: "0.9.20".to_string(),
                     runelite_version: "1.11.0".to_string(),
+                    recording_config_version: Some(2),
                 },
                 ClientStageStream::Events {
                     client_id: ClientId(1),
@@ -478,6 +485,10 @@ mod tests {
         assert_eq!(json["captureReasons"], serde_json::json!(["baseline"]));
         assert_eq!(json["mergedClients"], serde_json::json!([]));
         assert_eq!(json["unmergedClients"], serde_json::json!([]));
+        assert_eq!(
+            json["rawEvents"][0]["recordingConfigVersion"],
+            serde_json::json!(2)
+        );
         assert_eq!(
             json["rawEvents"][1]["events"],
             serde_json::json!([8, 11, 16, 3])
