@@ -25,6 +25,7 @@ import { challengeLogo } from '@/logo';
 import { useClientOnly } from '@/hooks/client-only';
 import { challengeSlug, challengeTerm } from '@/utils/challenge';
 import { challengePartyNames } from '@/utils/challenge-description';
+import { withIndefiniteArticle } from '@/utils/copy';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl, queryString } from '@/utils/url';
 
@@ -858,6 +859,10 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
         }
       }
 
+      if (challenge.scale > 1) {
+        name = `${scaleName(challenge.scale).toLowerCase()} ${name}`;
+      }
+
       switch (challenge.status) {
         case ChallengeStatus.COMPLETED:
           icon = `fa-solid fa-flag-checkered ${styles.challengeCompleted}`;
@@ -876,10 +881,8 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
       content = (
         <span>
           <strong>{challengePartyNames(challenge)}</strong> {status}
-          {challenge.status === ChallengeStatus.COMPLETED ? ' a ' : ' in a '}
-          {challenge.scale > 1 &&
-            `${scaleName(challenge.scale).toLowerCase()} `}
-          {name}
+          {challenge.status === ChallengeStatus.COMPLETED ? ' ' : ' in '}
+          {withIndefiniteArticle(name)}
           {challenge.status === ChallengeStatus.COMPLETED && (
             <>
               {' in '}
