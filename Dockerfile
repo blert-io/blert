@@ -205,6 +205,21 @@ EXPOSE 3003
 CMD ["node", "effect-runner/dist/app.js"]
 
 # ==============================================================================
+# Runtime: migrate (runs the main database's migrations)
+# ==============================================================================
+FROM base AS migrate
+
+ENV NODE_ENV=production
+
+COPY --from=deps-prod /app/node_modules/ node_modules/
+COPY --from=common-build /app/common/dist/ common/dist/
+COPY --from=common-build /app/common/generated/ common/generated/
+COPY common/package.json common/
+COPY common/migrations/ common/migrations/
+
+CMD ["node", "common/dist/migrations/migrate.js"]
+
+# ==============================================================================
 # Shared Rust workspace
 # ==============================================================================
 FROM rust:1-slim AS rust-workspace
