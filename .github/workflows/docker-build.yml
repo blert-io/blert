@@ -48,6 +48,7 @@ jobs:
             effect-runner,
             live-server,
             challenge-harder,
+            migrate,
           ]
 
     steps:
