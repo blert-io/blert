@@ -31,6 +31,7 @@ pub struct MergeCapture {
     pub party: Vec<Rsn>,
     pub stage: Stage,
     pub attempt: Option<u32>,
+    pub latest_config_version: Option<u32>,
     /// Every client's records, in the order they were captured.
     pub records: Vec<ClientStageStream>,
 }
@@ -75,6 +76,7 @@ impl MergeCapture {
             party: file.challenge_info.party,
             stage: file.stage,
             attempt: file.attempt,
+            latest_config_version: file.latest_config_version,
             records,
         })
     }
@@ -93,6 +95,7 @@ impl MergeCapture {
             },
             stage: self.stage,
             attempt: self.attempt,
+            latest_config_version: self.latest_config_version,
             capture_reasons,
             merged_clients,
             unmerged_clients,
@@ -109,6 +112,7 @@ struct File<'a> {
     challenge_info: ChallengeInfo,
     stage: Stage,
     attempt: Option<u32>,
+    latest_config_version: Option<u32>,
     #[serde(skip_deserializing)]
     capture_reasons: Vec<String>,
     #[serde(skip_deserializing)]
@@ -452,6 +456,7 @@ mod tests {
             ],
             stage: Stage::TobBloat,
             attempt: None,
+            latest_config_version: Some(3),
             records: vec![
                 ClientStageStream::Metadata {
                     client_id: ClientId(1),
@@ -485,6 +490,7 @@ mod tests {
         assert_eq!(json["captureReasons"], serde_json::json!(["baseline"]));
         assert_eq!(json["mergedClients"], serde_json::json!([]));
         assert_eq!(json["unmergedClients"], serde_json::json!([]));
+        assert_eq!(json["latestConfigVersion"], serde_json::json!(3));
         assert_eq!(
             json["rawEvents"][0]["recordingConfigVersion"],
             serde_json::json!(2)
@@ -508,6 +514,7 @@ mod tests {
         assert_eq!(loaded.party, capture.party);
         assert_eq!(loaded.stage, Stage::TobBloat);
         assert_eq!(loaded.attempt, None);
+        assert_eq!(loaded.latest_config_version, Some(3));
         assert_eq!(loaded.records, capture.records);
     }
 }

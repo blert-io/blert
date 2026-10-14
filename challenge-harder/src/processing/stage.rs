@@ -8,6 +8,7 @@
 //! 3. `persist` receives the results and writes them to the database and
 //!    blob store.
 
+use blert::ConfigVersion;
 use blert::proto::Event;
 
 use crate::lifecycle::core::types::{
@@ -108,6 +109,7 @@ async fn persist(
         party: challenge.party.clone(),
         stage: challenge.stage,
         attempt: challenge.stage_attempt,
+        latest_config_version: Some(ConfigVersion::LATEST.get()),
         records,
     };
     let mut output = match result {

@@ -180,15 +180,23 @@ pub struct LastCompleted {
     pub attempt: Option<u32>,
 }
 
-/// A single event batch from a stage event stream.
+/// A single record from a stage event stream.
 #[derive(Debug, Clone)]
 pub struct StageStreamEntry {
     /// Redis stream ID, used as cursor for subsequent reads.
     pub id: String,
-    /// Client that produced these events.
+    /// Client that produced this record.
     pub client_id: ClientId,
+    pub record: StageStreamRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StageStreamRecord {
     /// Raw protobuf bytes (serialized `ChallengeEvents`).
-    pub events: Vec<u8>,
+    Events(Vec<u8>),
+    Metadata {
+        recording_config_version: u32,
+    },
 }
 
 pub const STREAM_START_CURSOR: &str = "0-0";
@@ -306,28 +314,28 @@ impl RedisQuery {
     }
 }
 
-/// Parses an `XRANGE` response into `StageStreamEntry` values, filtering out
-/// `STAGE_END` entries (type 1) and keeping only `STAGE_EVENTS` (type 0).
+/// Parses an `XRANGE` response into `StageStreamEntry` values, keeping
+/// `STAGE_EVENTS` entries (type 0) and `CLIENT_METADATA` entries (type 2) that
+/// carry a recording config version.
 fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, RedisQueryError> {
     // XRANGE returns an array of [id, [field, value, field, value, ...]]
     let entries: Vec<Value> = FromRedisValue::from_redis_value(value)?;
     let mut result = Vec::new();
 
-    'entry: for entry in entries {
+    for entry in entries {
         let (id, fields): (String, Vec<Value>) = FromRedisValue::from_redis_value(entry)?;
 
         let mut iter = fields.into_iter();
+        let mut tag: Option<i32> = None;
         let mut client_id: Option<ClientId> = None;
         let mut events: Option<Vec<u8>> = None;
+        let mut recording_config_version: Option<u32> = None;
 
         while let (Some(k), Some(v)) = (iter.next(), iter.next()) {
             let key: String = FromRedisValue::from_redis_value(k)?;
             match key.as_str() {
                 "type" => {
-                    let type_val: i32 = FromRedisValue::from_redis_value(v)?;
-                    if type_val != 0 {
-                        continue 'entry;
-                    }
+                    tag = Some(FromRedisValue::from_redis_value(v)?);
                 }
                 "clientId" => {
                     let id: Option<u32> = FromRedisValue::from_redis_value(v)
@@ -338,15 +346,28 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
                     events = FromRedisValue::from_redis_value(v)
                         .map_err(|_| RedisQueryError::Parse("invalid events".into()))?;
                 }
+                "recordingConfigVersion" => {
+                    recording_config_version =
+                        FromRedisValue::from_redis_value(v).map_err(|_| {
+                            RedisQueryError::Parse("invalid recording config version".into())
+                        })?;
+                }
                 _ => {}
             }
         }
 
-        if let (Some(client_id), Some(events)) = (client_id, events) {
+        let record = match (tag, events, recording_config_version) {
+            (Some(0), Some(events), _) => StageStreamRecord::Events(events),
+            (Some(2), _, Some(recording_config_version)) => StageStreamRecord::Metadata {
+                recording_config_version,
+            },
+            _ => continue,
+        };
+        if let Some(client_id) = client_id {
             result.push(StageStreamEntry {
                 id,
                 client_id,
-                events,
+                record,
             });
         }
     }
@@ -716,21 +737,42 @@ mod tests {
             cursor: STREAM_START_CURSOR.into(),
         };
         let event_bytes = vec![0x08, 0x01, 0x10, 0x02];
-        let value = Value::Array(vec![stream_entry(
-            "1234-0",
-            &[
-                ("type", b"0"),
-                ("clientId", b"42"),
-                ("events", &event_bytes),
-            ],
-        )]);
+        let value = Value::Array(vec![
+            stream_entry(
+                "1233-0",
+                &[
+                    ("type", b"2"),
+                    ("clientId", b"42"),
+                    ("userId", b"3"),
+                    ("pluginVersion", b"0.10.0-RUNELITE"),
+                    ("runeLiteVersion", b"runelite-1.13.1"),
+                    ("recordingConfigVersion", b"1"),
+                ],
+            ),
+            stream_entry(
+                "1234-0",
+                &[
+                    ("type", b"0"),
+                    ("clientId", b"42"),
+                    ("events", &event_bytes),
+                ],
+            ),
+        ]);
         let resp = query.parse_response(value).unwrap();
         match resp {
             RedisResponse::StageStream(entries) => {
-                assert_eq!(entries.len(), 1);
-                assert_eq!(entries[0].id, "1234-0");
+                assert_eq!(entries.len(), 2);
+                assert_eq!(entries[0].id, "1233-0");
                 assert_eq!(entries[0].client_id, ClientId(42));
-                assert_eq!(entries[0].events, event_bytes);
+                assert_eq!(
+                    entries[0].record,
+                    StageStreamRecord::Metadata {
+                        recording_config_version: 1
+                    }
+                );
+                assert_eq!(entries[1].id, "1234-0");
+                assert_eq!(entries[1].client_id, ClientId(42));
+                assert_eq!(entries[1].record, StageStreamRecord::Events(event_bytes));
             }
             other => panic!("expected StageStream, got {other:?}"),
         }
@@ -745,13 +787,23 @@ mod tests {
             cursor: STREAM_START_CURSOR.into(),
         };
         let value = Value::Array(vec![
-            // STAGE_EVENTS entry (type=0) — should be kept.
+            // STAGE_EVENTS entry (type=0): should be kept.
             stream_entry(
                 "100-0",
                 &[("type", b"0"), ("clientId", b"1"), ("events", b"\x08\x01")],
             ),
-            // STAGE_END entry (type=1) — should be filtered out.
+            // STAGE_END entry (type=1): should be filtered out.
             stream_entry("200-0", &[("type", b"1"), ("clientId", b"1")]),
+            stream_entry(
+                "250-0",
+                &[
+                    ("type", b"2"),
+                    ("clientId", b"2"),
+                    ("userId", b"5"),
+                    ("pluginVersion", b"0.9.24-RUNELITE"),
+                    ("runeLiteVersion", b"runelite-1.13.1"),
+                ],
+            ),
             // Another STAGE_EVENTS entry.
             stream_entry(
                 "300-0",
@@ -844,7 +896,10 @@ mod tests {
                 assert_eq!(entries.len(), 1);
                 assert_eq!(entries[0].id, "500-0");
                 assert_eq!(entries[0].client_id, ClientId(9));
-                assert_eq!(entries[0].events, b"\x08\x03");
+                assert_eq!(
+                    entries[0].record,
+                    StageStreamRecord::Events(b"\x08\x03".to_vec())
+                );
             }
             other => panic!("expected StageStream, got {other:?}"),
         }

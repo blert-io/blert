@@ -453,6 +453,7 @@ async fn write_merge_clients(
             *quality_flag_counts.entry(flag.name()).or_default() += 1;
         }
         let anomalies: Vec<&str> = client.anomalies.iter().map(ClientAnomaly::name).collect();
+        // TODO(frolv): Save the client's recording config version.
         txn.execute(
             "INSERT INTO challenge_merge_clients
                (merge_id, client_id, user_id, plugin_version, runelite_version, status,

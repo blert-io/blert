@@ -1,7 +1,8 @@
 use std::collections::{HashMap, VecDeque};
 
 use blert::{
-    BuildRejection, ChallengeMode, ClientId, RecordingBuilder, Rsn, Stage, Tick, Ticks, proto,
+    BuildRejection, ChallengeMode, ClientId, ConfigVersion, InvalidVersion, RecordingBuilder, Rsn,
+    Stage, Tick, Ticks, proto,
 };
 use bytes::{Bytes, BytesMut};
 use prost::Message as _;
@@ -12,7 +13,7 @@ use crate::backfill::{BackfillRequest, BackfillResult};
 use crate::message::{ResetReason, SseMessage, StalledReason};
 use crate::redis::{
     ChallengeClient, ChallengeServerUpdate, ChallengeState, RedisQuery, RedisResponse,
-    STREAM_START_CURSOR, StageStatus, StageStreamEntry,
+    STREAM_START_CURSOR, StageStatus, StageStreamEntry, StageStreamRecord,
 };
 use crate::subscriber::{Subscriber, SubscriberId, SubscriberState};
 
@@ -450,7 +451,11 @@ impl ChallengeReader {
         };
 
         // Count events per client for primary selection and future use.
-        for entry in &result.entries {
+        for entry in result
+            .entries
+            .iter()
+            .filter(|entry| matches!(entry.record, StageStreamRecord::Events(_)))
+        {
             self.client_states
                 .entry(entry.client_id)
                 .or_insert(ClientState {
@@ -613,7 +618,10 @@ impl ChallengeReader {
         }
 
         // Count events per client and update silence tracking.
-        for entry in entries {
+        for entry in entries
+            .iter()
+            .filter(|entry| matches!(entry.record, StageStreamRecord::Events(_)))
+        {
             let state = self
                 .client_states
                 .entry(entry.client_id)
@@ -652,25 +660,53 @@ impl ChallengeReader {
         entries: &[StageStreamEntry],
         client_id: ClientId,
     ) -> Option<Tick> {
-        let mut events = Vec::new();
-        for entry in entries.iter().filter(|e| e.client_id == client_id) {
-            // Redis encodes ChallengeEvents, but EventStream is wire-compatible
-            // for field 1 (repeated Event). Extra fields are silently ignored.
-            match proto::EventStream::decode(entry.events.as_slice()) {
-                Ok(event_stream) => events.extend(event_stream.events),
-                Err(e) => tracing::warn!(parent: &self.span, "failed to decode protobuf: {e}"),
-            }
-        }
+        let mut client_entries = entries
+            .iter()
+            .filter(|e| e.client_id == client_id)
+            .peekable();
 
-        let builder = self.builder.get_or_insert_with(|| {
-            RecordingBuilder::new(
+        let span = &self.span;
+        let builder = if let Some(builder) = &mut self.builder {
+            builder
+        } else {
+            let config_version = match client_entries.peek()?.record {
+                StageStreamRecord::Metadata {
+                    recording_config_version,
+                } => match ConfigVersion::parse(recording_config_version) {
+                    Ok(config_version) => config_version,
+                    Err(InvalidVersion(version)) => {
+                        tracing::error!(
+                            parent: span,
+                            version,
+                            "unsupported recording config version",
+                        );
+                        ConfigVersion::LATEST
+                    }
+                },
+                StageStreamRecord::Events(_) => ConfigVersion::LATEST,
+            };
+            self.builder.insert(RecordingBuilder::new(
                 client_id,
+                config_version,
                 self.stage,
                 self.challenge_mode,
                 self.party.clone(),
                 None,
-            )
-        });
+            ))
+        };
+
+        let mut events = Vec::new();
+        for entry in client_entries {
+            if let StageStreamRecord::Events(bytes) = &entry.record {
+                // Redis encodes ChallengeEvents, but EventStream is wire-compatible
+                // for field 1 (repeated Event). Extra fields are silently ignored.
+                match proto::EventStream::decode(bytes.as_slice()) {
+                    Ok(event_stream) => events.extend(event_stream.events),
+                    Err(e) => tracing::warn!(parent: span, "failed to decode protobuf: {e}"),
+                }
+            }
+        }
+
         let modified = builder.ingest(events);
         let recording = builder.recording()?;
 
@@ -989,6 +1025,33 @@ impl ChallengeReader {
                     "builder rejected events",
                 );
             }
+
+            for warning in builder.warnings() {
+                tracing::warn!(
+                    parent: &self.span,
+                    stage = self.stage as i32,
+                    attempt = self.stage_attempt,
+                    tick = warning.tick.0,
+                    kind = ?warning.kind,
+                    field = warning.field,
+                    error = ?warning.error,
+                    "builder warned on event field",
+                );
+            }
+
+            // TODO(frolv): Temporary until bespoke object events are removed.
+            for mismatch in builder.mismatches() {
+                tracing::warn!(
+                    parent: &self.span,
+                    stage = self.stage as i32,
+                    attempt = self.stage_attempt,
+                    tick = mismatch.tick.0,
+                    kind = ?mismatch.kind,
+                    bespoke = ?mismatch.bespoke,
+                    interpreted = ?mismatch.interpreted,
+                    "builder found object mismatch",
+                );
+            }
         }
 
         self.stage_state = StageState::Inactive;
@@ -1194,10 +1257,12 @@ mod tests {
         StageStreamEntry {
             id: id.to_string(),
             client_id,
-            events: proto::EventStream {
-                events: vec![maiden_events()[tick as usize].clone()],
-            }
-            .encode_to_vec(),
+            record: StageStreamRecord::Events(
+                proto::EventStream {
+                    events: vec![maiden_events()[tick as usize].clone()],
+                }
+                .encode_to_vec(),
+            ),
         }
     }
 
@@ -1490,6 +1555,13 @@ mod tests {
             vec![(proto::event::Type::PlayerUpdate, Some("Dedion"), 3180, 4448)]
         );
         assert_eq!(dirty, Some(Tick(3)));
+        assert_eq!(
+            reader
+                .builder
+                .as_ref()
+                .map(RecordingBuilder::config_version),
+            Some(ConfigVersion::LATEST)
+        );
     }
 
     #[test]
@@ -1497,30 +1569,51 @@ mod tests {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
 
         // Ingest tick 2, then merge more events into it.
-        reader.ingest_entries(&[stream_entry("1-0", ClientId(1), 2)], ClientId(1));
+        reader.ingest_entries(
+            &[
+                StageStreamEntry {
+                    id: "1-0".to_string(),
+                    client_id: ClientId(1),
+                    record: StageStreamRecord::Metadata {
+                        recording_config_version: ConfigVersion::LATEST.get() + 1,
+                    },
+                },
+                stream_entry("2-0", ClientId(1), 2),
+            ],
+            ClientId(1),
+        );
         assert_eq!(reader.tick_buffer.len(), 3);
+        assert_eq!(
+            reader
+                .builder
+                .as_ref()
+                .map(RecordingBuilder::config_version),
+            Some(ConfigVersion::LATEST)
+        );
 
         let maiden_spawn = StageStreamEntry {
-            id: "2-0".to_string(),
+            id: "3-0".to_string(),
             client_id: ClientId(1),
-            events: proto::EventStream {
-                events: vec![proto::Event {
-                    r#type: proto::event::Type::NpcSpawn as i32,
-                    stage: Stage::TobMaiden as i32,
-                    tick: 2,
-                    x_coord: 3162,
-                    y_coord: 4444,
-                    npc: Some(proto::event::Npc {
-                        id: 8360,
-                        room_id: 64386,
-                        hitpoints: 200_674_294,
-                        r#type: Some(proto::event::npc::Type::Basic(())),
+            record: StageStreamRecord::Events(
+                proto::EventStream {
+                    events: vec![proto::Event {
+                        r#type: proto::event::Type::NpcSpawn as i32,
+                        stage: Stage::TobMaiden as i32,
+                        tick: 2,
+                        x_coord: 3162,
+                        y_coord: 4444,
+                        npc: Some(proto::event::Npc {
+                            id: 8360,
+                            room_id: 64386,
+                            hitpoints: 200_674_294,
+                            r#type: Some(proto::event::npc::Type::Basic(())),
+                            ..Default::default()
+                        }),
                         ..Default::default()
-                    }),
-                    ..Default::default()
-                }],
-            }
-            .encode_to_vec(),
+                    }],
+                }
+                .encode_to_vec(),
+            ),
         };
         let dirty = reader.ingest_entries(&[maiden_spawn], ClientId(1));
         assert_eq!(reader.tick_buffer.len(), 3); // No new entries.
@@ -1560,10 +1653,12 @@ mod tests {
             &[StageStreamEntry {
                 id: "2-0".to_string(),
                 client_id: ClientId(1),
-                events: proto::EventStream {
-                    events: vec![outsider],
-                }
-                .encode_to_vec(),
+                record: StageStreamRecord::Events(
+                    proto::EventStream {
+                        events: vec![outsider],
+                    }
+                    .encode_to_vec(),
+                ),
             }],
             ClientId(1),
         );
@@ -1779,18 +1874,39 @@ mod tests {
             challenge_id: "test".to_string(),
             backfill_id: reader.backfill_id,
             entries: vec![
-                stream_entry("1-0", ClientId(1), 4),
-                stream_entry("2-0", ClientId(2), 1),
-                stream_entry("3-0", ClientId(2), 2),
-                stream_entry("4-0", ClientId(2), 3),
+                StageStreamEntry {
+                    id: "1-0".to_string(),
+                    client_id: ClientId(1),
+                    record: StageStreamRecord::Metadata {
+                        recording_config_version: 1,
+                    },
+                },
+                stream_entry("2-0", ClientId(1), 4),
+                StageStreamEntry {
+                    id: "3-0".to_string(),
+                    client_id: ClientId(2),
+                    record: StageStreamRecord::Metadata {
+                        recording_config_version: 0,
+                    },
+                },
+                stream_entry("4-0", ClientId(2), 1),
+                stream_entry("5-0", ClientId(2), 2),
+                stream_entry("6-0", ClientId(2), 3),
             ],
-            last_stream_id: "4-0".to_string(),
+            last_stream_id: "6-0".to_string(),
         };
         reader.apply_backfill(result, 5);
 
         assert_eq!(reader.state, ReaderState::Active);
         assert_eq!(reader.primary_client_id, Some(ClientId(2)));
         assert_eq!(reader.client_states[&ClientId(2)].last_active_tick, 5);
+        assert_eq!(
+            reader
+                .builder
+                .as_ref()
+                .map(RecordingBuilder::config_version),
+            ConfigVersion::parse(0).ok()
+        );
 
         let recording = reader
             .builder
@@ -1829,8 +1945,8 @@ mod tests {
         // events push the buffer past the jitter threshold.
         reader.process_stream_entries(
             &[
-                stream_entry("5-0", ClientId(2), 4),
-                stream_entry("6-0", ClientId(2), 5),
+                stream_entry("7-0", ClientId(2), 4),
+                stream_entry("8-0", ClientId(2), 5),
             ],
             1,
         );
@@ -2266,25 +2382,54 @@ mod tests {
                 StageStreamEntry {
                     id: "1-0".to_string(),
                     client_id: ClientId(1),
-                    events: proto::EventStream {
-                        events: vec![
-                            proto::Event {
-                                r#type: proto::event::Type::NpcSpawn as i32,
-                                stage: Stage::MokhaiotlDelve2 as i32,
-                                tick: 0,
-                                x_coord: 3421,
-                                y_coord: 6435,
-                                npc: Some(proto::event::Npc {
-                                    id: 14707,
-                                    room_id: 49601,
-                                    hitpoints: 36_045_350,
-                                    r#type: Some(proto::event::npc::Type::Basic(())),
+                    record: StageStreamRecord::Events(
+                        proto::EventStream {
+                            events: vec![
+                                proto::Event {
+                                    r#type: proto::event::Type::NpcSpawn as i32,
+                                    stage: Stage::MokhaiotlDelve2 as i32,
+                                    tick: 0,
+                                    x_coord: 3421,
+                                    y_coord: 6435,
+                                    npc: Some(proto::event::Npc {
+                                        id: 14707,
+                                        room_id: 49601,
+                                        hitpoints: 36_045_350,
+                                        r#type: Some(proto::event::npc::Type::Basic(())),
+                                        ..Default::default()
+                                    }),
                                     ..Default::default()
-                                }),
-                                ..Default::default()
-                            },
-                            proto::Event {
-                                r#type: proto::event::Type::NpcAttack as i32,
+                                },
+                                proto::Event {
+                                    r#type: proto::event::Type::NpcAttack as i32,
+                                    stage: Stage::MokhaiotlDelve2 as i32,
+                                    tick: 1,
+                                    x_coord: 3421,
+                                    y_coord: 6435,
+                                    npc: Some(proto::event::Npc {
+                                        id: 14707,
+                                        room_id: 49601,
+                                        r#type: Some(proto::event::npc::Type::Basic(())),
+                                        ..Default::default()
+                                    }),
+                                    npc_attack: Some(proto::event::NpcAttacked {
+                                        attack: proto::NpcAttack::MokhaiotlBall as i32,
+                                        target: Some("Dedion".to_string()),
+                                    }),
+                                    ..Default::default()
+                                },
+                            ],
+                        }
+                        .encode_to_vec(),
+                    ),
+                },
+                StageStreamEntry {
+                    id: "2-0".to_string(),
+                    client_id: ClientId(1),
+                    record: StageStreamRecord::Events(
+                        proto::EventStream {
+                            events: vec![proto::Event {
+                                r#type: proto::event::Type::NpcUpdate as i32,
                                 stage: Stage::MokhaiotlDelve2 as i32,
                                 tick: 1,
                                 x_coord: 3421,
@@ -2292,86 +2437,63 @@ mod tests {
                                 npc: Some(proto::event::Npc {
                                     id: 14707,
                                     room_id: 49601,
-                                    r#type: Some(proto::event::npc::Type::Basic(())),
-                                    ..Default::default()
-                                }),
-                                npc_attack: Some(proto::event::NpcAttacked {
-                                    attack: proto::NpcAttack::MokhaiotlBall as i32,
-                                    target: Some("Dedion".to_string()),
-                                }),
-                                ..Default::default()
-                            },
-                        ],
-                    }
-                    .encode_to_vec(),
-                },
-                StageStreamEntry {
-                    id: "2-0".to_string(),
-                    client_id: ClientId(1),
-                    events: proto::EventStream {
-                        events: vec![proto::Event {
-                            r#type: proto::event::Type::NpcUpdate as i32,
-                            stage: Stage::MokhaiotlDelve2 as i32,
-                            tick: 1,
-                            x_coord: 3421,
-                            y_coord: 6435,
-                            npc: Some(proto::event::Npc {
-                                id: 14707,
-                                room_id: 49601,
-                                hitpoints: 36_045_350,
-                                r#type: Some(proto::event::npc::Type::Basic(())),
-                                ..Default::default()
-                            }),
-                            ..Default::default()
-                        }],
-                    }
-                    .encode_to_vec(),
-                },
-                StageStreamEntry {
-                    id: "3-0".to_string(),
-                    client_id: ClientId(1),
-                    events: proto::EventStream {
-                        events: vec![
-                            proto::Event {
-                                r#type: proto::event::Type::NpcUpdate as i32,
-                                stage: Stage::MokhaiotlDelve2 as i32,
-                                tick: 2,
-                                x_coord: 3421,
-                                y_coord: 6435,
-                                npc: Some(proto::event::Npc {
-                                    id: 14707,
-                                    room_id: 49601,
                                     hitpoints: 36_045_350,
                                     r#type: Some(proto::event::npc::Type::Basic(())),
                                     ..Default::default()
                                 }),
                                 ..Default::default()
-                            },
-                            proto::Event {
-                                r#type: proto::event::Type::PlayerUpdate as i32,
-                                stage: Stage::MokhaiotlDelve2 as i32,
-                                tick: 3,
-                                x_coord: 3423,
-                                y_coord: 6430,
-                                player: Some(proto::event::Player {
-                                    name: "Dedion".to_string(),
-                                    off_cooldown_tick: 3,
-                                    hitpoints: Some(7_012_451),
-                                    prayer: Some(5_505_116),
-                                    attack: Some(7_733_347),
-                                    strength: Some(7_733_347),
-                                    defence: Some(7_733_347),
-                                    ranged: Some(7_340_131),
-                                    magic: Some(6_488_163),
-                                    equipment_deltas: vec![988_714_356_441_089],
-                                    active_prayers: Some(134_217_728),
+                            }],
+                        }
+                        .encode_to_vec(),
+                    ),
+                },
+                StageStreamEntry {
+                    id: "3-0".to_string(),
+                    client_id: ClientId(1),
+                    record: StageStreamRecord::Events(
+                        proto::EventStream {
+                            events: vec![
+                                proto::Event {
+                                    r#type: proto::event::Type::NpcUpdate as i32,
+                                    stage: Stage::MokhaiotlDelve2 as i32,
+                                    tick: 2,
+                                    x_coord: 3421,
+                                    y_coord: 6435,
+                                    npc: Some(proto::event::Npc {
+                                        id: 14707,
+                                        room_id: 49601,
+                                        hitpoints: 36_045_350,
+                                        r#type: Some(proto::event::npc::Type::Basic(())),
+                                        ..Default::default()
+                                    }),
                                     ..Default::default()
-                                }),
-                                ..Default::default()
-                            },
-                        ],
-                    }
-                    .encode_to_vec(),
+                                },
+                                proto::Event {
+                                    r#type: proto::event::Type::PlayerUpdate as i32,
+                                    stage: Stage::MokhaiotlDelve2 as i32,
+                                    tick: 3,
+                                    x_coord: 3423,
+                                    y_coord: 6430,
+                                    player: Some(proto::event::Player {
+                                        name: "Dedion".to_string(),
+                                        off_cooldown_tick: 3,
+                                        hitpoints: Some(7_012_451),
+                                        prayer: Some(5_505_116),
+                                        attack: Some(7_733_347),
+                                        strength: Some(7_733_347),
+                                        defence: Some(7_733_347),
+                                        ranged: Some(7_340_131),
+                                        magic: Some(6_488_163),
+                                        equipment_deltas: vec![988_714_356_441_089],
+                                        active_prayers: Some(134_217_728),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                },
+                            ],
+                        }
+                        .encode_to_vec(),
+                    ),
                 },
             ],
             0,
@@ -2401,36 +2523,38 @@ mod tests {
             &[StageStreamEntry {
                 id: "4-0".to_string(),
                 client_id: ClientId(1),
-                events: proto::EventStream {
-                    events: vec![
-                        proto::Event {
-                            r#type: proto::event::Type::NpcUpdate as i32,
-                            stage: Stage::MokhaiotlDelve2 as i32,
-                            tick: 3,
-                            x_coord: 3421,
-                            y_coord: 6435,
-                            npc: Some(proto::event::Npc {
-                                id: 14707,
-                                room_id: 49601,
-                                hitpoints: 36_045_350,
-                                r#type: Some(proto::event::npc::Type::Basic(())),
+                record: StageStreamRecord::Events(
+                    proto::EventStream {
+                        events: vec![
+                            proto::Event {
+                                r#type: proto::event::Type::NpcUpdate as i32,
+                                stage: Stage::MokhaiotlDelve2 as i32,
+                                tick: 3,
+                                x_coord: 3421,
+                                y_coord: 6435,
+                                npc: Some(proto::event::Npc {
+                                    id: 14707,
+                                    room_id: 49601,
+                                    hitpoints: 36_045_350,
+                                    r#type: Some(proto::event::npc::Type::Basic(())),
+                                    ..Default::default()
+                                }),
                                 ..Default::default()
-                            }),
-                            ..Default::default()
-                        },
-                        proto::Event {
-                            r#type: proto::event::Type::MokhaiotlAttackStyle as i32,
-                            stage: Stage::MokhaiotlDelve2 as i32,
-                            tick: 4,
-                            mokhaiotl_attack_style: Some(proto::event::AttackStyle {
-                                style: proto::event::attack_style::Style::Mage as i32,
-                                npc_attack_tick: 1,
-                            }),
-                            ..Default::default()
-                        },
-                    ],
-                }
-                .encode_to_vec(),
+                            },
+                            proto::Event {
+                                r#type: proto::event::Type::MokhaiotlAttackStyle as i32,
+                                stage: Stage::MokhaiotlDelve2 as i32,
+                                tick: 4,
+                                mokhaiotl_attack_style: Some(proto::event::AttackStyle {
+                                    style: proto::event::attack_style::Style::Mage as i32,
+                                    npc_attack_tick: 1,
+                                }),
+                                ..Default::default()
+                            },
+                        ],
+                    }
+                    .encode_to_vec(),
+                ),
             }],
             1,
         );

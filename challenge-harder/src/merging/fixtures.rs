@@ -7,8 +7,8 @@ use blert::proto::event::sote_maze::Maze;
 use blert::proto::event::{VerzikPhase, XarpusPhase};
 use blert::proto::{Coords, Event, event};
 use blert::{
-    BuildRejection, ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerSet, RecordingBuilder,
-    Rsn, SkillLevel,
+    BuildRejection, ConfigVersion, ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerSet,
+    RecordingBuilder, Rsn, SkillLevel,
 };
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
@@ -44,7 +44,8 @@ pub fn merged_events(
         ServerTicks::Missing => events.last().map_or(0, |e| e.tick),
     };
     let recorded_ticks = events.last().map_or(0, |e| e.tick + 1);
-    let mut builder = RecordingBuilder::new(ClientId(1), stage, mode, party, None);
+    let mut builder =
+        RecordingBuilder::new(ClientId(1), ConfigVersion::LATEST, stage, mode, party, None);
     builder.ingest(events);
     assert_eq!(
         builder.rejections().collect::<Vec<_>>(),

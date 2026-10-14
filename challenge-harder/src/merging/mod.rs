@@ -36,7 +36,9 @@ pub use trace::Tracer;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::{BuildRejection, Recording, RecordingBuilder, Rsn, Tick, Ticks, Timeline};
+use blert::{
+    BuildRejection, ConfigVersion, Recording, RecordingBuilder, Rsn, Tick, Ticks, Timeline,
+};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, Uuid,
@@ -195,6 +197,7 @@ pub fn merge<'a>(
     // interpret phase is moved onto blertlib.
     let mut builder = RecordingBuilder::new(
         ctx.client(classification.base).info.id,
+        ConfigVersion::LATEST,
         stage,
         challenge.mode,
         challenge.party.to_vec(),

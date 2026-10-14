@@ -9,14 +9,19 @@ use crate::tick::Tick;
 use crate::{ChallengeMode, Stage, proto};
 
 mod builder;
+mod config;
 mod encode;
 mod finalize;
+mod interpret;
 mod recording;
 
-pub use builder::{
-    BuildRejection, BuildWarning, FieldError, RawActor, RecordingBuilder, RejectionReason,
-};
+use interpret::RawObjects;
 
+pub use builder::{
+    BuildMismatch, BuildRejection, BuildWarning, FieldError, RawActor, RecordingBuilder,
+    RejectionReason,
+};
+pub use config::{ConfigVersion, InvalidVersion};
 pub use recording::Recording;
 
 /// The state of the world on a single tick alongside the events that occurred.
@@ -25,6 +30,7 @@ pub struct TickState {
     pub players: Players,
     pub npcs: BTreeMap<RoomId, NpcState>,
     pub objects: TickObjects,
+    pub(crate) raw_objects: RawObjects,
     pub events: Vec<Event>,
 }
 
@@ -167,12 +173,14 @@ mod tests {
                     players: Players::empty(2),
                     npcs: BTreeMap::new(),
                     objects: TickObjects::default(),
+                    raw_objects: RawObjects::default(),
                     events: vec![Event::recorded(ClientId(7), EventKind::BloatUp)],
                 }),
                 Some(TickState {
                     players: Players::empty(2),
                     npcs: BTreeMap::new(),
                     objects: TickObjects::default(),
+                    raw_objects: RawObjects::default(),
                     events: Vec::new(),
                 }),
                 None,
@@ -180,6 +188,7 @@ mod tests {
                     players: Players::empty(2),
                     npcs: BTreeMap::new(),
                     objects: TickObjects::default(),
+                    raw_objects: RawObjects::default(),
                     events: vec![Event::recorded(
                         ClientId(7),
                         EventKind::BloatDown(BloatDown {
@@ -206,6 +215,7 @@ mod tests {
                 players: Players::empty(2),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             })
         );
@@ -215,6 +225,7 @@ mod tests {
                 players: Players::empty(2),
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: vec![Event::recorded(
                     ClientId(7),
                     EventKind::BloatDown(BloatDown {
@@ -284,6 +295,7 @@ mod tests {
                     },
                 )]),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             },
         );
@@ -326,6 +338,7 @@ mod tests {
                     ),
                 ]),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             },
         );
@@ -368,6 +381,7 @@ mod tests {
                     ),
                 ]),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: Vec::new(),
             },
         );
@@ -390,6 +404,7 @@ mod tests {
                     },
                 )]),
                 objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
                 events: vec![Event::recorded(
                     ClientId(344),
                     EventKind::NpcDeath(NpcDeath {

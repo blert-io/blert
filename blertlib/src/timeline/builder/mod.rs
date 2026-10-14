@@ -13,7 +13,7 @@ use crate::event::{
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item, ItemDelta};
 use crate::objects::{ObjectKind, TickObjects};
 use crate::prayer::PrayerSet;
-use crate::proto::event::Type;
+use crate::proto::event::{Type, object_update};
 use crate::skill::SkillLevel;
 use crate::tick::{Tick, Ticks};
 use crate::{
@@ -21,7 +21,8 @@ use crate::{
     Source, Stage, npc, proto,
 };
 
-use super::{Recording, TickState};
+use super::interpret::{self, ObjectDef, RawObjects};
+use super::{ConfigVersion, Recording, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
 /// construction of a recording.
@@ -74,6 +75,16 @@ pub enum FieldError {
     OutOfDomain(String),
     /// The value references an actor who is not in the world.
     UnknownActor(RawActor),
+    UnknownObject {
+        r#type: proto::event::object_update::Type,
+        id: u32,
+        coords: proto::Coords,
+    },
+    DuplicateObject {
+        r#type: proto::event::object_update::Type,
+        id: u32,
+        coords: proto::Coords,
+    },
 }
 
 /// A wire identifier for an actor.
@@ -83,6 +94,19 @@ pub enum RawActor {
     Npc(u64),
 }
 
+/// A `BuildMismatch` describes a tick where the data in a bespoke event sent by
+/// a plugin differs from what was interpreted from raw data.
+/// `kind` indicates what was compared, and `bespoke` and `interpreted` store
+/// pairs of differing or missing values, specific to what is being interpreted.
+// TODO(frolv): Temporary until bespoke events are removed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildMismatch {
+    pub tick: Tick,
+    pub kind: String,
+    pub bespoke: Vec<String>,
+    pub interpreted: Vec<String>,
+}
+
 /// A builder for constructing a [`Recording`] from a stream of events.
 ///
 /// A builder can either run as a single pass over a complete stream, or ingest
@@ -90,6 +114,7 @@ pub enum RawActor {
 #[derive(Debug)]
 pub struct RecordingBuilder {
     client_id: ClientId,
+    config_version: ConfigVersion,
     stage: Stage,
     mode: ChallengeMode,
     party: Vec<Rsn>,
@@ -99,7 +124,11 @@ pub struct RecordingBuilder {
     last_seen_actors: HashMap<Actor, Tick>,
     rejections: BTreeMap<Tick, Vec<BuildRejection>>,
     warnings: BTreeMap<Tick, Vec<BuildWarning>>,
+    // TODO(frolv): Temporary until bespoke object events are removed.
+    mismatches: BTreeMap<Tick, Vec<BuildMismatch>>,
     legacy_objects: bool,
+    // TODO(frolv): Temporary until bespoke object events are removed.
+    object_updates: bool,
 }
 
 impl RecordingBuilder {
@@ -110,6 +139,7 @@ impl RecordingBuilder {
     #[must_use]
     pub fn new(
         client_id: ClientId,
+        config_version: ConfigVersion,
         stage: Stage,
         mode: ChallengeMode,
         party: Vec<Rsn>,
@@ -120,6 +150,7 @@ impl RecordingBuilder {
 
         Self {
             client_id,
+            config_version,
             stage,
             mode,
             party,
@@ -129,8 +160,16 @@ impl RecordingBuilder {
             last_seen_actors: HashMap::new(),
             rejections: BTreeMap::new(),
             warnings: BTreeMap::new(),
+            mismatches: BTreeMap::new(),
             legacy_objects: false,
+            object_updates: false,
         }
+    }
+
+    /// Config under which the client recorded the events.
+    #[must_use]
+    pub fn config_version(&self) -> ConfigVersion {
+        self.config_version
     }
 
     /// Processes the provided raw events into the recording, constructing state.
@@ -147,14 +186,20 @@ impl RecordingBuilder {
         self.ingest_from(start)
     }
 
-    // Returns every rejection recorded by the builder.
+    /// Returns every rejection recorded by the builder.
     pub fn rejections(&self) -> impl Iterator<Item = &BuildRejection> {
         self.rejections.values().flatten()
     }
 
-    // Returns every warning recorded by the builder.
+    /// Returns every warning recorded by the builder.
     pub fn warnings(&self) -> impl Iterator<Item = &BuildWarning> {
         self.warnings.values().flatten()
+    }
+
+    /// Returns every mismatch recorded by the builder.
+    // TODO(frolv): Temporary until bespoke object events are removed.
+    pub fn mismatches(&self) -> impl Iterator<Item = &BuildMismatch> {
+        self.mismatches.values().flatten()
     }
 
     /// Returns a reference to the builder's partially-constructed recording.
@@ -189,6 +234,9 @@ impl RecordingBuilder {
             };
             if legacy_objects {
                 self.legacy_objects = true;
+            }
+            if event.r#type() == Type::Objects {
+                self.object_updates = true;
             }
 
             if event.stage() != self.stage {
@@ -264,6 +312,16 @@ impl RecordingBuilder {
             }
         }
         self.events.append(&mut pending);
+        // TODO(frolv): Temporary until bespoke object events are removed.
+        if self.object_updates {
+            self.mismatches.clear();
+            for mismatch in interpret::compare(&recording, self.client_id) {
+                self.mismatches
+                    .entry(mismatch.tick)
+                    .or_default()
+                    .push(mismatch);
+            }
+        }
         self.recording = Some(recording);
 
         changed
@@ -304,6 +362,12 @@ impl<'a> TickBuilder<'a> {
             objects.clear(ObjectKind::MokhaiotlShockwave);
         }
 
+        let raw_objects = tick
+            .up_to()
+            .rev()
+            .find_map(|previous| recording.get_state(previous))
+            .map_or_else(RawObjects::default, |previous| previous.raw_objects.clone());
+
         Self {
             client_id: builder.client_id,
             party: &builder.party,
@@ -312,6 +376,7 @@ impl<'a> TickBuilder<'a> {
                 players: Players::empty(builder.party.len()),
                 npcs: BTreeMap::new(),
                 objects,
+                raw_objects,
                 events: Vec::new(),
             },
             processed: 0,
@@ -387,8 +452,15 @@ impl<'a> TickBuilder<'a> {
                 }
             }
 
-            #[expect(clippy::match_same_arms, reason = "temporarily ignored")]
-            Type::Objects => {}
+            Type::Objects => match parse_objects(event.objects.as_ref()) {
+                Ok((snapshot, updates)) => self.apply_objects(snapshot, updates),
+                Err(reason) => {
+                    self.rejections
+                        .entry(tick)
+                        .or_default()
+                        .push(BuildRejection { tick, kind, reason });
+                }
+            },
 
             // Full snapshot legacy graphics.
             Type::TobMaidenBloodSplats | Type::TobVerzikYellows | Type::MokhaiotlShockwave => {
@@ -467,20 +539,20 @@ impl<'a> TickBuilder<'a> {
                     )) => {
                         let source = Source::Client(self.client_id);
                         let objects = &mut self.state.objects;
+                        objects.remove(ObjectKind::ColosseumReentryPrimaryPool, primary_despawned);
                         objects.insert(
                             ObjectKind::ColosseumReentryPrimaryPool,
                             source,
                             primary_spawned,
                         );
-                        objects.remove(ObjectKind::ColosseumReentryPrimaryPool, primary_despawned);
+                        objects.remove(
+                            ObjectKind::ColosseumReentrySecondaryPool,
+                            secondary_despawned,
+                        );
                         objects.insert(
                             ObjectKind::ColosseumReentrySecondaryPool,
                             source,
                             secondary_spawned,
-                        );
-                        objects.remove(
-                            ObjectKind::ColosseumReentrySecondaryPool,
-                            secondary_despawned,
                         );
                     }
                     Err(reason) => {
@@ -662,6 +734,51 @@ impl<'a> TickBuilder<'a> {
             | Type::TobNyloCleanupEnd
             | Type::TobNyloBossSpawn => {
                 // Deliberately ignored.
+            }
+        }
+    }
+
+    fn apply_objects(&mut self, snapshot: bool, updates: Vec<ObjectUpdate>) {
+        let tick = self.tick;
+        // An event-level snapshot means that only listed objects exist.
+        if snapshot {
+            self.state.raw_objects = RawObjects::default();
+        }
+        for ObjectUpdate {
+            def,
+            snapshot,
+            removed,
+            added,
+        } in updates
+        {
+            if snapshot {
+                self.state.raw_objects.replace(def, added);
+                continue;
+            }
+            let ObjectDef(r#type, id) = def;
+            for point in self.state.raw_objects.remove(def, removed) {
+                self.warnings.entry(tick).or_default().push(BuildWarning {
+                    tick,
+                    kind: Type::Objects,
+                    field: "objects.updates.removed",
+                    error: FieldError::UnknownObject {
+                        r#type,
+                        id,
+                        coords: proto::Coords::from(point),
+                    },
+                });
+            }
+            for point in self.state.raw_objects.insert(def, added) {
+                self.warnings.entry(tick).or_default().push(BuildWarning {
+                    tick,
+                    kind: Type::Objects,
+                    field: "objects.updates.added",
+                    error: FieldError::DuplicateObject {
+                        r#type,
+                        id,
+                        coords: proto::Coords::from(point),
+                    },
+                });
             }
         }
     }
@@ -968,6 +1085,13 @@ enum EventOutcome {
         error: FieldError,
     },
     Rejected(RejectionReason),
+}
+
+struct ObjectUpdate {
+    def: ObjectDef,
+    snapshot: bool,
+    removed: Vec<Point>,
+    added: Vec<Point>,
 }
 
 fn resolve_index(party: &[Rsn], player: &str) -> Result<PartyIndex, FieldError> {
@@ -1567,6 +1691,42 @@ fn parse_points(
             })
         })
         .collect()
+}
+
+fn parse_objects(
+    objects: Option<&proto::event::Objects>,
+) -> Result<(bool, Vec<ObjectUpdate>), RejectionReason> {
+    let objects = objects.required("objects")?;
+    if !objects.snapshot && objects.updates.is_empty() {
+        return Err(RejectionReason::MissingPayload("objects.updates"));
+    }
+    let updates = objects
+        .updates
+        .iter()
+        .map(|update| parse_object_update(update, objects.snapshot))
+        .collect::<Result<_, _>>()?;
+    Ok((objects.snapshot, updates))
+}
+
+fn parse_object_update(
+    update: &proto::event::ObjectUpdate,
+    snapshot: bool,
+) -> Result<ObjectUpdate, RejectionReason> {
+    let kind = match object_update::Type::try_from(update.r#type) {
+        Ok(kind) if kind != object_update::Type::Unspecified => kind,
+        _ => {
+            return Err(RejectionReason::InvalidField {
+                field: "objects.updates.type",
+                error: FieldError::OutOfDomain(update.r#type.to_string()),
+            });
+        }
+    };
+    Ok(ObjectUpdate {
+        def: ObjectDef(kind, update.id),
+        snapshot: snapshot || update.snapshot,
+        removed: parse_points("objects.updates.removed", &update.removed)?,
+        added: parse_points("objects.updates.added", &update.added)?,
+    })
 }
 
 fn parse_maze(maze: &proto::event::SoteMaze) -> Result<Maze, RejectionReason> {
