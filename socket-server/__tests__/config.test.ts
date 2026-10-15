@@ -29,7 +29,7 @@ class FakeMulti {
     return this;
   }
 
-  public async exec(): Promise<unknown[]> {
+  public async execTyped(): Promise<unknown[]> {
     return this.ops.map((op) => op());
   }
 }

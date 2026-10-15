@@ -43,7 +43,7 @@ export async function getRecentFeedItems(limit: number = 10) {
       COUNT: limit * FEED_OVERREAD_FACTOR,
     })
     .then((items) =>
-      items.map((item) => ({
+      (items ?? []).map((item) => ({
         type: parseInt(item.message.type),
         data: JSON.parse(item.message.data) as ActivityFeedData,
       })),

@@ -164,14 +164,12 @@ export class ConfigManager {
       .sMembers(ConfigManager.REVISION_KEY)
       .get(ConfigManager.RL_VERSION_KEY)
       .sMembers(ConfigManager.DISABLED_CHALLENGES_KEY)
-      .exec();
+      .execTyped();
     if (results === null) {
       throw new Error('Config transaction was aborted');
     }
 
-    const redisRevisions = results[0] as string[];
-    const redisRlVersion = results[1] as string | null;
-    const redisDisabledChallenges = results[2] as string[];
+    const [redisRevisions, redisRlVersion, redisDisabledChallenges] = results;
 
     if (redisRevisions.length > 0) {
       const newRevisions = new Set(redisRevisions);

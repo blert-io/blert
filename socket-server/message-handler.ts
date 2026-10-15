@@ -306,6 +306,7 @@ export default class MessageHandler {
           logger.error('event_stream_processing_failed', {
             challengeUuid: challengeId,
             error: e instanceof Error ? e.message : String(e),
+            errorClass: e instanceof Error ? e.constructor.name : typeof e,
           });
         }
         break;
