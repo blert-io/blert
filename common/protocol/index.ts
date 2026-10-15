@@ -2,6 +2,7 @@ export {
   attackDefinitionJsonToProto,
   jsonToServerMessage,
   jsonToProtoEvent,
+  recordingConfigJsonToProto,
   serverMessageToJson,
   spellDefinitionJsonToProto,
 } from './json-converter';
@@ -13,6 +14,7 @@ export type {
   ChallengeUpdateJson,
   EventJson,
   GameStateJson,
+  RecordingConfigJson,
   ServerMessageJson,
 } from './json-schemas';
 
@@ -24,6 +26,7 @@ export {
   challengeUpdateSchema,
   eventSchema,
   gameStateSchema,
+  recordingConfigSchema,
   serverMessageSchema,
   spellDefinitionSchema,
 } from './json-schemas';

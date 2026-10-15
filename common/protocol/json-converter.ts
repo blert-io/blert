@@ -11,6 +11,7 @@ import {
   ChallengeEndRequest,
   ChallengeStartRequest,
   ChallengeUpdate,
+  RecordingConfig,
   RecordingInfo,
   ServerMessage,
   SpellDefinition,
@@ -20,8 +21,11 @@ import {
   attackDefinitionSchema,
   EventJson,
   npcSchema,
+  objectCaptureSchema,
   pastChallengeSchema,
   projectileSchema,
+  recordingConfigSchema,
+  scopeSchema,
   ServerMessageJson,
   serverMessageSchema,
   spellDefinitionSchema,
@@ -223,6 +227,10 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
   if (json.spellDefinitions !== undefined) {
     const defs = json.spellDefinitions.map(spellDefinitionJsonToProto);
     msg.setSpellDefinitionsList(defs);
+  }
+
+  if (json.recordingConfig !== undefined) {
+    msg.setRecordingConfig(recordingConfigJsonToProto(json.recordingConfig));
   }
 
   if (json.recordingInfo !== undefined) {
@@ -754,6 +762,41 @@ export function spellDefinitionJsonToProto(
   return def;
 }
 
+export function recordingConfigJsonToProto(
+  json: z.infer<typeof recordingConfigSchema>,
+): RecordingConfig {
+  const config = new RecordingConfig();
+  config.setVersion(json.version);
+  if (json.global !== undefined) {
+    config.setGlobal(scopeJsonToProto(json.global));
+  }
+  config.setChallengesList(
+    json.challenges.map((c) => {
+      const challengeScope = new RecordingConfig.ChallengeScope();
+      challengeScope.setChallenge(c.challenge as AnyEnum);
+      challengeScope.setScope(scopeJsonToProto(c.scope));
+      return challengeScope;
+    }),
+  );
+  return config;
+}
+
+function scopeJsonToProto(
+  json: z.infer<typeof scopeSchema>,
+): RecordingConfig.Scope {
+  const scope = new RecordingConfig.Scope();
+  scope.setObjectsList(
+    json.objects.map((o) => {
+      const capture = new RecordingConfig.ObjectCapture();
+      capture.setType(o.type as AnyEnum);
+      capture.setIdsList(o.ids);
+      capture.setOnCreation(o.onCreation ?? false);
+      return capture;
+    }),
+  );
+  return scope;
+}
+
 /**
  * Converts a ServerMessage protobuf to canonical proto3 JSON format.
  * Only fields sent from server to client are included.
@@ -833,9 +876,46 @@ export function serverMessageToJson(msg: ServerMessage): ServerMessageJson {
     json.spellDefinitions = spellDefinitions.map(spellDefinitionToJson);
   }
 
+  if (msg.hasRecordingConfig()) {
+    json.recordingConfig = recordingConfigToJson(msg.getRecordingConfig()!);
+  }
+
   json.requestId = msg.getRequestId();
 
   return json;
+}
+
+function recordingConfigToJson(
+  config: RecordingConfig,
+): z.infer<typeof recordingConfigSchema> {
+  const json: z.infer<typeof recordingConfigSchema> = {
+    version: config.getVersion(),
+    challenges: config.getChallengesList().map((challengeScope) => ({
+      challenge: challengeScope.getChallenge(),
+      scope: scopeToJson(challengeScope.getScope()!),
+    })),
+  };
+  if (config.hasGlobal()) {
+    json.global = scopeToJson(config.getGlobal()!);
+  }
+  return json;
+}
+
+function scopeToJson(
+  scope: RecordingConfig.Scope,
+): z.infer<typeof scopeSchema> {
+  return {
+    objects: scope.getObjectsList().map((capture) => {
+      const json: z.infer<typeof objectCaptureSchema> = {
+        type: capture.getType(),
+        ids: capture.getIdsList(),
+      };
+      if (capture.getOnCreation()) {
+        json.onCreation = true;
+      }
+      return json;
+    }),
+  };
 }
 
 function pastChallengeToJson(

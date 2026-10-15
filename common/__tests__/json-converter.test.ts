@@ -1,4 +1,4 @@
-import { Event } from '../generated/event_pb';
+import { Challenge, Event } from '../generated/event_pb';
 import {
   AttackDefinition,
   ServerMessage,
@@ -1197,5 +1197,58 @@ describe('round-trip conversion', () => {
     expect(resultJson.spellDefinitions).toHaveLength(1);
     expect(resultJson.spellDefinitions![0].name).toBe('Ice Barrage');
     expect(resultJson.spellDefinitions![0].graphics).toHaveLength(1);
+  });
+
+  it('preserves a recording config through JSON -> Proto -> JSON', () => {
+    const originalJson: ServerMessageJson = {
+      type: ServerMessage.Type.RECORDING_CONFIG,
+      recordingConfig: {
+        version: 1,
+        global: {
+          objects: [{ type: Event.ObjectUpdate.Type.GAME, ids: [50743] }],
+        },
+        challenges: [
+          {
+            challenge: Challenge.TOB,
+            scope: {
+              objects: [
+                { type: Event.ObjectUpdate.Type.GROUND, ids: [32743, 33035] },
+                {
+                  type: Event.ObjectUpdate.Type.GRAPHICS,
+                  ids: [1570, 1576],
+                  onCreation: true,
+                },
+              ],
+            },
+          },
+          {
+            challenge: Challenge.MOKHAIOTL,
+            scope: {
+              objects: [
+                { type: Event.ObjectUpdate.Type.GAME, ids: [57283, 57286] },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const proto = jsonToServerMessage(originalJson);
+    const config = proto.getRecordingConfig()!;
+    expect(config.getVersion()).toBe(1);
+    expect(config.getGlobal()!.getObjectsList()[0].getIdsList()).toEqual([
+      50743,
+    ]);
+    const tobObjects = config
+      .getChallengesList()[0]
+      .getScope()!
+      .getObjectsList();
+    expect(config.getChallengesList()[0].getChallenge()).toBe(Challenge.TOB);
+    expect(tobObjects[0].getType()).toBe(Event.ObjectUpdate.Type.GROUND);
+    expect(tobObjects[0].getOnCreation()).toBe(false);
+    expect(tobObjects[1].getOnCreation()).toBe(true);
+
+    const resultJson = serverMessageToJson(proto);
+    expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);
   });
 });

@@ -1,10 +1,26 @@
 import { z } from 'zod';
 
+import { Challenge, Event } from '../generated/event_pb';
+
 /**
  * Schema for integer enum values.
  * Protobuf enums serialize as their numeric values in JSON.
  */
 const enumValueSchema = z.number().int().nonnegative();
+
+const uint32Schema = z
+  .number()
+  .int()
+  .nonnegative()
+  .max(2 ** 32 - 1);
+
+function enumMemberSchema(enumObject: object) {
+  const members: unknown[] = Object.values(enumObject);
+  return z
+    .number()
+    .int()
+    .refine((value) => members.includes(value));
+}
 
 export const coordsSchema = z.object({
   x: z.number().int(),
@@ -121,6 +137,31 @@ export const challengeUpdateSchema = z.object({
   mode: enumValueSchema.optional(),
   party: z.array(z.string()).optional(),
   stageUpdate: stageUpdateSchema.optional(),
+});
+
+// RecordingConfig.ObjectCapture
+export const objectCaptureSchema = z.object({
+  type: enumMemberSchema(Event.ObjectUpdate.Type),
+  ids: z.array(uint32Schema),
+  onCreation: z.boolean().optional(),
+});
+
+// RecordingConfig.Scope
+export const scopeSchema = z.object({
+  objects: z.array(objectCaptureSchema),
+});
+
+// RecordingConfig.ChallengeScope
+export const challengeScopeSchema = z.object({
+  challenge: enumMemberSchema(Challenge),
+  scope: scopeSchema,
+});
+
+// RecordingConfig
+export const recordingConfigSchema = z.object({
+  version: uint32Schema,
+  global: scopeSchema.optional(),
+  challenges: z.array(challengeScopeSchema),
 });
 
 // RecordingInfo
@@ -492,6 +533,7 @@ export const serverMessageSchema = z.object({
   challengeUpdate: challengeUpdateSchema.optional(),
   attackDefinitions: z.array(attackDefinitionSchema).optional(),
   spellDefinitions: z.array(spellDefinitionSchema).optional(),
+  recordingConfig: recordingConfigSchema.optional(),
   recordingInfo: recordingInfoSchema.optional(),
   requestId: z.number().int().nonnegative().optional(),
 });
@@ -504,6 +546,7 @@ export type ChallengeStartRequestJson = z.infer<
 export type ChallengeEndRequestJson = z.infer<typeof challengeEndRequestSchema>;
 export type ChallengeUpdateJson = z.infer<typeof challengeUpdateSchema>;
 export type GameStateJson = z.infer<typeof gameStateSchema>;
+export type RecordingConfigJson = z.infer<typeof recordingConfigSchema>;
 export type ChallengeStateConfirmationJson = z.infer<
   typeof challengeStateConfirmationSchema
 >;

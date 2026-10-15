@@ -32,6 +32,7 @@ import {
   SUBPROTOCOL_PROTOBUF,
   subprotocolToFormat,
 } from './protocol';
+import { RecordingConfigRepository, VersionError } from './recording-config';
 import { RemoteChallengeManager } from './remote-challenge-manager';
 import ServerManager, { ServerStatus } from './server-manager';
 import { PluginVersions } from './verification';
@@ -65,6 +66,7 @@ type RebalanceRequest = {
 function setupHttpRoutes(
   app: express.Express,
   serverManager: ServerManager,
+  recordingConfigRepository: RecordingConfigRepository,
   definitionsRepository: ActionDefinitionsRepository,
   onDrainComplete: () => void,
 ) {
@@ -165,6 +167,66 @@ function setupHttpRoutes(
     });
     res.json(result);
   });
+
+  // Admin endpoint to upload a new recording config version.
+  app.post(
+    '/admin/recording-config',
+    asyncHandler(async (req, res) => {
+      try {
+        const uploaded = await recordingConfigRepository.upload(req.body);
+        res.json({ success: true, version: uploaded.version });
+      } catch (e) {
+        if (e instanceof ValidationError) {
+          res.status(400).json({ error: e.message });
+          return;
+        }
+        if (e instanceof VersionError) {
+          res.status(409).json({ error: e.message });
+          return;
+        }
+        logger.error('recording_config_upload_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        res.status(500).json({
+          error: e instanceof Error ? e.message : 'Upload failed',
+        });
+      }
+    }),
+  );
+
+  // Admin endpoint to set the current recording config version.
+  app.put(
+    '/admin/recording-config/current',
+    asyncHandler(async (req, res) => {
+      const body = req.body as { version?: unknown };
+      if (
+        typeof body.version !== 'number' ||
+        !Number.isInteger(body.version) ||
+        body.version < 0
+      ) {
+        res
+          .status(400)
+          .json({ error: 'version must be a nonnegative integer' });
+        return;
+      }
+      try {
+        await recordingConfigRepository.setCurrentVersion(body.version);
+        res.json({ success: true, version: body.version });
+      } catch (e) {
+        if (e instanceof VersionError) {
+          res.status(404).json({ error: e.message });
+          return;
+        }
+        logger.error('recording_config_current_version_failed', {
+          version: body.version,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        res.status(500).json({
+          error: e instanceof Error ? e.message : 'Update failed',
+        });
+      }
+    }),
+  );
 
   // Admin endpoint to upload new attack definitions.
   app.post(
@@ -282,47 +344,77 @@ async function loadValidRevisions(): Promise<Set<string>> {
 }
 
 /**
- * Initializes the action definitions repository with the configured backend.
+ * Creates the data repository holding the recording config and action
+ * definitions from the configured backend.
  */
-async function initializeDefinitionsRepository(
-  redisClient: RedisClientType,
-): Promise<ActionDefinitionsRepository> {
-  let repository: DataRepository | null = null;
-
+function createDefinitionsDataRepository(): DataRepository {
   const repositoryUri = process.env.BLERT_DEFINITIONS_REPOSITORY;
-  if (repositoryUri) {
-    let backend: DataRepository.Backend;
-
-    if (repositoryUri.startsWith('file://')) {
-      const root = repositoryUri.slice('file://'.length);
-      logger.info('definitions_repository_backend', {
-        backend: 'filesystem',
-        root,
-      });
-      backend = new DataRepository.FilesystemBackend(root);
-    } else if (repositoryUri.startsWith('s3://')) {
-      const s3Client = new S3Client({
-        forcePathStyle: false,
-        region: process.env.BLERT_REGION,
-        endpoint: process.env.BLERT_ENDPOINT,
-        credentials: {
-          accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
-        },
-      });
-      const bucket = repositoryUri.slice('s3://'.length);
-      logger.info('definitions_repository_backend', { backend: 's3', bucket });
-      backend = new DataRepository.S3Backend(s3Client, bucket);
-    } else {
-      logger.error('definitions_repository_backend_invalid', {
-        backend: repositoryUri,
-      });
-      process.exit(1);
-    }
-
-    repository = new DataRepository(backend);
+  if (!repositoryUri) {
+    throw new Error('BLERT_DEFINITIONS_REPOSITORY is not set');
   }
 
+  let backend: DataRepository.Backend;
+
+  if (repositoryUri.startsWith('file://')) {
+    const root = repositoryUri.slice('file://'.length);
+    logger.info('definitions_repository_backend', {
+      backend: 'filesystem',
+      root,
+    });
+    backend = new DataRepository.FilesystemBackend(root);
+  } else if (repositoryUri.startsWith('s3://')) {
+    const s3Client = new S3Client({
+      forcePathStyle: false,
+      region: process.env.BLERT_REGION,
+      endpoint: process.env.BLERT_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.BLERT_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.BLERT_SECRET_ACCESS_KEY!,
+      },
+    });
+    const bucket = repositoryUri.slice('s3://'.length);
+    logger.info('definitions_repository_backend', { backend: 's3', bucket });
+    backend = new DataRepository.S3Backend(s3Client, bucket);
+  } else {
+    logger.error('definitions_repository_backend_invalid', {
+      backend: repositoryUri,
+    });
+    process.exit(1);
+  }
+
+  return new DataRepository(backend);
+}
+
+/**
+ * Initializes the recording config repository, seeding it from the bundled
+ * config file if it has no current version.
+ */
+async function initializeRecordingConfigRepository(
+  repository: DataRepository,
+  redisClient: RedisClientType,
+): Promise<RecordingConfigRepository> {
+  if (!process.env.BLERT_RECORDING_CONFIG_SEED) {
+    throw new Error('BLERT_RECORDING_CONFIG_SEED is not set');
+  }
+
+  const recordingConfigRepository = new RecordingConfigRepository(
+    repository,
+    redisClient,
+  );
+  await recordingConfigRepository.initialize(
+    process.env.BLERT_RECORDING_CONFIG_SEED,
+  );
+
+  return recordingConfigRepository;
+}
+
+/**
+ * Initializes the action definitions repository.
+ */
+async function initializeDefinitionsRepository(
+  repository: DataRepository,
+  redisClient: RedisClientType,
+): Promise<ActionDefinitionsRepository> {
   if (!process.env.BLERT_ATTACK_DEFINITIONS_FALLBACK) {
     throw new Error('BLERT_ATTACK_DEFINITIONS_FALLBACK is not set');
   }
@@ -482,11 +574,19 @@ async function main(): Promise<void> {
     });
   });
 
-  const definitionsRepository =
-    await initializeDefinitionsRepository(redisClient);
+  const definitionsDataRepository = createDefinitionsDataRepository();
+  const recordingConfigRepository = await initializeRecordingConfigRepository(
+    definitionsDataRepository,
+    redisClient,
+  );
+  const definitionsRepository = await initializeDefinitionsRepository(
+    definitionsDataRepository,
+    redisClient,
+  );
 
   const connectionManager = new ConnectionManager(
     redisClient,
+    recordingConfigRepository,
     definitionsRepository,
   );
   const serverManager = new ServerManager(connectionManager);
@@ -521,7 +621,13 @@ async function main(): Promise<void> {
     })();
   };
 
-  setupHttpRoutes(app, serverManager, definitionsRepository, drainTeardown);
+  setupHttpRoutes(
+    app,
+    serverManager,
+    recordingConfigRepository,
+    definitionsRepository,
+    drainTeardown,
+  );
 
   wss.on('connection', (_ws: WebSocket, _req: Request, client: Client) => {
     connectionManager.addClient(client);
