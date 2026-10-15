@@ -79,7 +79,6 @@ pub enum EventKind {
     NyloCleanupEnd,
     NyloBossSpawn,
     SoteMazeProc(Maze),
-    SoteMazePivots(SoteMazePivots),
     SoteMazeEnd(SoteMazeEnd),
     XarpusPhase(XarpusPhase),
     XarpusExhumed(XarpusExhumed),
@@ -101,14 +100,6 @@ pub enum EventKind {
 
     MokhaiotlOrb(MokhaiotlOrb),
     MokhaiotlLarvaLeak(MokhaiotlLarvaLeak),
-
-    /// Not really an "event" in the normal sense, as it doesn't describe
-    /// anything that happened within a stage. The plugin sends one of these
-    /// on tick 0 of each wave with its own accounting of the ticks elapsed
-    /// since the start of the challenge, including inter-wave gaps.
-    /// Not sent if the player ever logs out since the clock is no longer
-    /// monotonic.
-    InfernoWaveStart(Ticks),
 }
 
 impl EventKind {
@@ -144,7 +135,6 @@ impl EventKind {
             | Self::NyloCleanupEnd
             | Self::NyloBossSpawn
             | Self::SoteMazeProc(_)
-            | Self::SoteMazePivots(_)
             | Self::SoteMazeEnd(_)
             | Self::XarpusPhase(_)
             | Self::XarpusSplat(_)
@@ -157,8 +147,7 @@ impl EventKind {
             | Self::SolDust(_)
             | Self::SolPools(_)
             | Self::SolLasers(_)
-            | Self::MokhaiotlLarvaLeak(_)
-            | Self::InfernoWaveStart(_) => {}
+            | Self::MokhaiotlLarvaLeak(_) => {}
         }
     }
 }
@@ -293,13 +282,6 @@ impl NyloWave {
 pub enum Maze {
     Maze66 = 0,
     Maze33 = 1,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SoteMazePivots {
-    pub maze: Maze,
-    pub overworld: Vec<Point>,
-    pub underworld: Vec<Point>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

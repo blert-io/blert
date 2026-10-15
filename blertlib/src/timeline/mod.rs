@@ -3,10 +3,10 @@
 use std::collections::BTreeMap;
 
 use crate::actor::{NpcState, Players, RoomId, Rsn};
-use crate::event::Event;
+use crate::event::{Event, Maze};
 use crate::objects::TickObjects;
-use crate::tick::Tick;
-use crate::{ChallengeMode, Stage, proto};
+use crate::tick::{Tick, Ticks};
+use crate::{ChallengeMode, Point, Stage, proto};
 
 mod builder;
 mod config;
@@ -18,7 +18,7 @@ mod recording;
 use interpret::RawObjects;
 
 pub use builder::{
-    BuildMismatch, BuildRejection, BuildWarning, FieldError, RawActor, RecordingBuilder,
+    BuildMismatch, BuildRejection, BuildWarning, FieldError, Modified, RawActor, RecordingBuilder,
     RejectionReason,
 };
 pub use config::{ConfigVersion, InvalidVersion};
@@ -40,6 +40,29 @@ pub struct StageNpc {
     pub death: Option<Tick>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SoteMazePivots {
+    pub overworld: Vec<Point>,
+    pub underworld: Vec<Point>,
+}
+
+/// Information about a recording that exists at the stage level instead of
+/// occurring on a specific tick.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StageData {
+    None,
+    Sotetseg {
+        mazes: BTreeMap<Maze, SoteMazePivots>,
+    },
+    Inferno {
+        /// The plugin sends a wave start on tick 0 of each wave with its own
+        /// accounting of the ticks elapsed since the start of the challenge,
+        /// including inter-wave gaps. Not sent if the player ever logs out
+        /// since the clock is no longer monotonic.
+        wave_start: Ticks,
+    },
+}
+
 #[derive(Debug)]
 pub struct Timeline {
     stage: Stage,
@@ -47,6 +70,7 @@ pub struct Timeline {
     party: Vec<Rsn>,
     states: Vec<Option<TickState>>,
     npcs: BTreeMap<RoomId, StageNpc>,
+    stage_data: StageData,
 }
 
 impl Timeline {
@@ -114,6 +138,12 @@ impl Timeline {
         self.npcs.iter().map(|(&room_id, &npc)| (room_id, npc))
     }
 
+    /// Returns data recorded for the stage as a whole.
+    #[must_use]
+    pub fn stage_data(&self) -> &StageData {
+        &self.stage_data
+    }
+
     /// Returns whether this timeline is compatible with the given recording.
     #[must_use]
     pub fn is_compatible(&self, recording: &Recording) -> bool {
@@ -122,21 +152,30 @@ impl Timeline {
             && self.party == recording.party()
     }
 
-    /// Replaces every tick starting at `from` with state from a recording,
-    /// growing the timeline if the recording has grown.
-    pub fn refresh(&mut self, recording: &Recording, from: Tick) {
-        if !self.is_compatible(recording) || from > recording.last_tick() {
+    /// Replaces every tick starting at `modified.from_tick` with state from a
+    /// recording, growing the timeline if the recording has grown. Copies the
+    /// recording's stage data if it was modified.
+    pub fn refresh(&mut self, recording: &Recording, modified: Modified) {
+        if !self.is_compatible(recording) {
             return;
         }
 
-        self.states.truncate(from.as_usize());
-        let start = Tick::from_usize(self.states.len());
-        self.states.extend(
-            start
-                .through(recording.last_tick())
-                .map(|tick| recording.get_state(tick).cloned()),
-        );
-        finalize::finalize_from(self, start);
+        if modified.stage_data {
+            self.stage_data = recording.stage_data().clone();
+        }
+
+        if let Some(from) = modified.from_tick
+            && from <= recording.last_tick()
+        {
+            self.states.truncate(from.as_usize());
+            let start = Tick::from_usize(self.states.len());
+            self.states.extend(
+                start
+                    .through(recording.last_tick())
+                    .map(|tick| recording.get_state(tick).cloned()),
+            );
+            finalize::finalize_from(self, start);
+        }
     }
 
     /// Encodes the full timeline as wire events in tick order.
@@ -200,6 +239,7 @@ mod tests {
                 None,
             ],
             npcs: BTreeMap::new(),
+            stage_data: StageData::None,
         };
 
         assert_eq!(timeline.stage(), &Stage::TobBloat);

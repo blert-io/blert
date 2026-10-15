@@ -6,8 +6,8 @@ use std::sync::LazyLock;
 
 use blert::golden::assert_golden;
 use blert::{
-    ChallengeMode, ClientId, ConfigVersion, Mokhaiotl, NpcProperties, RecordingBuilder, Rsn, Stage,
-    Tick, TickState, Timeline, proto,
+    ChallengeMode, ClientId, ConfigVersion, Modified, Mokhaiotl, NpcProperties, RecordingBuilder,
+    Rsn, Stage, Tick, TickState, Timeline, proto,
 };
 use flate2::read::GzDecoder;
 use prost::Message;
@@ -152,12 +152,13 @@ fn assert_refresh_matches_snapshot(fixture: &Fixture) {
         );
         let mut timeline: Option<Timeline> = None;
         for batch in &client.batches {
-            let Some(changed) = builder.ingest(batch.iter().cloned()) else {
+            let modified = builder.ingest(batch.iter().cloned());
+            if modified == Modified::default() {
                 continue;
-            };
+            }
             let recording = builder.recording().expect("exists after ingest");
             match &mut timeline {
-                Some(timeline) => timeline.refresh(recording, changed),
+                Some(timeline) => timeline.refresh(recording, modified),
                 None => timeline = Some(recording.snapshot()),
             }
         }
@@ -167,6 +168,11 @@ fn assert_refresh_matches_snapshot(fixture: &Fixture) {
         assert_eq!(
             refreshed.npcs().collect::<Vec<_>>(),
             snapshot.npcs().collect::<Vec<_>>(),
+            "client {client_id}"
+        );
+        assert_eq!(
+            refreshed.stage_data(),
+            snapshot.stage_data(),
             "client {client_id}"
         );
 
@@ -280,12 +286,13 @@ fn mokhaiotl_delve_8() {
     );
     let mut refreshed: Option<Timeline> = None;
     for batch in &client.batches {
-        let Some(changed) = builder.ingest(batch.iter().cloned()) else {
+        let modified = builder.ingest(batch.iter().cloned());
+        if modified == Modified::default() {
             continue;
-        };
+        }
         let recording = builder.recording().expect("exists after ingest");
         match &mut refreshed {
-            Some(timeline) => timeline.refresh(recording, changed),
+            Some(timeline) => timeline.refresh(recording, modified),
             None => refreshed = Some(recording.snapshot()),
         }
     }

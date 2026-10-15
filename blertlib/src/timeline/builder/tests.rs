@@ -69,7 +69,7 @@ fn builder_ingest_returns_none_if_all_rejected() {
         distance_to_target: 1,
     });
 
-    assert_eq!(builder.ingest([update, attack]), None);
+    assert_eq!(builder.ingest([update, attack]).from_tick, None);
     assert_eq!(builder.recording().unwrap().last_tick(), Tick(120));
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -107,7 +107,7 @@ fn builder_ingest_rejects_event_from_another_stage() {
     phase.set_type(proto::event::Type::TobVerzikPhase);
     phase.verzik_phase = Some(proto::event::VerzikPhase::VerzikP2 as i32);
 
-    assert_eq!(builder.ingest([phase]), None);
+    assert_eq!(builder.ingest([phase]).from_tick, None);
     assert!(builder.recording().is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -163,7 +163,7 @@ fn builder_ingest_drops_action_without_actor() {
         distance_to_target: 1,
     });
 
-    assert_eq!(builder.ingest([scythe]), Some(Tick(385)));
+    assert_eq!(builder.ingest([scythe]).from_tick, Some(Tick(385)));
     let state = builder.recording().unwrap().get_state(Tick(385)).unwrap();
     assert!(state.players.is_empty());
     assert_eq!(state.events, []);
@@ -270,7 +270,9 @@ fn builder_ingest_player_update() {
     });
 
     assert_eq!(
-        builder.ingest([primary_snapshot, secondary_snapshot, primary_update]),
+        builder
+            .ingest([primary_snapshot, secondary_snapshot, primary_update])
+            .from_tick,
         Some(Tick(0))
     );
     let recording = builder.recording().unwrap();
@@ -395,7 +397,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
     });
 
     assert_eq!(
-        builder.ingest([snapshot, first.clone(), second]),
+        builder.ingest([snapshot, first.clone(), second]).from_tick,
         Some(Tick(0))
     );
     let equipment = builder
@@ -408,7 +410,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
         .unwrap()
         .equipment;
 
-    assert_eq!(builder.ingest([first]), None);
+    assert_eq!(builder.ingest([first]).from_tick, None);
     let recording = builder.recording().unwrap();
     for tick in [Tick(1), Tick(2)] {
         assert_eq!(
@@ -458,7 +460,7 @@ fn builder_ingest_npc_spawn() {
         })),
     });
 
-    assert_eq!(builder.ingest([spawn]), Some(Tick(4)));
+    assert_eq!(builder.ingest([spawn]).from_tick, Some(Tick(4)));
     let state = builder.recording().unwrap().get_state(Tick(4)).unwrap();
     assert_eq!(
         state.npcs,
@@ -550,8 +552,11 @@ fn builder_ingest_moves_maiden_spawn_to_tick_0() {
         ..Default::default()
     };
 
-    assert_eq!(builder.ingest([first, second.clone()]), Some(Tick(0)));
-    assert_eq!(builder.ingest([third, spawn]), Some(Tick(0)));
+    assert_eq!(
+        builder.ingest([first, second.clone()]).from_tick,
+        Some(Tick(0))
+    );
+    assert_eq!(builder.ingest([third, spawn]).from_tick, Some(Tick(0)));
     let recording = builder.recording().unwrap();
     let maiden = NpcState {
         source: Source::Client(ClientId(1)),
@@ -578,7 +583,7 @@ fn builder_ingest_moves_maiden_spawn_to_tick_0() {
         BTreeMap::from([(RoomId(49403), maiden.clone())])
     );
 
-    assert_eq!(builder.ingest([second]), Some(Tick(0)));
+    assert_eq!(builder.ingest([second]).from_tick, Some(Tick(0)));
     let recording = builder.recording().unwrap();
     for tick in [Tick(0), Tick(1)] {
         assert_eq!(
@@ -662,8 +667,11 @@ fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
         ..Default::default()
     };
 
-    assert_eq!(builder.ingest([first, second, spawn]), Some(Tick(0)));
-    assert_eq!(builder.ingest([third]), Some(Tick(0)));
+    assert_eq!(
+        builder.ingest([first, second, spawn]).from_tick,
+        Some(Tick(0))
+    );
+    assert_eq!(builder.ingest([third]).from_tick, Some(Tick(0)));
     let recording = builder.recording().unwrap();
     for tick in [Tick(0), Tick(1)] {
         assert!(recording.get_state(tick).unwrap().npcs.is_empty());
@@ -752,7 +760,10 @@ fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
         ..Default::default()
     };
 
-    assert_eq!(builder.ingest([first, second, third, spawn]), Some(Tick(0)));
+    assert_eq!(
+        builder.ingest([first, second, third, spawn]).from_tick,
+        Some(Tick(0))
+    );
     let recording = builder.recording().unwrap();
     for tick in [Tick(0), Tick(1), Tick(2)] {
         assert!(recording.get_state(tick).unwrap().npcs.is_empty());
@@ -852,7 +863,10 @@ fn builder_ingest_objects() {
         }],
     });
 
-    assert_eq!(builder.ingest([first, second, third]), Some(Tick(19)));
+    assert_eq!(
+        builder.ingest([first, second, third]).from_tick,
+        Some(Tick(19))
+    );
     let recording = builder.recording().unwrap();
     assert_eq!(
         recording
@@ -1010,7 +1024,7 @@ fn builder_ingest_objects_warns_on_inconsistent_deltas() {
     });
 
     assert_eq!(
-        builder.ingest([first, second, third, fourth]),
+        builder.ingest([first, second, third, fourth]).from_tick,
         Some(Tick(54))
     );
     let recording = builder.recording().unwrap();
@@ -1172,7 +1186,9 @@ fn builder_ingest_objects_rejects_malformed_updates() {
     });
 
     assert_eq!(
-        builder.ingest([unspecified, valid, out_of_domain, empty, empty_delta]),
+        builder
+            .ingest([unspecified, valid, out_of_domain, empty, empty_delta])
+            .from_tick,
         Some(Tick(34))
     );
     let recording = builder.recording().unwrap();
@@ -1252,7 +1268,7 @@ fn builder_ingest_maiden_blood_splats() {
         proto::Coords { x: 3167, y: 4452 },
     ];
 
-    assert_eq!(builder.ingest([splats]), Some(Tick(39)));
+    assert_eq!(builder.ingest([splats]).from_tick, Some(Tick(39)));
     let state = builder.recording().unwrap().get_state(Tick(39)).unwrap();
     assert_eq!(
         state
@@ -1284,7 +1300,7 @@ fn builder_ingest_maiden_blood_splats() {
         proto::Coords { x: 3175, y: 4452 },
     ];
 
-    assert_eq!(builder.ingest([out_of_domain]), None);
+    assert_eq!(builder.ingest([out_of_domain]).from_tick, None);
     assert!(builder.recording().unwrap().get_state(Tick(40)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -1322,7 +1338,7 @@ fn builder_ingest_verzik_yellows() {
         proto::Coords { x: 3177, y: 4315 },
     ];
 
-    assert_eq!(builder.ingest([yellows]), Some(Tick(463)));
+    assert_eq!(builder.ingest([yellows]).from_tick, Some(Tick(463)));
     let state = builder.recording().unwrap().get_state(Tick(463)).unwrap();
     assert_eq!(
         state
@@ -1341,7 +1357,7 @@ fn builder_ingest_verzik_yellows() {
     };
     none.set_type(proto::event::Type::TobVerzikYellows);
 
-    assert_eq!(builder.ingest([none]), Some(Tick(385)));
+    assert_eq!(builder.ingest([none]).from_tick, Some(Tick(385)));
     let state = builder.recording().unwrap().get_state(Tick(385)).unwrap();
     assert!(state.objects.is_empty());
     assert_eq!(builder.rejections().count(), 0);
@@ -1422,7 +1438,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
         ],
     });
 
-    assert_eq!(builder.ingest([shockwave]), Some(Tick(139)));
+    assert_eq!(builder.ingest([shockwave]).from_tick, Some(Tick(139)));
     let state = builder.recording().unwrap().get_state(Tick(139)).unwrap();
     assert_eq!(
         state
@@ -1495,7 +1511,10 @@ fn builder_ingest_mokhaiotl_shockwave() {
     };
     missing_mokhaiotl_shockwave.set_type(proto::event::Type::MokhaiotlShockwave);
 
-    assert_eq!(builder.ingest([missing_mokhaiotl_shockwave]), None);
+    assert_eq!(
+        builder.ingest([missing_mokhaiotl_shockwave]).from_tick,
+        None
+    );
     assert!(builder.recording().unwrap().get_state(Tick(108)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -1540,7 +1559,7 @@ fn builder_ingest_colosseum_reentry_pools() {
         secondary_despawned: vec![],
     });
 
-    assert_eq!(builder.ingest([existing]), Some(Tick(1)));
+    assert_eq!(builder.ingest([existing]).from_tick, Some(Tick(1)));
     let state = builder.recording().unwrap().get_state(Tick(1)).unwrap();
     assert_eq!(
         state
@@ -1595,7 +1614,7 @@ fn builder_ingest_colosseum_reentry_pools() {
         ],
     });
 
-    assert_eq!(builder.ingest([unchanged]), Some(Tick(5)));
+    assert_eq!(builder.ingest([unchanged]).from_tick, Some(Tick(5)));
     let state = builder.recording().unwrap().get_state(Tick(5)).unwrap();
     assert_eq!(
         state
@@ -1641,7 +1660,7 @@ fn builder_ingest_colosseum_reentry_pools() {
         secondary_despawned: vec![],
     });
 
-    assert_eq!(builder.ingest([out_of_domain]), None);
+    assert_eq!(builder.ingest([out_of_domain]).from_tick, None);
     assert!(builder.recording().unwrap().get_state(Tick(46)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -1707,7 +1726,10 @@ fn builder_ingest_mokhaiotl_objects() {
         splats_despawned: vec![],
     });
 
-    assert_eq!(builder.ingest([splats, splat, rock]), Some(Tick(37)));
+    assert_eq!(
+        builder.ingest([splats, splat, rock]).from_tick,
+        Some(Tick(37))
+    );
     let recording = builder.recording().unwrap();
     assert_eq!(
         recording
@@ -1757,7 +1779,7 @@ fn builder_ingest_mokhaiotl_objects() {
     };
     missing_mokhaiotl_objects.set_type(proto::event::Type::MokhaiotlObjects);
 
-    assert_eq!(builder.ingest([missing_mokhaiotl_objects]), None);
+    assert_eq!(builder.ingest([missing_mokhaiotl_objects]).from_tick, None);
     assert!(builder.recording().unwrap().get_state(Tick(42)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -1807,7 +1829,7 @@ fn builder_ingest_sote_maze_tiles() {
         chosen_player: None,
     });
 
-    assert_eq!(builder.ingest([first, second]), Some(Tick(71)));
+    assert_eq!(builder.ingest([first, second]).from_tick, Some(Tick(71)));
     let recording = builder.recording().unwrap();
     let state = recording.get_state(Tick(71)).unwrap();
     assert_eq!(
@@ -1835,6 +1857,28 @@ fn builder_ingest_sote_maze_pivots() {
         None,
     );
 
+    let update = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 94,
+        stage: Stage::TobSotetseg as i32,
+        x_coord: 3284,
+        y_coord: 4310,
+        player: Some(proto::event::Player {
+            name: "Yieldofin".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        builder.ingest([update]),
+        Modified {
+            from_tick: Some(Tick(94)),
+            stage_data: false,
+        }
+    );
+
     let mut overworld = proto::Event {
         tick: 94,
         stage: Stage::TobSotetseg as i32,
@@ -1858,28 +1902,37 @@ fn builder_ingest_sote_maze_pivots() {
         chosen_player: None,
     });
 
-    assert_eq!(builder.ingest([overworld]), Some(Tick(94)));
-    let state = builder.recording().unwrap().get_state(Tick(94)).unwrap();
-    assert!(state.objects.is_empty());
     assert_eq!(
-        state.events,
-        [Event::recorded(
-            ClientId(6),
-            EventKind::SoteMazePivots(SoteMazePivots {
-                maze: Maze::Maze66,
-                overworld: vec![
-                    Point(11, 0),
-                    Point(7, 2),
-                    Point(12, 4),
-                    Point(11, 6),
-                    Point(11, 8),
-                    Point(9, 10),
-                    Point(6, 12),
-                    Point(6, 14),
-                ],
-                underworld: vec![],
-            })
-        )]
+        builder.ingest([overworld]),
+        Modified {
+            from_tick: None,
+            stage_data: true,
+        }
+    );
+    let recording = builder.recording().unwrap();
+    let state = recording.get_state(Tick(94)).unwrap();
+    assert!(state.objects.is_empty());
+    assert_eq!(state.events, []);
+    assert_eq!(
+        recording.stage_data(),
+        &StageData::Sotetseg {
+            mazes: BTreeMap::from([(
+                Maze::Maze66,
+                SoteMazePivots {
+                    overworld: vec![
+                        Point(11, 0),
+                        Point(7, 2),
+                        Point(12, 4),
+                        Point(11, 6),
+                        Point(11, 8),
+                        Point(9, 10),
+                        Point(6, 12),
+                        Point(6, 14),
+                    ],
+                    underworld: vec![],
+                }
+            )])
+        }
     );
     assert_eq!(builder.rejections().count(), 0);
 
@@ -1915,28 +1968,37 @@ fn builder_ingest_sote_maze_pivots() {
         chosen_player: None,
     });
 
-    assert_eq!(builder.ingest([underworld]), Some(Tick(91)));
-    let state = builder.recording().unwrap().get_state(Tick(91)).unwrap();
-    assert!(state.objects.is_empty());
     assert_eq!(
-        state.events,
-        [Event::recorded(
-            ClientId(11),
-            EventKind::SoteMazePivots(SoteMazePivots {
-                maze: Maze::Maze66,
-                overworld: vec![],
-                underworld: vec![
-                    Point(11, 0),
-                    Point(11, 8),
-                    Point(11, 6),
-                    Point(12, 4),
-                    Point(7, 2),
-                    Point(6, 14),
-                    Point(6, 12),
-                    Point(9, 10),
-                ],
-            })
-        )]
+        builder.ingest([underworld]),
+        Modified {
+            from_tick: Some(Tick(91)),
+            stage_data: true,
+        }
+    );
+    let recording = builder.recording().unwrap();
+    let state = recording.get_state(Tick(91)).unwrap();
+    assert!(state.objects.is_empty());
+    assert_eq!(state.events, []);
+    assert_eq!(
+        recording.stage_data(),
+        &StageData::Sotetseg {
+            mazes: BTreeMap::from([(
+                Maze::Maze66,
+                SoteMazePivots {
+                    overworld: vec![],
+                    underworld: vec![
+                        Point(11, 0),
+                        Point(11, 8),
+                        Point(11, 6),
+                        Point(12, 4),
+                        Point(7, 2),
+                        Point(6, 14),
+                        Point(6, 12),
+                        Point(9, 10),
+                    ],
+                }
+            )])
+        }
     );
     assert_eq!(builder.rejections().count(), 0);
 
@@ -1980,36 +2042,45 @@ fn builder_ingest_sote_maze_pivots() {
         chosen_player: None,
     });
 
-    assert_eq!(builder.ingest([merged]), Some(Tick(85)));
-    let state = builder.recording().unwrap().get_state(Tick(85)).unwrap();
-    assert!(state.objects.is_empty());
     assert_eq!(
-        state.events,
-        [Event::recorded(
-            ClientId(627),
-            EventKind::SoteMazePivots(SoteMazePivots {
-                maze: Maze::Maze66,
-                overworld: vec![
-                    Point(8, 0),
-                    Point(8, 2),
-                    Point(11, 4),
-                    Point(7, 6),
-                    Point(2, 8),
-                    Point(7, 10),
-                    Point(7, 12),
-                ],
-                underworld: vec![
-                    Point(8, 0),
-                    Point(8, 2),
-                    Point(11, 4),
-                    Point(7, 6),
-                    Point(2, 8),
-                    Point(7, 10),
-                    Point(7, 12),
-                    Point(3, 14),
-                ],
-            })
-        )]
+        builder.ingest([merged]),
+        Modified {
+            from_tick: Some(Tick(85)),
+            stage_data: true,
+        }
+    );
+    let recording = builder.recording().unwrap();
+    let state = recording.get_state(Tick(85)).unwrap();
+    assert!(state.objects.is_empty());
+    assert_eq!(state.events, []);
+    assert_eq!(
+        recording.stage_data(),
+        &StageData::Sotetseg {
+            mazes: BTreeMap::from([(
+                Maze::Maze66,
+                SoteMazePivots {
+                    overworld: vec![
+                        Point(8, 0),
+                        Point(8, 2),
+                        Point(11, 4),
+                        Point(7, 6),
+                        Point(2, 8),
+                        Point(7, 10),
+                        Point(7, 12),
+                    ],
+                    underworld: vec![
+                        Point(8, 0),
+                        Point(8, 2),
+                        Point(11, 4),
+                        Point(7, 6),
+                        Point(2, 8),
+                        Point(7, 10),
+                        Point(7, 12),
+                        Point(3, 14),
+                    ],
+                }
+            )])
+        }
     );
     assert_eq!(builder.rejections().count(), 0);
 
@@ -2033,7 +2104,10 @@ fn builder_ingest_sote_maze_pivots() {
         chosen_player: None,
     });
 
-    assert_eq!(builder.ingest([missing_sote_maze, missing_pivots]), None);
+    assert_eq!(
+        builder.ingest([missing_sote_maze, missing_pivots]),
+        Modified::default()
+    );
     let recording = builder.recording().unwrap();
     assert!(recording.get_state(Tick(95)).is_none());
     assert!(recording.get_state(Tick(96)).is_none());
@@ -2051,6 +2125,76 @@ fn builder_ingest_sote_maze_pivots() {
                 reason: RejectionReason::MissingPayload("sote_maze.overworld_pivots"),
             },
         ]
+    );
+}
+
+#[test]
+fn builder_ingest_inferno_wave_start() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(21),
+        ConfigVersion::LATEST,
+        Stage::InfernoWave21,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("Caywu").unwrap()],
+        None,
+    );
+
+    let start = proto::Event {
+        r#type: proto::event::Type::InfernoWaveStart as i32,
+        tick: 0,
+        stage: Stage::InfernoWave21 as i32,
+        inferno_wave_start: Some(proto::event::InfernoWaveStart {
+            wave: 21,
+            overall_ticks: 803,
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        builder.ingest([start]),
+        Modified {
+            from_tick: Some(Tick(0)),
+            stage_data: true,
+        }
+    );
+    let recording = builder.recording().unwrap();
+    assert_eq!(recording.get_state(Tick(0)).unwrap().events, []);
+    assert_eq!(
+        recording.stage_data(),
+        &StageData::Inferno {
+            wave_start: Ticks(803),
+        }
+    );
+    assert_eq!(builder.rejections().count(), 0);
+
+    let mut builder = RecordingBuilder::new(
+        ClientId(34),
+        ConfigVersion::LATEST,
+        Stage::InfernoWave34,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("Caywu").unwrap()],
+        None,
+    );
+
+    let missing_inferno_wave_start = proto::Event {
+        r#type: proto::event::Type::InfernoWaveStart as i32,
+        tick: 0,
+        stage: Stage::InfernoWave34 as i32,
+        ..Default::default()
+    };
+
+    assert_eq!(
+        builder.ingest([missing_inferno_wave_start]),
+        Modified::default()
+    );
+    assert_eq!(builder.recording().unwrap().stage_data(), &StageData::None);
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [BuildRejection {
+            tick: Tick(0),
+            kind: proto::event::Type::InfernoWaveStart,
+            reason: RejectionReason::MissingPayload("inferno_wave_start"),
+        }]
     );
 }
 
@@ -2102,7 +2246,7 @@ fn builder_ingest_attack_style() {
         target: Some("1Ogp".to_string()),
     });
 
-    assert_eq!(builder.ingest([verzik, auto]), Some(Tick(271)));
+    assert_eq!(builder.ingest([verzik, auto]).from_tick, Some(Tick(271)));
 
     let mut style = proto::Event {
         tick: 273,
@@ -2115,7 +2259,7 @@ fn builder_ingest_attack_style() {
         npc_attack_tick: 271,
     });
 
-    assert_eq!(builder.ingest([style.clone()]), Some(Tick(271)));
+    assert_eq!(builder.ingest([style.clone()]).from_tick, Some(Tick(271)));
     let recording = builder.recording().unwrap();
     assert_eq!(
         recording.get_state(Tick(271)).unwrap().events,
@@ -2131,7 +2275,7 @@ fn builder_ingest_attack_style() {
     assert_eq!(recording.get_state(Tick(273)).unwrap().events, []);
     assert_eq!(builder.rejections().count(), 0);
 
-    assert_eq!(builder.ingest([style]), None);
+    assert_eq!(builder.ingest([style]).from_tick, None);
     assert_eq!(
         builder
             .recording()
@@ -2161,7 +2305,7 @@ fn builder_ingest_attack_style() {
         npc_attack_tick: 278,
     });
 
-    assert_eq!(builder.ingest([unmatched]), None);
+    assert_eq!(builder.ingest([unmatched]).from_tick, None);
     assert!(builder.recording().unwrap().get_state(Tick(280)).is_none());
     assert_eq!(
         builder.rejections().cloned().collect::<Vec<_>>(),
@@ -2233,7 +2377,7 @@ fn builder_ingest_attack_style_same_tick() {
     doom.tick = 26;
 
     assert_eq!(
-        builder.ingest([style.clone(), doom.clone()]),
+        builder.ingest([style.clone(), doom.clone()]).from_tick,
         Some(Tick(26))
     );
     assert_eq!(
@@ -2262,7 +2406,10 @@ fn builder_ingest_attack_style_same_tick() {
         vec![Rsn::try_from("1Ogp").unwrap()],
         None,
     );
-    assert_eq!(builder.ingest([style, auto, doom]), Some(Tick(26)));
+    assert_eq!(
+        builder.ingest([style, auto, doom]).from_tick,
+        Some(Tick(26))
+    );
     assert_eq!(
         builder
             .recording()
@@ -2388,16 +2535,18 @@ fn builder_ingest_attack_reference() {
     });
 
     assert_eq!(
-        builder.ingest([
-            verzik_cabbage,
-            cabbage,
-            bounce_chance,
-            verzik_bounce.clone(),
-            bounce.clone(),
-        ]),
+        builder
+            .ingest([
+                verzik_cabbage,
+                cabbage,
+                bounce_chance,
+                verzik_bounce.clone(),
+                bounce.clone(),
+            ])
+            .from_tick,
         Some(Tick(83))
     );
-    assert_eq!(builder.ingest([bounced.clone()]), Some(Tick(215)));
+    assert_eq!(builder.ingest([bounced.clone()]).from_tick, Some(Tick(215)));
     let recording = builder.recording().unwrap();
     assert_eq!(
         recording.get_state(Tick(83)).unwrap().events,
@@ -2456,7 +2605,9 @@ fn builder_ingest_attack_reference() {
         None,
     );
     assert_eq!(
-        builder.ingest([verzik_bounce.clone(), bounced.clone()]),
+        builder
+            .ingest([verzik_bounce.clone(), bounced.clone()])
+            .from_tick,
         Some(Tick(215))
     );
     assert!(builder.recording().unwrap().get_state(Tick(216)).is_none());
@@ -2487,7 +2638,7 @@ fn builder_ingest_attack_reference() {
         bounced_player: Some("255 Nylo".to_string()),
     });
     assert_eq!(
-        builder.ingest([verzik_bounce, bounce, bounced]),
+        builder.ingest([verzik_bounce, bounce, bounced]).from_tick,
         Some(Tick(215))
     );
     let recording = builder.recording().unwrap();
@@ -3286,6 +3437,35 @@ fn extract_npc_state_update_last_seen_tick() {
                 properties: Some(nylo),
             }
         ))
+    );
+}
+
+#[test]
+fn check_unique_event_rejects_second_player_attack() {
+    let events = [Event::recorded(
+        ClientId(11),
+        EventKind::PlayerAttack(PlayerAttacked {
+            player: PartyIndex::from_usize(0),
+            attack: proto::PlayerAttack::Scythe,
+            weapon: None,
+            target: Some(Actor::Npc(RoomId(60963))),
+        }),
+    )];
+    let attack = |player, attack| {
+        EventKind::PlayerAttack(PlayerAttacked {
+            player: PartyIndex::from_usize(player),
+            attack,
+            weapon: None,
+            target: Some(Actor::Npc(RoomId(60963))),
+        })
+    };
+    assert_eq!(
+        check_unique_event(&events, &attack(0, proto::PlayerAttack::Sang)),
+        Err(RejectionReason::UniqueViolation)
+    );
+    assert_eq!(
+        check_unique_event(&events, &attack(1, proto::PlayerAttack::TwistedBow)),
+        Ok(())
     );
 }
 
@@ -6000,36 +6180,5 @@ fn convert_mokhaiotl_larva_leak() {
     assert_eq!(
         convert_event(&party, &missing_mokhaiotl_larva_leak),
         EventOutcome::Rejected(RejectionReason::MissingPayload("mokhaiotl_larva_leak"))
-    );
-}
-
-#[test]
-fn convert_inferno_wave_start() {
-    let party = vec![Rsn::try_from("Caywu").unwrap()];
-
-    let mut start = proto::Event {
-        tick: 0,
-        stage: Stage::InfernoWave21 as i32,
-        ..Default::default()
-    };
-    start.set_type(proto::event::Type::InfernoWaveStart);
-    start.inferno_wave_start = Some(proto::event::InfernoWaveStart {
-        wave: 21,
-        overall_ticks: 803,
-    });
-    assert_eq!(
-        convert_event(&party, &start),
-        EventOutcome::Accepted(EventKind::InfernoWaveStart(Ticks(803)))
-    );
-
-    let mut missing_inferno_wave_start = proto::Event {
-        tick: 0,
-        stage: Stage::InfernoWave34 as i32,
-        ..Default::default()
-    };
-    missing_inferno_wave_start.set_type(proto::event::Type::InfernoWaveStart);
-    assert_eq!(
-        convert_event(&party, &missing_inferno_wave_start),
-        EventOutcome::Rejected(RejectionReason::MissingPayload("inferno_wave_start"))
     );
 }

@@ -713,10 +713,7 @@ impl<'a> Encoder<'a> {
             }
 
             // Deliberately omitted from the wire.
-            EventKind::SoteMazePivots(_)
-            | EventKind::SoteMazeEnd(_)
-            | EventKind::HandicapChoice(_)
-            | EventKind::InfernoWaveStart(_) => None,
+            EventKind::SoteMazeEnd(_) | EventKind::HandicapChoice(_) => None,
         }
     }
 }

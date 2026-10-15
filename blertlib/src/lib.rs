@@ -31,7 +31,8 @@ pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
 pub use timeline::{
     BuildMismatch, BuildRejection, BuildWarning, ConfigVersion, FieldError, InvalidVersion,
-    RawActor, Recording, RecordingBuilder, RejectionReason, StageNpc, TickState, Timeline,
+    Modified, RawActor, Recording, RecordingBuilder, RejectionReason, SoteMazePivots, StageData,
+    StageNpc, TickState, Timeline,
 };
 
 /// A location in the game world.
@@ -45,6 +46,14 @@ impl Point {
         let dx = self.0.abs_diff(other.0);
         let dy = self.1.abs_diff(other.1);
         dx.max(dy)
+    }
+
+    /// Returns the Euclidean distance between two points.
+    #[must_use]
+    pub fn euclidean(self, other: Self) -> f64 {
+        let dx = f64::from(self.0.abs_diff(other.0));
+        let dy = f64::from(self.1.abs_diff(other.1));
+        dx.hypot(dy)
     }
 }
 
@@ -95,6 +104,18 @@ impl Rect {
     #[must_use]
     pub fn contains(self, point: Point) -> bool {
         self.distance(point) == 0
+    }
+
+    /// Returns the center tile of the rectangle, rounding toward its southwest
+    /// corner along even sides.
+    #[must_use]
+    pub fn center(self) -> Point {
+        let dx = self.width.saturating_sub(1) / 2;
+        let dy = self.height.saturating_sub(1) / 2;
+        Point(
+            self.point.0.saturating_add(dx),
+            self.point.1.saturating_add(dy),
+        )
     }
 }
 
@@ -222,6 +243,23 @@ mod tests {
     }
 
     #[test]
+    fn point_distance() {
+        assert_eq!(Point(3168, 4318).distance(Point(3165, 4314)), 4);
+        assert_eq!(Point(3165, 4314).distance(Point(3168, 4318)), 4);
+        assert_eq!(Point(3164, 4317).distance(Point(3176, 4322)), 12);
+        assert_eq!(Point(3166, 4323).distance(Point(3166, 4330)), 7);
+        assert_eq!(Point(3173, 4314).distance(Point(3171, 4316)), 2);
+
+        assert!((Point(3168, 4318).euclidean(Point(3165, 4314)) - 5.0).abs() < 1e-9);
+        assert!((Point(3165, 4314).euclidean(Point(3168, 4318)) - 5.0).abs() < 1e-9);
+        assert!((Point(3164, 4317).euclidean(Point(3176, 4322)) - 13.0).abs() < 1e-9);
+        assert!((Point(3166, 4323).euclidean(Point(3166, 4330)) - 7.0).abs() < 1e-9);
+        assert!(
+            (Point(3173, 4314).euclidean(Point(3171, 4316)) - 2.828_427_124_746_19).abs() < 1e-9
+        );
+    }
+
+    #[test]
     fn rect_distance_to_point() {
         let verzik_p1 = Rect::square(Point(3166, 4323), 5);
         assert_eq!(verzik_p1.distance(Point(3164, 4317)), 6);
@@ -254,5 +292,24 @@ mod tests {
         assert!(!sote_maze.contains(Point(3279, 4325)));
         assert!(!sote_maze.contains(Point(3272, 4313)));
         assert!(!sote_maze.contains(Point(3281, 4309)));
+    }
+
+    #[test]
+    fn rect_center() {
+        let verzik_p3 = Rect::square(Point(3165, 4311), 7);
+        assert_eq!(verzik_p3.center(), Point(3168, 4314));
+
+        let verzik_p1 = Rect::square(Point(3166, 4323), 5);
+        assert_eq!(verzik_p1.center(), Point(3168, 4325));
+
+        let matomenos = Rect::square(Point(3161, 4312), 2);
+        assert_eq!(matomenos.center(), Point(3161, 4312));
+
+        let sote_maze = Rect {
+            point: Point(3273, 4310),
+            width: 14,
+            height: 15,
+        };
+        assert_eq!(sote_maze.center(), Point(3279, 4317));
     }
 }

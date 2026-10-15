@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 
 use async_trait::async_trait;
 use blert::npc::id::{JAL_AK, JAL_IMKOT, JAL_MEJRAH, JAL_XIL, JAL_ZEK};
-use blert::{EventKind, NpcAttack, Point, Tick, TickState, Ticks, Timeline, npc};
+use blert::{EventKind, NpcAttack, Point, StageData, Tick, TickState, Ticks, Timeline, npc};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -206,8 +206,6 @@ impl Pillar {
 pub struct InfernoProcessor {
     challenge: ChallengeInfo,
     data: CustomData,
-    /// Client-reported start tick for this wave.
-    wave_start_tick: Option<Ticks>,
     spawn_indexer: SpawnIndexer<'static>,
 }
 
@@ -237,7 +235,6 @@ impl InfernoProcessor {
         Ok(InfernoProcessor {
             challenge,
             data,
-            wave_start_tick: None,
             spawn_indexer,
         })
     }
@@ -271,9 +268,6 @@ impl ChallengeProcessor for InfernoProcessor {
                     NpcAttack::InfernoMagerResurrect => self.data.mager_revives += 1,
                     _ => {}
                 },
-                EventKind::InfernoWaveStart(overall_ticks) => {
-                    self.wave_start_tick = Some(*overall_ticks);
-                }
                 _ => {}
             }
         }
@@ -310,14 +304,17 @@ impl ChallengeProcessor for InfernoProcessor {
         let wave = stage_to_wave(stage);
         let timeline = merged.timeline();
 
-        let (ticks, start_tick) = match self.wave_start_tick {
-            Some(start) => {
+        let (ticks, start_tick) = match *timeline.stage_data() {
+            StageData::Inferno { wave_start } => {
                 if let Some(split) = wave_start_split(wave) {
-                    ctx.set_challenge_split(split, start, None);
+                    ctx.set_challenge_split(split, wave_start, None);
                 }
-                (ChallengeTicks::Set(start + merged.duration()), start)
+                (
+                    ChallengeTicks::Set(wave_start + merged.duration()),
+                    wave_start,
+                )
             }
-            None => (
+            _ => (
                 ChallengeTicks::Add(merged.duration() + WAVE_INTERVAL_TICKS),
                 stored.challenge_ticks + WAVE_INTERVAL_TICKS,
             ),
@@ -501,37 +498,6 @@ mod tests {
                 .message
                 .starts_with("custom data deserialization failed")
         );
-    }
-
-    #[test]
-    fn wave_start_reports_are_captured() {
-        let mut processor = InfernoProcessor::new(
-            challenge_info(Stage::InfernoWave25, ChallengeStatus::InProgress),
-            None,
-        )
-        .unwrap();
-        let mut ctx = StageContext::new(Stage::InfernoWave25, vec![Rsn::try_from("715").unwrap()]);
-        let merged = merged_events(
-            Stage::InfernoWave25,
-            ChallengeMode::NoMode,
-            vec![Rsn::try_from("715").unwrap()],
-            vec![inferno_wave_start_event(
-                Tick(0),
-                Stage::InfernoWave25,
-                25,
-                Ticks(852),
-            )],
-            StageStatus::Started,
-            ServerTicks::Missing,
-        );
-
-        let timeline = merged.timeline();
-        for tick in Tick(0).through(timeline.last_tick()) {
-            if let Some(state) = timeline.get_state(tick) {
-                processor.process_tick(&mut ctx, tick, state, timeline);
-            }
-        }
-        assert_eq!(processor.wave_start_tick, Some(Ticks(852)));
     }
 
     #[test]
@@ -730,7 +696,6 @@ mod tests {
                 east_pillar_collapse_wave: None,
                 south_pillar_collapse_wave: None,
             },
-            wave_start_tick: None,
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(contiguous.has_fully_recorded_up_to(Stage::InfernoWave3));
@@ -751,7 +716,6 @@ mod tests {
                 east_pillar_collapse_wave: None,
                 south_pillar_collapse_wave: None,
             },
-            wave_start_tick: None,
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(!missing_waves.has_fully_recorded_up_to(Stage::InfernoWave3));
@@ -768,7 +732,6 @@ mod tests {
                 east_pillar_collapse_wave: None,
                 south_pillar_collapse_wave: None,
             },
-            wave_start_tick: None,
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         assert!(!empty.has_fully_recorded_up_to(Stage::InfernoWave1));
@@ -802,7 +765,6 @@ mod tests {
             )
             .unwrap()
             .data,
-            wave_start_tick: Some(Ticks(852)),
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         let mut ctx = StageContext::new(Stage::InfernoWave25, vec![Rsn::try_from("715").unwrap()]);
@@ -1086,7 +1048,6 @@ mod tests {
         let mut processor = InfernoProcessor {
             challenge: challenge.clone(),
             data: full_recording.clone(),
-            wave_start_tick: None,
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         let mut ctx = ChallengeContext::new(vec![username.clone()]);
@@ -1107,7 +1068,6 @@ mod tests {
         let mut processor = InfernoProcessor {
             challenge,
             data: full_recording,
-            wave_start_tick: None,
             spawn_indexer: SpawnIndexer::new(&ARENA, []),
         };
         let mut ctx = ChallengeContext::new(vec![username]);

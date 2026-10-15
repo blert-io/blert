@@ -707,7 +707,7 @@ impl ChallengeReader {
             }
         }
 
-        let modified = builder.ingest(events);
+        let modified = builder.ingest(events).from_tick;
         let recording = builder.recording()?;
 
         // Vacant ticks preceding the modified tick may not be buffered yet.
