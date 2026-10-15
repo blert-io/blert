@@ -7,7 +7,7 @@ use crate::actor::{
 use crate::event::{
     BloatDown, Event, EventKind, HandicapChoice, Maze, MokhaiotlLarvaLeak, MokhaiotlOrb,
     NpcAttacked, NpcDeath, NyloWave, PlayerAttacked, PlayerCast, SolDust, SolGrapple, SoteMazeEnd,
-    SoteMazePivots, TotemHeal, VerzikBounce, VerzikDawnHit, VerzikHeal, XarpusExhumed, XarpusSplat,
+    TotemHeal, VerzikBounce, VerzikDawnHit, VerzikHeal, XarpusExhumed, XarpusSplat,
     XarpusSplatSource,
 };
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item, ItemDelta};
@@ -22,7 +22,7 @@ use crate::{
 };
 
 use super::interpret::{self, ObjectDef, RawObjects};
-use super::{ConfigVersion, Recording, TickState};
+use super::{ConfigVersion, Recording, SoteMazePivots, StageData, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
 /// construction of a recording.
@@ -51,6 +51,9 @@ pub enum RejectionReason {
     /// is inconsistent with the rules of the game. This could either be within
     /// the fields of the event itself, or when compared to past events.
     Inconsistent(&'static str),
+    /// An event of this kind may occur only once per tick for some constraint,
+    /// and the tick already contains one.
+    UniqueViolation,
     /// The event references an actor's past attack which does not exist.
     AttackNotFound,
     /// The recording was constructed with a known length, but the event falls
@@ -105,6 +108,25 @@ pub struct BuildMismatch {
     pub kind: String,
     pub bespoke: Vec<String>,
     pub interpreted: Vec<String>,
+}
+
+/// The parts of a recording modified by ingesting a batch of events.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Modified {
+    /// The earliest modified tick as a result of processing the batch.
+    /// If the batch was a pure append, this will be the first tick beyond the
+    /// recording's original length. Events that retroactively modify state will
+    /// shift it earlier. This is `None` for a batch which did not modify any
+    /// state.
+    pub from_tick: Option<Tick>,
+    /// Whether processing the batch modified the recording's stage data.
+    pub stage_data: bool,
+}
+
+impl Modified {
+    fn update_tick(&mut self, tick: Tick) {
+        self.from_tick = Some(self.from_tick.map_or(tick, |from_tick| from_tick.min(tick)));
+    }
 }
 
 /// A builder for constructing a [`Recording`] from a stream of events.
@@ -174,15 +196,15 @@ impl RecordingBuilder {
 
     /// Processes the provided raw events into the recording, constructing state.
     ///
-    /// Returns the earliest modified tick as a result of processing the batch.
-    /// If the batch was a pure append, this will be the first tick beyond the
-    /// recording's original length. Events that retroactively modify state will
-    /// shift it earlier. A batch which did not modify any state returns `None`.
+    /// Returns the parts of the recording modified as a result of processing
+    /// the batch.
     ///
     /// Events that are rejected have their results recorded in the builder's
     /// rejection list for inspection.
-    pub fn ingest(&mut self, events: impl IntoIterator<Item = proto::Event>) -> Option<Tick> {
-        let start = self.add_raw_events(events)?;
+    pub fn ingest(&mut self, events: impl IntoIterator<Item = proto::Event>) -> Modified {
+        let Some(start) = self.add_raw_events(events) else {
+            return Modified::default();
+        };
         self.ingest_from(start)
     }
 
@@ -270,17 +292,20 @@ impl RecordingBuilder {
         start
     }
 
-    fn ingest_from(&mut self, start: Tick) -> Option<Tick> {
-        let last_tick = self
+    fn ingest_from(&mut self, start: Tick) -> Modified {
+        let Some(last_tick) = self
             .reported_last_tick
-            .or_else(|| self.events.keys().next_back().copied())?;
+            .or_else(|| self.events.keys().next_back().copied())
+        else {
+            return Modified::default();
+        };
 
         let mut recording = self.recording.take().unwrap_or_else(|| {
             Recording::vacant(self.stage, self.mode, self.party.clone(), last_tick)
         });
         recording.extend_to(last_tick);
 
-        let mut changed: Option<Tick> = None;
+        let mut modified = Modified::default();
         let mut pending = self.events.split_off(&start);
         self.last_seen_actors.retain(|actor, last| {
             if *last < start {
@@ -307,9 +332,11 @@ impl RecordingBuilder {
             for event in events {
                 builder.process_event(event);
             }
-            if let Some(modified) = builder.finish() {
-                changed = Some(changed.map_or(modified, |changed| changed.min(modified)));
+            let finished = builder.finish();
+            if let Some(from_tick) = finished.from_tick {
+                modified.update_tick(from_tick);
             }
+            modified.stage_data |= finished.stage_data;
         }
         self.events.append(&mut pending);
         // TODO(frolv): Temporary until bespoke object events are removed.
@@ -324,7 +351,7 @@ impl RecordingBuilder {
         }
         self.recording = Some(recording);
 
-        changed
+        modified
     }
 }
 
@@ -334,7 +361,7 @@ struct TickBuilder<'a> {
     tick: Tick,
     state: TickState,
     processed: usize,
-    changed: Option<Tick>,
+    modified: Modified,
     attack_styles: Vec<&'a proto::Event>,
     attack_references: Vec<Event>,
     recording: &'a mut Recording,
@@ -380,7 +407,7 @@ impl<'a> TickBuilder<'a> {
                 events: Vec::new(),
             },
             processed: 0,
-            changed: None,
+            modified: Modified::default(),
             attack_styles: Vec::new(),
             attack_references: Vec::new(),
             recording,
@@ -607,8 +634,8 @@ impl<'a> TickBuilder<'a> {
                 }
             }
 
-            // Depending on the fields set, a maze path is either an
-            // event or object state.
+            // Depending on the fields set, a maze path is either stage
+            // data or object state.
             Type::TobSoteMazePath => {
                 let result = event
                     .sote_maze
@@ -628,8 +655,8 @@ impl<'a> TickBuilder<'a> {
                             return Ok(());
                         }
 
+                        let maze = parse_maze(sote_maze)?;
                         let pivots = SoteMazePivots {
-                            maze: parse_maze(sote_maze)?,
                             overworld: parse_points(
                                 "sote_maze.overworld_pivots",
                                 &sote_maze.overworld_pivots,
@@ -644,10 +671,21 @@ impl<'a> TickBuilder<'a> {
                                 "sote_maze.overworld_pivots",
                             ));
                         }
-                        self.state.events.push(Event::recorded(
-                            self.client_id,
-                            EventKind::SoteMazePivots(pivots),
-                        ));
+                        let stage_data = self.recording.stage_data_mut();
+                        match stage_data {
+                            StageData::Sotetseg { mazes } => {
+                                if mazes.get(&maze) == Some(&pivots) {
+                                    return Ok(());
+                                }
+                                mazes.insert(maze, pivots);
+                            }
+                            _ => {
+                                *stage_data = StageData::Sotetseg {
+                                    mazes: BTreeMap::from([(maze, pivots)]),
+                                };
+                            }
+                        }
+                        self.modified.stage_data = true;
                         Ok(())
                     });
                 if let Err(reason) = result {
@@ -655,6 +693,27 @@ impl<'a> TickBuilder<'a> {
                         .entry(tick)
                         .or_default()
                         .push(BuildRejection { tick, kind, reason });
+                }
+            }
+
+            Type::InfernoWaveStart => {
+                match event.inferno_wave_start.required("inferno_wave_start") {
+                    Ok(start) => {
+                        let wave_start = StageData::Inferno {
+                            wave_start: Ticks(start.overall_ticks),
+                        };
+                        let stage_data = self.recording.stage_data_mut();
+                        if *stage_data != wave_start {
+                            *stage_data = wave_start;
+                            self.modified.stage_data = true;
+                        }
+                    }
+                    Err(reason) => {
+                        self.rejections
+                            .entry(tick)
+                            .or_default()
+                            .push(BuildRejection { tick, kind, reason });
+                    }
                 }
             }
 
@@ -693,8 +752,14 @@ impl<'a> TickBuilder<'a> {
             | Type::ColosseumSolPools
             | Type::ColosseumSolLasers
             | Type::MokhaiotlOrb
-            | Type::MokhaiotlLarvaLeak
-            | Type::InfernoWaveStart => {
+            | Type::MokhaiotlLarvaLeak => {
+                let mut outcome = convert_event(self.party, event);
+                if let EventOutcome::Accepted(payload)
+                | EventOutcome::PartiallyAccepted { event: payload, .. } = &outcome
+                    && let Err(reason) = check_unique_event(&self.state.events, payload)
+                {
+                    outcome = EventOutcome::Rejected(reason);
+                }
                 let events = if matches!(
                     kind,
                     Type::TobVerzikDawn | Type::TobVerzikBounce | Type::ColosseumSolGrapple
@@ -703,7 +768,7 @@ impl<'a> TickBuilder<'a> {
                 } else {
                     &mut self.state.events
                 };
-                match convert_event(self.party, event) {
+                match outcome {
                     EventOutcome::Accepted(payload) => {
                         events.push(Event::recorded(self.client_id, payload));
                     }
@@ -784,9 +849,9 @@ impl<'a> TickBuilder<'a> {
     }
 
     /// Finalizes the tick's state, inserting it into the recording.
-    /// Returns the earliest tick whose state was modified.
+    /// Returns the parts of the recording that were modified.
     #[expect(clippy::too_many_lines, reason = "another event match")]
-    fn finish(mut self) -> Option<Tick> {
+    fn finish(mut self) -> Modified {
         let tick = self.tick;
         let TickState {
             players,
@@ -850,9 +915,7 @@ impl<'a> TickBuilder<'a> {
                         && attack.target != Some(Actor::Player(player))
                     {
                         attack.target = Some(Actor::Player(player));
-                        self.changed = Some(self.changed.map_or(bounce.attack_tick, |changed| {
-                            changed.min(bounce.attack_tick)
-                        }));
+                        self.modified.update_tick(bounce.attack_tick);
                     }
                     (Type::TobVerzikBounce, found)
                 }
@@ -887,10 +950,7 @@ impl<'a> TickBuilder<'a> {
         for event in self.attack_styles {
             match resolve_attack_style(self.recording, &mut self.state, event) {
                 Ok(Some(attack_tick)) => {
-                    self.changed = Some(
-                        self.changed
-                            .map_or(attack_tick, |changed| changed.min(attack_tick)),
-                    );
+                    self.modified.update_tick(attack_tick);
                 }
                 Ok(None) => {}
                 Err(reason) => {
@@ -909,7 +969,7 @@ impl<'a> TickBuilder<'a> {
         // Don't write the tick if every event was rejected.
         let rejected = self.rejections.get(&tick).map_or(0, Vec::len);
         if rejected == self.processed {
-            return self.changed;
+            return self.modified;
         }
 
         for (index, _) in self.state.players.iter() {
@@ -919,13 +979,13 @@ impl<'a> TickBuilder<'a> {
             self.last_seen_actors.insert(Actor::Npc(room_id), tick);
         }
         if correct_offset_maiden_spawn(self.recording, tick, &self.state) {
-            self.changed = Some(Tick(0));
+            self.modified.update_tick(Tick(0));
         }
         if self.recording.get_state(tick) != Some(&self.state) {
-            self.changed = Some(self.changed.map_or(tick, |changed| changed.min(tick)));
+            self.modified.update_tick(tick);
         }
         self.recording.set_state(tick, self.state);
-        self.changed
+        self.modified
     }
 }
 
@@ -1104,6 +1164,22 @@ fn resolve_index(party: &[Rsn], player: &str) -> Result<PartyIndex, FieldError> 
 
 fn convert_event(party: &[Rsn], event: &proto::Event) -> EventOutcome {
     convert_or_reject(party, event).unwrap_or_else(EventOutcome::Rejected)
+}
+
+fn check_unique_event(events: &[Event], kind: &EventKind) -> Result<(), RejectionReason> {
+    match kind {
+        EventKind::PlayerAttack(attack)
+            if events.iter().any(|event| {
+                matches!(
+                    &event.kind,
+                    EventKind::PlayerAttack(earlier) if earlier.player == attack.player
+                )
+            }) =>
+        {
+            Err(RejectionReason::UniqueViolation)
+        }
+        _ => Ok(()),
+    }
 }
 
 trait Required<T> {
@@ -1635,13 +1711,6 @@ fn convert_or_reject(party: &[Rsn], event: &proto::Event) -> Result<EventOutcome
                     heal_amount: leak.heal_amount,
                 },
             )))
-        }
-
-        Type::InfernoWaveStart => {
-            let start = event.inferno_wave_start.required("inferno_wave_start")?;
-            Ok(EventOutcome::Accepted(EventKind::InfernoWaveStart(Ticks(
-                start.overall_ticks,
-            ))))
         }
 
         _ => unreachable!("only event types are converted"),

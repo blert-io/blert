@@ -6,8 +6,8 @@ use std::collections::hash_map::Entry;
 use async_trait::async_trait;
 use blert::{
     Actor, CombatStyle, EventKind, MaidenCrabSpawn, Maze, NpcAttack, NpcProperties, NpcState,
-    NyloSpawn, PlayerAttack, PlayerAttacked, Point, SoteMazePivots, Tick, TickState, Ticks,
-    Timeline, VerzikPhase, XarpusExhumed, XarpusPhase, npc,
+    NyloSpawn, PlayerAttack, PlayerAttacked, Point, SoteMazePivots, StageData, Tick, TickState,
+    Ticks, Timeline, VerzikPhase, XarpusExhumed, XarpusPhase, npc,
 };
 use serde::{Deserialize, Serialize};
 
@@ -304,6 +304,14 @@ impl TheatreProcessor {
         }
     }
 
+    fn record_stage_data(&mut self, timeline: &Timeline) {
+        if let StageData::Sotetseg { mazes } = timeline.stage_data() {
+            for (&maze, pivots) in mazes {
+                self.record_maze_path(maze, pivots);
+            }
+        }
+    }
+
     fn process_npc_spawn(&mut self, ctx: &mut StageContext, tick: Tick, npc: &NpcState) {
         match &npc.properties {
             Some(NpcProperties::MaidenCrab(crab)) => {
@@ -539,9 +547,8 @@ impl TheatreProcessor {
         slot.as_mut()
     }
 
-    fn record_maze_path(&mut self, maze_pivots: &SoteMazePivots) {
+    fn record_maze_path(&mut self, kind: Maze, maze_pivots: &SoteMazePivots) {
         let uuid = self.challenge.uuid;
-        let kind = maze_pivots.maze;
         let Some(maze) = self.maze_mut(kind) else {
             return;
         };
@@ -1059,7 +1066,6 @@ impl ChallengeProcessor for TheatreProcessor {
                         }
                     }
                 }
-                EventKind::SoteMazePivots(pivots) => self.record_maze_path(pivots),
                 EventKind::SoteMazeEnd(end) => {
                     if let Some(maze) = self.maze_mut(end.maze) {
                         maze.end_tick = tick;
@@ -1164,6 +1170,7 @@ impl ChallengeProcessor for TheatreProcessor {
             .map(|&index| self.challenge.party[index].to_string())
             .collect();
         let timeline = merged.timeline();
+        self.record_stage_data(timeline);
         let mut room = RoomData {
             stage,
             ticks_lost: merged.missing_tick_count(),
@@ -2315,6 +2322,7 @@ mod tests {
                 processor.process_tick(&mut ctx, tick, state, timeline);
             }
         }
+        processor.record_stage_data(timeline);
 
         assert_eq!(
             ctx.stage_splits().collect::<Vec<_>>(),

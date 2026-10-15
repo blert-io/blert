@@ -5,7 +5,7 @@ use crate::event::Event;
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, Stage};
 
-use super::{TickState, Timeline, finalize};
+use super::{StageData, TickState, Timeline, finalize};
 
 /// A `Recording` represents a mutable model of a challenge stage as observed by
 /// one or more clients. It is a nonempty, chronological sequence of ticks, each
@@ -21,6 +21,7 @@ pub struct Recording {
     mode: ChallengeMode,
     party: Vec<Rsn>,
     states: Vec<Option<TickState>>,
+    stage_data: StageData,
 }
 
 impl Recording {
@@ -32,6 +33,7 @@ impl Recording {
             mode,
             party,
             states: vec![None; last_tick.as_usize() + 1],
+            stage_data: StageData::None,
         }
     }
 
@@ -51,6 +53,18 @@ impl Recording {
     #[must_use]
     pub fn party(&self) -> &[Rsn] {
         &self.party
+    }
+
+    /// Returns the recording's collected stage-level data.
+    #[must_use]
+    pub(crate) fn stage_data(&self) -> &StageData {
+        &self.stage_data
+    }
+
+    /// Returns a mutable reference to the recording's collected stage-level data.
+    #[must_use]
+    pub(crate) fn stage_data_mut(&mut self) -> &mut StageData {
+        &mut self.stage_data
     }
 
     /// Returns the highest recorded tick number.
@@ -136,6 +150,7 @@ impl Recording {
             party: self.party,
             states: self.states,
             npcs: BTreeMap::new(),
+            stage_data: self.stage_data,
         };
         finalize::finalize_from(&mut timeline, Tick(0));
         timeline
