@@ -138,7 +138,7 @@ export default function GuideList() {
             href="/guides/tob/nylocas/trio"
             title="Trio Waves"
             description="Detailed wave-by-wave strategy for all roles."
-            updated={new Date('2026-07-17')}
+            updated={new Date('2026-10-16')}
             scale={3}
           />
           <div className={styles.guideCard} data-scale={4}>
