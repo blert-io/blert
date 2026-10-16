@@ -206,6 +206,7 @@ export {
   jsonToServerMessage,
   jsonToProtoEvent,
   protoToJsonEvent,
+  recordingConfigJsonToProto,
   serverMessageToJson,
   spellDefinitionJsonToProto,
 } from './protocol';
@@ -217,6 +218,7 @@ export type {
   ChallengeUpdateJson,
   EventJson,
   GameStateJson,
+  RecordingConfigJson,
   ServerMessageJson,
 } from './protocol';
 
@@ -228,6 +230,7 @@ export {
   challengeUpdateSchema,
   eventSchema,
   gameStateSchema,
+  recordingConfigSchema,
   serverMessageSchema,
   spellDefinitionSchema,
 } from './protocol';

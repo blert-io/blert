@@ -150,6 +150,7 @@ ENV PORT=3003
 COPY --from=deps-prod /app/node_modules/ node_modules/
 COPY --from=common-build /app/common/dist/ common/dist/
 COPY --from=common-build /app/common/generated/ common/generated/
+COPY --from=common-build /app/proto/recording_config.json .
 COPY --from=common-build /app/proto/attack_definitions.json .
 COPY --from=common-build /app/proto/spell_definitions.json .
 COPY --from=socket-server-build /app/socket-server/dist/ socket-server/dist/

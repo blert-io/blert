@@ -14,21 +14,30 @@ import {
 import Client, { Session } from './client';
 import logger from './log';
 import { recordActiveClients, recordClientRegistration } from './metrics';
+import {
+  RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+  RecordingConfigRepository,
+} from './recording-config';
 import { BasicUser, Users } from './users';
 
 export default class ConnectionManager {
   private activeClients: Map<number, Client>;
   private nextSessionId;
   private pubsubClient: RedisClientType | null;
+  private recordingConfigRepository: RecordingConfigRepository;
+  private recordingConfigLoad: Promise<void>;
   private definitionsRepository: ActionDefinitionsRepository;
 
   public constructor(
     redisClient: RedisClientType | null,
+    recordingConfigRepository: RecordingConfigRepository,
     definitionsRepository: ActionDefinitionsRepository,
   ) {
     this.activeClients = new Map();
     this.nextSessionId = 1;
     this.pubsubClient = null;
+    this.recordingConfigRepository = recordingConfigRepository;
+    this.recordingConfigLoad = Promise.resolve();
     this.definitionsRepository = definitionsRepository;
 
     if (redisClient !== null) {
@@ -56,11 +65,46 @@ export default class ConnectionManager {
     );
 
     await this.pubsubClient.subscribe(
+      RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+      this.loadAndBroadcastRecordingConfig.bind(this),
+    );
+    void this.loadAndBroadcastRecordingConfig();
+
+    await this.pubsubClient.subscribe(
       DEFINITIONS_RELOAD_PUBSUB_KEY,
       this.handleDefinitionsUpdate.bind(this),
     );
 
     logger.debug('connection_manager_pubsub_started');
+  }
+
+  private loadAndBroadcastRecordingConfig(): Promise<void> {
+    this.recordingConfigLoad = this.recordingConfigLoad.then(async () => {
+      let changed: boolean;
+      try {
+        changed = await this.recordingConfigRepository.loadCurrent();
+      } catch (e) {
+        logger.error('recording_config_load_failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return;
+      }
+      if (!changed) {
+        return;
+      }
+
+      const broadcast =
+        this.recordingConfigRepository.createRecordingConfigMessage();
+      for (const client of this.activeClients.values()) {
+        client.sendMessage(broadcast);
+      }
+
+      logger.info('recording_config_sent', {
+        version: broadcast.getRecordingConfig()?.getVersion(),
+        clientCount: this.activeClients.size,
+      });
+    });
+    return this.recordingConfigLoad;
   }
 
   /**
@@ -188,6 +232,10 @@ export default class ConnectionManager {
     connectionResponse.setUser(user);
 
     client.sendMessage(connectionResponse);
+
+    client.sendMessage(
+      this.recordingConfigRepository.createRecordingConfigMessage(),
+    );
 
     // Send the latest action definitions on connection.
     client.sendMessage(

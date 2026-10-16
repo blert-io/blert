@@ -712,11 +712,16 @@ export namespace DataRepository {
       this.root = rootPath;
     }
 
-    public override read(relativePath: string): Promise<Uint8Array> {
+    public override async read(relativePath: string): Promise<Uint8Array> {
       try {
-        return readFile(`${this.root}/${relativePath}`);
-      } catch {
-        throw new DataRepository.NotFound(relativePath);
+        return await readFile(`${this.root}/${relativePath}`);
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException;
+        if (err.code === 'ENOENT') {
+          throw new DataRepository.NotFound(relativePath);
+        }
+        console.error(`Failed to read file: ${err.message}`);
+        throw new DataRepository.BackendError();
       }
     }
 

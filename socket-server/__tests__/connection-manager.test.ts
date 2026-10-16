@@ -6,6 +6,7 @@ jest.mock('../users', () => ({ Users: {} }));
 import { DEFINITIONS_RELOAD_PUBSUB_KEY } from '../action-definitions';
 import type Client from '../client';
 import ConnectionManager from '../connection-manager';
+import { RECORDING_CONFIG_CURRENT_PUBSUB_KEY } from '../recording-config';
 
 // ConnectionManager imports Users, which imports the database module and exits
 // the process at load when BLERT_DATABASE_URI is unset. These tests don't touch
@@ -74,15 +75,21 @@ class FakeClient {
 }
 
 function makeConnectionManager(): ConnectionManager {
+  const recordingConfigRepository = {
+    createRecordingConfigMessage: () => new ServerMessage(),
+  };
   const definitionsRepository = {
     createAttackDefinitionsMessage: () => new ServerMessage(),
     createSpellDefinitionsMessage: () => new ServerMessage(),
   };
   return new ConnectionManager(
     null,
-    definitionsRepository as unknown as ConstructorParameters<
+    recordingConfigRepository as unknown as ConstructorParameters<
       typeof ConnectionManager
     >[1],
+    definitionsRepository as unknown as ConstructorParameters<
+      typeof ConnectionManager
+    >[2],
   );
 }
 
@@ -192,6 +199,188 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+describe('recording config', () => {
+  async function setup() {
+    const configMessage = new ServerMessage();
+    configMessage.setType(ServerMessage.Type.RECORDING_CONFIG);
+
+    const attackMessage = new ServerMessage();
+    attackMessage.setType(ServerMessage.Type.ATTACK_DEFINITIONS);
+
+    const spellMessage = new ServerMessage();
+    spellMessage.setType(ServerMessage.Type.SPELL_DEFINITIONS);
+
+    const recordingConfigRepository = {
+      loadCurrent: jest.fn().mockResolvedValue(false),
+      createRecordingConfigMessage: jest.fn(() => configMessage),
+    };
+    const definitionsRepository = {
+      createAttackDefinitionsMessage: () => attackMessage,
+      createSpellDefinitionsMessage: () => spellMessage,
+    };
+
+    const redis = new FakeRedisClient();
+    const cm = new ConnectionManager(
+      redis as unknown as RedisClientType,
+      recordingConfigRepository as unknown as ConstructorParameters<
+        typeof ConnectionManager
+      >[1],
+      definitionsRepository as unknown as ConstructorParameters<
+        typeof ConnectionManager
+      >[2],
+    );
+
+    await flushMicrotasks();
+
+    return {
+      cm,
+      redis,
+      recordingConfigRepository,
+      configMessage,
+      attackMessage,
+      spellMessage,
+    };
+  }
+
+  it('sends a recording config to a connecting client', async () => {
+    const { cm, configMessage, attackMessage, spellMessage } = await setup();
+    const a = new FakeClient(true);
+
+    addFakeClients(cm, a);
+
+    expect(a.sentMessages).toHaveLength(4);
+    expect((a.sentMessages[0] as ServerMessage).getType()).toBe(
+      ServerMessage.Type.CONNECTION_RESPONSE,
+    );
+    expect(a.sentMessages.slice(1)).toEqual([
+      configMessage,
+      attackMessage,
+      spellMessage,
+    ]);
+  });
+
+  it('broadcasts the current version when it is updated', async () => {
+    const { cm, redis, recordingConfigRepository, configMessage } =
+      await setup();
+    const a = new FakeClient(true);
+    const b = new FakeClient(true);
+    addFakeClients(cm, a, b);
+    a.sentMessages.length = 0;
+    b.sentMessages.length = 0;
+
+    await redis.pubsub.deliver(
+      RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+      JSON.stringify({ version: 1 }),
+    );
+
+    expect(a.sentMessages).toEqual([]);
+    expect(b.sentMessages).toEqual([]);
+
+    recordingConfigRepository.loadCurrent.mockResolvedValue(true);
+    await redis.pubsub.deliver(
+      RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+      JSON.stringify({ version: 2 }),
+    );
+
+    expect(recordingConfigRepository.loadCurrent).toHaveBeenCalledTimes(3);
+    expect(a.sentMessages).toEqual([configMessage]);
+    expect(b.sentMessages).toEqual([configMessage]);
+  });
+
+  it('does not send anything if loading the updated version fails', async () => {
+    const { cm, redis, recordingConfigRepository } = await setup();
+    recordingConfigRepository.loadCurrent.mockRejectedValue(
+      new Error('s3 down'),
+    );
+    const a = new FakeClient(true);
+    const b = new FakeClient(true);
+    addFakeClients(cm, a, b);
+    a.sentMessages.length = 0;
+    b.sentMessages.length = 0;
+
+    await redis.pubsub.deliver(
+      RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+      JSON.stringify({ version: 3 }),
+    );
+
+    expect(recordingConfigRepository.loadCurrent).toHaveBeenCalledTimes(2);
+    expect(a.sentMessages).toEqual([]);
+    expect(b.sentMessages).toEqual([]);
+  });
+
+  it('broadcasts a version set before its subscription is active', async () => {
+    const configMessage = new ServerMessage();
+    configMessage.setType(ServerMessage.Type.RECORDING_CONFIG);
+
+    const redis = new FakeRedisClient();
+    let subscribedAtLoad = false;
+    const recordingConfigRepository = {
+      loadCurrent: jest.fn(async () => {
+        subscribedAtLoad = redis.pubsub.handlers.has(
+          RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+        );
+        return true;
+      }),
+      createRecordingConfigMessage: () => configMessage,
+    };
+    const definitionsRepository = {
+      createAttackDefinitionsMessage: () => new ServerMessage(),
+      createSpellDefinitionsMessage: () => new ServerMessage(),
+    };
+
+    const cm = new ConnectionManager(
+      redis as unknown as RedisClientType,
+      recordingConfigRepository as unknown as ConstructorParameters<
+        typeof ConnectionManager
+      >[1],
+      definitionsRepository as unknown as ConstructorParameters<
+        typeof ConnectionManager
+      >[2],
+    );
+    const a = new FakeClient(true);
+    addFakeClients(cm, a);
+    a.sentMessages.length = 0;
+
+    await flushMicrotasks();
+
+    expect(recordingConfigRepository.loadCurrent).toHaveBeenCalledTimes(1);
+    expect(subscribedAtLoad).toBe(true);
+    expect(a.sentMessages).toEqual([configMessage]);
+  });
+
+  it('loads an update only after the previous one has loaded', async () => {
+    const { cm, redis, recordingConfigRepository, configMessage } =
+      await setup();
+    const a = new FakeClient(true);
+    addFakeClients(cm, a);
+    a.sentMessages.length = 0;
+
+    const firstLoad = Promise.withResolvers<boolean>();
+    recordingConfigRepository.loadCurrent
+      .mockReturnValueOnce(firstLoad.promise)
+      .mockResolvedValueOnce(true);
+
+    const first = redis.pubsub.deliver(
+      RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+      JSON.stringify({ version: 4 }),
+    );
+    const second = redis.pubsub.deliver(
+      RECORDING_CONFIG_CURRENT_PUBSUB_KEY,
+      JSON.stringify({ version: 5 }),
+    );
+    await flushMicrotasks();
+
+    expect(recordingConfigRepository.loadCurrent).toHaveBeenCalledTimes(2);
+    expect(a.sentMessages).toEqual([]);
+
+    firstLoad.resolve(true);
+    await Promise.all([first, second]);
+
+    expect(recordingConfigRepository.loadCurrent).toHaveBeenCalledTimes(3);
+    expect(a.sentMessages).toEqual([configMessage, configMessage]);
+  });
+});
+
 describe('definitions reload pubsub', () => {
   async function setup() {
     const attackMessage = new ServerMessage();
@@ -207,12 +396,20 @@ describe('definitions reload pubsub', () => {
       createSpellDefinitionsMessage: jest.fn(() => spellMessage),
     };
 
+    const recordingConfigRepository = {
+      loadCurrent: jest.fn().mockResolvedValue(false),
+      createRecordingConfigMessage: () => new ServerMessage(),
+    };
+
     const redis = new FakeRedisClient();
     const cm = new ConnectionManager(
       redis as unknown as RedisClientType,
-      definitionsRepository as unknown as ConstructorParameters<
+      recordingConfigRepository as unknown as ConstructorParameters<
         typeof ConnectionManager
       >[1],
+      definitionsRepository as unknown as ConstructorParameters<
+        typeof ConnectionManager
+      >[2],
     );
 
     await flushMicrotasks();
