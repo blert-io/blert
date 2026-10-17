@@ -201,24 +201,6 @@ button.legendParticipant {
   width: var(--cell-size);
 }
 
-.columnTick {
-  font-size: calc(var(--cell-size) / 2 - 1px);
-  position: relative;
-  text-align: center;
-  padding: 0;
-  color: var(--blert-font-color-secondary);
-  height: var(--bcf-tick-height);
-
-  &.interactive {
-    cursor: pointer;
-    transition: color 0.2s ease;
-
-    &:hover {
-      color: var(--blert-font-color-primary);
-    }
-  }
-}
-
 .split {
   --split-width: calc(var(--cell-size) + 20px);
 
