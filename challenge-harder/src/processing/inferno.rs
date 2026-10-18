@@ -255,7 +255,7 @@ impl ChallengeProcessor for InfernoProcessor {
                     if death.npc_id == Some(npc::id::ROCKY_SUPPORT)
                         && let Some(pillar) = Pillar::at(death.position)
                     {
-                        let wave = Some(stage_to_wave(*timeline.stage()));
+                        let wave = Some(stage_to_wave(timeline.stage()));
                         match pillar {
                             Pillar::West => self.data.west_pillar_collapse_wave = wave,
                             Pillar::East => self.data.east_pillar_collapse_wave = wave,

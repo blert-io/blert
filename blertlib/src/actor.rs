@@ -13,10 +13,18 @@ pub use crate::proto::event::npc::maiden_crab::{
 };
 pub use crate::proto::event::npc::verzik_crab::Spawn as VerzikCrabSpawn;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct PartyIndex(pub(crate) u8);
 
 impl PartyIndex {
+    /// Returns the index of player `name` in `party`, if they exist.
+    pub(crate) fn resolve(party: &[Rsn], name: &str) -> Option<Self> {
+        party
+            .iter()
+            .position(|rsn| rsn.as_str() == name)
+            .map(Self::from_usize)
+    }
+
     pub(crate) fn from_usize(index: usize) -> Self {
         Self(u8::try_from(index).expect("party is small"))
     }
@@ -108,7 +116,7 @@ impl fmt::Display for InvalidRsn {
 impl std::error::Error for InvalidRsn {}
 
 /// A unique identifier for an NPC within a timeline.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RoomId(pub u64);
 
 /// A tracked actor in the stage.

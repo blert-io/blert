@@ -1739,8 +1739,16 @@ fn builder_ingest_mokhaiotl_objects() {
             .iter()
             .collect::<Vec<_>>(),
         [
-            (ObjectKind::MokhaiotlSplat, Point(3555, 6440)),
-            (ObjectKind::MokhaiotlSplat, Point(3556, 6439)),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3555, 6440),
+                Source::Client(ClientId(8))
+            ),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3556, 6439),
+                Source::Client(ClientId(8))
+            ),
         ]
     );
     assert_eq!(
@@ -1751,9 +1759,21 @@ fn builder_ingest_mokhaiotl_objects() {
             .iter()
             .collect::<Vec<_>>(),
         [
-            (ObjectKind::MokhaiotlSplat, Point(3553, 6436)),
-            (ObjectKind::MokhaiotlSplat, Point(3555, 6440)),
-            (ObjectKind::MokhaiotlSplat, Point(3556, 6439)),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3553, 6436),
+                Source::Client(ClientId(8))
+            ),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3555, 6440),
+                Source::Client(ClientId(8))
+            ),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3556, 6439),
+                Source::Client(ClientId(8))
+            ),
         ]
     );
     assert_eq!(
@@ -1764,10 +1784,26 @@ fn builder_ingest_mokhaiotl_objects() {
             .iter()
             .collect::<Vec<_>>(),
         [
-            (ObjectKind::MokhaiotlRock, Point(3547, 6440)),
-            (ObjectKind::MokhaiotlSplat, Point(3553, 6436)),
-            (ObjectKind::MokhaiotlSplat, Point(3555, 6440)),
-            (ObjectKind::MokhaiotlSplat, Point(3556, 6439)),
+            (
+                ObjectKind::MokhaiotlRock,
+                Point(3547, 6440),
+                Source::Client(ClientId(8))
+            ),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3553, 6436),
+                Source::Client(ClientId(8))
+            ),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3555, 6440),
+                Source::Client(ClientId(8))
+            ),
+            (
+                ObjectKind::MokhaiotlSplat,
+                Point(3556, 6439),
+                Source::Client(ClientId(8))
+            ),
         ]
     );
     assert_eq!(builder.rejections().count(), 0);
@@ -1834,13 +1870,21 @@ fn builder_ingest_sote_maze_tiles() {
     let state = recording.get_state(Tick(71)).unwrap();
     assert_eq!(
         state.objects.iter().collect::<Vec<_>>(),
-        [(ObjectKind::SoteMazeTiles, Point(11, 0))]
+        [(
+            ObjectKind::SoteMazeTiles,
+            Point(11, 0),
+            Source::Client(ClientId(6))
+        )]
     );
     assert_eq!(state.events, []);
     let state = recording.get_state(Tick(72)).unwrap();
     assert_eq!(
         state.objects.iter().collect::<Vec<_>>(),
-        [(ObjectKind::SoteMazeTiles, Point(10, 1))]
+        [(
+            ObjectKind::SoteMazeTiles,
+            Point(10, 1),
+            Source::Client(ClientId(6))
+        )]
     );
     assert_eq!(state.events, []);
     assert_eq!(builder.rejections().count(), 0);

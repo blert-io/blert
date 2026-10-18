@@ -36,11 +36,13 @@ impl TickObjects {
         self.0.values().all(BTreeMap::is_empty)
     }
 
-    /// Returns an iterator over each object on this tick.
-    pub fn iter(&self) -> impl Iterator<Item = (ObjectKind, Point)> + '_ {
-        self.0
-            .iter()
-            .flat_map(|(kind, points)| points.keys().map(move |point| (*kind, *point)))
+    /// Returns an iterator over each object on this tick and its source.
+    pub fn iter(&self) -> impl Iterator<Item = (ObjectKind, Point, Source)> + '_ {
+        self.0.iter().flat_map(|(kind, points)| {
+            points
+                .iter()
+                .map(move |(point, source)| (*kind, *point, *source))
+        })
     }
 
     /// Returns an iterator over each kind of object present on this tick.
@@ -85,6 +87,17 @@ impl TickObjects {
         let map = self.0.entry(kind).or_default();
         for point in points {
             map.entry(point).or_insert(source);
+        }
+    }
+
+    /// Adds objects in `other` that don't exist already, keeping the original
+    /// source for those that do.
+    pub fn extend(&mut self, other: &TickObjects) {
+        for (kind, points) in &other.0 {
+            let map = self.0.entry(*kind).or_default();
+            for (point, source) in points {
+                map.entry(*point).or_insert(*source);
+            }
         }
     }
 
@@ -139,10 +152,22 @@ mod tests {
         assert_eq!(
             objects.iter().collect::<Vec<_>>(),
             [
-                (ObjectKind::MokhaiotlRock, Point(3, 4)),
-                (ObjectKind::MokhaiotlSplat, Point(3, 4)),
-                (ObjectKind::MokhaiotlSplat, Point(5, 6)),
-                (ObjectKind::MokhaiotlSplat, Point(7, 8)),
+                (
+                    ObjectKind::MokhaiotlRock,
+                    Point(3, 4),
+                    Source::Client(ClientId(2))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(3, 4),
+                    Source::Client(ClientId(1))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(5, 6),
+                    Source::Client(ClientId(1))
+                ),
+                (ObjectKind::MokhaiotlSplat, Point(7, 8), Source::Synthetic),
             ]
         );
         assert_eq!(
@@ -187,9 +212,21 @@ mod tests {
         assert_eq!(
             objects.iter().collect::<Vec<_>>(),
             [
-                (ObjectKind::MokhaiotlRock, Point(3, 4)),
-                (ObjectKind::MokhaiotlSplat, Point(5, 6)),
-                (ObjectKind::MokhaiotlSplat, Point(7, 8)),
+                (
+                    ObjectKind::MokhaiotlRock,
+                    Point(3, 4),
+                    Source::Client(ClientId(1))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(5, 6),
+                    Source::Client(ClientId(1))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(7, 8),
+                    Source::Client(ClientId(1))
+                ),
             ]
         );
 
@@ -201,6 +238,56 @@ mod tests {
         assert_eq!(
             objects.kinds().collect::<Vec<_>>(),
             [ObjectKind::MokhaiotlSplat]
+        );
+    }
+
+    #[test]
+    fn tick_objects_extend() {
+        let mut objects = TickObjects::default();
+        objects.insert(
+            ObjectKind::MokhaiotlSplat,
+            Source::Client(ClientId(4)),
+            [Point(9, 10), Point(11, 12)],
+        );
+
+        let mut other = TickObjects::default();
+        other.insert(
+            ObjectKind::MokhaiotlSplat,
+            Source::Client(ClientId(5)),
+            [Point(11, 12), Point(13, 14)],
+        );
+        other.insert(
+            ObjectKind::MokhaiotlRock,
+            Source::Client(ClientId(5)),
+            [Point(15, 16)],
+        );
+
+        objects.extend(&other);
+
+        assert_eq!(
+            objects.iter().collect::<Vec<_>>(),
+            [
+                (
+                    ObjectKind::MokhaiotlRock,
+                    Point(15, 16),
+                    Source::Client(ClientId(5))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(9, 10),
+                    Source::Client(ClientId(4))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(11, 12),
+                    Source::Client(ClientId(4))
+                ),
+                (
+                    ObjectKind::MokhaiotlSplat,
+                    Point(13, 14),
+                    Source::Client(ClientId(5))
+                ),
+            ]
         );
     }
 
@@ -223,7 +310,11 @@ mod tests {
         assert!(!objects.contains_kind(ObjectKind::ColosseumReentryPrimaryPool));
         assert_eq!(
             objects.iter().collect::<Vec<_>>(),
-            [(ObjectKind::ColosseumReentrySecondaryPool, Point(1817, 3111))]
+            [(
+                ObjectKind::ColosseumReentrySecondaryPool,
+                Point(1817, 3111),
+                Source::Client(ClientId(3))
+            )]
         );
     }
 }

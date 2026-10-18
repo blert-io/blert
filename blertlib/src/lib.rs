@@ -148,7 +148,7 @@ impl std::fmt::Display for ClientId {
 ///
 /// A source displays and serializes as its underlying client's ID,
 /// or `synthetic` for events created programmatically.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Source {
     /// Recorded by a client.
     Client(ClientId),

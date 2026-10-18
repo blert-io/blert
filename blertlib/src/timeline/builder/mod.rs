@@ -1155,10 +1155,7 @@ struct ObjectUpdate {
 }
 
 fn resolve_index(party: &[Rsn], player: &str) -> Result<PartyIndex, FieldError> {
-    party
-        .iter()
-        .position(|p| p.as_str() == player)
-        .map(PartyIndex::from_usize)
+    PartyIndex::resolve(party, player)
         .ok_or_else(|| FieldError::UnknownActor(RawActor::Player(player.to_string())))
 }
 

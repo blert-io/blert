@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::actor::{NpcState, Players, RoomId, Rsn};
+use crate::actor::{Actor, NpcState, PartyIndex, Players, RoomId, Rsn};
 use crate::event::{Event, Maze};
 use crate::objects::TickObjects;
 use crate::tick::{Tick, Ticks};
@@ -34,6 +34,17 @@ pub struct TickState {
     pub events: Vec<Event>,
 }
 
+impl TickState {
+    /// Returns true if `actor` was recorded on the tick.
+    #[must_use]
+    pub fn has_actor(&self, actor: Actor) -> bool {
+        match actor {
+            Actor::Npc(room_id) => self.npcs.contains_key(&room_id),
+            Actor::Player(player) => self.players.get(player).is_some(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StageNpc {
     pub spawn: Tick,
@@ -63,6 +74,20 @@ pub enum StageData {
     },
 }
 
+impl StageData {
+    fn normalize(&mut self) {
+        match self {
+            Self::None | Self::Inferno { .. } => {}
+            Self::Sotetseg { mazes } => {
+                for pivots in mazes.values_mut() {
+                    pivots.overworld.sort_by_key(|point| point.1);
+                    pivots.underworld.sort_by_key(|point| point.1);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Timeline {
     stage: Stage,
@@ -76,20 +101,26 @@ pub struct Timeline {
 impl Timeline {
     /// Returns the stage recorded in this timeline.
     #[must_use]
-    pub fn stage(&self) -> &Stage {
-        &self.stage
+    pub fn stage(&self) -> Stage {
+        self.stage
     }
 
     /// Returns the mode of the recorded challenge.
     #[must_use]
-    pub fn mode(&self) -> &ChallengeMode {
-        &self.mode
+    pub fn mode(&self) -> ChallengeMode {
+        self.mode
     }
 
     /// Returns the party of the recorded challenge.
     #[must_use]
     pub fn party(&self) -> &[Rsn] {
         &self.party
+    }
+
+    /// Returns the party index of `rsn`, or `None` if they are not in the party.
+    #[must_use]
+    pub fn party_index(&self, rsn: &Rsn) -> Option<PartyIndex> {
+        PartyIndex::resolve(&self.party, rsn.as_str())
     }
 
     /// Returns the last recorded tick in the timeline.
@@ -162,6 +193,7 @@ impl Timeline {
 
         if modified.stage_data {
             self.stage_data = recording.stage_data().clone();
+            self.stage_data.normalize();
         }
 
         if let Some(from) = modified.from_tick
@@ -192,9 +224,11 @@ impl Timeline {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::item::EQUIPMENT_SLOTS;
     use crate::{
-        BloatDown, ClientId, EventKind, MaidenCrab, MaidenCrabPosition, MaidenCrabSpawn, NpcDeath,
-        NpcProperties, Point, PrayerBook, PrayerSet, Rect, SkillLevel, Source, Ticks,
+        BloatDown, ClientId, DataSource, EventKind, MaidenCrab, MaidenCrabPosition,
+        MaidenCrabSpawn, NpcDeath, NpcProperties, PlayerState, Point, PrayerBook, PrayerSet, Rect,
+        SkillLevel, Source, Ticks,
     };
 
     #[test]
@@ -242,9 +276,17 @@ mod tests {
             stage_data: StageData::None,
         };
 
-        assert_eq!(timeline.stage(), &Stage::TobBloat);
-        assert_eq!(timeline.mode(), &ChallengeMode::TobHard);
+        assert_eq!(timeline.stage(), Stage::TobBloat);
+        assert_eq!(timeline.mode(), ChallengeMode::TobHard);
         assert_eq!(timeline.party(), ["1Ogp", "WWWWWWWWWWQQ"]);
+        assert_eq!(
+            timeline.party_index(&Rsn::try_from("WWWWWWWWWWQQ").unwrap()),
+            Some(PartyIndex(1))
+        );
+        assert_eq!(
+            timeline.party_index(&Rsn::try_from("TobDataEgirl").unwrap()),
+            None
+        );
         assert_eq!(timeline.last_tick(), Tick(5));
         assert_eq!(timeline.missing_tick_count(), 3);
 
@@ -491,6 +533,124 @@ mod tests {
                     }
                 ),
             ]
+        );
+    }
+
+    #[test]
+    fn tick_state_has_actor() {
+        let mut players = Players::empty(3);
+        players[PartyIndex(1)] = Some(PlayerState {
+            source: Source::Client(ClientId(52)),
+            position: Point(3166, 4441),
+            equipment: [None; EQUIPMENT_SLOTS],
+            prayers: PrayerSet::empty(PrayerBook::Normal),
+            data: DataSource::Secondary,
+        });
+        let state = TickState {
+            players,
+            npcs: BTreeMap::from([(
+                RoomId(64386),
+                NpcState {
+                    source: Source::Client(ClientId(52)),
+                    id: 8360,
+                    position: Rect::square(Point(3162, 4444), 6),
+                    hitpoints: SkillLevel {
+                        current: 3062,
+                        base: 3062,
+                    },
+                    prayers: PrayerSet::empty(PrayerBook::Normal),
+                    properties: None,
+                },
+            )]),
+            objects: TickObjects::default(),
+            raw_objects: RawObjects::default(),
+            events: Vec::new(),
+        };
+
+        assert!(state.has_actor(Actor::Player(PartyIndex(1))));
+        assert!(!state.has_actor(Actor::Player(PartyIndex(2))));
+        assert!(state.has_actor(Actor::Npc(RoomId(64386))));
+        assert!(!state.has_actor(Actor::Npc(RoomId(64745))));
+    }
+
+    #[test]
+    fn stage_data_normalize() {
+        let mut stage_data = StageData::Sotetseg {
+            mazes: BTreeMap::from([(
+                Maze::Maze66,
+                SoteMazePivots {
+                    overworld: vec![
+                        Point(7, 10),
+                        Point(8, 0),
+                        Point(2, 8),
+                        Point(11, 4),
+                        Point(7, 12),
+                        Point(8, 2),
+                        Point(7, 6),
+                    ],
+                    underworld: vec![
+                        Point(3, 14),
+                        Point(8, 2),
+                        Point(7, 6),
+                        Point(8, 0),
+                        Point(7, 12),
+                        Point(11, 4),
+                        Point(7, 10),
+                        Point(2, 8),
+                    ],
+                },
+            )]),
+        };
+
+        stage_data.normalize();
+
+        assert_eq!(
+            stage_data,
+            StageData::Sotetseg {
+                mazes: BTreeMap::from([(
+                    Maze::Maze66,
+                    SoteMazePivots {
+                        overworld: vec![
+                            Point(8, 0),
+                            Point(8, 2),
+                            Point(11, 4),
+                            Point(7, 6),
+                            Point(2, 8),
+                            Point(7, 10),
+                            Point(7, 12),
+                        ],
+                        underworld: vec![
+                            Point(8, 0),
+                            Point(8, 2),
+                            Point(11, 4),
+                            Point(7, 6),
+                            Point(2, 8),
+                            Point(7, 10),
+                            Point(7, 12),
+                            Point(3, 14),
+                        ],
+                    },
+                )]),
+            }
+        );
+
+        let copy = stage_data.clone();
+        stage_data.normalize();
+        assert_eq!(stage_data, copy);
+
+        let mut none = StageData::None;
+        none.normalize();
+        assert_eq!(none, StageData::None);
+
+        let mut inferno = StageData::Inferno {
+            wave_start: Ticks(1216),
+        };
+        inferno.normalize();
+        assert_eq!(
+            inferno,
+            StageData::Inferno {
+                wave_start: Ticks(1216)
+            }
         );
     }
 }
