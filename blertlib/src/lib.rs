@@ -144,6 +144,62 @@ impl std::fmt::Display for ClientId {
     }
 }
 
+/// A release of the Blert plugin.
+///
+/// A plugin version parses from a string such as `0.10.0-RUNELITE`, ignoring
+/// anything after the first `-`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PluginVersion {
+    major: u32,
+    minor: u32,
+    patch: u32,
+}
+
+impl PluginVersion {
+    /// Creates a plugin version from its components.
+    #[must_use]
+    pub const fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+}
+
+impl std::fmt::Display for PluginVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+/// A plugin version string which does not start with `major.minor.patch`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InvalidPluginVersion(pub String);
+
+impl std::error::Error for InvalidPluginVersion {}
+
+impl std::fmt::Display for InvalidPluginVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid plugin version {}", self.0)
+    }
+}
+
+impl std::str::FromStr for PluginVersion {
+    type Err = InvalidPluginVersion;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let release = s.split_once('-').map_or(s, |(release, _)| release);
+        let mut parts = release.split('.').map(str::parse::<u32>);
+        match (parts.next(), parts.next(), parts.next(), parts.next()) {
+            (Some(Ok(major)), Some(Ok(minor)), Some(Ok(patch)), None) => {
+                Ok(Self::new(major, minor, patch))
+            }
+            _ => Err(InvalidPluginVersion(s.to_owned())),
+        }
+    }
+}
+
 /// Where recorded data came from.
 ///
 /// A source displays and serializes as its underlying client's ID,
@@ -226,6 +282,36 @@ mod tests {
         );
         assert!(serde_json::from_str::<Source>("42").is_err());
         assert!(serde_json::from_str::<Source>("-67").is_err());
+    }
+
+    #[test]
+    fn plugin_version_parse_and_order() {
+        assert_eq!(
+            "0.10.0-RUNELITE".parse::<PluginVersion>(),
+            Ok(PluginVersion::new(0, 10, 0))
+        );
+        assert_eq!(
+            "0.9.24-dev".parse::<PluginVersion>(),
+            Ok(PluginVersion::new(0, 9, 24))
+        );
+        assert_eq!(
+            "0.9.10".parse::<PluginVersion>(),
+            Ok(PluginVersion::new(0, 9, 10))
+        );
+        assert_eq!(PluginVersion::new(0, 10, 0).to_string(), "0.10.0");
+
+        assert_eq!(
+            "0.10".parse::<PluginVersion>(),
+            Err(InvalidPluginVersion("0.10".to_owned()))
+        );
+        assert!("0.10.0.1".parse::<PluginVersion>().is_err());
+        assert!("0.10.x-RUNELITE".parse::<PluginVersion>().is_err());
+        assert!("-RUNELITE".parse::<PluginVersion>().is_err());
+        assert!("".parse::<PluginVersion>().is_err());
+
+        assert!(PluginVersion::new(0, 9, 24) < PluginVersion::new(0, 10, 0));
+        assert!(PluginVersion::new(0, 10, 0) < PluginVersion::new(0, 10, 1));
+        assert!(PluginVersion::new(0, 10, 9) < PluginVersion::new(1, 0, 0));
     }
 
     #[test]

@@ -371,7 +371,7 @@ mod tests {
     use super::*;
     use crate::lifecycle::core::types::{
         ChallengeMode, ChallengeStatus, ChallengeType, ClientId, ServerTicks, Stage, StageStatus,
-        StageUpdate, Uuid,
+        StageUpdate, UserId, Uuid,
     };
     use crate::proto::ChallengeEvents;
 
@@ -454,9 +454,18 @@ mod tests {
 
     #[test]
     fn interpret_reports_the_first_clients_timeline() {
+        let metadata = |client_id: u32| ClientStageStream::Metadata {
+            client_id: ClientId(client_id),
+            user_id: UserId(i64::from(client_id) * 10),
+            plugin_version: "0.10.0-RUNELITE".into(),
+            runelite_version: "runelite-1.13.2".into(),
+            recording_config_version: Some(1),
+        };
         let result = run_interpret(&[
+            metadata(2),
             events(2, &[0, 1]),
             end(2, StageStatus::Wiped, 185),
+            metadata(1),
             events(1, &[0, 1, 2]),
             end(1, StageStatus::Completed, 200),
         ])
@@ -467,7 +476,17 @@ mod tests {
 
     #[test]
     fn client_without_a_report_processes_from_its_events() {
-        let result = run_interpret(&[events(1, &[0, 1, 4])]).unwrap();
+        let result = run_interpret(&[
+            ClientStageStream::Metadata {
+                client_id: ClientId(1),
+                user_id: UserId(10),
+                plugin_version: "0.10.0-RUNELITE".into(),
+                runelite_version: "runelite-1.13.2".into(),
+                recording_config_version: Some(1),
+            },
+            events(1, &[0, 1, 4]),
+        ])
+        .unwrap();
         assert_eq!(result.merged.status(), StageStatus::Started);
         assert_eq!(result.merged.timeline().last_tick(), Tick(4));
     }

@@ -21,6 +21,9 @@ impl std::fmt::Display for InvalidVersion {
 }
 
 impl ConfigVersion {
+    /// Recordings from plugins without a recording config.
+    pub const NONE: Self = Self(0);
+
     /// The most current supported config version.
     pub const LATEST: Self = Self(1);
 

@@ -669,24 +669,28 @@ impl ChallengeReader {
         let builder = if let Some(builder) = &mut self.builder {
             builder
         } else {
-            let config_version = match client_entries.peek()?.record {
-                StageStreamRecord::Metadata {
-                    recording_config_version,
-                } => match ConfigVersion::parse(recording_config_version) {
-                    Ok(config_version) => config_version,
-                    Err(InvalidVersion(version)) => {
-                        tracing::error!(
-                            parent: span,
-                            version,
-                            "unsupported recording config version",
-                        );
-                        ConfigVersion::LATEST
-                    }
-                },
-                StageStreamRecord::Events(_) => ConfigVersion::LATEST,
+            let StageStreamRecord::Metadata {
+                plugin_version,
+                recording_config_version,
+            } = client_entries.peek()?.record
+            else {
+                return None;
+            };
+            let config_version = match recording_config_version.map(ConfigVersion::parse) {
+                Some(Ok(config_version)) => config_version,
+                Some(Err(InvalidVersion(version))) => {
+                    tracing::error!(
+                        parent: span,
+                        version,
+                        "unsupported recording config version",
+                    );
+                    ConfigVersion::LATEST
+                }
+                None => ConfigVersion::LATEST,
             };
             self.builder.insert(RecordingBuilder::new(
                 client_id,
+                plugin_version,
                 config_version,
                 self.stage,
                 self.challenge_mode,
@@ -1215,7 +1219,7 @@ mod tests {
     #![allow(clippy::too_many_lines, clippy::cast_possible_truncation)]
     use std::collections::HashMap;
 
-    use blert::Point;
+    use blert::{PluginVersion, Point};
     use tokio::sync::mpsc;
 
     use super::*;
@@ -1263,6 +1267,17 @@ mod tests {
                 }
                 .encode_to_vec(),
             ),
+        }
+    }
+
+    fn metadata_entry(id: &str, client_id: ClientId) -> StageStreamEntry {
+        StageStreamEntry {
+            id: id.to_string(),
+            client_id,
+            record: StageStreamRecord::Metadata {
+                plugin_version: PluginVersion::new(0, 10, 0),
+                recording_config_version: None,
+            },
         }
     }
 
@@ -1456,7 +1471,10 @@ mod tests {
             vec![
                 RedisResponse::ChallengeState(Some(challenge_state(Stage::TobMaiden, None))),
                 RedisResponse::ChallengeClients(clients),
-                RedisResponse::StageStream(vec![stream_entry("1-0", ClientId(1), 3)]),
+                RedisResponse::StageStream(vec![
+                    metadata_entry("0-0", ClientId(1)),
+                    stream_entry("1-0", ClientId(1), 3),
+                ]),
             ],
             0,
         );
@@ -1531,7 +1549,10 @@ mod tests {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
 
         // First event is for tick 3.
-        let entries = vec![stream_entry("1-0", ClientId(1), 3)];
+        let entries = vec![
+            metadata_entry("0-0", ClientId(1)),
+            stream_entry("1-0", ClientId(1), 3),
+        ];
         let dirty = reader.ingest_entries(&entries, ClientId(1));
 
         assert_eq!(reader.tick_buffer.len(), 4);
@@ -1575,7 +1596,8 @@ mod tests {
                     id: "1-0".to_string(),
                     client_id: ClientId(1),
                     record: StageStreamRecord::Metadata {
-                        recording_config_version: ConfigVersion::LATEST.get() + 1,
+                        plugin_version: PluginVersion::new(0, 10, 0),
+                        recording_config_version: Some(ConfigVersion::LATEST.get() + 1),
                     },
                 },
                 stream_entry("2-0", ClientId(1), 2),
@@ -1645,7 +1667,13 @@ mod tests {
     #[test]
     fn ingest_entries_drops_events_rejected_by_the_builder() {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
-        reader.ingest_entries(&[stream_entry("1-0", ClientId(1), 0)], ClientId(1));
+        reader.ingest_entries(
+            &[
+                metadata_entry("0-0", ClientId(1)),
+                stream_entry("1-0", ClientId(1), 0),
+            ],
+            ClientId(1),
+        );
 
         let mut outsider = maiden_events()[1].clone();
         outsider.player.as_mut().unwrap().name = "715".to_string();
@@ -1701,8 +1729,8 @@ mod tests {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
 
         // Populate tick buffer.
-        let entries: Vec<_> = (1..=3)
-            .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+        let entries: Vec<_> = std::iter::once(metadata_entry("0-0", ClientId(1)))
+            .chain((1..=3).map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)))
             .collect();
         reader.process_stream_entries(&entries, 0);
         reader.broadcast();
@@ -1725,8 +1753,8 @@ mod tests {
     fn replay_while_stage_is_draining_uses_broadcast_cursor() {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
 
-        let entries: Vec<_> = (0..=4)
-            .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+        let entries: Vec<_> = std::iter::once(metadata_entry("0-0", ClientId(1)))
+            .chain((0..=4).map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)))
             .collect();
         reader.process_stream_entries(&entries, 0);
 
@@ -1765,6 +1793,7 @@ mod tests {
 
         reader.process_stream_entries(
             &[
+                metadata_entry("0-0", ClientId(1)),
                 stream_entry("0-0", ClientId(1), 0),
                 stream_entry("1-0", ClientId(1), 1),
             ],
@@ -1785,8 +1814,8 @@ mod tests {
     #[test]
     fn replay_skips_cached_chunks_past_live_cursor() {
         let mut reader = new_active_reader(Stage::TobMaiden, None);
-        let entries: Vec<_> = (0..=3)
-            .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+        let entries: Vec<_> = std::iter::once(metadata_entry("0-0", ClientId(1)))
+            .chain((0..=3).map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)))
             .collect();
         reader.process_stream_entries(&entries, 0);
 
@@ -1878,7 +1907,8 @@ mod tests {
                     id: "1-0".to_string(),
                     client_id: ClientId(1),
                     record: StageStreamRecord::Metadata {
-                        recording_config_version: 1,
+                        plugin_version: PluginVersion::new(0, 10, 0),
+                        recording_config_version: Some(1),
                     },
                 },
                 stream_entry("2-0", ClientId(1), 4),
@@ -1886,7 +1916,8 @@ mod tests {
                     id: "3-0".to_string(),
                     client_id: ClientId(2),
                     record: StageStreamRecord::Metadata {
-                        recording_config_version: 0,
+                        plugin_version: PluginVersion::new(0, 9, 24),
+                        recording_config_version: Some(0),
                     },
                 },
                 stream_entry("4-0", ClientId(2), 1),
@@ -2106,6 +2137,7 @@ mod tests {
                 challenge_id: "test".to_string(),
                 backfill_id: reader.backfill_id,
                 entries: vec![
+                    metadata_entry("0-0", ClientId(1)),
                     stream_entry("1-0", ClientId(1), 1),
                     stream_entry("2-0", ClientId(1), 2),
                 ],
@@ -2225,8 +2257,8 @@ mod tests {
         drain_messages(&mut rx);
 
         // Ingest ticks 1-3.
-        let entries: Vec<_> = (1..=3)
-            .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+        let entries: Vec<_> = std::iter::once(metadata_entry("0-0", ClientId(1)))
+            .chain((1..=3).map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)))
             .collect();
         reader.process_stream_entries(&entries, 0);
 
@@ -2316,8 +2348,11 @@ mod tests {
         reader.add_subscriber(Subscriber::new(1, Some(Stage::TobMaiden as i32), tx));
         drain_messages(&mut rx);
 
-        let entries: Vec<_> = (0..(JITTER_DEPTH + 1) as u32)
-            .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+        let entries: Vec<_> = std::iter::once(metadata_entry("0-0", ClientId(1)))
+            .chain(
+                (0..(JITTER_DEPTH + 1) as u32)
+                    .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)),
+            )
             .collect();
         reader.process_stream_entries(&entries, 0);
 
@@ -2340,8 +2375,8 @@ mod tests {
 
         let num_ticks = (JITTER_DEPTH + LAG_THRESHOLD + 1) as u32;
 
-        let entries: Vec<_> = (0..num_ticks)
-            .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+        let entries: Vec<_> = std::iter::once(metadata_entry("0-0", ClientId(1)))
+            .chain((0..num_ticks).map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)))
             .collect();
         reader.process_stream_entries(&entries, 0);
 
@@ -2379,6 +2414,7 @@ mod tests {
 
         reader.process_stream_entries(
             &[
+                metadata_entry("0-0", ClientId(1)),
                 StageStreamEntry {
                     id: "1-0".to_string(),
                     client_id: ClientId(1),
@@ -2606,6 +2642,7 @@ mod tests {
 
         reader.process_stream_entries(
             &[
+                metadata_entry("0-0", ClientId(1)),
                 stream_entry("0-0", ClientId(1), 0),
                 stream_entry("1-0", ClientId(1), 1),
             ],
@@ -2689,8 +2726,8 @@ mod tests {
             BackfillResult {
                 challenge_id: "test".to_string(),
                 backfill_id: reader.backfill_id,
-                entries: (0..4)
-                    .map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t))
+                entries: std::iter::once(metadata_entry("0-0", ClientId(1)))
+                    .chain((0..4).map(|t| stream_entry(&format!("{t}-0"), ClientId(1), t)))
                     .collect(),
                 last_stream_id: "3-0".to_string(),
             },
@@ -3097,7 +3134,13 @@ mod tests {
         reader.add_subscriber(Subscriber::new(7, Some(Stage::TobMaiden as i32), tx));
         drain_messages(&mut rx);
 
-        reader.process_stream_entries(&[stream_entry("1-0", ClientId(1), 1)], 4);
+        reader.process_stream_entries(
+            &[
+                metadata_entry("0-0", ClientId(1)),
+                stream_entry("1-0", ClientId(1), 1),
+            ],
+            4,
+        );
 
         // The stage ends after the primary has been silent past the threshold.
         reader.apply_challenge_update(&ChallengeServerUpdate::StageEnd {

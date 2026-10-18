@@ -9,6 +9,7 @@ use crate::{ChallengeMode, Stage, item};
 fn builder_ingest_returns_none_if_all_rejected() {
     let mut builder = RecordingBuilder::new(
         ClientId(7),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobBloat,
         ChallengeMode::TobRegular,
@@ -92,6 +93,7 @@ fn builder_ingest_returns_none_if_all_rejected() {
 fn builder_ingest_rejects_event_from_another_stage() {
     let mut builder = RecordingBuilder::new(
         ClientId(13),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -123,6 +125,7 @@ fn builder_ingest_rejects_event_from_another_stage() {
 fn builder_ingest_drops_action_without_actor() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -175,6 +178,7 @@ fn builder_ingest_drops_action_without_actor() {
 fn builder_ingest_player_update() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -303,6 +307,7 @@ fn builder_ingest_player_update() {
 fn builder_ingest_reverts_last_seen_when_cleared() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -431,6 +436,7 @@ fn builder_ingest_reverts_last_seen_when_cleared() {
 fn builder_ingest_npc_spawn() {
     let mut builder = RecordingBuilder::new(
         ClientId(3),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -490,6 +496,7 @@ fn builder_ingest_npc_spawn() {
 fn builder_ingest_moves_maiden_spawn_to_tick_0() {
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -605,6 +612,7 @@ fn builder_ingest_moves_maiden_spawn_to_tick_0() {
 fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -698,6 +706,7 @@ fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
 fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -790,6 +799,7 @@ fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
 fn builder_ingest_objects() {
     let mut builder = RecordingBuilder::new(
         ClientId(5),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -957,6 +967,7 @@ fn builder_ingest_objects() {
 fn builder_ingest_objects_warns_on_inconsistent_deltas() {
     let mut builder = RecordingBuilder::new(
         ClientId(10),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -1104,6 +1115,7 @@ fn builder_ingest_objects_warns_on_inconsistent_deltas() {
 fn builder_ingest_objects_rejects_malformed_updates() {
     let mut builder = RecordingBuilder::new(
         ClientId(12),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
@@ -1246,7 +1258,8 @@ fn builder_ingest_objects_rejects_malformed_updates() {
 fn builder_ingest_maiden_blood_splats() {
     let mut builder = RecordingBuilder::new(
         ClientId(4),
-        ConfigVersion::LATEST,
+        PluginVersion::new(0, 9, 24),
+        ConfigVersion::NONE,
         Stage::TobMaiden,
         ChallengeMode::TobRegular,
         vec![Rsn::try_from("aSaradomin").unwrap()],
@@ -1319,6 +1332,7 @@ fn builder_ingest_maiden_blood_splats() {
 fn builder_ingest_verzik_yellows() {
     let mut builder = RecordingBuilder::new(
         ClientId(11),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -1367,6 +1381,7 @@ fn builder_ingest_verzik_yellows() {
 fn builder_ingest_mokhaiotl_shockwave() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
@@ -1530,6 +1545,7 @@ fn builder_ingest_mokhaiotl_shockwave() {
 fn builder_ingest_colosseum_reentry_pools() {
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::ColosseumWave12,
         ChallengeMode::NoMode,
@@ -1641,6 +1657,7 @@ fn builder_ingest_colosseum_reentry_pools() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::ColosseumWave5,
         ChallengeMode::NoMode,
@@ -1679,6 +1696,7 @@ fn builder_ingest_colosseum_reentry_pools() {
 fn builder_ingest_mokhaiotl_objects() {
     let mut builder = RecordingBuilder::new(
         ClientId(8),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
@@ -1831,6 +1849,7 @@ fn builder_ingest_mokhaiotl_objects() {
 fn builder_ingest_sote_maze_tiles() {
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -1894,6 +1913,7 @@ fn builder_ingest_sote_maze_tiles() {
 fn builder_ingest_sote_maze_pivots() {
     let mut builder = RecordingBuilder::new(
         ClientId(6),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -1982,6 +2002,7 @@ fn builder_ingest_sote_maze_pivots() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(11),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -2048,6 +2069,7 @@ fn builder_ingest_sote_maze_pivots() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(627),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobSotetseg,
         ChallengeMode::TobRegular,
@@ -2176,6 +2198,7 @@ fn builder_ingest_sote_maze_pivots() {
 fn builder_ingest_inferno_wave_start() {
     let mut builder = RecordingBuilder::new(
         ClientId(21),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::InfernoWave21,
         ChallengeMode::NoMode,
@@ -2213,6 +2236,7 @@ fn builder_ingest_inferno_wave_start() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(34),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::InfernoWave34,
         ChallengeMode::NoMode,
@@ -2246,6 +2270,7 @@ fn builder_ingest_inferno_wave_start() {
 fn builder_ingest_attack_style() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -2365,6 +2390,7 @@ fn builder_ingest_attack_style() {
 fn builder_ingest_attack_style_same_tick() {
     let mut builder = RecordingBuilder::new(
         ClientId(378),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::MokhaiotlDelve4,
         ChallengeMode::NoMode,
@@ -2444,6 +2470,7 @@ fn builder_ingest_attack_style_same_tick() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(378),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::MokhaiotlDelve4,
         ChallengeMode::NoMode,
@@ -2477,6 +2504,7 @@ fn builder_ingest_attack_style_same_tick() {
 fn builder_ingest_attack_reference() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -2639,6 +2667,7 @@ fn builder_ingest_attack_reference() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
@@ -2666,6 +2695,7 @@ fn builder_ingest_attack_reference() {
 
     let mut builder = RecordingBuilder::new(
         ClientId(2),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         Stage::TobVerzik,
         ChallengeMode::TobRegular,
