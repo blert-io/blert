@@ -8,9 +8,13 @@ export default function robots(): MetadataRoute.Robots {
         disallow: '/api/',
       },
       {
-        userAgent: 'ClaudeBot',
-        disallow: '/api/',
+        userAgent: ['ClaudeBot', 'GPTBot', 'Amazonbot'],
+        disallow: ['/api/', '/players/'],
         crawlDelay: 10,
+      },
+      {
+        userAgent: ['AhrefsBot', 'SemrushBot', 'MJ12bot', 'DotBot'],
+        disallow: '/',
       },
     ],
   };

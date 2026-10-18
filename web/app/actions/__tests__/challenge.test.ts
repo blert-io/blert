@@ -15,6 +15,7 @@ import {
   countUniquePlayers,
   findChallenges,
   getPlayerStatsHistory,
+  loadPbsForPlayer,
   loadPlayerWithStats,
   loadSessionsPage,
   loadSessionWithStats,
@@ -1788,6 +1789,178 @@ describe('loadPlayerWithStats', () => {
 
   it('returns null for a player that does not exist', async () => {
     expect(await loadPlayerWithStats('versik mele')).toBeNull();
+  });
+});
+
+describe('loadPbsForPlayer', () => {
+  beforeEach(async () => {
+    const playerIds = (
+      await sql<{ id: number }[]>`
+        INSERT INTO players ${sql([
+          { username: '1Ogp', normalized_username: normalizeRsn('1Ogp') },
+          {
+            username: 'WWWWWWWWWWQQ',
+            normalized_username: normalizeRsn('WWWWWWWWWWQQ'),
+          },
+        ])}
+        RETURNING id
+      `
+    ).map((p) => p.id);
+
+    const challengeIds = (
+      await sql<{ id: number }[]>`
+        INSERT INTO challenges ${sql([
+          {
+            uuid: '11111111-1111-1111-1111-111111111111',
+            type: ChallengeType.TOB,
+            scale: 2,
+          },
+          {
+            uuid: '22222222-2222-2222-2222-222222222222',
+            type: ChallengeType.TOB,
+            scale: 2,
+          },
+          {
+            uuid: '33333333-3333-3333-3333-333333333333',
+            type: ChallengeType.TOB,
+            scale: 3,
+          },
+          {
+            uuid: '44444444-4444-4444-4444-444444444444',
+            type: ChallengeType.TOB,
+            scale: 2,
+          },
+        ])}
+        RETURNING id
+      `
+    ).map((c) => c.id);
+
+    const splitIds = (
+      await sql<{ id: number }[]>`
+        INSERT INTO challenge_splits ${sql([
+          {
+            challenge_id: challengeIds[0],
+            type: SplitType.TOB_REG_CHALLENGE,
+            scale: 2,
+            ticks: 2725,
+            accurate: true,
+          },
+          {
+            challenge_id: challengeIds[0],
+            type: SplitType.TOB_REG_MAIDEN,
+            scale: 2,
+            ticks: 244,
+            accurate: true,
+          },
+          {
+            challenge_id: challengeIds[1],
+            type: SplitType.TOB_REG_CHALLENGE,
+            scale: 2,
+            ticks: 2364,
+            accurate: true,
+          },
+          {
+            challenge_id: challengeIds[2],
+            type: SplitType.TOB_REG_CHALLENGE,
+            scale: 3,
+            ticks: 1706,
+            accurate: true,
+          },
+          {
+            challenge_id: challengeIds[3],
+            type: SplitType.TOB_REG_CHALLENGE,
+            scale: 2,
+            ticks: 2177,
+            accurate: true,
+          },
+        ])}
+        RETURNING id
+      `
+    ).map((s) => s.id);
+
+    await sql`
+      INSERT INTO personal_best_history ${sql([
+        {
+          player_id: playerIds[0],
+          challenge_split_id: splitIds[0],
+          created_at: new Date('2026-10-04T19:41:00Z'),
+        },
+        {
+          player_id: playerIds[0],
+          challenge_split_id: splitIds[1],
+          created_at: new Date('2026-10-04T19:41:00Z'),
+        },
+        {
+          player_id: playerIds[0],
+          challenge_split_id: splitIds[2],
+          created_at: new Date('2026-10-11T21:08:00Z'),
+        },
+        {
+          player_id: playerIds[0],
+          challenge_split_id: splitIds[3],
+          created_at: new Date('2026-10-14T18:25:00Z'),
+        },
+        {
+          player_id: playerIds[1],
+          challenge_split_id: splitIds[4],
+          created_at: new Date('2026-10-16T20:14:00Z'),
+        },
+      ])}
+    `;
+  });
+
+  afterEach(async () => {
+    await sql`DELETE FROM challenges`;
+    await sql`DELETE FROM players`;
+  });
+
+  it("returns a player's current PB for every split and scale without filters", async () => {
+    const pbs = await loadPbsForPlayer('1Ogp');
+
+    expect(pbs.sort((a, b) => a.type - b.type || a.scale - b.scale)).toEqual([
+      {
+        type: SplitType.TOB_REG_CHALLENGE,
+        scale: 2,
+        ticks: 2364,
+        cid: '22222222-2222-2222-2222-222222222222',
+        date: new Date('2026-10-11T21:08:00Z'),
+      },
+      {
+        type: SplitType.TOB_REG_CHALLENGE,
+        scale: 3,
+        ticks: 1706,
+        cid: '33333333-3333-3333-3333-333333333333',
+        date: new Date('2026-10-14T18:25:00Z'),
+      },
+      {
+        type: SplitType.TOB_REG_MAIDEN,
+        scale: 2,
+        ticks: 244,
+        cid: '11111111-1111-1111-1111-111111111111',
+        date: new Date('2026-10-04T19:41:00Z'),
+      },
+    ]);
+  });
+
+  it('restricts PBs to the requested splits and scales', async () => {
+    expect(
+      await loadPbsForPlayer('1Ogp', {
+        splits: [SplitType.TOB_REG_CHALLENGE],
+        scales: [2],
+      }),
+    ).toEqual([
+      {
+        type: SplitType.TOB_REG_CHALLENGE,
+        scale: 2,
+        ticks: 2364,
+        cid: '22222222-2222-2222-2222-222222222222',
+        date: new Date('2026-10-11T21:08:00Z'),
+      },
+    ]);
+  });
+
+  it('returns nothing for a player that does not exist', async () => {
+    expect(await loadPbsForPlayer('715')).toEqual([]);
   });
 });
 
