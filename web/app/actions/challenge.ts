@@ -45,6 +45,7 @@ import {
 // to import it directly.
 import type { ChallengeRow, SessionRow } from '@blert/common/dist/db/challenge';
 import postgres from 'postgres';
+import { cache } from 'react';
 
 import logger from '@/utils/log';
 import { decodePlayerTile, decodeSpawn } from '@/utils/spawn-index';
@@ -2854,92 +2855,93 @@ type PlayerStatsRow = CamelToSnakeCase<PlayerStats> & {
  * @param username The player's username.
  * @returns The player and their stats if found, `null` if not.
  */
-export async function loadPlayerWithStats(
-  username: string,
-): Promise<PlayerWithStats | null> {
-  const [playerWithStats] = await sql<
-    ({
-      player_id: number;
-      username: string;
-      total_recordings: number;
-    } & { [K in keyof PlayerStatsRow]: PlayerStatsRow[K] | null })[]
-  >`
-    SELECT
-      player_stats.*,
-      players.id as player_id,
-      players.username,
-      players.total_recordings
-    FROM players
-    LEFT JOIN player_stats ON players.id = player_stats.player_id
-    WHERE players.normalized_username = ${normalizeRsn(username)}
-    ORDER BY player_stats.date DESC
-    LIMIT 1
-  `;
+export const loadPlayerWithStats = cache(
+  async (username: string): Promise<PlayerWithStats | null> => {
+    const [playerWithStats] = await sql<
+      ({
+        player_id: number;
+        username: string;
+        total_recordings: number;
+      } & { [K in keyof PlayerStatsRow]: PlayerStatsRow[K] | null })[]
+    >`
+      SELECT
+        player_stats.*,
+        players.id as player_id,
+        players.username,
+        players.total_recordings
+      FROM players
+      LEFT JOIN player_stats ON players.id = player_stats.player_id
+      WHERE players.normalized_username = ${normalizeRsn(username)}
+      ORDER BY player_stats.date DESC
+      LIMIT 1
+    `;
 
-  if (!playerWithStats) {
-    return null;
-  }
+    if (!playerWithStats) {
+      return null;
+    }
 
-  const [firstStats] = await sql<[{ date: Date }?]>`
-    SELECT date
-    FROM player_stats
-    WHERE player_id = ${playerWithStats.player_id}
-    ORDER BY date ASC
-    LIMIT 1
-  `;
-  const firstRecorded = firstStats?.date ?? null;
+    const [firstStats] = await sql<[{ date: Date }?]>`
+      SELECT date
+      FROM player_stats
+      WHERE player_id = ${playerWithStats.player_id}
+      ORDER BY date ASC
+      LIMIT 1
+    `;
+    const firstRecorded = firstStats?.date ?? null;
 
-  return {
-    id: playerWithStats.player_id,
-    username: playerWithStats.username,
-    totalRecordings: playerWithStats.total_recordings,
-    firstRecorded,
-    stats: {
-      tobCompletions: playerWithStats.tob_completions ?? 0,
-      tobWipes: playerWithStats.tob_wipes ?? 0,
-      tobResets: playerWithStats.tob_resets ?? 0,
-      colosseumCompletions: playerWithStats.colosseum_completions ?? 0,
-      colosseumWipes: playerWithStats.colosseum_wipes ?? 0,
-      colosseumResets: playerWithStats.colosseum_resets ?? 0,
-      infernoCompletions: playerWithStats.inferno_completions ?? 0,
-      infernoWipes: playerWithStats.inferno_wipes ?? 0,
-      infernoResets: playerWithStats.inferno_resets ?? 0,
-      mokhaiotlCompletions: playerWithStats.mokhaiotl_completions ?? 0,
-      mokhaiotlWipes: playerWithStats.mokhaiotl_wipes ?? 0,
-      mokhaiotlResets: playerWithStats.mokhaiotl_resets ?? 0,
-      mokhaiotlTotalDelves: playerWithStats.mokhaiotl_total_delves ?? 0,
-      mokhaiotlDelvesCompleted: playerWithStats.mokhaiotl_delves_completed ?? 0,
-      mokhaiotlDeepDelvesCompleted:
-        playerWithStats.mokhaiotl_deep_delves_completed ?? 0,
-      deathsTotal: playerWithStats.deaths_total ?? 0,
-      deathsMaiden: playerWithStats.deaths_maiden ?? 0,
-      deathsBloat: playerWithStats.deaths_bloat ?? 0,
-      deathsNylocas: playerWithStats.deaths_nylocas ?? 0,
-      deathsSotetseg: playerWithStats.deaths_sotetseg ?? 0,
-      deathsXarpus: playerWithStats.deaths_xarpus ?? 0,
-      deathsVerzik: playerWithStats.deaths_verzik ?? 0,
-      bgsSmacks: playerWithStats.bgs_smacks ?? 0,
-      hammerBops: playerWithStats.hammer_bops ?? 0,
-      challyPokes: playerWithStats.chally_pokes ?? 0,
-      unchargedScytheSwings: playerWithStats.uncharged_scythe_swings ?? 0,
-      ralosAutos: playerWithStats.ralos_autos ?? 0,
-      elderMaulSmacks: playerWithStats.elder_maul_smacks ?? 0,
-      tobBarragesWithoutProperWeapon:
-        playerWithStats.tob_barrages_without_proper_weapon ?? 0,
-      tobVerzikP1TrollSpecs: playerWithStats.tob_verzik_p1_troll_specs ?? 0,
-      tobVerzikP3Melees: playerWithStats.tob_verzik_p3_melees ?? 0,
-      chinsThrownTotal: playerWithStats.chins_thrown_total ?? 0,
-      chinsThrownBlack: playerWithStats.chins_thrown_black ?? 0,
-      chinsThrownRed: playerWithStats.chins_thrown_red ?? 0,
-      chinsThrownGrey: playerWithStats.chins_thrown_grey ?? 0,
-      chinsThrownMaiden: playerWithStats.chins_thrown_maiden ?? 0,
-      chinsThrownNylocas: playerWithStats.chins_thrown_nylocas ?? 0,
-      chinsThrownValue: playerWithStats.chins_thrown_value ?? 0,
-      chinsThrownIncorrectlyMaiden:
-        playerWithStats.chins_thrown_incorrectly_maiden ?? 0,
-    },
-  };
-}
+    return {
+      id: playerWithStats.player_id,
+      username: playerWithStats.username,
+      totalRecordings: playerWithStats.total_recordings,
+      firstRecorded,
+      stats: {
+        tobCompletions: playerWithStats.tob_completions ?? 0,
+        tobWipes: playerWithStats.tob_wipes ?? 0,
+        tobResets: playerWithStats.tob_resets ?? 0,
+        colosseumCompletions: playerWithStats.colosseum_completions ?? 0,
+        colosseumWipes: playerWithStats.colosseum_wipes ?? 0,
+        colosseumResets: playerWithStats.colosseum_resets ?? 0,
+        infernoCompletions: playerWithStats.inferno_completions ?? 0,
+        infernoWipes: playerWithStats.inferno_wipes ?? 0,
+        infernoResets: playerWithStats.inferno_resets ?? 0,
+        mokhaiotlCompletions: playerWithStats.mokhaiotl_completions ?? 0,
+        mokhaiotlWipes: playerWithStats.mokhaiotl_wipes ?? 0,
+        mokhaiotlResets: playerWithStats.mokhaiotl_resets ?? 0,
+        mokhaiotlTotalDelves: playerWithStats.mokhaiotl_total_delves ?? 0,
+        mokhaiotlDelvesCompleted:
+          playerWithStats.mokhaiotl_delves_completed ?? 0,
+        mokhaiotlDeepDelvesCompleted:
+          playerWithStats.mokhaiotl_deep_delves_completed ?? 0,
+        deathsTotal: playerWithStats.deaths_total ?? 0,
+        deathsMaiden: playerWithStats.deaths_maiden ?? 0,
+        deathsBloat: playerWithStats.deaths_bloat ?? 0,
+        deathsNylocas: playerWithStats.deaths_nylocas ?? 0,
+        deathsSotetseg: playerWithStats.deaths_sotetseg ?? 0,
+        deathsXarpus: playerWithStats.deaths_xarpus ?? 0,
+        deathsVerzik: playerWithStats.deaths_verzik ?? 0,
+        bgsSmacks: playerWithStats.bgs_smacks ?? 0,
+        hammerBops: playerWithStats.hammer_bops ?? 0,
+        challyPokes: playerWithStats.chally_pokes ?? 0,
+        unchargedScytheSwings: playerWithStats.uncharged_scythe_swings ?? 0,
+        ralosAutos: playerWithStats.ralos_autos ?? 0,
+        elderMaulSmacks: playerWithStats.elder_maul_smacks ?? 0,
+        tobBarragesWithoutProperWeapon:
+          playerWithStats.tob_barrages_without_proper_weapon ?? 0,
+        tobVerzikP1TrollSpecs: playerWithStats.tob_verzik_p1_troll_specs ?? 0,
+        tobVerzikP3Melees: playerWithStats.tob_verzik_p3_melees ?? 0,
+        chinsThrownTotal: playerWithStats.chins_thrown_total ?? 0,
+        chinsThrownBlack: playerWithStats.chins_thrown_black ?? 0,
+        chinsThrownRed: playerWithStats.chins_thrown_red ?? 0,
+        chinsThrownGrey: playerWithStats.chins_thrown_grey ?? 0,
+        chinsThrownMaiden: playerWithStats.chins_thrown_maiden ?? 0,
+        chinsThrownNylocas: playerWithStats.chins_thrown_nylocas ?? 0,
+        chinsThrownValue: playerWithStats.chins_thrown_value ?? 0,
+        chinsThrownIncorrectlyMaiden:
+          playerWithStats.chins_thrown_incorrectly_maiden ?? 0,
+      },
+    };
+  },
+);
 
 export type PersonalBest = {
   type: SplitType;
@@ -2960,57 +2962,60 @@ type PbsFilter = {
   scales?: number[];
 };
 
-export async function loadPbsForPlayer(
-  username: string,
-  filter?: PbsFilter,
-): Promise<PersonalBest[]> {
-  const rows = await sql<
-    { cid: string; date: Date; type: SplitType; scale: number; ticks: number }[]
-  >`
-    WITH player_id_cte AS (
-      SELECT id
-      FROM players
-      WHERE normalized_username = ${normalizeRsn(username)}
-      LIMIT 1
-    ),
-    player_pbs AS (
+export const loadPbsForPlayer = cache(
+  async (username: string, filter?: PbsFilter): Promise<PersonalBest[]> => {
+    const rows = await sql<
+      {
+        cid: string;
+        date: Date;
+        type: SplitType;
+        scale: number;
+        ticks: number;
+      }[]
+    >`
+      WITH player_id_cte AS (
+        SELECT id
+        FROM players
+        WHERE normalized_username = ${normalizeRsn(username)}
+        LIMIT 1
+      ),
+      latest_pbs AS (
+        SELECT
+          cs.type,
+          cs.scale,
+          cs.ticks,
+          cs.challenge_id,
+          pbh.created_at as date,
+          ROW_NUMBER() OVER (
+            PARTITION BY cs.type, cs.scale
+            ORDER BY pbh.created_at DESC
+          ) AS rn
+        FROM personal_best_history pbh
+        JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
+        WHERE pbh.player_id = (SELECT id FROM player_id_cte)
+          ${filter?.splits ? sql`AND cs.type = ANY(${filter.splits})` : sql``}
+          ${filter?.scales ? sql`AND cs.scale = ANY(${filter.scales})` : sql``}
+      )
       SELECT
-        cs.type,
-        cs.scale,
-        cs.ticks,
-        c.uuid,
-        pbh.created_at as date
-      FROM personal_best_history pbh
-      JOIN challenge_splits cs ON pbh.challenge_split_id = cs.id
-      JOIN challenges c ON cs.challenge_id = c.id
-      WHERE pbh.player_id = (SELECT id FROM player_id_cte)
-        ${filter?.splits ? sql`AND cs.type = ANY(${filter.splits})` : sql``}
-        ${filter?.scales ? sql`AND cs.scale = ANY(${filter.scales})` : sql``}
-        AND cs.accurate = true
-    ),
-    latest_pbs AS (
-      SELECT *,
-        ROW_NUMBER() OVER (PARTITION BY type, scale ORDER BY date DESC) AS rn
-      FROM player_pbs
-    )
-    SELECT
-      uuid as cid,
-      date,
-      type,
-      scale,
-      ticks
-    FROM latest_pbs
-    WHERE rn = 1
-  `;
+        c.uuid as cid,
+        lp.date,
+        lp.type,
+        lp.scale,
+        lp.ticks
+      FROM latest_pbs lp
+      JOIN challenges c ON c.id = lp.challenge_id
+      WHERE lp.rn = 1
+    `;
 
-  return rows.map((row) => ({
-    cid: row.cid,
-    type: row.type,
-    scale: row.scale,
-    ticks: row.ticks,
-    date: row.date,
-  }));
-}
+    return rows.map((row) => ({
+      cid: row.cid,
+      type: row.type,
+      scale: row.scale,
+      ticks: row.ticks,
+      date: row.date,
+    }));
+  },
+);
 
 function stageToStatsField(stage: Stage): string | null {
   switch (stage) {
