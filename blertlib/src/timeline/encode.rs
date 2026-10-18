@@ -68,7 +68,7 @@ impl<'a> Encoder<'a> {
         }
 
         for (&room_id, npc) in &state.npcs {
-            if self.npc_died_before(room_id, tick) {
+            if self.npc_despawned(room_id, tick) {
                 continue;
             }
             if encode_events {
@@ -96,11 +96,11 @@ impl<'a> Encoder<'a> {
         events
     }
 
-    fn npc_died_before(&self, room_id: RoomId, tick: Tick) -> bool {
+    fn npc_despawned(&self, room_id: RoomId, tick: Tick) -> bool {
         self.timeline
             .npc(room_id)
             .and_then(|npc| npc.death)
-            .is_some_and(|death| death < tick)
+            .is_some_and(|death| death <= tick)
     }
 
     fn event(&self, kind: proto::event::Type, tick: Tick, position: Option<Point>) -> proto::Event {
@@ -406,7 +406,7 @@ impl<'a> Encoder<'a> {
             }
 
             EventKind::NpcAttack(attack) => {
-                if self.npc_died_before(attack.npc, tick) {
+                if self.npc_despawned(attack.npc, tick) {
                     return None;
                 }
                 let npc = state.npcs.get(&attack.npc)?;

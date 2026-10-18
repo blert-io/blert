@@ -1,11 +1,17 @@
 //! Conversions from working state to a complete timeline.
 
+use std::collections::BTreeMap;
+
 use crate::actor::{Actor, Mokhaiotl, NpcProperties, RoomId};
 use crate::event::{Event, EventKind, NyloWave};
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, CombatStyle, NpcAttack, Stage, npc};
 
 use super::{StageNpc, TickState, Timeline};
+
+struct FinalizeContext<'a> {
+    npcs: &'a BTreeMap<RoomId, StageNpc>,
+}
 
 /// A `Finalizer` is responsible for writing some part of the finished version
 /// of a working tick, such as deriving events from game state. Finalizers may
@@ -17,7 +23,7 @@ trait Finalizer {
     fn initialize(&mut self, history: &[Option<TickState>]);
 
     /// Finalizes the state for a single tick, updating it in place.
-    fn tick(&mut self, tick: Tick, state: &mut Option<TickState>);
+    fn tick(&mut self, ctx: &FinalizeContext, tick: Tick, state: &mut Option<TickState>);
 }
 
 /// Runs finalizers for the timeline's stage, beginning from `start`.
@@ -49,25 +55,27 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
         finalizer.initialize(history);
     }
     for (tick, state) in start.through(end).zip(states) {
-        for finalizer in &mut finalizers {
-            finalizer.tick(tick, state);
+        if let Some(state) = state {
+            for &room_id in state.npcs.keys() {
+                timeline.npcs.entry(room_id).or_insert(StageNpc {
+                    spawn: tick,
+                    death: None,
+                });
+            }
+            for event in &state.events {
+                if let EventKind::NpcDeath(death) = event.kind
+                    && let Some(npc) = timeline.npcs.get_mut(&death.npc)
+                {
+                    npc.death = Some(tick);
+                }
+            }
         }
 
-        let Some(state) = state else {
-            continue;
+        let ctx = FinalizeContext {
+            npcs: &timeline.npcs,
         };
-        for &room_id in state.npcs.keys() {
-            timeline.npcs.entry(room_id).or_insert(StageNpc {
-                spawn: tick,
-                death: None,
-            });
-        }
-        for event in &state.events {
-            if let EventKind::NpcDeath(death) = event.kind
-                && let Some(npc) = timeline.npcs.get_mut(&death.npc)
-            {
-                npc.death = Some(tick);
-            }
+        for finalizer in &mut finalizers {
+            finalizer.tick(&ctx, tick, state);
         }
     }
 }
@@ -91,11 +99,17 @@ impl NylocasFinalizer {
         }
     }
 
-    fn nylos_alive(state: &TickState) -> u8 {
+    fn nylos_alive(ctx: &FinalizeContext, tick: Tick, state: &TickState) -> u8 {
         state
             .npcs
-            .values()
-            .map(|npc| {
+            .iter()
+            .filter(|(room_id, _)| {
+                ctx.npcs
+                    .get(room_id)
+                    .and_then(|npc| npc.death)
+                    .is_none_or(|death| death > tick)
+            })
+            .map(|(_, npc)| {
                 if npc::is_nylocas(npc.id) {
                     1
                 } else if npc::is_nylocas_prinkipas(npc.id) {
@@ -139,7 +153,7 @@ impl Finalizer for NylocasFinalizer {
         }
     }
 
-    fn tick(&mut self, tick: Tick, state: &mut Option<TickState>) {
+    fn tick(&mut self, ctx: &FinalizeContext, tick: Tick, state: &mut Option<TickState>) {
         if self.boss_spawned {
             return;
         }
@@ -177,7 +191,7 @@ impl Finalizer for NylocasFinalizer {
         }
 
         if self.current_wave == NyloWave::LAST_WAVE {
-            if Self::nylos_alive(state) == 0 {
+            if Self::nylos_alive(ctx, tick, state) == 0 {
                 state
                     .events
                     .push(Event::synthetic(EventKind::NyloCleanupEnd));
@@ -185,7 +199,7 @@ impl Finalizer for NylocasFinalizer {
             }
         } else if spawn_check {
             self.next_spawn_check_tick += Self::WAVE_CYCLE;
-            let nylos_alive = Self::nylos_alive(state);
+            let nylos_alive = Self::nylos_alive(ctx, tick, state);
             if nylos_alive >= NyloWave::room_cap(self.mode, self.current_wave) {
                 state
                     .events
@@ -234,7 +248,7 @@ impl Finalizer for MokhaiotlFinalizer {
         ) && !Self::was_meleed(&state.events, room_id);
     }
 
-    fn tick(&mut self, _tick: Tick, state: &mut Option<TickState>) {
+    fn tick(&mut self, _ctx: &FinalizeContext, _tick: Tick, state: &mut Option<TickState>) {
         let Some(state) = state else {
             return;
         };

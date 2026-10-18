@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::actor::Rsn;
+use crate::actor::{PartyIndex, Rsn};
 use crate::event::Event;
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, Stage};
@@ -55,15 +55,21 @@ impl Recording {
         &self.party
     }
 
+    /// Returns the party index of `rsn` or `None` if they are not in the party.
+    #[must_use]
+    pub fn party_index(&self, rsn: &Rsn) -> Option<PartyIndex> {
+        PartyIndex::resolve(&self.party, rsn.as_str())
+    }
+
     /// Returns the recording's collected stage-level data.
     #[must_use]
-    pub(crate) fn stage_data(&self) -> &StageData {
+    pub fn stage_data(&self) -> &StageData {
         &self.stage_data
     }
 
     /// Returns a mutable reference to the recording's collected stage-level data.
     #[must_use]
-    pub(crate) fn stage_data_mut(&mut self) -> &mut StageData {
+    pub fn stage_data_mut(&mut self) -> &mut StageData {
         &mut self.stage_data
     }
 
@@ -71,6 +77,12 @@ impl Recording {
     #[must_use]
     pub fn last_tick(&self) -> Tick {
         Tick::from_usize(self.states.len() - 1)
+    }
+
+    /// Returns the number of ticks the recording spans, including absent ones.
+    #[must_use]
+    pub fn tick_count(&self) -> usize {
+        self.states.len()
     }
 
     /// Returns the state on a given tick, or `None` if the tick is absent.
@@ -152,6 +164,7 @@ impl Recording {
             npcs: BTreeMap::new(),
             stage_data: self.stage_data,
         };
+        timeline.stage_data.normalize();
         finalize::finalize_from(&mut timeline, Tick(0));
         timeline
     }
@@ -265,6 +278,28 @@ mod tests {
         assert_eq!(recording.events_for_tick(Tick(1)).count(), 1);
         assert_eq!(recording.events_for_tick(Tick(2)).count(), 0);
         assert_eq!(recording.events_for_tick(Tick(4)).count(), 0);
+    }
+
+    #[test]
+    fn recording_party_index() {
+        let recording = Recording::vacant(
+            Stage::TobSotetseg,
+            ChallengeMode::TobRegular,
+            vec![
+                Rsn::try_from("1Ogp").unwrap(),
+                Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+                Rsn::try_from("TobDataEgirl").unwrap(),
+            ],
+            Tick(7),
+        );
+        assert_eq!(
+            recording.party_index(&Rsn::try_from("TobDataEgirl").unwrap()),
+            Some(PartyIndex(2))
+        );
+        assert_eq!(
+            recording.party_index(&Rsn::try_from("aSaradomin").unwrap()),
+            None
+        );
     }
 
     #[test]
