@@ -1,6 +1,6 @@
 //! The outcomes of a merge run.
 
-use blert::{Tick, Ticks};
+use blert::{Actor, PartyIndex, RoomId, Source, Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 use crate::lifecycle::core::types::{ClientId, ServerTicks, StageStatus, UserId};
@@ -10,7 +10,6 @@ use super::client_events::{Anomaly, BadDataClient, PluginInfo};
 use super::confidence;
 use super::consolidator::{self, Disagreement};
 use super::merge_consistency;
-use super::timeline::{self, Target};
 use super::{ReferenceTicks, RegisteredClient, StepResult};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -24,29 +23,16 @@ pub struct ClientMetadata {
     pub recording_config_version: Option<u32>,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Serialize)]
-#[serde(tag = "kind", content = "id", rename_all = "lowercase")]
-pub enum Actor {
-    Npc(u64),
-    Player(String),
-}
-
-impl From<&Target<'_>> for Actor {
-    fn from(target: &Target<'_>) -> Self {
-        match target {
-            Target::Npc { room_id, .. } => Self::Npc(*room_id),
-            Target::Player(name) => Self::Player((*name).to_string()),
-        }
-    }
-}
-
-impl From<timeline::Actor<'_>> for Actor {
-    fn from(actor: timeline::Actor<'_>) -> Self {
-        match actor {
-            timeline::Actor::Npc(room_id) => Self::Npc(room_id),
-            timeline::Actor::Player(name) => Self::Player(name.to_string()),
-        }
-    }
+#[derive(Deserialize, Serialize)]
+#[serde(
+    remote = "blert::Actor",
+    tag = "kind",
+    content = "id",
+    rename_all = "lowercase"
+)]
+pub(super) enum ActorDef {
+    Npc(RoomId),
+    Player(PartyIndex),
 }
 
 /// A consistency issue detected in a client's recording.
@@ -55,13 +41,13 @@ impl From<timeline::Actor<'_>> for Actor {
 pub enum ConsistencyIssue {
     #[serde(rename_all = "camelCase")]
     LargeJump {
-        player: String,
+        player: PartyIndex,
         tick: Tick,
         last_tick: Tick,
-        start_x: i32,
-        start_y: i32,
-        end_x: i32,
-        end_y: i32,
+        start_x: u16,
+        start_y: u16,
+        end_x: u16,
+        end_y: u16,
     },
     #[serde(rename_all = "camelCase")]
     InvalidEventSequence { kind: i32, tick: Tick },
@@ -74,8 +60,8 @@ pub enum ConsistencyIssue {
     },
 }
 
-impl From<client_consistency::ConsistencyIssue<'_>> for ConsistencyIssue {
-    fn from(issue: client_consistency::ConsistencyIssue<'_>) -> ConsistencyIssue {
+impl From<client_consistency::ConsistencyIssue> for ConsistencyIssue {
+    fn from(issue: client_consistency::ConsistencyIssue) -> ConsistencyIssue {
         use client_consistency::ConsistencyIssue as Issue;
         match issue {
             Issue::LargeJump {
@@ -85,13 +71,13 @@ impl From<client_consistency::ConsistencyIssue<'_>> for ConsistencyIssue {
                 start,
                 end,
             } => ConsistencyIssue::LargeJump {
-                player: player.to_string(),
+                player,
                 tick,
                 last_tick,
-                start_x: start.x,
-                start_y: start.y,
-                end_x: end.x,
-                end_y: end.y,
+                start_x: start.0,
+                start_y: start.1,
+                end_x: end.0,
+                end_y: end.1,
             },
             Issue::InvalidEventSequence { kind, tick } => ConsistencyIssue::InvalidEventSequence {
                 kind: kind as i32,
@@ -196,8 +182,8 @@ impl MergeStatus {
     }
 }
 
-impl From<&RegisteredClient<'_>> for MergeStatus {
-    fn from(client: &RegisteredClient<'_>) -> Self {
+impl From<&RegisteredClient> for MergeStatus {
+    fn from(client: &RegisteredClient) -> Self {
         let classification = client.classification.into();
         match &client.result {
             StepResult::Unmerged => Self::Unmerged { classification },
@@ -246,59 +232,65 @@ impl From<consolidator::Side> for Side {
 pub enum QualityFlag {
     AttackTypeMismatch {
         tick: Tick,
-        player: String,
+        player: PartyIndex,
         kept_type: i32,
         discarded_type: i32,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     AttackTargetMismatch {
         tick: Tick,
-        player: String,
+        player: PartyIndex,
+        #[serde(with = "ActorDef")]
         kept_target: Actor,
+        #[serde(with = "ActorDef")]
         discarded_target: Actor,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     SpellTypeMismatch {
         tick: Tick,
-        player: String,
+        player: PartyIndex,
         kept_type: i32,
         discarded_type: i32,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     SpellTargetMismatch {
         tick: Tick,
-        player: String,
+        player: PartyIndex,
+        #[serde(with = "ActorDef")]
         kept_target: Actor,
+        #[serde(with = "ActorDef")]
         discarded_target: Actor,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     NpcAttackTypeMismatch {
         tick: Tick,
-        room_id: u64,
+        room_id: RoomId,
         npc_id: u32,
         kept_type: i32,
         discarded_type: i32,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     NpcAttackTargetMismatch {
         tick: Tick,
-        room_id: u64,
+        room_id: RoomId,
         npc_id: u32,
+        #[serde(with = "ActorDef")]
         kept_target: Actor,
+        #[serde(with = "ActorDef")]
         discarded_target: Actor,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     UnexpectedConflict {
         event_type: i32,
         attack_tick: Tick,
-        kept_source_client_id: ClientId,
-        discarded_source_client_id: ClientId,
+        kept_source: Source,
+        discarded_source: Source,
     },
     LargeTemporalGap {
         event_type: i32,
@@ -337,9 +329,9 @@ impl QualityFlag {
     }
 }
 
-impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
+impl From<&consolidator::QualityFlag> for QualityFlag {
     #[expect(clippy::too_many_lines)]
-    fn from(flag: &consolidator::QualityFlag<'_>) -> Self {
+    fn from(flag: &consolidator::QualityFlag) -> Self {
         match flag {
             consolidator::QualityFlag::Disagreement {
                 tick,
@@ -348,8 +340,8 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                 subject,
             } => {
                 let tick = *tick;
-                let kept_source_client_id = *kept_source;
-                let discarded_source_client_id = *discarded_source;
+                let kept_source = *kept_source;
+                let discarded_source = *discarded_source;
                 match subject {
                     Disagreement::PlayerAttackKind {
                         player,
@@ -357,11 +349,11 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         discarded,
                     } => Self::AttackTypeMismatch {
                         tick,
-                        player: (*player).to_string(),
+                        player: *player,
                         kept_type: *kept as i32,
                         discarded_type: *discarded as i32,
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        kept_source,
+                        discarded_source,
                     },
                     Disagreement::PlayerAttackTarget {
                         player,
@@ -369,11 +361,11 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         discarded,
                     } => Self::AttackTargetMismatch {
                         tick,
-                        player: (*player).to_string(),
-                        kept_target: kept.into(),
-                        discarded_target: discarded.into(),
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        player: *player,
+                        kept_target: *kept,
+                        discarded_target: *discarded,
+                        kept_source,
+                        discarded_source,
                     },
                     Disagreement::PlayerSpellKind {
                         player,
@@ -381,11 +373,11 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         discarded,
                     } => Self::SpellTypeMismatch {
                         tick,
-                        player: (*player).to_string(),
+                        player: *player,
                         kept_type: *kept as i32,
                         discarded_type: *discarded as i32,
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        kept_source,
+                        discarded_source,
                     },
                     Disagreement::PlayerSpellTarget {
                         player,
@@ -393,11 +385,11 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         discarded,
                     } => Self::SpellTargetMismatch {
                         tick,
-                        player: (*player).to_string(),
-                        kept_target: kept.into(),
-                        discarded_target: discarded.into(),
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        player: *player,
+                        kept_target: *kept,
+                        discarded_target: *discarded,
+                        kept_source,
+                        discarded_source,
                     },
                     Disagreement::NpcAttackKind {
                         room_id,
@@ -410,8 +402,8 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         npc_id: *npc_id,
                         kept_type: *kept as i32,
                         discarded_type: *discarded as i32,
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        kept_source,
+                        discarded_source,
                     },
                     Disagreement::NpcAttackTarget {
                         room_id,
@@ -422,16 +414,16 @@ impl From<&consolidator::QualityFlag<'_>> for QualityFlag {
                         tick,
                         room_id: *room_id,
                         npc_id: *npc_id,
-                        kept_target: kept.into(),
-                        discarded_target: discarded.into(),
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        kept_target: *kept,
+                        discarded_target: *discarded,
+                        kept_source,
+                        discarded_source,
                     },
                     Disagreement::AttackMapped { kind } => Self::UnexpectedConflict {
                         event_type: *kind as i32,
                         attack_tick: tick,
-                        kept_source_client_id,
-                        discarded_source_client_id,
+                        kept_source,
+                        discarded_source,
                     },
                 }
             }
@@ -483,8 +475,8 @@ pub enum RejectionReason {
     LowMergeConfidence { confidence: StepConfidence },
 }
 
-impl From<&super::RejectionReason<'_>> for RejectionReason {
-    fn from(reason: &super::RejectionReason<'_>) -> Self {
+impl From<&super::RejectionReason> for RejectionReason {
+    fn from(reason: &super::RejectionReason) -> Self {
         match reason {
             super::RejectionReason::PostMergeConsistency(issues) => Self::PostMergeConsistency {
                 issues: issues.iter().map(MergeConsistencyIssue::from).collect(),
@@ -596,7 +588,7 @@ impl From<&confidence::ContentConfidence> for ContentConfidence {
 pub struct ClientOutcome {
     pub id: ClientId,
     pub metadata: Option<ClientMetadata>,
-    pub primary_player: Option<String>,
+    pub primary_player: Option<PartyIndex>,
     pub stage_status: StageStatus,
     pub reported_accurate: bool,
     pub accurate: bool,
@@ -608,13 +600,13 @@ pub struct ClientOutcome {
     pub status: MergeStatus,
 }
 
-impl From<&RegisteredClient<'_>> for ClientOutcome {
-    fn from(client: &RegisteredClient<'_>) -> Self {
+impl From<&RegisteredClient> for ClientOutcome {
+    fn from(client: &RegisteredClient) -> Self {
         let info = &client.client.info;
         ClientOutcome {
             id: info.id,
             metadata: info.plugin_info.as_ref().map(ClientMetadata::from),
-            primary_player: info.primary_player.map(str::to_string),
+            primary_player: info.primary_player,
             stage_status: info.status,
             reported_accurate: info.reported_accurate,
             accurate: client.client.accurate,
@@ -638,13 +630,13 @@ impl From<&RegisteredClient<'_>> for ClientOutcome {
     }
 }
 
-impl From<BadDataClient<'_>> for ClientOutcome {
-    fn from(client: BadDataClient<'_>) -> Self {
+impl From<BadDataClient> for ClientOutcome {
+    fn from(client: BadDataClient) -> Self {
         let info = client.info;
         ClientOutcome {
             id: info.id,
             metadata: info.plugin_info.as_ref().map(ClientMetadata::from),
-            primary_player: info.primary_player.map(str::to_string),
+            primary_player: info.primary_player,
             stage_status: info.status,
             reported_accurate: info.reported_accurate,
             accurate: false,
@@ -740,15 +732,11 @@ impl MergeAlert {
 )]
 pub enum MergeConsistencyIssue {
     DuplicatePlayerDeath {
-        player: String,
+        player: PartyIndex,
         ticks: Vec<Tick>,
     },
-    DuplicateNpcSpawn {
-        room_id: u64,
-        occurrences: Vec<NpcOccurrence>,
-    },
     DuplicateNpcDeath {
-        room_id: u64,
+        room_id: RoomId,
         occurrences: Vec<NpcOccurrence>,
     },
     DuplicateStreamEvent {
@@ -757,13 +745,13 @@ pub enum MergeConsistencyIssue {
         ticks: Vec<Tick>,
     },
     WeaponCooldownViolation {
-        player: String,
+        player: PartyIndex,
         previous: PlayerAttackOccurrence,
         current: PlayerAttackOccurrence,
         cooldown: Ticks,
     },
     DeathBeforeSpawn {
-        room_id: u64,
+        room_id: RoomId,
         death_tick: Tick,
         spawn_tick: Option<Tick>,
     },
@@ -773,7 +761,9 @@ pub enum MergeConsistencyIssue {
     },
     AttackTargetMissing {
         tick: Tick,
+        #[serde(with = "ActorDef")]
         attacker: Actor,
+        #[serde(with = "ActorDef")]
         target: Actor,
     },
     ExclusiveEventViolation {
@@ -786,7 +776,7 @@ pub enum MergeConsistencyIssue {
 #[serde(rename_all = "camelCase")]
 pub struct NpcOccurrence {
     pub tick: Tick,
-    pub npc_id: u32,
+    pub npc_id: Option<u32>,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -826,26 +816,19 @@ impl From<&merge_consistency::PhaseOccurrence> for PhaseOccurrence {
     fn from(occurrence: &merge_consistency::PhaseOccurrence) -> Self {
         Self {
             event_type: occurrence.kind as i32,
-            identity_key: occurrence.identity_key.clone(),
+            identity_key: occurrence.identity_key.to_string(),
             tick: occurrence.tick,
         }
     }
 }
 
-impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIssue {
-    fn from(issue: &merge_consistency::MergeConsistencyIssue<'_>) -> Self {
+impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
+    fn from(issue: &merge_consistency::MergeConsistencyIssue) -> Self {
         use merge_consistency::MergeConsistencyIssue as Issue;
         match issue {
             Issue::DuplicatePlayerDeath { player, ticks } => Self::DuplicatePlayerDeath {
-                player: (*player).to_string(),
+                player: *player,
                 ticks: ticks.clone(),
-            },
-            Issue::DuplicateNpcSpawn {
-                room_id,
-                occurrences,
-            } => Self::DuplicateNpcSpawn {
-                room_id: *room_id,
-                occurrences: occurrences.iter().map(NpcOccurrence::from).collect(),
             },
             Issue::DuplicateNpcDeath {
                 room_id,
@@ -860,7 +843,7 @@ impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIss
                 ticks,
             } => Self::DuplicateStreamEvent {
                 event_type: *kind as i32,
-                identity_key: identity_key.clone(),
+                identity_key: identity_key.to_string(),
                 ticks: ticks.clone(),
             },
             Issue::WeaponCooldownViolation {
@@ -869,7 +852,7 @@ impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIss
                 current,
                 cooldown,
             } => Self::WeaponCooldownViolation {
-                player: (*player).to_string(),
+                player: *player,
                 previous: previous.into(),
                 current: current.into(),
                 cooldown: *cooldown,
@@ -893,8 +876,8 @@ impl From<&merge_consistency::MergeConsistencyIssue<'_>> for MergeConsistencyIss
                 target,
             } => Self::AttackTargetMissing {
                 tick: *tick,
-                attacker: (*attacker).into(),
-                target: (*target).into(),
+                attacker: *attacker,
+                target: *target,
             },
             Issue::ExclusiveEventViolation {
                 exclusive_types: (a, b),

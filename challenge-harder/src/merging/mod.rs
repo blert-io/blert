@@ -9,14 +9,11 @@ mod client_consistency;
 mod client_events;
 mod confidence;
 mod consolidator;
-mod derivation;
 mod event;
 mod mapping;
 mod merge_consistency;
-mod postprocessing;
 mod report;
 mod similarity;
-mod timeline;
 mod trace;
 mod trusted_prefixes;
 mod world;
@@ -36,9 +33,7 @@ pub use trace::Tracer;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::{
-    BuildRejection, ConfigVersion, Recording, RecordingBuilder, Rsn, Tick, Ticks, Timeline,
-};
+use blert::{BuildRejection, PartyIndex, Recording, Rsn, StageData, Tick, Ticks, Timeline};
 
 use crate::lifecycle::core::types::{
     ChallengeMode, ChallengeType, ClientId, ClientStageStream, Stage, StageStatus, Uuid,
@@ -48,7 +43,6 @@ use alignment::{AlignmentResult, TickAligner};
 use classification::{ClientClassification, classify_clients};
 use client_events::ClientEvents;
 use consolidator::{ConsolidationResult, Consolidator};
-use event::MalformedEvent;
 use mapping::{Mappings, MergeMapping, TickMapping};
 use merge_consistency::MergeConsistencyIssue;
 use similarity::SimilarityScorer;
@@ -70,23 +64,23 @@ pub enum Classification {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum StepResult<'a> {
+enum StepResult {
     Unmerged,
     Merged {
         confidence: Option<StepConfidence>,
-        quality_flags: Vec<consolidator::QualityFlag<'a>>,
+        quality_flags: Vec<consolidator::QualityFlag>,
     },
     Rejected {
-        reason: RejectionReason<'a>,
-        quality_flags: Vec<consolidator::QualityFlag<'a>>,
+        reason: RejectionReason,
+        quality_flags: Vec<consolidator::QualityFlag>,
     },
 }
 
 /// Why a merge step was rejected.
 #[derive(Debug, Clone, PartialEq)]
-pub enum RejectionReason<'a> {
+pub enum RejectionReason {
     /// The merged timeline violated a game invariant.
-    PostMergeConsistency(Vec<MergeConsistencyIssue<'a>>),
+    PostMergeConsistency(Vec<MergeConsistencyIssue>),
     /// The merge step's confidence score fell below the acceptance threshold.
     LowMergeConfidence(StepConfidence),
 }
@@ -103,14 +97,16 @@ pub struct ChallengeInfo<'a> {
 /// Fatally invalid client input data.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BadData {
-    #[error(transparent)]
-    MalformedEvent(#[from] MalformedEvent),
+    #[error("tick {}: {:?} {:?}", .0.tick, .0.kind, .0.reason)]
+    RejectedEvent(BuildRejection),
     #[error("tick {tick}: {message}")]
     Inconsistent { tick: Tick, message: String },
     #[error("multiple primary players")]
     MultiplePrimaryPlayers,
     #[error("invalid server tick count")]
     InvalidServerTickCount,
+    #[error("no recording")]
+    NoRecording,
 }
 
 /// Merges the events recorded by a stage's clients into a canonical timeline.
@@ -152,13 +148,13 @@ pub fn merge<'a>(
         tracer.record_classification(&classification, &clients);
     }
 
-    let mut ctx = MergeContext::new(challenge, stage, clients, &classification);
+    let mut ctx = MergeContext::new(challenge, clients, &classification);
 
     alerts.extend(classification.alert);
 
     let mut merged = MergedRecording::new(ctx.client(classification.base));
     if let Some(tracer) = tracer.as_deref_mut() {
-        tracer.record_intermediate_snapshot(merged.timeline.tick_states());
+        tracer.record_intermediate_snapshot(&merged.recording);
     }
 
     for client in classification.matching {
@@ -176,14 +172,12 @@ pub fn merge<'a>(
     alerts.extend(ctx.surface_alerts());
     outcomes.extend(ctx.clients.iter().map(ClientOutcome::from));
 
-    let last_tick = merged.timeline.last_tick();
-    let missing_tick_count = merged.timeline.missing_tick_count();
-    let events = merged.timeline.finalize(&ctx);
+    let timeline = merged.recording.finalize();
 
     let prefixes = compute_trusted_prefixes(
         &ctx,
+        &timeline,
         &TimelineInfo {
-            last_tick,
             offset,
             inherited_accuracy: merged.inherited_accurate,
             reference_method: reference.method,
@@ -193,33 +187,10 @@ pub fn merge<'a>(
         tracer.record_trusted_prefixes(prefixes);
     }
 
-    // TODO(frolv): Temporarily create a timeline here until the whole
-    // interpret phase is moved onto blertlib.
-    let mut builder = RecordingBuilder::new(
-        ctx.client(classification.base).info.id,
-        ConfigVersion::LATEST,
-        stage,
-        challenge.mode,
-        challenge.party.to_vec(),
-        Some(
-            events
-                .iter()
-                .map(|event| Tick(event.tick))
-                .fold(last_tick, Tick::max),
-        ),
-    );
-    builder.ingest(events);
-    log_rejections(&builder);
-    let Some(timeline) = builder.into_recording().map(Recording::finalize) else {
-        return (None, MergeReport::empty(outcomes));
-    };
-
     let merged = MergedTimeline::new(
         timeline,
         Metadata {
             status: ctx.stage_status(classification.base),
-            last_tick,
-            missing_tick_count,
             offset,
             precise_server_tick_count: matches!(
                 reference.method,
@@ -236,44 +207,19 @@ pub fn merge<'a>(
     )
 }
 
-// TODO(frolv): Rejection handling moves to the client ingestion edge.
-fn log_rejections(builder: &RecordingBuilder) {
-    let mut groups: Vec<(&BuildRejection, usize)> = Vec::new();
-    for rejection in builder.rejections() {
-        match groups
-            .iter_mut()
-            .find(|(first, _)| first.kind == rejection.kind && first.reason == rejection.reason)
-        {
-            Some((_, count)) => *count += 1,
-            None => groups.push((rejection, 1)),
-        }
-    }
-
-    for (first, count) in groups {
-        tracing::warn!(
-            kind = ?first.kind,
-            reason = ?first.reason,
-            count,
-            first_tick = first.tick.0,
-            "builder rejected events",
-        );
-    }
-}
-
 /// A client participating in a merge.
 #[derive(Debug)]
-struct RegisteredClient<'a> {
-    client: ClientEvents<'a>,
+struct RegisteredClient {
+    client: ClientEvents,
     classification: Classification,
-    result: StepResult<'a>,
+    result: StepResult,
 }
 
 /// The state of an in-progress merge.
 #[derive(Debug)]
 struct MergeContext<'a> {
     challenge: &'a ChallengeInfo<'a>,
-    stage: Stage,
-    clients: Vec<RegisteredClient<'a>>,
+    clients: Vec<RegisteredClient>,
     mapping: MergeMapping,
     /// Per-client local tick numbers at which conflicts occurred.
     contested_ticks: BTreeMap<ClientId, BTreeSet<Tick>>,
@@ -282,8 +228,7 @@ struct MergeContext<'a> {
 impl<'a> MergeContext<'a> {
     fn new(
         challenge: &'a ChallengeInfo<'a>,
-        stage: Stage,
-        clients: Vec<ClientEvents<'a>>,
+        clients: Vec<ClientEvents>,
         classification: &ClientClassification,
     ) -> Self {
         let mapping = MergeMapping::new(clients[classification.base].info.id);
@@ -310,36 +255,25 @@ impl<'a> MergeContext<'a> {
 
         Self {
             challenge,
-            stage,
             clients,
             mapping,
             contested_ticks: BTreeMap::new(),
         }
     }
 
-    fn client(&self, index: usize) -> &ClientEvents<'a> {
+    fn client(&self, index: usize) -> &ClientEvents {
         &self.clients[index].client
     }
 
     /// Returns the primary player of the client with `id`, if it has one.
-    fn primary_player(&self, id: ClientId) -> Option<&'a str> {
+    fn primary_player(&self, id: ClientId) -> Option<PartyIndex> {
         self.clients
             .iter()
             .find(|c| c.client.info.id == id)
             .and_then(|c| c.client.info.primary_player)
     }
 
-    /// Returns a reference to the stable party string for the given name.
-    fn player(&self, name: &str) -> &'a str {
-        self.challenge
-            .party
-            .iter()
-            .find(|player| **player == name)
-            .map(Rsn::as_str)
-            .expect("name is a party member")
-    }
-
-    /// Returns the final status of the stage based ont eh merged clients.
+    /// Returns the final status of the stage based on the merged clients.
     fn stage_status(&self, base: usize) -> StageStatus {
         fn rank(status: StageStatus) -> u8 {
             match status {
@@ -423,19 +357,44 @@ impl<'a> MergeContext<'a> {
     }
 }
 
+fn merge_stage_data(stage_data: &mut StageData, other: &StageData) {
+    if matches!(stage_data, StageData::None) {
+        *stage_data = other.clone();
+        return;
+    }
+    let (StageData::Sotetseg { mazes }, StageData::Sotetseg { mazes: other_mazes }) =
+        (stage_data, other)
+    else {
+        return;
+    };
+    for (maze, pivots) in other_mazes {
+        let merged = mazes.entry(*maze).or_default();
+        for point in &pivots.overworld {
+            if !merged.overworld.contains(point) {
+                merged.overworld.push(*point);
+            }
+        }
+        for point in &pivots.underworld {
+            if !merged.underworld.contains(point) {
+                merged.underworld.push(*point);
+            }
+        }
+    }
+}
+
 /// An in-progress merged timeline.
-struct MergedRecording<'a> {
-    timeline: timeline::Timeline<'a>,
+struct MergedRecording {
+    recording: Recording,
     /// Whether the merged output inherits its accuracy from an accurate base.
     inherited_accurate: bool,
     scorer: SimilarityScorer,
 }
 
-impl<'a> MergedRecording<'a> {
+impl MergedRecording {
     /// Initializes a new merged timeline from a base client.
-    fn new(base: &ClientEvents<'a>) -> Self {
+    fn new(base: &ClientEvents) -> Self {
         Self {
-            timeline: base.timeline.clone(),
+            recording: base.recording.clone(),
             inherited_accurate: base.accurate,
             scorer: SimilarityScorer::new(),
         }
@@ -444,7 +403,7 @@ impl<'a> MergedRecording<'a> {
     /// Attempts to merge `client` into the timeline, recording its result.
     fn merge_from(
         &mut self,
-        ctx: &mut MergeContext<'a>,
+        ctx: &mut MergeContext<'_>,
         client: usize,
         mut tracer: Option<&mut Tracer>,
     ) {
@@ -468,12 +427,12 @@ impl<'a> MergedRecording<'a> {
         }
 
         let ConsolidationResult {
-            timeline,
+            recording,
             quality_flags,
             counters,
         } = Consolidator::new(
-            &self.timeline,
-            &ctx.client(client).timeline,
+            &self.recording,
+            &ctx.client(client).recording,
             ctx,
             tracer.as_deref_mut(),
         )
@@ -490,16 +449,20 @@ impl<'a> MergedRecording<'a> {
             tracer.record_confidence(&confidence);
         }
 
-        let consistency_result = merge_consistency::check(ctx, &timeline);
+        let consistency_result = merge_consistency::check(&recording.snapshot());
         let confidence_result = confidence.check(MIN_MERGE_CONFIDENCE_THRESHOLD);
 
         let result = match (consistency_result, confidence_result) {
             (Ok(()), Ok(confidence)) => {
                 ctx.mapping.commit();
                 record_contested_ticks(ctx, target_id, &quality_flags);
-                self.timeline = timeline;
+                self.recording = recording;
+                merge_stage_data(
+                    self.recording.stage_data_mut(),
+                    ctx.client(client).recording.stage_data(),
+                );
                 if let Some(tracer) = tracer.as_deref_mut() {
-                    tracer.record_intermediate_snapshot(self.timeline.tick_states());
+                    tracer.record_intermediate_snapshot(&self.recording);
                 }
                 StepResult::Merged {
                     confidence: Some(confidence),
@@ -545,7 +508,7 @@ impl<'a> MergedRecording<'a> {
     fn end_align_to_reference(
         &mut self,
         reference: ReferenceTicks,
-        clients: &[RegisteredClient<'_>],
+        clients: &[RegisteredClient],
     ) -> Ticks {
         // If a client reported an in-game tick count, the stage has been completed,
         // so assume that the events are offset from the end of the stage.
@@ -554,14 +517,14 @@ impl<'a> MergedRecording<'a> {
             ReferenceMethod::AccurateModal
             | ReferenceMethod::PreciseServer
             | ReferenceMethod::ImpreciseServer => {
-                Tick::at(reference.duration) - self.timeline.last_tick()
+                Tick::at(reference.duration) - self.recording.last_tick()
             }
         };
         if offset.is_zero() {
             return offset;
         }
 
-        self.timeline.shift(offset);
+        self.recording.shift(offset);
         tracing::warn!(
             %offset,
             reference_duration = %reference.duration,
@@ -590,11 +553,11 @@ impl<'a> MergedRecording<'a> {
 
     fn map_target(
         &self,
-        target: &ClientEvents<'_>,
+        target: &ClientEvents,
         tracer: Option<&mut Tracer>,
     ) -> Option<(Mappings, Option<AlignmentResult>)> {
         if self.inherited_accurate && target.accurate {
-            let last_tick = self.timeline.last_tick();
+            let last_tick = self.recording.last_tick();
             let mappings = Mappings {
                 base: TickMapping::identity(last_tick),
                 target: TickMapping::identity(last_tick),
@@ -603,10 +566,10 @@ impl<'a> MergedRecording<'a> {
             return Some((mappings, None));
         }
 
-        let base_ticks = self.timeline.tick_states();
-        let target_ticks = target.timeline.tick_states();
-        let alignment =
-            TickAligner::new(base_ticks, target_ticks, |a, b| self.scorer.score(a, b)).align();
+        let alignment = TickAligner::new(&self.recording, &target.recording, |a, b| {
+            self.scorer.score(a, b)
+        })
+        .align();
         if let Some(tracer) = tracer {
             tracer.record_alignment(&alignment);
         }
@@ -622,8 +585,8 @@ impl<'a> MergedRecording<'a> {
             .map(|local| local.entries.clone())
             .collect();
         let mappings = TickMapping::from_alignment(
-            self.timeline.last_tick(),
-            target.timeline.last_tick(),
+            self.recording.last_tick(),
+            target.recording.last_tick(),
             &entries,
         );
         Some((mappings, Some(alignment)))
@@ -634,8 +597,6 @@ impl<'a> MergedRecording<'a> {
 #[derive(Debug)]
 struct Metadata {
     status: StageStatus,
-    last_tick: Tick,
-    missing_tick_count: u32,
     offset: Ticks,
     precise_server_tick_count: bool,
     accurate_until: Tick,
@@ -663,19 +624,14 @@ impl MergedTimeline {
         self.metadata.status
     }
 
-    /// The final tick of the timeline.
-    pub fn last_tick(&self) -> Tick {
-        self.metadata.last_tick
-    }
-
     /// The duration of the stage.
     pub fn duration(&self) -> Ticks {
-        self.last_tick().duration()
+        self.timeline.last_tick().duration()
     }
 
     /// The number of ticks in the timeline on which no client recorded events.
     pub fn missing_tick_count(&self) -> u32 {
-        self.metadata.missing_tick_count
+        u32::try_from(self.timeline.missing_tick_count()).expect("below MAX_RECORDED_TICK")
     }
 
     /// Number of empty ticks inserted at the start of the timeline to align it.
@@ -702,12 +658,12 @@ impl MergedTimeline {
 
     /// Whether accuracy covers the entire stage.
     pub fn fully_accurate(&self) -> bool {
-        self.metadata.last_tick < self.metadata.accurate_until
+        self.timeline.last_tick() < self.metadata.accurate_until
     }
 
     /// Whether queryability covers the entire stage.
     pub fn fully_queryable(&self) -> bool {
-        self.metadata.last_tick < self.metadata.queryable_until
+        self.timeline.last_tick() < self.metadata.queryable_until
     }
 
     /// Limits the accuracy and queryability of the event stream to `tick`, exclusive.
@@ -721,8 +677,8 @@ impl MergedTimeline {
 mod tests {
     #![allow(clippy::too_many_lines)]
 
-    use blert::PlayerAttack;
     use blert::proto::{Event, event};
+    use blert::{Maze, PlayerAttack, Point, RoomId, SoteMazePivots, Source};
     use bytes::Bytes;
     use prost::Message;
 
@@ -1130,8 +1086,25 @@ mod tests {
         ];
 
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
+        let (base_only, _) = merge(
+            &challenge,
+            Stage::TobNylocas,
+            &[recording(1, Tick(5)), end(1)],
+            None,
+        );
 
-        assert!(merged.is_some());
+        assert_eq!(
+            merged
+                .expect("stage has client data")
+                .timeline()
+                .to_proto()
+                .collect::<Vec<_>>(),
+            base_only
+                .expect("stage has client data")
+                .timeline()
+                .to_proto()
+                .collect::<Vec<_>>(),
+        );
         let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
             metadata: None,
@@ -1174,15 +1147,19 @@ mod tests {
                             classification: MergeClassification::Matching,
                             reason: report::RejectionReason::PostMergeConsistency {
                                 issues: vec![report::MergeConsistencyIssue::DuplicateNpcDeath {
-                                    room_id: 1001,
+                                    room_id: RoomId(1001),
                                     occurrences: vec![
                                         report::NpcOccurrence {
                                             tick: Tick(5),
-                                            npc_id: blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
+                                            npc_id: Some(
+                                                blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR
+                                            ),
                                         },
                                         report::NpcOccurrence {
                                             tick: Tick(20),
-                                            npc_id: blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
+                                            npc_id: Some(
+                                                blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR
+                                            ),
                                         },
                                     ],
                                 }],
@@ -1256,8 +1233,23 @@ mod tests {
         ];
 
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
+        let merged = merged.expect("stage has client data");
+        let (base_only, _) = merge(
+            &challenge,
+            Stage::TobNylocas,
+            &[recording(1, PlayerAttack::Scythe), end(1)],
+            None,
+        );
 
-        assert!(merged.is_some());
+        assert_eq!(
+            merged.timeline().to_proto().collect::<Vec<_>>(),
+            base_only
+                .expect("stage has client data")
+                .timeline()
+                .to_proto()
+                .collect::<Vec<_>>(),
+        );
+        let player = merged.timeline().party_index(&challenge.party[0]).unwrap();
         let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
             metadata: None,
@@ -1318,27 +1310,27 @@ mod tests {
                             quality_flags: vec![
                                 report::QualityFlag::AttackTypeMismatch {
                                     tick: Tick(0),
-                                    player: "1Ogp".to_string(),
+                                    player,
                                     kept_type: PlayerAttack::Scythe as i32,
                                     discarded_type: PlayerAttack::BgsSpec as i32,
-                                    kept_source_client_id: ClientId(1),
-                                    discarded_source_client_id: ClientId(2),
+                                    kept_source: Source::Client(ClientId(1)),
+                                    discarded_source: Source::Client(ClientId(2)),
                                 },
                                 report::QualityFlag::AttackTypeMismatch {
                                     tick: Tick(5),
-                                    player: "1Ogp".to_string(),
+                                    player,
                                     kept_type: PlayerAttack::Scythe as i32,
                                     discarded_type: PlayerAttack::BgsSpec as i32,
-                                    kept_source_client_id: ClientId(1),
-                                    discarded_source_client_id: ClientId(2),
+                                    kept_source: Source::Client(ClientId(1)),
+                                    discarded_source: Source::Client(ClientId(2)),
                                 },
                                 report::QualityFlag::AttackTypeMismatch {
                                     tick: Tick(10),
-                                    player: "1Ogp".to_string(),
+                                    player,
                                     kept_type: PlayerAttack::Scythe as i32,
                                     discarded_type: PlayerAttack::BgsSpec as i32,
-                                    kept_source_client_id: ClientId(1),
-                                    discarded_source_client_id: ClientId(2),
+                                    kept_source: Source::Client(ClientId(1)),
+                                    discarded_source: Source::Client(ClientId(2)),
                                 },
                             ],
                         },
@@ -1354,7 +1346,7 @@ mod tests {
     #[test]
     fn missing_ticks_counts_unrecorded_ticks() {
         let accurate = merge_one_client(true, Tick(5), vec![wave_event(Tick(4), 1)]);
-        assert_eq!(accurate.last_tick(), Tick(5));
+        assert_eq!(accurate.timeline().last_tick(), Tick(5));
         assert_eq!(accurate.missing_tick_count(), 5);
 
         let challenge = nylocas_challenge();
@@ -1383,7 +1375,7 @@ mod tests {
         ];
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         let merged = merged.expect("stage has client data");
-        assert_eq!(merged.last_tick(), Tick(8));
+        assert_eq!(merged.timeline().last_tick(), Tick(8));
         assert_eq!(merged.missing_tick_count(), 8);
         assert_eq!(
             report.alerts,
@@ -1405,5 +1397,128 @@ mod tests {
         assert_eq!(merged.accurate_until(), Tick(40));
         assert_eq!(merged.queryable_until(), Tick(40));
         assert!(!merged.fully_queryable());
+    }
+
+    #[test]
+    fn merge_stage_data_unions_maze_pivots() {
+        let mut stage_data = StageData::None;
+        merge_stage_data(
+            &mut stage_data,
+            &StageData::Sotetseg {
+                mazes: BTreeMap::from([(
+                    Maze::Maze66,
+                    SoteMazePivots {
+                        overworld: vec![
+                            Point(11, 0),
+                            Point(7, 2),
+                            Point(12, 4),
+                            Point(11, 6),
+                            Point(11, 8),
+                            Point(9, 10),
+                            Point(6, 12),
+                            Point(6, 14),
+                        ],
+                        underworld: vec![],
+                    },
+                )]),
+            },
+        );
+        assert_eq!(
+            stage_data,
+            StageData::Sotetseg {
+                mazes: BTreeMap::from([(
+                    Maze::Maze66,
+                    SoteMazePivots {
+                        overworld: vec![
+                            Point(11, 0),
+                            Point(7, 2),
+                            Point(12, 4),
+                            Point(11, 6),
+                            Point(11, 8),
+                            Point(9, 10),
+                            Point(6, 12),
+                            Point(6, 14),
+                        ],
+                        underworld: vec![],
+                    },
+                )]),
+            }
+        );
+
+        let mut stage_data = StageData::Sotetseg {
+            mazes: BTreeMap::from([(
+                Maze::Maze66,
+                SoteMazePivots {
+                    overworld: vec![
+                        Point(8, 0),
+                        Point(8, 2),
+                        Point(11, 4),
+                        Point(7, 6),
+                        Point(2, 8),
+                        Point(7, 10),
+                        Point(7, 12),
+                    ],
+                    underworld: vec![],
+                },
+            )]),
+        };
+        merge_stage_data(
+            &mut stage_data,
+            &StageData::Sotetseg {
+                mazes: BTreeMap::from([(
+                    Maze::Maze66,
+                    SoteMazePivots {
+                        overworld: vec![
+                            Point(8, 0),
+                            Point(8, 2),
+                            Point(11, 4),
+                            Point(7, 6),
+                            Point(2, 8),
+                            Point(7, 10),
+                            Point(7, 12),
+                        ],
+                        underworld: vec![
+                            Point(8, 0),
+                            Point(8, 2),
+                            Point(11, 4),
+                            Point(7, 6),
+                            Point(2, 8),
+                            Point(7, 10),
+                            Point(7, 12),
+                            Point(3, 14),
+                        ],
+                    },
+                )]),
+            },
+        );
+        assert_eq!(
+            stage_data,
+            StageData::Sotetseg {
+                mazes: BTreeMap::from([(
+                    Maze::Maze66,
+                    SoteMazePivots {
+                        overworld: vec![
+                            Point(8, 0),
+                            Point(8, 2),
+                            Point(11, 4),
+                            Point(7, 6),
+                            Point(2, 8),
+                            Point(7, 10),
+                            Point(7, 12),
+                        ],
+                        underworld: vec![
+                            Point(8, 0),
+                            Point(8, 2),
+                            Point(11, 4),
+                            Point(7, 6),
+                            Point(2, 8),
+                            Point(7, 10),
+                            Point(7, 12),
+                            Point(3, 14),
+                        ],
+                    },
+                )]),
+            }
+        );
     }
 }

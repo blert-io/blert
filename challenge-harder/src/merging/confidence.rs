@@ -634,45 +634,50 @@ fn noisy_or(a: f64, b: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use blert::{PlayerAttack, Rsn};
+    use blert::{PlayerAttack, Recording, Rsn, Source, TickState};
 
     use super::*;
-    use crate::lifecycle::core::types::{ClientId, Stage};
+    use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage};
     use crate::merging::alignment::{AlignmentConfig, TickAligner};
     use crate::merging::fixtures;
-    use crate::merging::timeline::TickState;
 
     const STAGE: Stage = Stage::TobMaiden;
 
-    fn tick_states(len: usize, nulls: &[usize]) -> Vec<Option<TickState<'static>>> {
-        static PARTY: std::sync::LazyLock<Vec<Rsn>> =
-            std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
+    fn make_recording(len: usize, nulls: &[usize]) -> Recording {
         let events = (0..len)
+            .filter(|t| !nulls.contains(t))
             .map(|t| {
-                fixtures::PlayerUpdateEvent::new(Tick::from_usize(t), STAGE, "1Ogp", (10, 20))
-                    .build()
+                fixtures::PlayerUpdateEvent::new(
+                    Tick::from_usize(t),
+                    STAGE,
+                    "1Ogp",
+                    (i32::try_from(t).expect("tick fits a coordinate"), 20),
+                )
+                .build()
             })
             .collect();
-        let timeline = fixtures::timeline(&PARTY, Tick::from_usize(len - 1), events);
-        (0..len)
-            .map(|t| {
-                (!nulls.contains(&t)).then(|| {
-                    timeline
-                        .get(Tick::from_usize(t))
-                        .expect("tick has recorded state")
-                        .clone()
-                })
-            })
-            .collect()
+        fixtures::recording(
+            ClientId(1),
+            STAGE,
+            ChallengeMode::TobRegular,
+            &[Rsn::try_from("1Ogp").unwrap()],
+            Tick::from_usize(len - 1),
+            events,
+        )
     }
 
-    // `matrix[i][j]` scores base tick `i` against target tick `j`, so this
-    // only works on timelines where tick numbers equal array indices.
+    fn player_x(state: &TickState) -> u16 {
+        let (_, player) = state.players.iter().next().expect("state has a player");
+        player.position.0
+    }
+
+    // `matrix[i][j]` scores a base state whose player is at x `i` against a
+    // target state whose player is at x `j`.
     fn matrix_scorer(matrix: Vec<Vec<f64>>) -> impl Fn(&TickState, &TickState) -> f64 {
         move |a, b| {
             matrix
-                .get(a.tick().as_usize())
-                .and_then(|row| row.get(b.tick().as_usize()))
+                .get(usize::from(player_x(a)))
+                .and_then(|row| row.get(usize::from(player_x(b))))
                 .copied()
                 .unwrap_or(0.0)
         }
@@ -692,8 +697,8 @@ mod tests {
         null_target: &[usize],
         config: AlignmentConfig,
     ) -> AlignmentResult {
-        let base = tick_states(matrix.len(), null_base);
-        let target = tick_states(matrix[0].len(), null_target);
+        let base = make_recording(matrix.len(), null_base);
+        let target = make_recording(matrix[0].len(), null_target);
         TickAligner::with_config(&base, &target, matrix_scorer(matrix), config).align()
     }
 
@@ -1680,6 +1685,9 @@ mod tests {
 
     #[test]
     fn step_confidence_penalizes_content_conflicts() {
+        let player = make_recording(1, &[])
+            .party_index(&Rsn::try_from("1Ogp").unwrap())
+            .unwrap();
         // 1 mismatch in 4 reconciliation attempts on an otherwise clean step.
         let confidence = score_step_confidence(
             None,
@@ -1692,10 +1700,10 @@ mod tests {
             },
             &[QualityFlag::Disagreement {
                 tick: Tick(3),
-                kept_source: ClientId(1),
-                discarded_source: ClientId(2),
+                kept_source: Source::Client(ClientId(1)),
+                discarded_source: Source::Client(ClientId(2)),
                 subject: Disagreement::PlayerAttackKind {
-                    player: "1Ogp",
+                    player,
                     kept: PlayerAttack::Scythe,
                     discarded: PlayerAttack::BgsSpec,
                 },
@@ -1790,12 +1798,15 @@ mod tests {
             stream_event_pairs: 0,
             attack_mapped_events: 0,
         };
+        let player = make_recording(1, &[])
+            .party_index(&Rsn::try_from("1Ogp").unwrap())
+            .unwrap();
         let flags = [QualityFlag::Disagreement {
             tick: Tick(1),
-            kept_source: ClientId(1),
-            discarded_source: ClientId(2),
+            kept_source: Source::Client(ClientId(1)),
+            discarded_source: Source::Client(ClientId(2)),
             subject: Disagreement::PlayerAttackKind {
-                player: "1Ogp",
+                player,
                 kept: PlayerAttack::Scythe,
                 discarded: PlayerAttack::BgsSpec,
             },

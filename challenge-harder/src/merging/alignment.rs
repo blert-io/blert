@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use super::timeline::TickState;
+use blert::{Recording, Tick, TickState};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum AlignmentEntry {
@@ -147,24 +147,20 @@ struct AlignmentMatrices {
 
 pub(super) struct TickAligner<'a, F> {
     config: AlignmentConfig,
-    base: &'a [Option<TickState<'a>>],
-    target: &'a [Option<TickState<'a>>],
+    base: &'a Recording,
+    target: &'a Recording,
     score_fn: F,
     alignments: Vec<LocalAlignment>,
 }
 
-impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
-    pub fn new(
-        base: &'a [Option<TickState<'a>>],
-        target: &'a [Option<TickState<'a>>],
-        score_fn: F,
-    ) -> Self {
+impl<'a, F: Fn(&TickState, &TickState) -> f64> TickAligner<'a, F> {
+    pub fn new(base: &'a Recording, target: &'a Recording, score_fn: F) -> Self {
         Self::with_config(base, target, score_fn, AlignmentConfig::default())
     }
 
     pub fn with_config(
-        base: &'a [Option<TickState<'a>>],
-        target: &'a [Option<TickState<'a>>],
+        base: &'a Recording,
+        target: &'a Recording,
         score_fn: F,
         config: AlignmentConfig,
     ) -> Self {
@@ -182,9 +178,9 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
     pub fn align(mut self) -> AlignmentResult {
         self.align_over(AlignmentRange {
             base_start: 0,
-            base_end: self.base.len(),
+            base_end: self.base.tick_count(),
             target_start: 0,
-            target_end: self.target.len(),
+            target_end: self.target.tick_count(),
         });
 
         let mut merge_count = 0usize;
@@ -205,16 +201,8 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
 
         AlignmentResult {
             alignments: self.alignments,
-            base_coverage: if self.base.is_empty() {
-                0.0
-            } else {
-                base_placed as f64 / self.base.len() as f64
-            },
-            target_coverage: if self.target.is_empty() {
-                0.0
-            } else {
-                target_placed as f64 / self.target.len() as f64
-            },
+            base_coverage: base_placed as f64 / self.base.tick_count() as f64,
+            target_coverage: target_placed as f64 / self.target.tick_count() as f64,
             gap_count: keep_count + insert_count,
         }
     }
@@ -272,10 +260,10 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
         }
 
         let base_null = (range.base_start..range.base_end)
-            .filter(|&i| self.base[i].is_none())
+            .filter(|&i| self.base.get_state(Tick::from_usize(i)).is_none())
             .collect();
         let target_null = (range.target_start..range.target_end)
-            .filter(|&j| self.target[j].is_none())
+            .filter(|&j| self.target.get_state(Tick::from_usize(j)).is_none())
             .collect();
 
         Some(LocalAlignment {
@@ -434,7 +422,10 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
     }
 
     fn score_similarity(&self, i: usize, j: usize) -> f64 {
-        match (&self.base[i], &self.target[j]) {
+        match (
+            self.base.get_state(Tick::from_usize(i)),
+            self.target.get_state(Tick::from_usize(j)),
+        ) {
             (Some(base), Some(target)) => (self.score_fn)(base, target),
             _ => 0.0,
         }
@@ -445,46 +436,51 @@ impl<'a, F: Fn(&TickState<'_>, &TickState<'_>) -> f64> TickAligner<'a, F> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use blert::{Rsn, Tick};
+    use blert::Rsn;
 
     use super::*;
-    use crate::lifecycle::core::types::Stage;
+    use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage};
     use crate::merging::fixtures;
 
     const STAGE: Stage = Stage::TobMaiden;
 
-    // Each listed tick gets a state with a dummy player so it's non-null, at
-    // its position in the list, so tick numbers are decoupled from indices.
-    fn make_timeline(ticks: &[u32]) -> Vec<Option<TickState<'static>>> {
-        static PARTY: std::sync::LazyLock<Vec<Rsn>> =
-            std::sync::LazyLock::new(|| vec![Rsn::try_from("1Ogp").unwrap()]);
-        let events = ticks
+    fn make_recording(xs: &[u16]) -> Recording {
+        let events = xs
             .iter()
-            .map(|&t| fixtures::PlayerUpdateEvent::new(Tick(t), STAGE, "1Ogp", (10, 20)).build())
-            .collect();
-        let max_tick = ticks.iter().copied().max().unwrap_or(0);
-        let timeline = fixtures::timeline(&PARTY, Tick(max_tick), events);
-        ticks
-            .iter()
-            .map(|&t| {
-                Some(
-                    timeline
-                        .get(Tick(t))
-                        .expect("tick has recorded state")
-                        .clone(),
+            .enumerate()
+            .map(|(index, &x)| {
+                fixtures::PlayerUpdateEvent::new(
+                    Tick::from_usize(index),
+                    STAGE,
+                    "1Ogp",
+                    (i32::from(x), 20),
                 )
+                .build()
             })
-            .collect()
+            .collect();
+        fixtures::recording(
+            ClientId(1),
+            STAGE,
+            ChallengeMode::TobRegular,
+            &[Rsn::try_from("1Ogp").unwrap()],
+            Tick::from_usize(xs.len() - 1),
+            events,
+        )
     }
 
-    fn make_indexed_timeline(length: u32) -> Vec<Option<TickState<'static>>> {
-        let ticks: Vec<u32> = (0..length).collect();
-        make_timeline(&ticks)
+    fn make_indexed_recording(length: u16) -> Recording {
+        let ticks: Vec<u16> = (0..length).collect();
+        make_recording(&ticks)
     }
 
-    fn tick_match_scorer(match_score: f64) -> impl Fn(&TickState, &TickState) -> f64 {
+    fn player_x(state: &TickState) -> u16 {
+        let (_, player) = state.players.iter().next().expect("state has a player");
+        player.position.0
+    }
+
+    fn x_match_scorer(match_score: f64) -> impl Fn(&TickState, &TickState) -> f64 {
         move |a, b| {
-            if a.tick() == b.tick() {
+            if player_x(a) == player_x(b) {
                 match_score
             } else {
                 f64::NEG_INFINITY
@@ -492,13 +488,13 @@ mod tests {
         }
     }
 
-    // `matrix[i][j]` scores base tick `i` against target tick `j`, so this
-    // only works on timelines where tick numbers equal array indices.
+    // `matrix[i][j]` scores a base state whose player is at x `i` against a
+    // target state whose player is at x `j`.
     fn matrix_scorer(matrix: Vec<Vec<f64>>) -> impl Fn(&TickState, &TickState) -> f64 {
         move |a, b| {
             matrix
-                .get(a.tick().0 as usize)
-                .and_then(|row| row.get(b.tick().0 as usize))
+                .get(usize::from(player_x(a)))
+                .and_then(|row| row.get(usize::from(player_x(b))))
                 .copied()
                 .unwrap_or(0.0)
         }
@@ -546,13 +542,13 @@ mod tests {
 
     #[test]
     fn identical_timelines_produce_a_one_to_one_mapping_with_full_coverage() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-        let target = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let target = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -586,13 +582,13 @@ mod tests {
     fn identical_timelines_return_a_single_local_alignment_with_only_merge_entries() {
         const SCORE: f64 = 3.0;
 
-        let base = make_timeline(&[1, 2, 3, 4, 5]);
-        let target = make_timeline(&[1, 2, 3, 4, 5]);
+        let base = make_recording(&[1, 2, 3, 4, 5]);
+        let target = make_recording(&[1, 2, 3, 4, 5]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(SCORE),
+            x_match_scorer(SCORE),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -608,7 +604,7 @@ mod tests {
             assert!(matches!(entry, AlignmentEntry::Merge { .. }));
         }
         let mut expected_margin = SCORE;
-        for i in 0..base.len() {
+        for i in 0..base.tick_count() {
             assert_eq!(alignment.similarity(i, i), SCORE);
             assert_eq!(alignment.margin(i, i), expected_margin);
             expected_margin += SCORE;
@@ -617,13 +613,13 @@ mod tests {
 
     #[test]
     fn aligns_an_offset_target_to_the_correct_region_of_the_base() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-        let target = make_timeline(&[5, 6, 7, 8, 9, 10]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let target = make_recording(&[5, 6, 7, 8, 9, 10]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -645,13 +641,13 @@ mod tests {
 
     #[test]
     fn aligns_a_target_that_ends_early() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-        let target = make_timeline(&[1, 2, 3, 4, 5]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let target = make_recording(&[1, 2, 3, 4, 5]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -672,13 +668,13 @@ mod tests {
 
     #[test]
     fn emits_keep_entries_for_base_ticks_the_target_missed() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-        let target = make_timeline(&[1, 2, 3, 4, 7, 8, 9, 10]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let target = make_recording(&[1, 2, 3, 4, 7, 8, 9, 10]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -720,13 +716,13 @@ mod tests {
 
     #[test]
     fn emits_insert_entries_when_the_target_has_ticks_the_base_missed() {
-        let base = make_timeline(&[1, 2, 3, 4, 6, 7, 8, 9, 10]);
-        let target = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let base = make_recording(&[1, 2, 3, 4, 6, 7, 8, 9, 10]);
+        let target = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -775,13 +771,13 @@ mod tests {
 
     #[test]
     fn emits_both_keep_and_insert_when_each_side_misses_a_different_tick() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 7, 8, 9, 10]);
-        let target = make_timeline(&[1, 2, 3, 4, 6, 7, 8, 9, 10]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 7, 8, 9, 10]);
+        let target = make_recording(&[1, 2, 3, 4, 6, 7, 8, 9, 10]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -832,13 +828,13 @@ mod tests {
 
     #[test]
     fn returns_empty_alignments_when_timelines_are_disjoint() {
-        let base = make_timeline(&[1, 2, 3, 4, 5]);
-        let target = make_timeline(&[20, 21, 22, 23, 24]);
+        let base = make_recording(&[1, 2, 3, 4, 5]);
+        let target = make_recording(&[20, 21, 22, 23, 24]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -856,13 +852,13 @@ mod tests {
 
     #[test]
     fn rejects_alignments_shorter_than_the_minimum_length() {
-        let base = make_timeline(&[1, 2, 3, 4, 5]);
-        let target = make_timeline(&[4, 5, 20, 21, 22]);
+        let base = make_recording(&[1, 2, 3, 4, 5]);
+        let target = make_recording(&[4, 5, 20, 21, 22]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -877,13 +873,13 @@ mod tests {
 
     #[test]
     fn accepts_alignments_exactly_at_the_minimum_length() {
-        let base = make_timeline(&[1, 2, 3, 4, 5]);
-        let target = make_timeline(&[3, 4, 5, 20, 21]);
+        let base = make_recording(&[1, 2, 3, 4, 5]);
+        let target = make_recording(&[3, 4, 5, 20, 21]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -898,15 +894,26 @@ mod tests {
 
     #[test]
     fn scores_null_ticks_as_zero_without_breaking_the_alignment() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7]);
-        let mut target = make_timeline(&[1, 2, 3, 4, 5, 6, 7]);
-        target[2] = None;
-        target[3] = None;
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7]);
+        let target = fixtures::recording(
+            ClientId(2),
+            STAGE,
+            ChallengeMode::TobRegular,
+            &[Rsn::try_from("1Ogp").unwrap()],
+            Tick(6),
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(0), STAGE, "1Ogp", (1, 20)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "1Ogp", (2, 20)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(4), STAGE, "1Ogp", (5, 20)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(5), STAGE, "1Ogp", (6, 20)).build(),
+                fixtures::PlayerUpdateEvent::new(Tick(6), STAGE, "1Ogp", (7, 20)).build(),
+            ],
+        );
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -922,7 +929,7 @@ mod tests {
         );
 
         for (target_index, score) in extract_scores(&result) {
-            if target[target_index].is_none() {
+            if target.get_state(Tick::from_usize(target_index)).is_none() {
                 assert_eq!(score, 0.0);
             }
         }
@@ -932,13 +939,13 @@ mod tests {
     fn records_per_pair_similarity_scores() {
         const SCORE: f64 = 7.0;
 
-        let base = make_timeline(&[1, 2, 3, 4, 5]);
-        let target = make_timeline(&[1, 2, 3, 4, 5]);
+        let base = make_recording(&[1, 2, 3, 4, 5]);
+        let target = make_recording(&[1, 2, 3, 4, 5]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(SCORE),
+            x_match_scorer(SCORE),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -957,13 +964,13 @@ mod tests {
 
     #[test]
     fn extracts_two_separate_alignments_when_a_large_gap_splits_them() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
-        let target = make_timeline(&[1, 2, 3, 4, 5, 0, 0, 0, 11, 12, 13, 14, 15]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+        let target = make_recording(&[1, 2, 3, 4, 5, 0, 0, 0, 11, 12, 13, 14, 15]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -1004,13 +1011,13 @@ mod tests {
 
     #[test]
     fn preserves_action_order_within_a_local_alignment() {
-        let base = make_timeline(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-        let target = make_timeline(&[1, 2, 3, 4, 7, 8, 9, 10]);
+        let base = make_recording(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        let target = make_recording(&[1, 2, 3, 4, 7, 8, 9, 10]);
 
         let result = TickAligner::with_config(
             &base,
             &target,
-            tick_match_scorer(3.0),
+            x_match_scorer(3.0),
             AlignmentConfig {
                 min_score: 5.0,
                 min_length: 3,
@@ -1064,8 +1071,8 @@ mod tests {
         matrix[6][7] = 5.0;
         matrix[7][6] = 5.0;
 
-        let base = make_indexed_timeline(11);
-        let target = make_indexed_timeline(11);
+        let base = make_indexed_recording(11);
+        let target = make_indexed_recording(11);
 
         let result = TickAligner::with_config(
             &base,

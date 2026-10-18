@@ -404,7 +404,7 @@ pub(super) async fn save_merge(
                     .stage_attempt
                     .map(|attempt| i16::try_from(attempt).expect("attempt fits in a smallint")),
                 &merged.map(|merged| merged.status() as i16),
-                &merged.map(|merged| merged.last_tick().0.cast_signed()),
+                &merged.map(|merged| merged.timeline().last_tick().0.cast_signed()),
                 &merged.map(|merged| merged.missing_tick_count().cast_signed()),
                 &merged.map(MergedTimeline::has_precise_server_tick_count),
                 &merged.map(|merged| merged.accurate_until().0.cast_signed()),

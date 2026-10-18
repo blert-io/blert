@@ -1,4 +1,5 @@
 //! Runs real recorded Theatre rooms through the processor, verifying results.
+#![expect(clippy::type_complexity, reason = "db row tuples")]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -468,7 +469,7 @@ async fn bloat_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 213,
+            ticks: 210,
         },
     );
 
@@ -521,8 +522,8 @@ async fn verify_bloat_rows(
     assert_eq!(row.get::<_, i16>(2), 5);
     assert_eq!(row.get::<_, i16>(3), Stage::TobBloat as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 213);
-    assert_eq!(row.get::<_, i32>(6), 1);
+    assert_eq!(row.get::<_, i32>(5), 210);
+    assert_eq!(row.get::<_, i32>(6), 4);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
         UNIX_EPOCH + Duration::from_millis(CREATED_UNIX_MS),
@@ -540,18 +541,18 @@ async fn verify_bloat_rows(
         PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::Oathplate,
-        PrimaryMeleeGear::Oathplate,
-        PrimaryMeleeGear::Bandos,
+        PrimaryMeleeGear::RadiantOathplate,
+        PrimaryMeleeGear::RadiantOathplate,
     ];
     assert_eq!(rows.len(), PARTY.len());
     for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
         assert_eq!(row.get::<_, i16>(1), i16::try_from(orb).unwrap());
         assert_eq!(row.get::<_, i16>(2), gear as i16, "{}", PARTY[orb]);
-        let deaths = if orb == 4 {
-            vec![Stage::TobBloat as i16]
-        } else {
+        let deaths = if orb == 3 {
             Vec::new()
+        } else {
+            vec![Stage::TobBloat as i16]
         };
         assert_eq!(row.get::<_, Vec<i16>>(3), deaths, "{}", PARTY[orb]);
     }
@@ -564,11 +565,11 @@ async fn verify_bloat_rows(
         )
         .await
         .expect("stats row");
-    assert_eq!(row.get::<_, Option<i32>>(0), Some(1));
+    assert_eq!(row.get::<_, Option<i32>>(0), Some(4));
     assert_eq!(row.get::<_, Option<i16>>(1), Some(3));
     let first_down = row.get::<_, Option<f32>>(2).expect("first down percent");
     assert!(
-        (first_down - 2380.0 / 2400.0 * 100.0).abs() < 1e-3,
+        (first_down - 2377.0 / 2400.0 * 100.0).abs() < 1e-3,
         "{first_down}"
     );
 
@@ -583,7 +584,7 @@ async fn verify_bloat_rows(
     assert_eq!(splits.len(), 1);
     assert_eq!(splits[0].get::<_, i16>(1), SplitType::TobHmBloat as i16);
     assert_eq!(splits[0].get::<_, i16>(2), 5);
-    assert_eq!(splits[0].get::<_, i32>(3), 213);
+    assert_eq!(splits[0].get::<_, i32>(3), 210);
     assert!(splits[0].get::<_, bool>(4));
     let split_id: i32 = splits[0].get(0);
 
@@ -613,7 +614,7 @@ async fn verify_bloat_rows(
         .collect();
     assert_eq!(
         downs,
-        vec![(1, 42, 42, true), (2, 113, 37, true), (3, 193, 46, true)],
+        vec![(1, 43, 43, true), (2, 117, 40, true), (3, 195, 44, true)],
     );
 
     let hands = client
@@ -626,8 +627,8 @@ async fn verify_bloat_rows(
         .expect("hand waves");
     let by_wave: Vec<(i16, i64)> = hands.iter().map(|row| (row.get(0), row.get(1))).collect();
     let expected_counts = [
-        16, 16, 16, 16, 16, 16, 16, 15, 16, 14, 15, 16, 16, 16, 16, 15, 16, 16, 16, 16, 16, 15, 16,
-        16, 16, 16, 15, 15, 16, 16, 15, 16, 14, 16, 16, 16, 16, 15, 16, 16, 14, 15,
+        16, 15, 16, 14, 16, 15, 15, 16, 16, 16, 15, 15, 15, 15, 16, 15, 15, 16, 16, 15, 16, 16, 14,
+        16, 16, 16, 15, 16, 16, 15, 14, 16, 15, 15, 16, 16, 16, 15, 15, 16, 16,
     ];
     assert_eq!(
         by_wave,
@@ -638,25 +639,39 @@ async fn verify_bloat_rows(
             .collect::<Vec<_>>(),
     );
 
-    // player5 BGS smacks and dies.
     let stats = client
         .query(
             "SELECT player_id, deaths_total, deaths_bloat, bgs_smacks, chally_pokes,
                     hammer_bops, elder_maul_smacks, ralos_autos
-             FROM player_stats WHERE player_id = ANY($1)",
+             FROM player_stats WHERE player_id = ANY($1) ORDER BY player_id",
             &[&player_ids],
         )
         .await
         .expect("player stats");
-    assert_eq!(stats.len(), 1);
-    assert_eq!(stats[0].get::<_, i32>(0), player_ids[4]);
-    assert_eq!(stats[0].get::<_, i32>(1), 1);
-    assert_eq!(stats[0].get::<_, i32>(2), 1);
-    assert_eq!(stats[0].get::<_, i32>(3), 1);
-    assert_eq!(stats[0].get::<_, i32>(4), 1);
-    assert_eq!(stats[0].get::<_, i32>(5), 0);
-    assert_eq!(stats[0].get::<_, i32>(6), 0);
-    assert_eq!(stats[0].get::<_, i32>(7), 0);
+    let stats: Vec<(i32, i32, i32, i32, i32, i32, i32, i32)> = stats
+        .iter()
+        .map(|row| {
+            (
+                row.get(0),
+                row.get(1),
+                row.get(2),
+                row.get(3),
+                row.get(4),
+                row.get(5),
+                row.get(6),
+                row.get(7),
+            )
+        })
+        .collect();
+    assert_eq!(
+        stats,
+        vec![
+            (player_ids[0], 1, 1, 0, 0, 0, 0, 0),
+            (player_ids[1], 1, 1, 0, 0, 0, 0, 0),
+            (player_ids[2], 1, 1, 0, 1, 0, 0, 0),
+            (player_ids[4], 1, 1, 0, 0, 0, 0, 0),
+        ],
+    );
 
     // All queryable events are written.
     let rows = client
@@ -671,12 +686,12 @@ async fn verify_bloat_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 56),
-            (event::Type::PlayerDeath as i16, 1),
+            (event::Type::PlayerAttack as i16, 53),
+            (event::Type::PlayerDeath as i16, 4),
             (event::Type::NpcSpawn as i16, 1),
             (event::Type::NpcDeath as i16, 1),
             (event::Type::NpcAttack as i16, 2),
-            (event::Type::PlayerSpell as i16, 2),
+            (event::Type::PlayerSpell as i16, 1),
             (event::Type::TobBloatDown as i16, 3),
         ]),
     );
@@ -694,7 +709,7 @@ async fn verify_bloat_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(213));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(210));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }
@@ -755,7 +770,7 @@ async fn nylocas_test() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
-        mode: ChallengeMode::TobHard,
+        mode: ChallengeMode::TobRegular,
         party: party
             .iter()
             .map(|name| Rsn::try_from(name.as_str()).unwrap())
@@ -797,7 +812,7 @@ async fn nylocas_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 444,
+            ticks: 396,
         },
     );
 
@@ -846,12 +861,12 @@ async fn verify_nylocas_rows(
         .await
         .expect("challenge row");
     assert_eq!(row.get::<_, i16>(0), ChallengeType::Tob as i16);
-    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TobHard as i16);
+    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TobRegular as i16);
     assert_eq!(row.get::<_, i16>(2), 3);
     assert_eq!(row.get::<_, i16>(3), Stage::TobNylocas as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 444);
-    assert_eq!(row.get::<_, i32>(6), 1);
+    assert_eq!(row.get::<_, i32>(5), 396);
+    assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
         UNIX_EPOCH + Duration::from_millis(CREATED_UNIX_MS),
@@ -871,22 +886,17 @@ async fn verify_nylocas_rows(
         PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::Oathplate,
     ];
-    let expected_deaths = [
-        Vec::<i16>::new(),
-        Vec::<i16>::new(),
-        vec![Stage::TobNylocas as i16],
-    ];
     assert_eq!(rows.len(), 3);
-    for (orb, ((row, gear), deaths)) in rows
-        .iter()
-        .zip(expected_gear)
-        .zip(expected_deaths)
-        .enumerate()
-    {
+    for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
         assert_eq!(row.get::<_, i16>(1), i16::try_from(orb).unwrap());
         assert_eq!(row.get::<_, i16>(2), gear as i16, "{}", PARTY[orb]);
-        assert_eq!(row.get::<_, Vec<i16>>(3), deaths, "{}", PARTY[orb]);
+        assert_eq!(
+            row.get::<_, Vec<i16>>(3),
+            Vec::<i16>::new(),
+            "{}",
+            PARTY[orb]
+        );
     }
 
     let row = client
@@ -901,19 +911,19 @@ async fn verify_nylocas_rows(
         .await
         .expect("stats row");
     let mut stalls = vec![0i32; 31];
-    stalls[10] = 1;
-    stalls[20] = 1;
-    stalls[26] = 1;
+    stalls[15] = 1;
+    stalls[23] = 1;
     stalls[27] = 3;
-    assert_eq!(row.get::<_, Option<i32>>(0), Some(1));
+    stalls[29] = 2;
+    assert_eq!(row.get::<_, Option<i32>>(0), Some(0));
     assert_eq!(row.get::<_, Option<Vec<i32>>>(1), Some(stalls));
     assert_eq!(row.get::<_, Option<i32>>(2), Some(1));
-    assert_eq!(row.get::<_, Option<i32>>(3), Some(5));
-    assert_eq!(row.get::<_, Option<i32>>(4), Some(22));
+    assert_eq!(row.get::<_, Option<i32>>(3), Some(6));
+    assert_eq!(row.get::<_, Option<i32>>(4), Some(29));
     assert_eq!(row.get::<_, Option<i32>>(5), Some(30));
-    assert_eq!(row.get::<_, Option<i32>>(6), Some(34));
-    assert_eq!(row.get::<_, Option<i32>>(7), Some(4));
-    assert_eq!(row.get::<_, Option<i32>>(8), Some(4));
+    assert_eq!(row.get::<_, Option<i32>>(6), Some(27));
+    assert_eq!(row.get::<_, Option<i32>>(7), Some(3));
+    assert_eq!(row.get::<_, Option<i32>>(8), Some(3));
     assert_eq!(row.get::<_, Option<i32>>(9), Some(3));
 
     let splits = client
@@ -925,12 +935,12 @@ async fn verify_nylocas_rows(
         .await
         .expect("split rows");
     let expected = [
-        (SplitType::TobHmNyloRoom, 444),
-        (SplitType::TobHmNyloCap, 164),
-        (SplitType::TobHmNyloWaves, 280),
-        (SplitType::TobHmNyloCleanup, 320),
-        (SplitType::TobHmNyloBossSpawn, 336),
-        (SplitType::TobHmNyloBoss, 108),
+        (SplitType::TobRegNyloRoom, 396),
+        (SplitType::TobRegNyloCap, 156),
+        (SplitType::TobRegNyloWaves, 264),
+        (SplitType::TobRegNyloCleanup, 290),
+        (SplitType::TobRegNyloBossSpawn, 308),
+        (SplitType::TobRegNyloBoss, 88),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {
@@ -954,34 +964,41 @@ async fn verify_nylocas_rows(
         assert_eq!(pb_split_ids, split_ids, "player {player_id}");
     }
 
-    // player2 chins; player3 dies to the boss.
     let stats = client
         .query(
             "SELECT player_id, chins_thrown_total, chins_thrown_black, chins_thrown_maiden,
                     chins_thrown_nylocas, chins_thrown_value, chins_thrown_incorrectly_maiden,
-                    chally_pokes, deaths_total
+                    chally_pokes, deaths_total, tob_barrages_without_proper_weapon
              FROM player_stats WHERE player_id = ANY($1) ORDER BY player_id",
             &[&player_ids],
         )
         .await
         .expect("player stats");
-    assert_eq!(stats.len(), 2);
-    assert_eq!(stats[0].get::<_, i32>(0), player_ids[1]);
-    assert_eq!(stats[0].get::<_, i32>(1), 6);
-    assert_eq!(stats[0].get::<_, i32>(2), 6);
-    assert_eq!(stats[0].get::<_, i32>(3), 0);
-    assert_eq!(stats[0].get::<_, i32>(4), 6);
+    let stats: Vec<(i32, i32, i32, i32, i32, i32, i32, i32, i32, i32)> = stats
+        .iter()
+        .map(|row| {
+            (
+                row.get(0),
+                row.get(1),
+                row.get(2),
+                row.get(3),
+                row.get(4),
+                row.get(5),
+                row.get(6),
+                row.get(7),
+                row.get(8),
+                row.get(9),
+            )
+        })
+        .collect();
+    let chins_value = 13 * i32::try_from(BLACK_CHINCHOMPA_PRICE).unwrap();
     assert_eq!(
-        stats[0].get::<_, i32>(5),
-        6 * i32::try_from(BLACK_CHINCHOMPA_PRICE).unwrap(),
+        stats,
+        vec![
+            (player_ids[1], 13, 13, 0, 13, chins_value, 0, 0, 0, 0),
+            (player_ids[2], 0, 0, 0, 0, 0, 0, 0, 0, 1),
+        ],
     );
-    assert_eq!(stats[0].get::<_, i32>(6), 0);
-    assert_eq!(stats[0].get::<_, i32>(7), 0);
-    assert_eq!(stats[0].get::<_, i32>(8), 0);
-    assert_eq!(stats[1].get::<_, i32>(0), player_ids[2]);
-    assert_eq!(stats[1].get::<_, i32>(1), 0);
-    assert_eq!(stats[1].get::<_, i32>(7), 0);
-    assert_eq!(stats[1].get::<_, i32>(8), 1);
 
     // All queryable events are written.
     let rows = client
@@ -996,13 +1013,12 @@ async fn verify_nylocas_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 302),
-            (event::Type::NpcSpawn as i16, 213),
-            (event::Type::NpcDeath as i16, 210),
-            (event::Type::NpcAttack as i16, 32),
-            (event::Type::PlayerSpell as i16, 2),
-            (event::Type::PlayerDeath as i16, 1),
-            (event::Type::TobNyloWaveStall as i16, 6),
+            (event::Type::PlayerAttack as i16, 296),
+            (event::Type::NpcSpawn as i16, 207),
+            (event::Type::NpcDeath as i16, 207),
+            (event::Type::NpcAttack as i16, 16),
+            (event::Type::PlayerSpell as i16, 8),
+            (event::Type::TobNyloWaveStall as i16, 7),
         ]),
     );
 
@@ -1019,7 +1035,7 @@ async fn verify_nylocas_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(444));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(396));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }
@@ -1173,13 +1189,12 @@ async fn verify_sotetseg_rows(
     assert_eq!(row.get::<_, i16>(3), Stage::TobSotetseg as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
     assert_eq!(row.get::<_, i32>(5), 207);
-    assert_eq!(row.get::<_, i32>(6), 1);
+    assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
         UNIX_EPOCH + Duration::from_millis(CREATED_UNIX_MS),
     );
 
-    // player3 dies during P3.
     let rows = client
         .query(
             "SELECT username, orb, primary_gear, stage_deaths FROM challenge_players
@@ -1188,22 +1203,22 @@ async fn verify_sotetseg_rows(
         )
         .await
         .expect("membership rows");
+    let expected_gear = [
+        PrimaryMeleeGear::RadiantOathplate,
+        PrimaryMeleeGear::Oathplate,
+        PrimaryMeleeGear::Unknown,
+    ];
     assert_eq!(rows.len(), 3);
-    for (orb, row) in rows.iter().enumerate() {
+    for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
         assert_eq!(row.get::<_, i16>(1), i16::try_from(orb).unwrap());
+        assert_eq!(row.get::<_, i16>(2), gear as i16, "{}", PARTY[orb]);
         assert_eq!(
-            row.get::<_, i16>(2),
-            PrimaryMeleeGear::RadiantOathplate as i16,
+            row.get::<_, Vec<i16>>(3),
+            Vec::<i16>::new(),
             "{}",
             PARTY[orb]
         );
-        let deaths = if orb == 2 {
-            vec![Stage::TobSotetseg as i16]
-        } else {
-            Vec::new()
-        };
-        assert_eq!(row.get::<_, Vec<i16>>(3), deaths, "{}", PARTY[orb]);
     }
 
     let row = client
@@ -1213,9 +1228,9 @@ async fn verify_sotetseg_rows(
         )
         .await
         .expect("stats row");
-    assert_eq!(row.get::<_, Option<i32>>(0), Some(1));
+    assert_eq!(row.get::<_, Option<i32>>(0), Some(0));
 
-    // Maze 1 procs at 42 and ends at 70, maze 2 procs at 123 and ends at 147.
+    // Maze 1 procs at 57 and ends at 89, maze 2 procs at 137 and ends at 161.
     let splits = client
         .query(
             "SELECT id, type, scale, ticks, accurate FROM challenge_splits
@@ -1226,12 +1241,12 @@ async fn verify_sotetseg_rows(
         .expect("split rows");
     let expected = [
         (SplitType::TobRegSotetseg, 207),
-        (SplitType::TobRegSotetseg66, 42),
-        (SplitType::TobRegSotetseg33, 123),
-        (SplitType::TobRegSotetsegMaze1, 28),
+        (SplitType::TobRegSotetseg66, 57),
+        (SplitType::TobRegSotetseg33, 137),
+        (SplitType::TobRegSotetsegMaze1, 32),
         (SplitType::TobRegSotetsegMaze2, 24),
-        (SplitType::TobRegSotetsegP2, 53),
-        (SplitType::TobRegSotetsegP3, 60),
+        (SplitType::TobRegSotetsegP2, 48),
+        (SplitType::TobRegSotetsegP3, 46),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {
@@ -1255,7 +1270,6 @@ async fn verify_sotetseg_rows(
         assert_eq!(pb_split_ids, split_ids, "player {player_id}");
     }
 
-    // Death is tracked for player3
     let stats = client
         .query(
             "SELECT player_id, deaths_total, deaths_sotetseg, elder_maul_smacks, chally_pokes
@@ -1264,12 +1278,7 @@ async fn verify_sotetseg_rows(
         )
         .await
         .expect("player stats");
-    assert_eq!(stats.len(), 1);
-    assert_eq!(stats[0].get::<_, i32>(0), player_ids[2]);
-    assert_eq!(stats[0].get::<_, i32>(1), 1);
-    assert_eq!(stats[0].get::<_, i32>(2), 1);
-    assert_eq!(stats[0].get::<_, i32>(3), 0);
-    assert_eq!(stats[0].get::<_, i32>(4), 0);
+    assert!(stats.is_empty(), "{stats:?}");
 
     // All queryable events are written.
     let rows = client
@@ -1284,12 +1293,11 @@ async fn verify_sotetseg_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 83),
-            (event::Type::PlayerDeath as i16, 1),
+            (event::Type::PlayerAttack as i16, 86),
             (event::Type::NpcSpawn as i16, 1),
             (event::Type::NpcDeath as i16, 1),
-            (event::Type::NpcAttack as i16, 29),
-            (event::Type::PlayerSpell as i16, 7),
+            (event::Type::NpcAttack as i16, 28),
+            (event::Type::PlayerSpell as i16, 3),
         ]),
     );
 
@@ -1406,7 +1414,7 @@ async fn xarpus_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 239,
+            ticks: 229,
         },
     );
 
@@ -1459,14 +1467,13 @@ async fn verify_xarpus_rows(
     assert_eq!(row.get::<_, i16>(2), 4);
     assert_eq!(row.get::<_, i16>(3), Stage::TobXarpus as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 239);
-    assert_eq!(row.get::<_, i32>(6), 1);
+    assert_eq!(row.get::<_, i32>(5), 229);
+    assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
         UNIX_EPOCH + Duration::from_millis(CREATED_UNIX_MS),
     );
 
-    // player2 dies during P3.
     let rows = client
         .query(
             "SELECT username, orb, primary_gear, stage_deaths FROM challenge_players
@@ -1477,24 +1484,24 @@ async fn verify_xarpus_rows(
         .expect("membership rows");
     let expected_gear = [
         PrimaryMeleeGear::RadiantOathplate,
+        PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::Oathplate,
-        PrimaryMeleeGear::RadiantOathplate,
-        PrimaryMeleeGear::RadiantOathplate,
+        PrimaryMeleeGear::Oathplate,
     ];
     assert_eq!(rows.len(), 4);
     for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
         assert_eq!(row.get::<_, i16>(1), i16::try_from(orb).unwrap());
         assert_eq!(row.get::<_, i16>(2), gear as i16, "{}", PARTY[orb]);
-        let deaths = if orb == 1 {
-            vec![Stage::TobXarpus as i16]
-        } else {
-            Vec::new()
-        };
-        assert_eq!(row.get::<_, Vec<i16>>(3), deaths, "{}", PARTY[orb]);
+        assert_eq!(
+            row.get::<_, Vec<i16>>(3),
+            Vec::<i16>::new(),
+            "{}",
+            PARTY[orb]
+        );
     }
 
-    // 18(!) heals.
+    // 15 heals.
     let row = client
         .query_one(
             "SELECT xarpus_deaths, xarpus_healing FROM tob_challenge_stats
@@ -1503,10 +1510,10 @@ async fn verify_xarpus_rows(
         )
         .await
         .expect("stats row");
-    assert_eq!(row.get::<_, Option<i32>>(0), Some(1));
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(162));
+    assert_eq!(row.get::<_, Option<i32>>(0), Some(0));
+    assert_eq!(row.get::<_, Option<i32>>(1), Some(135));
 
-    // Screech at 180.
+    // Screech at 181.
     let splits = client
         .query(
             "SELECT id, type, scale, ticks, accurate FROM challenge_splits
@@ -1516,11 +1523,11 @@ async fn verify_xarpus_rows(
         .await
         .expect("split rows");
     let expected = [
-        (SplitType::TobRegXarpus, 239),
-        (SplitType::TobRegXarpusExhumes, 84),
-        (SplitType::TobRegXarpusScreech, 180),
+        (SplitType::TobRegXarpus, 229),
+        (SplitType::TobRegXarpusExhumes, 85),
+        (SplitType::TobRegXarpusScreech, 181),
         (SplitType::TobRegXarpusP2, 96),
-        (SplitType::TobRegXarpusP3, 59),
+        (SplitType::TobRegXarpusP3, 48),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {
@@ -1544,7 +1551,6 @@ async fn verify_xarpus_rows(
         assert_eq!(pb_split_ids, split_ids, "player {player_id}");
     }
 
-    // player2 dies and player4 chally swipes.
     let stats = client
         .query(
             "SELECT player_id, deaths_total, deaths_xarpus, chally_pokes, elder_maul_smacks,
@@ -1554,29 +1560,7 @@ async fn verify_xarpus_rows(
         )
         .await
         .expect("player stats");
-    let stats: BTreeMap<i32, (i32, i32, i32, i32, i32, i32)> = stats
-        .iter()
-        .map(|row| {
-            (
-                row.get(0),
-                (
-                    row.get(1),
-                    row.get(2),
-                    row.get(3),
-                    row.get(4),
-                    row.get(5),
-                    row.get(6),
-                ),
-            )
-        })
-        .collect();
-    assert_eq!(
-        stats,
-        BTreeMap::from([
-            (player_ids[1], (1, 1, 0, 0, 0, 0)),
-            (player_ids[3], (0, 0, 1, 0, 0, 0)),
-        ]),
-    );
+    assert!(stats.is_empty(), "{stats:?}");
 
     // All queryable events are written.
     let rows = client
@@ -1592,11 +1576,10 @@ async fn verify_xarpus_rows(
         counts,
         BTreeMap::from([
             (event::Type::PlayerAttack as i16, 109),
-            (event::Type::PlayerDeath as i16, 1),
             (event::Type::NpcSpawn as i16, 1),
             (event::Type::NpcDeath as i16, 1),
-            (event::Type::NpcAttack as i16, 30),
-            (event::Type::PlayerSpell as i16, 2),
+            (event::Type::NpcAttack as i16, 28),
+            (event::Type::PlayerSpell as i16, 1),
             (event::Type::TobXarpusExhumed as i16, 15),
         ]),
     );
@@ -1613,21 +1596,21 @@ async fn verify_xarpus_rows(
     assert_eq!(
         exhumeds,
         vec![
-            (8, 1),
-            (12, 4),
-            (16, 1),
-            (20, 0),
-            (24, 2),
-            (28, 0),
-            (32, 2),
-            (36, 1),
-            (40, 1),
-            (44, 1),
-            (48, 0),
-            (52, 1),
-            (56, 2),
-            (60, 1),
-            (64, 1),
+            (9, 1),
+            (13, 0),
+            (17, 0),
+            (21, 2),
+            (25, 1),
+            (29, 1),
+            (33, 1),
+            (37, 0),
+            (41, 1),
+            (45, 1),
+            (49, 0),
+            (53, 1),
+            (57, 2),
+            (61, 3),
+            (65, 1),
         ],
     );
 
@@ -1644,7 +1627,7 @@ async fn verify_xarpus_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(239));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(229));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }
@@ -2252,7 +2235,7 @@ async fn nylocas_merge_consistency_rejection_test() {
     let uuid: Uuid = NYLOCAS_MERGE_CONSISTENCY_REJECTION_UUID
         .parse()
         .expect("uuid is valid");
-    let party: Vec<String> = PARTY.iter().map(ToString::to_string).collect();
+    let party: Vec<String> = PARTY[..3].iter().map(ToString::to_string).collect();
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -2320,7 +2303,7 @@ async fn nylocas_merge_consistency_rejection_test() {
 
     let repository =
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
-    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, PARTY.len()).await;
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 3).await;
 
     let payload = pipeline
         .process(ProcessingRequest {
@@ -2337,7 +2320,7 @@ async fn nylocas_merge_consistency_rejection_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 380,
+            ticks: 432,
         },
     );
 
@@ -2354,7 +2337,7 @@ async fn nylocas_merge_consistency_rejection_test() {
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(380));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(432));
     let custom_data = row
         .get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present");

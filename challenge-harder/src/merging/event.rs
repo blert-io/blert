@@ -1,196 +1,15 @@
 //! Event classification by merge policy.
 
-use blert::proto::{Coords, Event, event};
-use blert::{NpcAttack, PlayerAttack, Tick, Ticks};
+use blert::proto::event;
+use blert::{
+    Actor, EventKind, NpcAttack, PartyIndex, PlayerAttack, Point, RoomId, SoteMazeEnd, Ticks,
+};
 
-use crate::lifecycle::core::types::{ChallengeType, ClientId};
-
-#[derive(Debug, Clone)]
-pub struct TaggedEvent(ClientId, Event);
-
-impl TaggedEvent {
-    const SYNTHETIC_CLIENT_ID: ClientId = ClientId(0);
-
-    /// Tags an event with the client that recorded it.
-    pub fn new(client_id: ClientId, event: Event) -> Self {
-        Self(client_id, event)
-    }
-
-    /// Tags an event originating from the merger.
-    pub fn synthetic(event: Event) -> Self {
-        Self(Self::SYNTHETIC_CLIENT_ID, event)
-    }
-
-    /// Returns the client that recorded this event.
-    pub fn source(&self) -> ClientId {
-        self.0
-    }
-
-    pub fn split(self) -> (ClientId, Event) {
-        (self.0, self.1)
-    }
-}
-
-impl std::ops::Deref for TaggedEvent {
-    type Target = Event;
-
-    fn deref(&self) -> &Self::Target {
-        &self.1
-    }
-}
-
-impl std::ops::DerefMut for TaggedEvent {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.1
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum MalformedEvent {
-    #[error("{kind:?}:{tick} is missing required payload {field:?}")]
-    MissingPayload {
-        kind: event::Type,
-        tick: Tick,
-        field: &'static str,
-    },
-    #[error("{kind:?}:{tick} has out-of-domain {field:?} value {value}")]
-    OutOfDomain {
-        kind: event::Type,
-        tick: Tick,
-        field: &'static str,
-        value: String,
-    },
-}
-
-/// Checks that an event has the required payload for its type.
-// TODO(frolv): Replace this with an in-memory structured model.
-#[expect(clippy::too_many_lines)]
-pub(super) fn validate(event: &Event) -> Result<(), MalformedEvent> {
-    let kind = event.r#type();
-    let require = |present: bool, field: &'static str| {
-        if present {
-            Ok(())
-        } else {
-            Err(MalformedEvent::MissingPayload {
-                kind,
-                tick: Tick(event.tick),
-                field,
-            })
-        }
-    };
-
-    match kind {
-        event::Type::Unspecified => Err(MalformedEvent::MissingPayload {
-            kind,
-            tick: Tick(event.tick),
-            field: "type",
-        }),
-
-        event::Type::Objects => unreachable!("objects are dropped on ingestion"),
-
-        event::Type::PlayerUpdate | event::Type::PlayerDeath => {
-            require(event.player.is_some(), "player")
-        }
-        event::Type::PlayerAttack => {
-            require(event.player.is_some(), "player")?;
-            require(event.player_attack.is_some(), "player_attack")
-        }
-        event::Type::PlayerSpell => {
-            require(event.player.is_some(), "player")?;
-            require(event.player_spell.is_some(), "player_spell")
-        }
-        event::Type::NpcSpawn
-        | event::Type::NpcUpdate
-        | event::Type::NpcDeath
-        | event::Type::TobMaidenCrabLeak => require(event.npc.is_some(), "npc"),
-        event::Type::NpcAttack => {
-            require(event.npc.is_some(), "npc")?;
-            require(event.npc_attack.is_some(), "npc_attack")
-        }
-
-        event::Type::TobMaidenBloodSplats => {
-            require(!event.maiden_blood_splats.is_empty(), "maiden_blood_splats")
-        }
-        event::Type::TobBloatHandsDrop | event::Type::TobBloatHandsSplat => {
-            require(!event.bloat_hands.is_empty(), "bloat_hands")
-        }
-        event::Type::TobBloatDown => require(event.bloat_down.is_some(), "bloat_down"),
-        event::Type::TobNyloWaveSpawn | event::Type::TobNyloWaveStall => {
-            require(event.nylo_wave.is_some(), "nylo_wave")
-        }
-        event::Type::TobSoteMazeProc
-        | event::Type::TobSoteMazeEnd
-        | event::Type::TobSoteMazePath => require(event.sote_maze.is_some(), "sote_maze"),
-        event::Type::TobXarpusPhase => require(event.xarpus_phase.is_some(), "xarpus_phase"),
-        event::Type::TobXarpusExhumed => require(event.xarpus_exhumed.is_some(), "xarpus_exhumed"),
-        event::Type::TobXarpusSplat => require(event.xarpus_splat.is_some(), "xarpus_splat"),
-        event::Type::TobVerzikPhase => require(event.verzik_phase.is_some(), "verzik_phase"),
-        event::Type::TobVerzikAttackStyle => {
-            require(event.verzik_attack_style.is_some(), "verzik_attack_style")
-        }
-        event::Type::TobVerzikBounce => require(event.verzik_bounce.is_some(), "verzik_bounce"),
-        event::Type::TobVerzikDawn => require(event.verzik_dawn.is_some(), "verzik_dawn"),
-        event::Type::TobVerzikDawnDrop => {
-            require(event.verzik_dawn_drop.is_some(), "verzik_dawn_drop")
-        }
-        event::Type::TobVerzikHeal => require(event.verzik_heal.is_some(), "verzik_heal"),
-
-        event::Type::ColosseumHandicapChoice => require(event.handicap.is_some(), "handicap"),
-        event::Type::ColosseumTotemHeal => {
-            require(event.colosseum_totem_heal.is_some(), "colosseum_totem_heal")
-        }
-        event::Type::ColosseumReentryPools => require(
-            event.colosseum_reentry_pools.is_some(),
-            "colosseum_reentry_pools",
-        ),
-        event::Type::ColosseumSolDust => {
-            require(event.colosseum_sol_dust.is_some(), "colosseum_sol_dust")
-        }
-        event::Type::ColosseumSolGrapple => require(
-            event.colosseum_sol_grapple.is_some(),
-            "colosseum_sol_grapple",
-        ),
-        event::Type::ColosseumSolPools => {
-            require(event.colosseum_sol_pools.is_some(), "colosseum_sol_pools")
-        }
-        event::Type::ColosseumSolLasers => {
-            require(event.colosseum_sol_lasers.is_some(), "colosseum_sol_lasers")
-        }
-
-        event::Type::MokhaiotlAttackStyle => require(
-            event.mokhaiotl_attack_style.is_some(),
-            "mokhaiotl_attack_style",
-        ),
-        event::Type::MokhaiotlOrb => require(event.mokhaiotl_orb.is_some(), "mokhaiotl_orb"),
-        event::Type::MokhaiotlObjects => {
-            require(event.mokhaiotl_objects.is_some(), "mokhaiotl_objects")
-        }
-        event::Type::MokhaiotlLarvaLeak => {
-            require(event.mokhaiotl_larva_leak.is_some(), "mokhaiotl_larva_leak")
-        }
-        event::Type::MokhaiotlShockwave => {
-            require(event.mokhaiotl_shockwave.is_some(), "mokhaiotl_shockwave")
-        }
-
-        event::Type::InfernoWaveStart => {
-            require(event.inferno_wave_start.is_some(), "inferno_wave_start")
-        }
-
-        event::Type::TobBloatUp
-        | event::Type::TobNyloCleanupEnd
-        | event::Type::TobNyloBossSpawn
-        | event::Type::TobVerzikRedsSpawn
-        | event::Type::TobVerzikYellows
-        | event::Type::ColosseumDoomApplied => Ok(()),
-    }
-}
+use crate::lifecycle::core::types::ChallengeType;
 
 /// The category of an event within the merger, determining its handling.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Class {
-    /// The default, empty event type. Always invalid.
-    Unspecified,
-
     /// Event types from solo-only challenges that never have to be merged.
     /// They pass through the pipeline as-is.
     Solo,
@@ -211,62 +30,89 @@ pub enum Class {
     AttackMapped,
 }
 
-pub const fn classify(kind: event::Type) -> Class {
+pub const fn classify(kind: &EventKind) -> Class {
     match kind {
-        event::Type::Unspecified => Class::Unspecified,
+        EventKind::HandicapChoice(_)
+        | EventKind::DoomApplied
+        | EventKind::TotemHeal(_)
+        | EventKind::SolDust(_)
+        | EventKind::SolGrapple(_)
+        | EventKind::SolPools(_)
+        | EventKind::SolLasers(_)
+        | EventKind::MokhaiotlOrb(_)
+        | EventKind::MokhaiotlLarvaLeak(_) => Class::Solo,
 
-        event::Type::Objects => unreachable!(),
+        EventKind::NyloWaveStall(_) | EventKind::NyloCleanupEnd | EventKind::NyloBossSpawn => {
+            Class::Derived
+        }
 
-        event::Type::ColosseumHandicapChoice
-        | event::Type::ColosseumDoomApplied
-        | event::Type::ColosseumTotemHeal
-        | event::Type::ColosseumReentryPools
-        | event::Type::ColosseumSolDust
-        | event::Type::ColosseumSolGrapple
-        | event::Type::ColosseumSolPools
-        | event::Type::ColosseumSolLasers
-        | event::Type::MokhaiotlAttackStyle
-        | event::Type::MokhaiotlOrb
-        | event::Type::MokhaiotlObjects
-        | event::Type::MokhaiotlLarvaLeak
-        | event::Type::MokhaiotlShockwave
-        | event::Type::InfernoWaveStart => Class::Solo,
+        EventKind::PlayerAttack(_) | EventKind::PlayerSpell(_) | EventKind::NpcAttack(_) => {
+            Class::TickState
+        }
 
-        event::Type::TobNyloWaveStall
-        | event::Type::TobNyloCleanupEnd
-        | event::Type::TobNyloBossSpawn
-        | event::Type::TobVerzikRedsSpawn => Class::Derived,
+        EventKind::PlayerDeath(_)
+        | EventKind::NpcDeath(_)
+        | EventKind::MaidenCrabLeak(_)
+        | EventKind::BloatDown(_)
+        | EventKind::BloatUp
+        | EventKind::BloatHandsDrop(_)
+        | EventKind::BloatHandsSplat(_)
+        | EventKind::NyloWaveSpawn(_)
+        | EventKind::SoteMazeProc(_)
+        | EventKind::SoteMazeEnd(_)
+        | EventKind::XarpusPhase(_)
+        | EventKind::XarpusExhumed(_)
+        | EventKind::XarpusSplat(_)
+        | EventKind::VerzikPhase(_)
+        | EventKind::VerzikDawnDropped(_)
+        | EventKind::VerzikDawnPickedUp(_)
+        | EventKind::VerzikHeal(_) => Class::Stream,
 
-        event::Type::PlayerUpdate
-        | event::Type::PlayerAttack
-        | event::Type::PlayerSpell
-        | event::Type::NpcUpdate
-        | event::Type::NpcAttack
-        | event::Type::TobMaidenBloodSplats
-        | event::Type::TobVerzikYellows
-        | event::Type::TobSoteMazePath => Class::TickState,
+        EventKind::VerzikDawnHit(_) | EventKind::VerzikBounce(_) => Class::AttackMapped,
+    }
+}
 
-        event::Type::PlayerDeath
-        | event::Type::NpcSpawn
-        | event::Type::NpcDeath
-        | event::Type::TobMaidenCrabLeak
-        | event::Type::TobBloatDown
-        | event::Type::TobBloatUp
-        | event::Type::TobBloatHandsDrop
-        | event::Type::TobBloatHandsSplat
-        | event::Type::TobNyloWaveSpawn
-        | event::Type::TobSoteMazeProc
-        | event::Type::TobSoteMazeEnd
-        | event::Type::TobXarpusPhase
-        | event::Type::TobXarpusExhumed
-        | event::Type::TobXarpusSplat
-        | event::Type::TobVerzikPhase
-        | event::Type::TobVerzikDawnDrop
-        | event::Type::TobVerzikHeal => Class::Stream,
+// TODO(frolv): Temporary mapping while the merger operates on events.
+pub(super) const fn event_type(kind: &EventKind) -> event::Type {
+    match kind {
+        EventKind::PlayerDeath(_) => event::Type::PlayerDeath,
+        EventKind::PlayerAttack(_) => event::Type::PlayerAttack,
+        EventKind::PlayerSpell(_) => event::Type::PlayerSpell,
+        EventKind::NpcDeath(_) => event::Type::NpcDeath,
+        EventKind::NpcAttack(_) => event::Type::NpcAttack,
 
-        event::Type::TobVerzikAttackStyle
-        | event::Type::TobVerzikBounce
-        | event::Type::TobVerzikDawn => Class::AttackMapped,
+        EventKind::MaidenCrabLeak(_) => event::Type::TobMaidenCrabLeak,
+        EventKind::BloatDown(_) => event::Type::TobBloatDown,
+        EventKind::BloatUp => event::Type::TobBloatUp,
+        EventKind::BloatHandsDrop(_) => event::Type::TobBloatHandsDrop,
+        EventKind::BloatHandsSplat(_) => event::Type::TobBloatHandsSplat,
+        EventKind::NyloWaveSpawn(_) => event::Type::TobNyloWaveSpawn,
+        EventKind::NyloWaveStall(_) => event::Type::TobNyloWaveStall,
+        EventKind::NyloCleanupEnd => event::Type::TobNyloCleanupEnd,
+        EventKind::NyloBossSpawn => event::Type::TobNyloBossSpawn,
+        EventKind::SoteMazeProc(_) => event::Type::TobSoteMazeProc,
+        EventKind::SoteMazeEnd(_) => event::Type::TobSoteMazeEnd,
+        EventKind::XarpusPhase(_) => event::Type::TobXarpusPhase,
+        EventKind::XarpusExhumed(_) => event::Type::TobXarpusExhumed,
+        EventKind::XarpusSplat(_) => event::Type::TobXarpusSplat,
+        EventKind::VerzikPhase(_) => event::Type::TobVerzikPhase,
+        EventKind::VerzikDawnDropped(_) | EventKind::VerzikDawnPickedUp(_) => {
+            event::Type::TobVerzikDawnDrop
+        }
+        EventKind::VerzikDawnHit(_) => event::Type::TobVerzikDawn,
+        EventKind::VerzikBounce(_) => event::Type::TobVerzikBounce,
+        EventKind::VerzikHeal(_) => event::Type::TobVerzikHeal,
+
+        EventKind::HandicapChoice(_) => event::Type::ColosseumHandicapChoice,
+        EventKind::DoomApplied => event::Type::ColosseumDoomApplied,
+        EventKind::TotemHeal(_) => event::Type::ColosseumTotemHeal,
+        EventKind::SolDust(_) => event::Type::ColosseumSolDust,
+        EventKind::SolGrapple(_) => event::Type::ColosseumSolGrapple,
+        EventKind::SolPools(_) => event::Type::ColosseumSolPools,
+        EventKind::SolLasers(_) => event::Type::ColosseumSolLasers,
+
+        EventKind::MokhaiotlOrb(_) => event::Type::MokhaiotlOrb,
+        EventKind::MokhaiotlLarvaLeak(_) => event::Type::MokhaiotlLarvaLeak,
     }
 }
 
@@ -299,10 +145,6 @@ const PLAYER_DEATH_RESPAWN_WINDOW: Ticks = Ticks(15);
 /// Returns how a stream event type is matched between clients, or `None` for
 /// non stream events.
 pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Option<StreamConfig> {
-    if classify(kind) != Class::Stream {
-        return None;
-    }
-
     #[allow(clippy::match_same_arms)]
     let config = match kind {
         event::Type::PlayerDeath => StreamConfig::new(
@@ -320,10 +162,6 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Opti
         ),
 
         event::Type::NpcDeath => StreamConfig::new(Some(Ticks(8)), Some(Ticks(5))),
-
-        // NPCs with the same room ID only spawn once and a "spawn" event is a
-        // render distance artifact.
-        event::Type::NpcSpawn => StreamConfig::new(None, None),
 
         event::Type::TobMaidenCrabLeak => StreamConfig::new(None, Some(Ticks(10))),
 
@@ -351,7 +189,7 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Opti
         event::Type::TobVerzikDawnDrop => StreamConfig::new(Some(Ticks(3)), None),
 
         event::Type::TobVerzikHeal => StreamConfig::new(Some(Ticks(30)), Some(Ticks(10))),
-        _ => unreachable!("every stream event type has a config"),
+        _ => return None,
     };
 
     Some(config)
@@ -359,29 +197,31 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Opti
 
 /// Unique identity for an occurrence of a stream event.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) enum IdentityKey<'a> {
+pub(crate) enum IdentityKey {
     /// Distinguished by time alone.
     Singleton,
-    Name(&'a str),
+    Player(PartyIndex),
+    Npc(RoomId),
     Number(u64),
-    Coords(Coords),
+    Point(Point),
     /// A sorted set of coordinates.
-    CoordsSet(Vec<Coords>),
+    Points(Vec<Point>),
 }
 
-impl std::fmt::Display for IdentityKey<'_> {
+impl std::fmt::Display for IdentityKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Singleton => Ok(()),
-            Self::Name(name) => f.write_str(name),
+            Self::Player(index) => write!(f, "{}", index.as_usize()),
+            Self::Npc(room_id) => write!(f, "{}", room_id.0),
             Self::Number(number) => write!(f, "{number}"),
-            Self::Coords(coords) => write!(f, "{},{}", coords.x, coords.y),
-            Self::CoordsSet(coords) => {
-                for (i, c) in coords.iter().enumerate() {
+            Self::Point(point) => write!(f, "{},{}", point.0, point.1),
+            Self::Points(points) => {
+                for (i, point) in points.iter().enumerate() {
                     if i > 0 {
                         f.write_str("|")?;
                     }
-                    write!(f, "{},{}", c.x, c.y)?;
+                    write!(f, "{},{}", point.0, point.1)?;
                 }
                 Ok(())
             }
@@ -390,57 +230,34 @@ impl std::fmt::Display for IdentityKey<'_> {
 }
 
 /// Returns the identity of a stream event.
-pub(super) fn identity_key(event: &Event) -> IdentityKey<'_> {
-    debug_assert_eq!(classify(event.r#type()), Class::Stream);
+pub(super) fn identity_key(kind: &EventKind) -> IdentityKey {
+    debug_assert_eq!(classify(kind), Class::Stream);
 
-    match event.r#type() {
-        event::Type::PlayerDeath => {
-            IdentityKey::Name(&event.player.as_ref().expect("validated at build").name)
-        }
-        event::Type::NpcSpawn | event::Type::NpcDeath | event::Type::TobMaidenCrabLeak => {
-            IdentityKey::Number(event.npc.as_ref().expect("validated at build").room_id)
-        }
-        event::Type::TobBloatDown | event::Type::TobBloatUp => IdentityKey::Singleton,
-        event::Type::TobBloatHandsDrop | event::Type::TobBloatHandsSplat => {
-            let mut hands = event.bloat_hands.clone();
+    match kind {
+        EventKind::PlayerDeath(player) => IdentityKey::Player(*player),
+        EventKind::NpcDeath(death) => IdentityKey::Npc(death.npc),
+        EventKind::MaidenCrabLeak(crab) => IdentityKey::Npc(*crab),
+        EventKind::BloatDown(_) | EventKind::BloatUp => IdentityKey::Singleton,
+        EventKind::BloatHandsDrop(hands) | EventKind::BloatHandsSplat(hands) => {
+            let mut hands = hands.clone();
             hands.sort_unstable();
-            IdentityKey::CoordsSet(hands)
+            IdentityKey::Points(hands)
         }
-        event::Type::TobNyloWaveSpawn => IdentityKey::Number(u64::from(
-            event.nylo_wave.as_ref().expect("validated at build").wave,
-        )),
-        event::Type::TobSoteMazeProc | event::Type::TobSoteMazeEnd => {
-            let maze = event.sote_maze.as_ref().expect("validated at build").maze;
-            IdentityKey::Number(u64::from(maze.cast_unsigned()))
+        EventKind::NyloWaveSpawn(wave) => IdentityKey::Number(u64::from(wave.wave)),
+        EventKind::SoteMazeProc(maze) | EventKind::SoteMazeEnd(SoteMazeEnd { maze, .. }) => {
+            IdentityKey::Number(*maze as u64)
         }
-        event::Type::TobXarpusPhase => {
-            let phase = event.xarpus_phase.expect("validated at build");
-            IdentityKey::Number(u64::from(phase.cast_unsigned()))
+        EventKind::XarpusPhase(phase) => {
+            IdentityKey::Number(u64::from(i32::from(*phase).cast_unsigned()))
         }
-        event::Type::TobXarpusExhumed | event::Type::TobXarpusSplat => {
-            IdentityKey::Coords(Coords {
-                x: event.x_coord,
-                y: event.y_coord,
-            })
+        EventKind::XarpusExhumed(exhumed) => IdentityKey::Point(exhumed.position),
+        EventKind::XarpusSplat(splat) => IdentityKey::Point(splat.position),
+        EventKind::VerzikPhase(phase) => {
+            IdentityKey::Number(u64::from(i32::from(*phase).cast_unsigned()))
         }
-        event::Type::TobVerzikPhase => {
-            let phase = event.verzik_phase.expect("validated at build");
-            IdentityKey::Number(u64::from(phase.cast_unsigned()))
-        }
-        event::Type::TobVerzikDawnDrop => IdentityKey::Number(u64::from(
-            event
-                .verzik_dawn_drop
-                .as_ref()
-                .expect("validated at build")
-                .dropped,
-        )),
-        event::Type::TobVerzikHeal => IdentityKey::Name(
-            &event
-                .verzik_heal
-                .as_ref()
-                .expect("validated at build")
-                .player,
-        ),
+        EventKind::VerzikDawnDropped(_) => IdentityKey::Number(u64::from(true)),
+        EventKind::VerzikDawnPickedUp(_) => IdentityKey::Number(u64::from(false)),
+        EventKind::VerzikHeal(heal) => IdentityKey::Player(heal.player),
         _ => unreachable!("non stream event"),
     }
 }
@@ -469,47 +286,201 @@ pub(super) fn normalize_npc_attack(attack: NpcAttack) -> NpcAttack {
     }
 }
 
-/// Rewrites all of an event's tick references with a mapping function.
-pub(super) fn remap_event_tick(event: &mut Event, mut remap: impl FnMut(Tick) -> Tick) {
-    debug_assert_ne!(classify(event.r#type()), Class::TickState);
+/// An `AttackPairing` represents the result of matching an attack performed by
+/// an actor on a tick between two clients.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum AttackPairing<'a, T> {
+    Paired { base: &'a T, target: &'a T },
+    BaseOnly(&'a T),
+    TargetOnly(&'a T),
+}
 
-    // TODO(frolv): eventually unpack proto events...
-    let mut t = |tick: u32| remap(Tick(tick)).0;
+/// Matches an actor's attacks between two clients without attempting to
+/// interpret the result. Prefers matching by shared type, but falls back
+/// to any attack pairing.
+pub(super) fn pair_attacks<'a, T, K: PartialEq + Copy>(
+    base: &'a [T],
+    target: &'a [T],
+    key: impl Fn(&T) -> (Actor, K),
+    normalize: fn(K) -> K,
+) -> Vec<AttackPairing<'a, T>> {
+    let mut base_paired = vec![false; base.len()];
+    let mut target_paired = vec![false; target.len()];
+    let mut pairings = Vec::new();
 
-    match event.r#type() {
-        event::Type::TobXarpusExhumed => {
-            let exhumed = event.xarpus_exhumed.as_mut().expect("validated at build");
-            exhumed.spawn_tick = t(exhumed.spawn_tick);
-            for heal_tick in &mut exhumed.heal_ticks {
-                *heal_tick = t(*heal_tick);
+    let passes: [&dyn Fn(K, K) -> bool; 3] = [
+        &|base_kind, target_kind| base_kind == target_kind,
+        &|base_kind, target_kind| normalize(base_kind) == normalize(target_kind),
+        &|_, _| true,
+    ];
+    for kinds_match in passes {
+        for (base_attack, is_paired) in base.iter().zip(&mut base_paired) {
+            if *is_paired {
+                continue;
             }
+            let (actor, kind) = key(base_attack);
+            let Some(index) =
+                target
+                    .iter()
+                    .zip(&target_paired)
+                    .position(|(target_attack, &taken)| {
+                        let (target_actor, target_kind) = key(target_attack);
+                        !taken && target_actor == actor && kinds_match(kind, target_kind)
+                    })
+            else {
+                continue;
+            };
+            *is_paired = true;
+            target_paired[index] = true;
+            pairings.push(AttackPairing::Paired {
+                base: base_attack,
+                target: &target[index],
+            });
         }
-        event::Type::TobVerzikAttackStyle => {
-            let style = event
-                .verzik_attack_style
-                .as_mut()
-                .expect("validated at build");
-            style.npc_attack_tick = t(style.npc_attack_tick);
-        }
-        event::Type::TobVerzikBounce => {
-            let bounce = event.verzik_bounce.as_mut().expect("validated at build");
-            // signed for hysterical reasons
-            let remapped = t(bounce.npc_attack_tick.cast_unsigned());
-            bounce.npc_attack_tick = remapped.cast_signed();
-        }
-        event::Type::TobVerzikDawn => {
-            let dawn = event.verzik_dawn.as_mut().expect("validated at build");
-            dawn.attack_tick = t(dawn.attack_tick);
-        }
-        event::Type::MokhaiotlAttackStyle => {
-            let style = event
-                .mokhaiotl_attack_style
-                .as_mut()
-                .expect("validated at build");
-            style.npc_attack_tick = t(style.npc_attack_tick);
-        }
-        _ => {}
     }
 
-    event.tick = t(event.tick);
+    pairings.extend(
+        base.iter()
+            .zip(&base_paired)
+            .filter(|&(_, &paired)| !paired)
+            .map(|(attack, _)| AttackPairing::BaseOnly(attack)),
+    );
+    pairings.extend(
+        target
+            .iter()
+            .zip(&target_paired)
+            .filter(|&(_, &paired)| !paired)
+            .map(|(attack, _)| AttackPairing::TargetOnly(attack)),
+    );
+    pairings
+}
+
+#[cfg(test)]
+mod tests {
+    use blert::RoomId;
+
+    use super::*;
+
+    #[test]
+    fn pair_attacks_pairs_equal_kinds() {
+        let verzik = Actor::Npc(RoomId(60329));
+        let base = [
+            (verzik, NpcAttack::TobVerzikP3Ball),
+            (verzik, NpcAttack::TobVerzikP3Range),
+        ];
+        let target = [
+            (verzik, NpcAttack::TobVerzikP3Ball),
+            (verzik, NpcAttack::TobVerzikP3Range),
+        ];
+
+        assert_eq!(
+            pair_attacks(&base, &target, |&attack| attack, normalize_npc_attack),
+            [
+                AttackPairing::Paired {
+                    base: &base[0],
+                    target: &target[0],
+                },
+                AttackPairing::Paired {
+                    base: &base[1],
+                    target: &target[1],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn pair_attacks_pairs_equal_normalized_kinds() {
+        let sotetseg = Actor::Npc(RoomId(46222));
+        let base = [(sotetseg, NpcAttack::TobSoteBall)];
+        let target = [(sotetseg, NpcAttack::TobSoteDeathBall)];
+
+        assert_eq!(
+            pair_attacks(&base, &target, |&attack| attack, normalize_npc_attack),
+            [AttackPairing::Paired {
+                base: &base[0],
+                target: &target[0],
+            }]
+        );
+    }
+
+    #[test]
+    fn pair_attacks_pairs_remaining_attacks_from_the_same_actor() {
+        let verzik = Actor::Npc(RoomId(56892));
+        let base = [(verzik, NpcAttack::TobVerzikP2Cabbage)];
+        let target = [(verzik, NpcAttack::TobVerzikP2Zap)];
+
+        assert_eq!(
+            pair_attacks(&base, &target, |&attack| attack, normalize_npc_attack),
+            [AttackPairing::Paired {
+                base: &base[0],
+                target: &target[0],
+            }]
+        );
+    }
+
+    #[test]
+    fn pair_attacks_emits_extra_base_attacks() {
+        let verzik = Actor::Npc(RoomId(64384));
+        let base = [
+            (verzik, NpcAttack::TobVerzikP3Ball),
+            (verzik, NpcAttack::TobVerzikP3Range),
+        ];
+        let target = [(verzik, NpcAttack::TobVerzikP3Range)];
+
+        assert_eq!(
+            pair_attacks(&base, &target, |&attack| attack, normalize_npc_attack),
+            [
+                AttackPairing::Paired {
+                    base: &base[1],
+                    target: &target[0],
+                },
+                AttackPairing::BaseOnly(&base[0]),
+            ]
+        );
+    }
+
+    #[test]
+    fn pair_attacks_emits_extra_target_attacks() {
+        let verzik = Actor::Npc(RoomId(64384));
+        let base = [(verzik, NpcAttack::TobVerzikP3Range)];
+        let target = [
+            (verzik, NpcAttack::TobVerzikP3Ball),
+            (verzik, NpcAttack::TobVerzikP3Range),
+        ];
+
+        assert_eq!(
+            pair_attacks(&base, &target, |&attack| attack, normalize_npc_attack),
+            [
+                AttackPairing::Paired {
+                    base: &base[0],
+                    target: &target[1],
+                },
+                AttackPairing::TargetOnly(&target[0]),
+            ]
+        );
+    }
+
+    #[test]
+    fn pair_attacks_does_not_pair_attacks_from_different_actors() {
+        let base_verzik = Actor::Npc(RoomId(39244));
+        let target_verzik = Actor::Npc(RoomId(43350));
+        let base = [
+            (base_verzik, NpcAttack::TobVerzikP3Ball),
+            (base_verzik, NpcAttack::TobVerzikP3Range),
+        ];
+        let target = [
+            (target_verzik, NpcAttack::TobVerzikP3Ball),
+            (target_verzik, NpcAttack::TobVerzikP3Range),
+        ];
+
+        assert_eq!(
+            pair_attacks(&base, &target, |&attack| attack, normalize_npc_attack),
+            [
+                AttackPairing::BaseOnly(&base[0]),
+                AttackPairing::BaseOnly(&base[1]),
+                AttackPairing::TargetOnly(&target[0]),
+                AttackPairing::TargetOnly(&target[1]),
+            ]
+        );
+    }
 }

@@ -2,12 +2,12 @@
 
 use std::collections::BTreeMap;
 
+use blert::proto::Event;
 use blert::proto::event::XarpusPhase;
-use blert::proto::event::attack_style::Style;
 use blert::proto::event::player::DataSource;
-use blert::{Rsn, SkillLevel};
+use blert::{Rsn, SkillLevel, VerzikBounce};
 
-use crate::lifecycle::core::types::{ChallengeMode, Stage};
+use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage};
 use crate::merging::ChallengeInfo;
 use crate::merging::alignment::AlignmentEntry;
 use crate::merging::fixtures::{
@@ -23,15 +23,14 @@ const TARGET_CLIENT_ID: ClientId = ClientId(2);
 /// Creates a merge context with identity mappings and an active merge step.
 fn test_ctx<'a>(
     challenge: &'a ChallengeInfo<'a>,
-    stage: Stage,
-    base: ClientBuilder<'a>,
-    target: ClientBuilder<'a>,
+    base: ClientBuilder,
+    target: ClientBuilder,
 ) -> MergeContext<'a> {
     let (base, target) = (base.build(), target.build());
     let (base_last_tick, target_last_tick) =
         (base.info.last_recorded_tick, target.info.last_recorded_tick);
     let target_client_id = target.info.id;
-    let mut ctx = fixtures::merge_context(challenge, stage)
+    let mut ctx = fixtures::merge_context(challenge)
         .client(base)
         .client(target)
         .build();
@@ -46,17 +45,17 @@ fn test_ctx<'a>(
     ctx
 }
 
-/// Builds a simple timeline of ticks with player updates and optional extra
+/// Builds a simple recording of ticks with player updates and optional extra
 /// events per tick. Each tick has a player at position (tick, 0).
-fn build_timeline<'a>(
+fn build_recording(
     client_id: ClientId,
     stage: Stage,
-    party: &'a [Rsn],
+    challenge: &ChallengeInfo,
     num_ticks: u32,
     player: &str,
     source: DataSource,
     mut extra_events: BTreeMap<Tick, Vec<Event>>,
-) -> Timeline<'a> {
+) -> Recording {
     let last_tick = Tick(num_ticks - 1);
     let mut events = Vec::new();
 
@@ -70,17 +69,26 @@ fn build_timeline<'a>(
         events.extend(extra_events.remove(&tick).unwrap_or_default());
     }
 
-    let events = events
-        .into_iter()
-        .map(|event| TaggedEvent::new(client_id, event))
-        .collect();
-    Timeline::build(party, last_tick, events).expect("fixture events are well formed")
+    fixtures::recording(
+        client_id,
+        stage,
+        challenge.mode,
+        challenge.party,
+        last_tick,
+        events,
+    )
 }
 
-fn event_types(timeline: &Timeline, tick: Tick) -> Vec<event::Type> {
-    let mut types: Vec<event::Type> = timeline
-        .get(tick)
-        .map(|state| state.events().map(|event| event.r#type()).collect())
+fn event_types(recording: &Recording, tick: Tick) -> Vec<event::Type> {
+    let mut types: Vec<event::Type> = recording
+        .get_state(tick)
+        .map(|state| {
+            state
+                .events
+                .iter()
+                .map(|event| event_type(&event.kind))
+                .collect()
+        })
         .unwrap_or_default();
     types.sort_unstable();
     types
@@ -126,10 +134,10 @@ fn merges_tick_states_and_extracts_stream_events() {
             .collect()
     };
 
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         5,
         "1Ogp",
         DataSource::Secondary,
@@ -146,10 +154,10 @@ fn merges_tick_states_and_extracts_stream_events() {
             "1Ogp",
             0,
         ));
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         5,
         "1Ogp",
         DataSource::Primary,
@@ -158,20 +166,32 @@ fn merges_tick_states_and_extracts_stream_events() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
+    let party_index = result.recording.party_index(&party[0]).unwrap();
     // Player update should be overridden with PRIMARY on all ticks.
     for (i, &current) in verzik_hitpoints.iter().enumerate() {
         let tick = Tick::from_usize(i);
-        let tick_state = result.timeline.get(tick).expect("every tick is recorded");
-        let player = tick_state.player("1Ogp").expect("player is on every tick");
-        assert_eq!(player.data_source, DataSource::Primary, "tick {tick}");
+        let tick_state = result
+            .recording
+            .get_state(tick)
+            .expect("every tick is recorded");
+        let player = tick_state
+            .players
+            .get(party_index)
+            .expect("player is on every tick");
+        assert!(
+            matches!(player.data, blert::DataSource::Primary(_)),
+            "tick {tick}"
+        );
 
-        let verzik = tick_state.npc(1).expect("npc is on every tick");
+        let verzik = tick_state
+            .npcs
+            .get(&RoomId(1))
+            .expect("npc is on every tick");
         assert_eq!(verzik.id, npc::id::VERZIK_P1_REGULAR, "tick {tick}");
         assert_eq!(
             verzik.hitpoints,
@@ -184,7 +204,7 @@ fn merges_tick_states_and_extracts_stream_events() {
     }
 
     assert_eq!(
-        event_types(&result.timeline, Tick(2)),
+        event_types(&result.recording, Tick(2)),
         vec![event::Type::PlayerDeath]
     );
     assert_eq!(result.quality_flags, vec![]);
@@ -196,25 +216,21 @@ fn fills_gaps_in_the_base_from_the_target() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = Timeline::build(
+    let base = fixtures::recording(
+        BASE_CLIENT_ID,
+        stage,
+        challenge.mode,
         &party,
         Tick(2),
         vec![
-            TaggedEvent::new(
-                BASE_CLIENT_ID,
-                PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", (0, 0)).build(),
-            ),
-            TaggedEvent::new(
-                BASE_CLIENT_ID,
-                PlayerUpdateEvent::new(Tick(2), stage, "1Ogp", (2, 0)).build(),
-            ),
+            PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", (0, 0)).build(),
+            PlayerUpdateEvent::new(Tick(2), stage, "1Ogp", (2, 0)).build(),
         ],
-    )
-    .expect("fixture events are well formed");
-    let target = build_timeline(
+    );
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         3,
         "1Ogp",
         DataSource::Secondary,
@@ -223,19 +239,22 @@ fn fills_gaps_in_the_base_from_the_target() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     let filled = result
-        .timeline
-        .get(Tick(1))
+        .recording
+        .get_state(Tick(1))
         .expect("gap filled from target");
-    let player = filled.player("1Ogp").expect("player is on the filled tick");
-    assert_eq!(player.source, TARGET_CLIENT_ID);
-    assert_eq!(player.position, Coords { x: 1, y: 0 });
+    let party_index = result.recording.party_index(&party[0]).unwrap();
+    let player = filled
+        .players
+        .get(party_index)
+        .expect("player is on the filled tick");
+    assert_eq!(player.source, Source::Client(TARGET_CLIENT_ID));
+    assert_eq!(player.position, Point(1, 0));
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -248,10 +267,10 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         6,
         "1Ogp",
         DataSource::Secondary,
@@ -266,10 +285,10 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
             )],
         )]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         4,
         "1Ogp",
         DataSource::Primary,
@@ -288,9 +307,9 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
             score: 1.0,
         },
     ]];
-    let mut ctx = fixtures::merge_context(&challenge, stage)
-        .client(ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()).build())
-        .client(ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()).build())
+    let mut ctx = fixtures::merge_context(&challenge)
+        .client(ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()).build())
+        .client(ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()).build())
         .build();
     ctx.mapping.begin(
         TARGET_CLIENT_ID,
@@ -299,7 +318,7 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
 
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    assert_eq!(result.timeline.last_tick(), Tick(7));
+    assert_eq!(result.recording.last_tick(), Tick(7));
     let expected_players = [
         (TARGET_CLIENT_ID, DataSource::Primary, 0),
         (TARGET_CLIENT_ID, DataSource::Primary, 1),
@@ -310,17 +329,28 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
         (BASE_CLIENT_ID, DataSource::Secondary, 4),
         (BASE_CLIENT_ID, DataSource::Secondary, 5),
     ];
+    let party_index = result.recording.party_index(&party[0]).unwrap();
     for (i, &(source, data_source, x)) in expected_players.iter().enumerate() {
         let tick = Tick::from_usize(i);
-        let tick_state = result.timeline.get(tick).expect("every tick is recorded");
-        let player = tick_state.player("1Ogp").expect("player is on every tick");
-        assert_eq!(player.source, source, "tick {tick}");
-        assert_eq!(player.data_source, data_source, "tick {tick}");
-        assert_eq!(player.position, Coords { x, y: 0 }, "tick {tick}");
+        let tick_state = result
+            .recording
+            .get_state(tick)
+            .expect("every tick is recorded");
+        let player = tick_state
+            .players
+            .get(party_index)
+            .expect("player is on every tick");
+        assert_eq!(player.source, Source::Client(source), "tick {tick}");
+        assert_eq!(
+            matches!(player.data, blert::DataSource::Primary(_)),
+            data_source == DataSource::Primary,
+            "tick {tick}"
+        );
+        assert_eq!(player.position, Point(x, 0), "tick {tick}");
     }
 
     assert_eq!(
-        event_types(&result.timeline, Tick(7)),
+        event_types(&result.recording, Tick(7)),
         vec![event::Type::PlayerDeath]
     );
     assert_eq!(result.quality_flags, vec![]);
@@ -332,10 +362,10 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         25,
         "1Ogp",
         DataSource::Secondary,
@@ -350,10 +380,10 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
             )],
         )]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         25,
         "1Ogp",
         DataSource::Primary,
@@ -371,18 +401,17 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     // Earliest observation wins.
     assert_eq!(
-        event_types(&result.timeline, Tick(2)),
+        event_types(&result.recording, Tick(2)),
         vec![event::Type::PlayerDeath]
     );
-    assert_eq!(event_types(&result.timeline, Tick(20)), vec![]);
+    assert_eq!(event_types(&result.recording, Tick(20)), vec![]);
 
     // Gap of 18 is below the threshold.
     assert_eq!(result.quality_flags, vec![]);
@@ -402,19 +431,19 @@ fn deduplicates_deaths_within_window_in_respawnable_challenges() {
     let challenge = fixtures::challenge_info(stage, ChallengeMode::CoxRegular, &party);
     let death = |tick: Tick| vec![fixtures::player_death_event(tick, stage, (0, 0), "1Ogp", 0)];
 
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         45,
         "1Ogp",
         DataSource::Secondary,
         BTreeMap::from([(Tick(2), death(Tick(2))), (Tick(22), death(Tick(22)))]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         45,
         "1Ogp",
         DataSource::Primary,
@@ -423,25 +452,24 @@ fn deduplicates_deaths_within_window_in_respawnable_challenges() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     // The deaths on 2 and 5 are the same death seen 3 ticks apart.
     // The deaths on 22 and 40 are beyond the window and counted distinctly.
     assert_eq!(
-        event_types(&result.timeline, Tick(2)),
+        event_types(&result.recording, Tick(2)),
         vec![event::Type::PlayerDeath]
     );
-    assert_eq!(event_types(&result.timeline, Tick(5)), vec![]);
+    assert_eq!(event_types(&result.recording, Tick(5)), vec![]);
     assert_eq!(
-        event_types(&result.timeline, Tick(22)),
+        event_types(&result.recording, Tick(22)),
         vec![event::Type::PlayerDeath]
     );
     assert_eq!(
-        event_types(&result.timeline, Tick(40)),
+        event_types(&result.recording, Tick(40)),
         vec![event::Type::PlayerDeath]
     );
 
@@ -471,10 +499,10 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
         })
     };
 
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         30,
         "1Ogp",
         DataSource::Secondary,
@@ -492,10 +520,10 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
             ),
         ]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         30,
         "1Ogp",
         DataSource::Primary,
@@ -516,22 +544,21 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     assert_eq!(
-        event_types(&result.timeline, Tick(1)),
+        event_types(&result.recording, Tick(1)),
         vec![event::Type::NpcDeath]
     );
     assert_eq!(
-        event_types(&result.timeline, Tick(2)),
+        event_types(&result.recording, Tick(2)),
         vec![event::Type::PlayerDeath]
     );
-    assert_eq!(event_types(&result.timeline, Tick(7)), vec![]);
-    assert_eq!(event_types(&result.timeline, Tick(25)), vec![]);
+    assert_eq!(event_types(&result.recording, Tick(7)), vec![]);
+    assert_eq!(event_types(&result.recording, Tick(25)), vec![]);
 
     assert_set_eq(
         result.quality_flags,
@@ -575,19 +602,19 @@ fn deduplicates_npc_deaths_by_room_id() {
         })
     };
 
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         10,
         "1Ogp",
         DataSource::Secondary,
         BTreeMap::from([(Tick(5), vec![crab_death(1), crab_death(2)])]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         10,
         "1Ogp",
         DataSource::Primary,
@@ -596,31 +623,31 @@ fn deduplicates_npc_deaths_by_room_id() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     // Room ID 1 died on both sides and is placed once from the base. Deaths for
     // 2 and 3 were only observed by one client each and use their own events.
-    let mut deaths: Vec<(u64, ClientId)> = result
-        .timeline
-        .get(Tick(5))
+    let mut deaths: Vec<(RoomId, Source)> = result
+        .recording
+        .get_state(Tick(5))
         .expect("tick is recorded")
-        .events_of_type(event::Type::NpcDeath)
-        .map(|death| {
-            let npc = death.npc.as_ref().expect("death names its npc");
-            (npc.room_id, death.source())
+        .events
+        .iter()
+        .filter_map(|event| match event.kind {
+            EventKind::NpcDeath(death) => Some((death.npc, event.source)),
+            _ => None,
         })
         .collect();
     deaths.sort_unstable();
     assert_eq!(
         deaths,
         vec![
-            (1, BASE_CLIENT_ID),
-            (2, BASE_CLIENT_ID),
-            (3, TARGET_CLIENT_ID),
+            (RoomId(1), Source::Client(BASE_CLIENT_ID)),
+            (RoomId(2), Source::Client(BASE_CLIENT_ID)),
+            (RoomId(3), Source::Client(TARGET_CLIENT_ID)),
         ]
     );
 
@@ -640,10 +667,10 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         15,
         "1Ogp",
         DataSource::Secondary,
@@ -652,10 +679,10 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
             vec![fixtures::xarpus_phase_event(Tick(3), XarpusPhase::XarpusP2)],
         )]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         15,
         "1Ogp",
         DataSource::Primary,
@@ -670,17 +697,16 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     assert_eq!(
-        event_types(&result.timeline, Tick(3)),
+        event_types(&result.recording, Tick(3)),
         vec![event::Type::TobXarpusPhase]
     );
-    assert_eq!(event_types(&result.timeline, Tick(12)), vec![]);
+    assert_eq!(event_types(&result.recording, Tick(12)), vec![]);
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(
@@ -698,10 +724,10 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
-    let base = build_timeline(
+    let base = build_recording(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         10,
         "1Ogp",
         DataSource::Secondary,
@@ -716,10 +742,10 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
             )],
         )]),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         10,
         "1Ogp",
         DataSource::Primary,
@@ -738,47 +764,47 @@ fn directly_copies_stream_events_only_recorded_by_one_side() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     let death = result
-        .timeline
-        .get(Tick(4))
+        .recording
+        .get_state(Tick(4))
         .expect("tick is recorded")
-        .events_of_type(event::Type::PlayerDeath)
-        .map(TaggedEvent::source)
+        .events
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::PlayerDeath(_)))
+        .map(|event| event.source)
         .collect::<Vec<_>>();
-    assert_eq!(death, vec![BASE_CLIENT_ID]);
+    assert_eq!(death, vec![Source::Client(BASE_CLIENT_ID)]);
 
     let crab_death = result
-        .timeline
-        .get(Tick(7))
+        .recording
+        .get_state(Tick(7))
         .expect("tick is recorded")
-        .events_of_type(event::Type::NpcDeath)
-        .map(TaggedEvent::source)
+        .events
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::NpcDeath(_)))
+        .map(|event| event.source)
         .collect::<Vec<_>>();
-    assert_eq!(crab_death, vec![TARGET_CLIENT_ID]);
+    assert_eq!(crab_death, vec![Source::Client(TARGET_CLIENT_ID)]);
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
 }
 
-/// Builds a timeline with Verzik P3 on every tick, inserting each of `attacks`
-/// on its tick targeting an optional player, and an attack style event on
-/// each tick in `attack_style_events` referencing a given attack tick with
-/// its style.
-fn build_p3_timeline<'a>(
+/// Builds a recording with Verzik P3 on every tick, inserting each of `attacks`
+/// on its tick targeting an optional player.
+fn build_p3_recording(
     client_id: ClientId,
-    party: &'a [Rsn],
+    challenge: &ChallengeInfo,
     num_ticks: u32,
     player: &str,
     source: DataSource,
     attacks: BTreeMap<Tick, (NpcAttack, Option<&str>)>,
-    attack_style_events: BTreeMap<Tick, (Tick, Style)>,
-) -> Timeline<'a> {
+) -> Recording {
     let stage = Stage::TobVerzik;
     let mut extra_events: BTreeMap<Tick, Vec<Event>> = BTreeMap::new();
 
@@ -813,21 +839,11 @@ fn build_p3_timeline<'a>(
                 target,
             ));
     }
-    for (tick, (npc_attack_tick, style)) in attack_style_events {
-        extra_events
-            .entry(tick)
-            .or_default()
-            .push(fixtures::verzik_attack_style_event(
-                tick,
-                npc_attack_tick,
-                style,
-            ));
-    }
 
-    build_timeline(
+    build_recording(
         client_id,
         stage,
-        party,
+        challenge,
         num_ticks,
         player,
         source,
@@ -836,23 +852,63 @@ fn build_p3_timeline<'a>(
 }
 
 #[test]
-fn places_an_attack_style_event_the_tick_after_its_attack() {
+fn places_a_bounce_event_the_tick_after_its_attack() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_p3_timeline(
+    let mut base_events: BTreeMap<Tick, Vec<Event>> = Tick(14)
+        .up_to_inclusive()
+        .map(|tick| {
+            let verzik = fixtures::npc_update_event(NpcEvent {
+                tick,
+                stage,
+                coords: (10, 10),
+                npc_id: npc::id::VERZIK_P2_REGULAR,
+                room_id: 1,
+                hitpoints: SkillLevel {
+                    current: 100,
+                    base: 3250,
+                },
+                ..Default::default()
+            });
+            (tick, vec![verzik])
+        })
+        .collect();
+    base_events
+        .entry(Tick(5))
+        .or_default()
+        .push(fixtures::npc_attack_event(
+            Tick(5),
+            stage,
+            (10, 10),
+            npc::id::VERZIK_P2_REGULAR,
+            1,
+            NpcAttack::TobVerzikP2Bounce,
+            Some("WWWWWWWWWWQQ"),
+        ));
+    base_events
+        .entry(Tick(7))
+        .or_default()
+        .push(fixtures::verzik_bounce_event(
+            Tick(7),
+            Tick(5),
+            1,
+            0,
+            Some("WWWWWWWWWWQQ"),
+        ));
+    let base = build_recording(
         BASE_CLIENT_ID,
-        &party,
+        stage,
+        &challenge,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Secondary,
-        BTreeMap::from([(Tick(5), (NpcAttack::TobVerzikP3Auto, Some("WWWWWWWWWWQQ")))]),
-        BTreeMap::from([(Tick(7), (Tick(5), Style::Melee))]),
+        base_events,
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Primary,
@@ -861,27 +917,28 @@ fn places_an_attack_style_event_the_tick_after_its_attack() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    assert_eq!(event_types(&result.timeline, Tick(7)), vec![]);
-    let styles: Vec<&TaggedEvent> = result
-        .timeline
-        .get(Tick(6))
-        .expect("tick is recorded")
-        .events_of_type(event::Type::TobVerzikAttackStyle)
-        .collect();
-    let [placed] = styles.as_slice() else {
-        panic!("one attack style event on tick 6, found {styles:?}");
-    };
-    assert_eq!(placed.source(), BASE_CLIENT_ID);
-    assert_eq!(placed.tick, 6);
-    let style = placed.verzik_attack_style.as_ref().expect("style is set");
-    assert_eq!(style.npc_attack_tick, 5);
-    assert_eq!(style.style(), Style::Melee);
+    assert_eq!(event_types(&result.recording, Tick(7)), vec![]);
+    let party_index = result.recording.party_index(&party[0]).unwrap();
+    assert_eq!(
+        result
+            .recording
+            .get_state(Tick(6))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(BASE_CLIENT_ID),
+            kind: EventKind::VerzikBounce(VerzikBounce {
+                attack_tick: Tick(5),
+                players_in_range: 1,
+                bounced: Some(party_index),
+            }),
+        }]
+    );
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(
@@ -894,48 +951,95 @@ fn places_an_attack_style_event_the_tick_after_its_attack() {
 }
 
 #[test]
-fn deduplicates_attack_style_events_across_clients() {
+fn deduplicates_bounce_events_across_clients() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_p3_timeline(
+    let bounce_events = || -> BTreeMap<Tick, Vec<Event>> {
+        let mut events: BTreeMap<Tick, Vec<Event>> = Tick(14)
+            .up_to_inclusive()
+            .map(|tick| {
+                let verzik = fixtures::npc_update_event(NpcEvent {
+                    tick,
+                    stage,
+                    coords: (10, 10),
+                    npc_id: npc::id::VERZIK_P2_REGULAR,
+                    room_id: 1,
+                    hitpoints: SkillLevel {
+                        current: 100,
+                        base: 3250,
+                    },
+                    ..Default::default()
+                });
+                (tick, vec![verzik])
+            })
+            .collect();
+        events
+            .entry(Tick(5))
+            .or_default()
+            .push(fixtures::npc_attack_event(
+                Tick(5),
+                stage,
+                (10, 10),
+                npc::id::VERZIK_P2_REGULAR,
+                1,
+                NpcAttack::TobVerzikP2Bounce,
+                Some("WWWWWWWWWWQQ"),
+            ));
+        events
+            .entry(Tick(6))
+            .or_default()
+            .push(fixtures::verzik_bounce_event(
+                Tick(6),
+                Tick(5),
+                1,
+                0,
+                Some("WWWWWWWWWWQQ"),
+            ));
+        events
+    };
+    let base = build_recording(
         BASE_CLIENT_ID,
-        &party,
+        stage,
+        &challenge,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Secondary,
-        BTreeMap::from([(Tick(5), (NpcAttack::TobVerzikP3Auto, Some("WWWWWWWWWWQQ")))]),
-        BTreeMap::from([(Tick(6), (Tick(5), Style::Range))]),
+        bounce_events(),
     );
-    let target = build_p3_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
-        &party,
+        stage,
+        &challenge,
         15,
         "WWWWWWWWWWQQ",
         DataSource::Primary,
-        BTreeMap::from([(Tick(5), (NpcAttack::TobVerzikP3Auto, Some("WWWWWWWWWWQQ")))]),
-        BTreeMap::from([(Tick(6), (Tick(5), Style::Range))]),
+        bounce_events(),
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let styles: Vec<(ClientId, Style)> = result
-        .timeline
-        .get(Tick(6))
-        .expect("tick is recorded")
-        .events_of_type(event::Type::TobVerzikAttackStyle)
-        .map(|placed| {
-            let style = placed.verzik_attack_style.as_ref().expect("style is set");
-            (placed.source(), style.style())
-        })
-        .collect();
-    assert_eq!(styles, vec![(BASE_CLIENT_ID, Style::Range)]);
+    let party_index = result.recording.party_index(&party[0]).unwrap();
+    assert_eq!(
+        result
+            .recording
+            .get_state(Tick(6))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(BASE_CLIENT_ID),
+            kind: EventKind::VerzikBounce(VerzikBounce {
+                attack_tick: Tick(5),
+                players_in_range: 1,
+                bounced: Some(party_index),
+            }),
+        }]
+    );
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(
@@ -949,214 +1053,219 @@ fn deduplicates_attack_style_events_across_clients() {
 }
 
 #[test]
-fn resolves_disagreeing_attack_style_events_by_primary_proximity_to_verzik() {
-    // Verzik at (10, 10). 1Ogp (base primary) is at (0, 0).
-    // WWWWWWWWWWQQ (target primary) is nearer at (9, 10).
-    let stage = Stage::TobVerzik;
-    let party = vec![
-        Rsn::try_from("1Ogp").unwrap(),
-        Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
-    ];
-    let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-
-    let recording = |client_id: ClientId, primary_player: &str, style: Style| -> Timeline {
-        let source = |player: &str| {
-            if player == primary_player {
-                DataSource::Primary
-            } else {
-                DataSource::Secondary
-            }
-        };
-        let mut events = Vec::new();
-        for tick in Tick(14).up_to_inclusive() {
-            events.push(
-                PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0))
-                    .source(source("1Ogp"))
-                    .build(),
-            );
-            events.push(
-                PlayerUpdateEvent::new(tick, stage, "WWWWWWWWWWQQ", (9, 10))
-                    .party_index(1)
-                    .source(source("WWWWWWWWWWQQ"))
-                    .build(),
-            );
-            events.push(fixtures::npc_update_event(NpcEvent {
-                tick,
-                stage,
-                coords: (10, 10),
-                npc_id: npc::id::VERZIK_P3_REGULAR,
-                room_id: 1,
-                hitpoints: SkillLevel {
-                    current: 100,
-                    base: 3250,
-                },
-                ..Default::default()
-            }));
-            if tick == Tick(5) {
-                events.push(fixtures::npc_attack_event(
-                    tick,
-                    stage,
-                    (10, 10),
-                    npc::id::VERZIK_P3_REGULAR,
-                    1,
-                    NpcAttack::TobVerzikP3Auto,
-                    Some("1Ogp"),
-                ));
-            }
-            if tick == Tick(6) {
-                events.push(fixtures::verzik_attack_style_event(tick, Tick(5), style));
-            }
-        }
-        let events = events
-            .into_iter()
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        Timeline::build(&party, Tick(14), events).expect("fixture events are well formed")
-    };
-    let base = recording(BASE_CLIENT_ID, "1Ogp", Style::Range);
-    let target = recording(TARGET_CLIENT_ID, "WWWWWWWWWWQQ", Style::Mage);
-
-    let ctx = test_ctx(
-        &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()).primary_player("1Ogp"),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick())
-            .primary_player("WWWWWWWWWWQQ"),
-    );
-    let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
-
-    // Style from the target should win.
-    let styles: Vec<(ClientId, Style)> = result
-        .timeline
-        .get(Tick(6))
-        .expect("tick is recorded")
-        .events_of_type(event::Type::TobVerzikAttackStyle)
-        .map(|placed| {
-            let style = placed.verzik_attack_style.as_ref().expect("style is set");
-            (placed.source(), style.style())
-        })
-        .collect();
-    assert_eq!(styles, vec![(TARGET_CLIENT_ID, Style::Mage)]);
-
-    assert_eq!(result.quality_flags, vec![]);
-    assert_eq!(
-        result.counters,
-        ReconciliationCounters {
-            npc_attack_pairs: 1,
-            attack_mapped_events: 2,
-            ..Default::default()
-        }
-    );
-}
-
-#[test]
-fn keeps_the_base_conflicting_attack_style_event_when_clients_have_no_primary_players() {
+fn keeps_the_base_bounce_event_in_a_conflict_and_flags() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_p3_timeline(
-        BASE_CLIENT_ID,
-        &party,
-        15,
-        "1Ogp",
-        DataSource::Secondary,
-        BTreeMap::from([(Tick(5), (NpcAttack::TobVerzikP3Auto, Some("1Ogp")))]),
-        BTreeMap::from([(Tick(6), (Tick(5), Style::Range))]),
-    );
-    let target = build_p3_timeline(
-        TARGET_CLIENT_ID,
-        &party,
-        15,
-        "1Ogp",
-        DataSource::Primary,
-        BTreeMap::from([(Tick(5), (NpcAttack::TobVerzikP3Auto, Some("1Ogp")))]),
-        BTreeMap::from([(Tick(6), (Tick(5), Style::Mage))]),
-    );
-
-    let ctx = test_ctx(
-        &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
-    );
-    let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
-
-    let styles: Vec<(ClientId, Style)> = result
-        .timeline
-        .get(Tick(6))
-        .expect("tick is recorded")
-        .events_of_type(event::Type::TobVerzikAttackStyle)
-        .map(|placed| {
-            let style = placed.verzik_attack_style.as_ref().expect("style is set");
-            (placed.source(), style.style())
-        })
-        .collect();
-    assert_eq!(styles, vec![(BASE_CLIENT_ID, Style::Range)]);
-
-    assert_eq!(result.quality_flags, vec![]);
-    assert_eq!(
-        result.counters,
-        ReconciliationCounters {
-            npc_attack_pairs: 1,
-            attack_mapped_events: 2,
-            ..Default::default()
-        }
-    );
-}
-
-#[test]
-fn discards_attack_style_events_whose_attack_does_not_exist() {
-    let stage = Stage::TobVerzik;
-    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
-    let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_timeline(
-        BASE_CLIENT_ID,
-        stage,
-        &party,
-        15,
-        "WWWWWWWWWWQQ",
-        DataSource::Secondary,
-        BTreeMap::from([(
-            Tick(6),
-            vec![fixtures::verzik_attack_style_event(
+    let bounce_events = |bounced: Option<&str>| -> BTreeMap<Tick, Vec<Event>> {
+        let mut events: BTreeMap<Tick, Vec<Event>> = Tick(14)
+            .up_to_inclusive()
+            .map(|tick| {
+                let verzik = fixtures::npc_update_event(NpcEvent {
+                    tick,
+                    stage,
+                    coords: (10, 10),
+                    npc_id: npc::id::VERZIK_P2_REGULAR,
+                    room_id: 1,
+                    hitpoints: SkillLevel {
+                        current: 100,
+                        base: 3250,
+                    },
+                    ..Default::default()
+                });
+                (tick, vec![verzik])
+            })
+            .collect();
+        events
+            .entry(Tick(5))
+            .or_default()
+            .push(fixtures::npc_attack_event(
+                Tick(5),
+                stage,
+                (10, 10),
+                npc::id::VERZIK_P2_REGULAR,
+                1,
+                NpcAttack::TobVerzikP2Bounce,
+                bounced,
+            ));
+        events
+            .entry(Tick(6))
+            .or_default()
+            .push(fixtures::verzik_bounce_event(
                 Tick(6),
                 Tick(5),
-                Style::Melee,
-            )],
-        )]),
+                1,
+                0,
+                bounced,
+            ));
+        events
+    };
+    let base = build_recording(
+        BASE_CLIENT_ID,
+        stage,
+        &challenge,
+        15,
+        "1Ogp",
+        DataSource::Secondary,
+        bounce_events(None),
     );
-    let target = build_timeline(
+    let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         15,
-        "WWWWWWWWWWQQ",
+        "1Ogp",
         DataSource::Primary,
-        BTreeMap::new(),
+        bounce_events(Some("1Ogp")),
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    assert_eq!(event_types(&result.timeline, Tick(6)), vec![]);
+    assert_eq!(
+        result
+            .recording
+            .get_state(Tick(6))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(BASE_CLIENT_ID),
+            kind: EventKind::VerzikBounce(VerzikBounce {
+                attack_tick: Tick(5),
+                players_in_range: 1,
+                bounced: None,
+            }),
+        }]
+    );
 
     assert_eq!(
         result.quality_flags,
-        vec![QualityFlag::AttackMappedNotFound {
-            kind: event::Type::TobVerzikAttackStyle,
-            side: Side::Base,
-            client_tick: Tick(6),
-            client_attack_tick: Tick(5),
+        vec![QualityFlag::Disagreement {
+            tick: Tick(5),
+            kept_source: Source::Client(BASE_CLIENT_ID),
+            discarded_source: Source::Client(TARGET_CLIENT_ID),
+            subject: Disagreement::AttackMapped {
+                kind: event::Type::TobVerzikBounce,
+            },
         }]
     );
     assert_eq!(
         result.counters,
         ReconciliationCounters {
+            npc_attack_pairs: 1,
+            attack_mapped_events: 2,
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn discards_bounce_events_whose_attack_does_not_exist() {
+    let stage = Stage::TobVerzik;
+    let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
+    let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
+    let verzik_events = |attack: NpcAttack| -> BTreeMap<Tick, Vec<Event>> {
+        let mut events: BTreeMap<Tick, Vec<Event>> = Tick(14)
+            .up_to_inclusive()
+            .map(|tick| {
+                let verzik = fixtures::npc_update_event(NpcEvent {
+                    tick,
+                    stage,
+                    coords: (10, 10),
+                    npc_id: npc::id::VERZIK_P2_REGULAR,
+                    room_id: 1,
+                    hitpoints: SkillLevel {
+                        current: 100,
+                        base: 3250,
+                    },
+                    ..Default::default()
+                });
+                (tick, vec![verzik])
+            })
+            .collect();
+        events
+            .entry(Tick(5))
+            .or_default()
+            .push(fixtures::npc_attack_event(
+                Tick(5),
+                stage,
+                (10, 10),
+                npc::id::VERZIK_P2_REGULAR,
+                1,
+                attack,
+                Some("WWWWWWWWWWQQ"),
+            ));
+        events
+    };
+    let mut target_events = verzik_events(NpcAttack::TobVerzikP2Bounce);
+    target_events
+        .entry(Tick(6))
+        .or_default()
+        .push(fixtures::verzik_bounce_event(
+            Tick(6),
+            Tick(5),
+            1,
+            0,
+            Some("WWWWWWWWWWQQ"),
+        ));
+    let base = build_recording(
+        BASE_CLIENT_ID,
+        stage,
+        &challenge,
+        15,
+        "WWWWWWWWWWQQ",
+        DataSource::Secondary,
+        verzik_events(NpcAttack::TobVerzikP2Mage),
+    );
+    let target = build_recording(
+        TARGET_CLIENT_ID,
+        stage,
+        &challenge,
+        15,
+        "WWWWWWWWWWQQ",
+        DataSource::Primary,
+        target_events,
+    );
+
+    let ctx = test_ctx(
+        &challenge,
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
+    );
+    let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
+
+    assert_eq!(event_types(&result.recording, Tick(6)), vec![]);
+
+    assert_set_eq(
+        result.quality_flags,
+        &[
+            QualityFlag::Disagreement {
+                tick: Tick(5),
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
+                subject: Disagreement::NpcAttackKind {
+                    room_id: RoomId(1),
+                    npc_id: npc::id::VERZIK_P2_REGULAR,
+                    kept: NpcAttack::TobVerzikP2Mage,
+                    discarded: NpcAttack::TobVerzikP2Bounce,
+                },
+            },
+            QualityFlag::AttackMappedNotFound {
+                kind: event::Type::TobVerzikBounce,
+                side: Side::Target,
+                client_tick: Tick(6),
+                client_attack_tick: Tick(5),
+            },
+        ],
+    );
+    assert_eq!(
+        result.counters,
+        ReconciliationCounters {
+            npc_attack_pairs: 1,
             attack_mapped_events: 1,
             ..Default::default()
         }
@@ -1166,9 +1275,6 @@ fn discards_attack_style_events_whose_attack_does_not_exist() {
 #[test]
 fn matches_a_bounce_event_to_a_p2_attack_depending_on_target() {
     let stage = Stage::TobVerzik;
-    let attack_present = attack_mapped_config(event::Type::TobVerzikBounce).attack_present;
-    let untargeted = fixtures::verzik_bounce_event(Tick(0), Tick(0), 1, 0, None);
-    let targeted = fixtures::verzik_bounce_event(Tick(0), Tick(0), 1, 0, Some("1Ogp"));
 
     let p2_tick = |attack: Option<NpcAttack>| -> TickState {
         let mut events = vec![fixtures::npc_update_event(NpcEvent {
@@ -1194,8 +1300,8 @@ fn matches_a_bounce_event_to_a_p2_attack_depending_on_target() {
                 None,
             ));
         }
-        fixtures::timeline(&[], Tick(0), events)
-            .get(Tick(0))
+        fixtures::timeline(stage, ChallengeMode::TobRegular, &[], Tick(0), events)
+            .get_state(Tick(0))
             .cloned()
             .expect("tick is recorded")
     };
@@ -1203,14 +1309,28 @@ fn matches_a_bounce_event_to_a_p2_attack_depending_on_target() {
     let bounce = p2_tick(Some(NpcAttack::TobVerzikP2Bounce));
     let idle = p2_tick(None);
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
-    let without_verzik = fixtures::timeline(
+    let timeline = fixtures::timeline(
+        stage,
+        ChallengeMode::TobRegular,
         &party,
         Tick(0),
         vec![PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", (0, 0)).build()],
-    )
-    .get(Tick(0))
-    .cloned()
-    .expect("tick is recorded");
+    );
+    let without_verzik = timeline
+        .get_state(Tick(0))
+        .cloned()
+        .expect("tick is recorded");
+    let party_index = timeline.party_index(&party[0]).unwrap();
+    let untargeted = EventKind::VerzikBounce(VerzikBounce {
+        attack_tick: Tick(0),
+        players_in_range: 1,
+        bounced: None,
+    });
+    let targeted = EventKind::VerzikBounce(VerzikBounce {
+        attack_tick: Tick(0),
+        players_in_range: 1,
+        bounced: Some(party_index),
+    });
 
     assert!(attack_present(&mage, &untargeted));
     assert!(attack_present(&bounce, &untargeted));
@@ -1233,79 +1353,81 @@ fn resolves_projectile_ambiguous_player_attacks_by_primary_proximity_to_attacker
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
 
-    let recording = |client_id: ClientId, primary_player: &str, attack: PlayerAttack| -> Timeline {
-        let source = |player: &str| {
-            if player == primary_player {
-                DataSource::Primary
-            } else {
-                DataSource::Secondary
+    let recording =
+        |client_id: ClientId, primary_player: &str, attack: PlayerAttack| -> Recording {
+            let source = |player: &str| {
+                if player == primary_player {
+                    DataSource::Primary
+                } else {
+                    DataSource::Secondary
+                }
+            };
+            let mut events = Vec::new();
+            for tick in Tick(9).up_to_inclusive() {
+                events.push(
+                    PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0))
+                        .source(source("1Ogp"))
+                        .build(),
+                );
+                events.push(
+                    PlayerUpdateEvent::new(tick, stage, "WWWWWWWWWWQQ", (10, 10))
+                        .party_index(1)
+                        .source(source("WWWWWWWWWWQQ"))
+                        .build(),
+                );
+                events.push(
+                    PlayerUpdateEvent::new(tick, stage, "715", (9, 10))
+                        .party_index(2)
+                        .build(),
+                );
+                if tick == Tick(5) {
+                    events.push(fixtures::player_attack_event(PlayerAttackEvent {
+                        tick,
+                        stage,
+                        coords: (9, 10),
+                        name: "715",
+                        party_index: Some(2),
+                        attack,
+                        weapon_id: 26374,
+                        distance_to_target: 1,
+                        target: Some(event::Npc {
+                            id: npc::id::VERZIK_P1_REGULAR,
+                            room_id: 1,
+                            ..Default::default()
+                        }),
+                    }));
+                }
             }
+            fixtures::recording(client_id, stage, challenge.mode, &party, Tick(9), events)
         };
-        let mut events = Vec::new();
-        for tick in Tick(9).up_to_inclusive() {
-            events.push(
-                PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0))
-                    .source(source("1Ogp"))
-                    .build(),
-            );
-            events.push(
-                PlayerUpdateEvent::new(tick, stage, "WWWWWWWWWWQQ", (10, 10))
-                    .party_index(1)
-                    .source(source("WWWWWWWWWWQQ"))
-                    .build(),
-            );
-            events.push(
-                PlayerUpdateEvent::new(tick, stage, "715", (9, 10))
-                    .party_index(2)
-                    .build(),
-            );
-            if tick == Tick(5) {
-                events.push(fixtures::player_attack_event(PlayerAttackEvent {
-                    tick,
-                    stage,
-                    coords: (9, 10),
-                    name: "715",
-                    party_index: Some(2),
-                    attack,
-                    weapon_id: 26374,
-                    distance_to_target: 1,
-                    target: Some(event::Npc {
-                        id: npc::id::VERZIK_P1_REGULAR,
-                        room_id: 1,
-                        ..Default::default()
-                    }),
-                }));
-            }
-        }
-        let events = events
-            .into_iter()
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        Timeline::build(&party, Tick(9), events).expect("fixture events are well formed")
-    };
     let base = recording(BASE_CLIENT_ID, "1Ogp", PlayerAttack::ZcbAuto);
     let target = recording(TARGET_CLIENT_ID, "WWWWWWWWWWQQ", PlayerAttack::ZcbSpec);
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()).primary_player("1Ogp"),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick())
-            .primary_player("WWWWWWWWWWQQ"),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()).primary_player("1Ogp"),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()).primary_player("WWWWWWWWWWQQ"),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let attack = result
-        .timeline
-        .get(Tick(5))
+    let player = result.recording.party_index(&party[2]).unwrap();
+    let attacks: Vec<(Source, PlayerAttack)> = result
+        .recording
+        .get_state(Tick(5))
         .expect("tick is recorded")
-        .player("715")
-        .expect("attacker is on the tick")
-        .attack
-        .as_ref()
-        .expect("attack is kept");
-    assert_eq!(attack.source, TARGET_CLIENT_ID);
-    assert_eq!(attack.value.kind, PlayerAttack::ZcbSpec);
+        .events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            EventKind::PlayerAttack(attacked) if attacked.player == player => {
+                Some((event.source, attacked.attack))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        attacks,
+        vec![(Source::Client(TARGET_CLIENT_ID), PlayerAttack::ZcbSpec)]
+    );
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(
@@ -1320,10 +1442,10 @@ fn resolves_projectile_ambiguous_player_attacks_by_primary_proximity_to_attacker
 fn single_tick_with_attack(
     client_id: ClientId,
     stage: Stage,
-    party: &[Rsn],
+    challenge: &ChallengeInfo,
     attack: Option<PlayerAttack>,
     target: Option<event::Npc>,
-) -> Timeline<'_> {
+) -> Recording {
     let mut events = vec![PlayerUpdateEvent::new(Tick(0), stage, "WWWWWWWWWWQQ", (0, 0)).build()];
     if let Some(attack) = attack {
         events.push(fixtures::player_attack_event(PlayerAttackEvent {
@@ -1338,11 +1460,14 @@ fn single_tick_with_attack(
             target,
         }));
     }
-    let events = events
-        .into_iter()
-        .map(|event| TaggedEvent::new(client_id, event))
-        .collect();
-    Timeline::build(party, Tick(0), events).expect("fixture events are well formed")
+    fixtures::recording(
+        client_id,
+        stage,
+        challenge.mode,
+        challenge.party,
+        Tick(0),
+        events,
+    )
 }
 
 #[test]
@@ -1358,45 +1483,41 @@ fn deduplicates_agreeing_player_attacks() {
     let base = single_tick_with_attack(
         BASE_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         Some(PlayerAttack::Scythe),
         Some(maiden),
     );
     let target = single_tick_with_attack(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         Some(PlayerAttack::Scythe),
         Some(maiden),
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let attack = result
-        .timeline
-        .get(Tick(0))
-        .expect("tick is recorded")
-        .player("WWWWWWWWWWQQ")
-        .expect("player is on the tick")
-        .attack
-        .as_ref()
-        .expect("attack is kept");
-    assert_eq!(attack.source, BASE_CLIENT_ID);
-    assert_eq!(attack.value.kind, PlayerAttack::Scythe);
-    let target = attack.value.target.as_ref().expect("target is kept");
-    assert_eq!(target.source, BASE_CLIENT_ID);
+    let player = result.recording.party_index(&party[0]).unwrap();
     assert_eq!(
-        target.value,
-        Target::Npc {
-            id: npc::id::MAIDEN_REGULAR,
-            room_id: 1,
-        }
+        result
+            .recording
+            .get_state(Tick(0))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(BASE_CLIENT_ID),
+            kind: EventKind::PlayerAttack(PlayerAttacked {
+                player,
+                attack: PlayerAttack::Scythe,
+                weapon: None,
+                target: Some(Actor::Npc(RoomId(1))),
+            }),
+        }]
     );
 
     assert_eq!(result.quality_flags, vec![]);
@@ -1419,42 +1540,38 @@ fn inserts_a_player_attack_only_the_target_recorded() {
         room_id: 1,
         ..Default::default()
     };
-    let base = single_tick_with_attack(BASE_CLIENT_ID, stage, &party, None, None);
+    let base = single_tick_with_attack(BASE_CLIENT_ID, stage, &challenge, None, None);
     let target = single_tick_with_attack(
         TARGET_CLIENT_ID,
         stage,
-        &party,
+        &challenge,
         Some(PlayerAttack::Scythe),
         Some(maiden),
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let attack = result
-        .timeline
-        .get(Tick(0))
-        .expect("tick is recorded")
-        .player("WWWWWWWWWWQQ")
-        .expect("player is on the tick")
-        .attack
-        .as_ref()
-        .expect("attack is filled");
-    assert_eq!(attack.source, TARGET_CLIENT_ID);
-    assert_eq!(attack.value.kind, PlayerAttack::Scythe);
-    let target = attack.value.target.as_ref().expect("target is inserted");
-    assert_eq!(target.source, TARGET_CLIENT_ID);
+    let player = result.recording.party_index(&party[0]).unwrap();
     assert_eq!(
-        target.value,
-        Target::Npc {
-            id: npc::id::MAIDEN_REGULAR,
-            room_id: 1,
-        }
+        result
+            .recording
+            .get_state(Tick(0))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(TARGET_CLIENT_ID),
+            kind: EventKind::PlayerAttack(PlayerAttacked {
+                player,
+                attack: PlayerAttack::Scythe,
+                weapon: None,
+                target: Some(Actor::Npc(RoomId(1))),
+            }),
+        }]
     );
 
     assert_eq!(result.quality_flags, vec![]);
@@ -1472,7 +1589,7 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
         room_id: 1,
         ..Default::default()
     };
-    let recording = |client_id: ClientId, targets: [Option<event::Npc>; 2]| -> Timeline {
+    let recording = |client_id: ClientId, targets: [Option<event::Npc>; 2]| -> Recording {
         let events = targets
             .into_iter()
             .enumerate()
@@ -1493,41 +1610,36 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
                     }),
                 ]
             })
-            .map(|event| TaggedEvent::new(client_id, event))
             .collect();
-        Timeline::build(&party, Tick(1), events).expect("fixture events are well formed")
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
     };
     let base = recording(BASE_CLIENT_ID, [None, Some(maiden)]);
     let target = recording(TARGET_CLIENT_ID, [Some(maiden), None]);
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    for (tick, target_source) in [(Tick(0), TARGET_CLIENT_ID), (Tick(1), BASE_CLIENT_ID)] {
-        let attack = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .player("WWWWWWWWWWQQ")
-            .expect("player is on the tick")
-            .attack
-            .as_ref()
-            .expect("attack is kept");
-        assert_eq!(attack.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(attack.value.kind, PlayerAttack::Scythe, "tick {tick}");
-        let target = attack.value.target.as_ref().expect("target is kept");
-        assert_eq!(target.source, target_source, "tick {tick}");
+    let player = result.recording.party_index(&party[0]).unwrap();
+    for tick in [Tick(0), Tick(1)] {
         assert_eq!(
-            target.value,
-            Target::Npc {
-                id: npc::id::MAIDEN_REGULAR,
-                room_id: 1,
-            },
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::PlayerAttack(PlayerAttacked {
+                    player,
+                    attack: PlayerAttack::Scythe,
+                    weapon: None,
+                    target: Some(Actor::Npc(RoomId(1))),
+                }),
+            }],
             "tick {tick}"
         );
     }
@@ -1559,7 +1671,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
         room_id: 2,
         ..Default::default()
     };
-    let recording = |client_id: ClientId, attacks: [(PlayerAttack, event::Npc); 2]| -> Timeline {
+    let recording = |client_id: ClientId, attacks: [(PlayerAttack, event::Npc); 2]| -> Recording {
         let events = attacks
             .into_iter()
             .enumerate()
@@ -1580,9 +1692,8 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
                     }),
                 ]
             })
-            .map(|event| TaggedEvent::new(client_id, event))
             .collect();
-        Timeline::build(&party, Tick(1), events).expect("fixture events are well formed")
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
     };
     let base = recording(
         BASE_CLIENT_ID,
@@ -1598,32 +1709,28 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
+    let player = result.recording.party_index(&party[0]).unwrap();
     for tick in [Tick(0), Tick(1)] {
-        let attack = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .player("WWWWWWWWWWQQ")
-            .expect("player is on the tick")
-            .attack
-            .as_ref()
-            .expect("attack is kept");
-        assert_eq!(attack.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(attack.value.kind, PlayerAttack::Scythe, "tick {tick}");
-        let target = attack.value.target.as_ref().expect("target is kept");
-        assert_eq!(target.source, BASE_CLIENT_ID, "tick {tick}");
         assert_eq!(
-            target.value,
-            Target::Npc {
-                id: npc::id::MAIDEN_REGULAR,
-                room_id: 1,
-            },
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::PlayerAttack(PlayerAttacked {
+                    player,
+                    attack: PlayerAttack::Scythe,
+                    weapon: None,
+                    target: Some(Actor::Npc(RoomId(1))),
+                }),
+            }],
             "tick {tick}"
         );
     }
@@ -1633,26 +1740,20 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
         &[
             QualityFlag::Disagreement {
                 tick: Tick(0),
-                kept_source: BASE_CLIENT_ID,
-                discarded_source: TARGET_CLIENT_ID,
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::PlayerAttackTarget {
-                    player: "WWWWWWWWWWQQ",
-                    kept: Target::Npc {
-                        id: npc::id::MAIDEN_REGULAR,
-                        room_id: 1,
-                    },
-                    discarded: Target::Npc {
-                        id: npc::id::MAIDEN_MATOMENOS_REGULAR,
-                        room_id: 2,
-                    },
+                    player,
+                    kept: Actor::Npc(RoomId(1)),
+                    discarded: Actor::Npc(RoomId(2)),
                 },
             },
             QualityFlag::Disagreement {
                 tick: Tick(1),
-                kept_source: BASE_CLIENT_ID,
-                discarded_source: TARGET_CLIENT_ID,
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::PlayerAttackKind {
-                    player: "WWWWWWWWWWQQ",
+                    player,
                     kept: PlayerAttack::Scythe,
                     discarded: PlayerAttack::Punch,
                 },
@@ -1677,28 +1778,28 @@ fn deduplicates_agreeing_player_spells_and_fills_a_missing_target() {
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let heal_target = event::spell::Target::TargetPlayer("WWWWWWWWWWQQ".to_string());
-    let recording = |client_id: ClientId, targets: [Option<event::spell::Target>; 2]| -> Timeline {
-        let events = targets
-            .into_iter()
-            .enumerate()
-            .flat_map(|(i, target)| {
-                let tick = Tick::from_usize(i);
-                [
-                    PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0)).build(),
-                    fixtures::player_spell_event(
-                        tick,
-                        stage,
-                        (0, 0),
-                        "1Ogp",
-                        PlayerSpell::HealOther,
-                        target,
-                    ),
-                ]
-            })
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        Timeline::build(&party, Tick(1), events).expect("fixture events are well formed")
-    };
+    let recording =
+        |client_id: ClientId, targets: [Option<event::spell::Target>; 2]| -> Recording {
+            let events = targets
+                .into_iter()
+                .enumerate()
+                .flat_map(|(i, target)| {
+                    let tick = Tick::from_usize(i);
+                    [
+                        PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0)).build(),
+                        fixtures::player_spell_event(
+                            tick,
+                            stage,
+                            (0, 0),
+                            "1Ogp",
+                            PlayerSpell::HealOther,
+                            target,
+                        ),
+                    ]
+                })
+                .collect();
+            fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
+        };
     let base = recording(BASE_CLIENT_ID, [Some(heal_target.clone()), None]);
     let target = recording(
         TARGET_CLIENT_ID,
@@ -1707,27 +1808,31 @@ fn deduplicates_agreeing_player_spells_and_fills_a_missing_target() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    for (tick, target_source) in [(Tick(0), BASE_CLIENT_ID), (Tick(1), TARGET_CLIENT_ID)] {
-        let spell = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .player("1Ogp")
-            .expect("player is on the tick")
-            .spell
-            .as_ref()
-            .expect("spell is kept");
-        assert_eq!(spell.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(spell.value.kind, PlayerSpell::HealOther, "tick {tick}");
-        let target = spell.value.target.as_ref().expect("target is kept");
-        assert_eq!(target.source, target_source, "tick {tick}");
-        assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ"), "tick {tick}");
+    let player = result.recording.party_index(&party[0]).unwrap();
+    for tick in [Tick(0), Tick(1)] {
+        assert_eq!(
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::PlayerSpell(PlayerCast {
+                    player,
+                    spell: PlayerSpell::HealOther,
+                    target: Some(Actor::Player(
+                        result.recording.party_index(&party[1]).unwrap(),
+                    )),
+                }),
+            }],
+            "tick {tick}"
+        );
     }
 
     assert_eq!(result.quality_flags, vec![]);
@@ -1752,52 +1857,56 @@ fn clears_targets_from_untargeted_spells() {
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
     let spurious = event::spell::Target::TargetPlayer("WWWWWWWWWWQQ".to_string());
-    let recording = |client_id: ClientId, targets: [Option<event::spell::Target>; 3]| -> Timeline {
-        let events = targets
-            .into_iter()
-            .enumerate()
-            .flat_map(|(i, target)| {
-                let tick = Tick::from_usize(i);
-                [
-                    PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0)).build(),
-                    fixtures::player_spell_event(
-                        tick,
-                        stage,
-                        (0, 0),
-                        "1Ogp",
-                        PlayerSpell::SpellbookSwap,
-                        target,
-                    ),
-                ]
-            })
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        Timeline::build(&party, Tick(2), events).expect("fixture events are well formed")
-    };
+    let recording =
+        |client_id: ClientId, targets: [Option<event::spell::Target>; 3]| -> Recording {
+            let events = targets
+                .into_iter()
+                .enumerate()
+                .flat_map(|(i, target)| {
+                    let tick = Tick::from_usize(i);
+                    [
+                        PlayerUpdateEvent::new(tick, stage, "1Ogp", (0, 0)).build(),
+                        fixtures::player_spell_event(
+                            tick,
+                            stage,
+                            (0, 0),
+                            "1Ogp",
+                            PlayerSpell::SpellbookSwap,
+                            target,
+                        ),
+                    ]
+                })
+                .collect();
+            fixtures::recording(client_id, stage, challenge.mode, &party, Tick(2), events)
+        };
     let base = recording(BASE_CLIENT_ID, [None, Some(spurious.clone()), None]);
     let target = recording(TARGET_CLIENT_ID, [None, None, Some(spurious)]);
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
+    let player = result.recording.party_index(&party[0]).unwrap();
     for tick in Tick(2).up_to_inclusive() {
-        let spell = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .player("1Ogp")
-            .expect("player is on the tick")
-            .spell
-            .as_ref()
-            .expect("spell is kept");
-        assert_eq!(spell.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(spell.value.kind, PlayerSpell::SpellbookSwap, "tick {tick}");
-        assert!(spell.value.target.is_none(), "tick {tick}");
+        assert_eq!(
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::PlayerSpell(PlayerCast {
+                    player,
+                    spell: PlayerSpell::SpellbookSwap,
+                    target: None,
+                }),
+            }],
+            "tick {tick}"
+        );
     }
 
     assert_eq!(result.quality_flags, vec![]);
@@ -1821,7 +1930,7 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
         Rsn::try_from("715").unwrap(),
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let recording = |client_id: ClientId, spells: [(PlayerSpell, &str); 2]| -> Timeline {
+    let recording = |client_id: ClientId, spells: [(PlayerSpell, &str); 2]| -> Recording {
         let events = spells
             .into_iter()
             .enumerate()
@@ -1839,9 +1948,8 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
                     ),
                 ]
             })
-            .map(|event| TaggedEvent::new(client_id, event))
             .collect();
-        Timeline::build(&party, Tick(1), events).expect("fixture events are well formed")
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
     };
     let base = recording(
         BASE_CLIENT_ID,
@@ -1860,27 +1968,31 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
+    let player = result.recording.party_index(&party[0]).unwrap();
     for tick in [Tick(0), Tick(1)] {
-        let spell = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .player("1Ogp")
-            .expect("player is on the tick")
-            .spell
-            .as_ref()
-            .expect("spell is kept");
-        assert_eq!(spell.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(spell.value.kind, PlayerSpell::HealOther, "tick {tick}");
-        let target = spell.value.target.as_ref().expect("target is kept");
-        assert_eq!(target.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ"), "tick {tick}");
+        assert_eq!(
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::PlayerSpell(PlayerCast {
+                    player,
+                    spell: PlayerSpell::HealOther,
+                    target: Some(Actor::Player(
+                        result.recording.party_index(&party[1]).unwrap(),
+                    )),
+                }),
+            }],
+            "tick {tick}"
+        );
     }
 
     assert_set_eq(
@@ -1888,20 +2000,20 @@ fn keeps_the_base_player_spell_in_a_conflict_and_flags() {
         &[
             QualityFlag::Disagreement {
                 tick: Tick(0),
-                kept_source: BASE_CLIENT_ID,
-                discarded_source: TARGET_CLIENT_ID,
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::PlayerSpellTarget {
-                    player: "1Ogp",
-                    kept: Target::Player("WWWWWWWWWWQQ"),
-                    discarded: Target::Player("715"),
+                    player,
+                    kept: Actor::Player(result.recording.party_index(&party[1]).unwrap()),
+                    discarded: Actor::Player(result.recording.party_index(&party[2]).unwrap()),
                 },
             },
             QualityFlag::Disagreement {
                 tick: Tick(1),
-                kept_source: BASE_CLIENT_ID,
-                discarded_source: TARGET_CLIENT_ID,
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::PlayerSpellKind {
-                    player: "1Ogp",
+                    player,
                     kept: PlayerSpell::HealOther,
                     discarded: PlayerSpell::VengeanceOther,
                 },
@@ -1925,7 +2037,7 @@ fn inserts_a_player_spell_only_the_target_recorded() {
         Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let recording = |client_id: ClientId, spell: Option<PlayerSpell>| -> Timeline {
+    let recording = |client_id: ClientId, spell: Option<PlayerSpell>| -> Recording {
         let mut events = vec![PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", (0, 0)).build()];
         if let Some(spell) = spell {
             events.push(fixtures::player_spell_event(
@@ -1939,37 +2051,35 @@ fn inserts_a_player_spell_only_the_target_recorded() {
                 )),
             ));
         }
-        let events = events
-            .into_iter()
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        Timeline::build(&party, Tick(0), events).expect("fixture events are well formed")
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(0), events)
     };
     let base = recording(BASE_CLIENT_ID, None);
     let target = recording(TARGET_CLIENT_ID, Some(PlayerSpell::HealOther));
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let spell = result
-        .timeline
-        .get(Tick(0))
-        .expect("tick is recorded")
-        .player("1Ogp")
-        .expect("player is on the tick")
-        .spell
-        .as_ref()
-        .expect("spell is inserted");
-    assert_eq!(spell.source, TARGET_CLIENT_ID);
-    assert_eq!(spell.value.kind, PlayerSpell::HealOther);
-    let target = spell.value.target.as_ref().expect("target is inserted");
-    assert_eq!(target.source, TARGET_CLIENT_ID);
-    assert_eq!(target.value, Target::Player("WWWWWWWWWWQQ"));
+    assert_eq!(
+        result
+            .recording
+            .get_state(Tick(0))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(TARGET_CLIENT_ID),
+            kind: EventKind::PlayerSpell(PlayerCast {
+                player: result.recording.party_index(&party[0]).unwrap(),
+                spell: PlayerSpell::HealOther,
+                target: Some(Actor::Player(
+                    result.recording.party_index(&party[1]).unwrap(),
+                )),
+            }),
+        }]
+    );
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -1982,9 +2092,9 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_p3_timeline(
+    let base = build_p3_recording(
         BASE_CLIENT_ID,
-        &party,
+        &challenge,
         2,
         "1Ogp",
         DataSource::Secondary,
@@ -1992,11 +2102,10 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
             (Tick(0), (NpcAttack::TobVerzikP3Auto, Some("1Ogp"))),
             (Tick(1), (NpcAttack::TobVerzikP3Auto, None)),
         ]),
-        BTreeMap::new(),
     );
-    let target = build_p3_timeline(
+    let target = build_p3_recording(
         TARGET_CLIENT_ID,
-        &party,
+        &challenge,
         2,
         "1Ogp",
         DataSource::Primary,
@@ -2004,32 +2113,33 @@ fn deduplicates_agreeing_npc_attacks_and_fills_a_missing_target() {
             (Tick(0), (NpcAttack::TobVerzikP3Auto, Some("1Ogp"))),
             (Tick(1), (NpcAttack::TobVerzikP3Auto, Some("1Ogp"))),
         ]),
-        BTreeMap::new(),
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    for (tick, target_source) in [(Tick(0), BASE_CLIENT_ID), (Tick(1), TARGET_CLIENT_ID)] {
-        let attack = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .npc(1)
-            .expect("verzik is on the tick")
-            .attack
-            .as_ref()
-            .expect("attack is kept");
-        assert_eq!(attack.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(attack.value.kind, NpcAttack::TobVerzikP3Auto, "tick {tick}");
-        let target = attack.value.target.as_ref().expect("target is kept");
-        assert_eq!(target.source, target_source, "tick {tick}");
-        assert_eq!(target.value, Target::Player("1Ogp"), "tick {tick}");
+    let player = result.recording.party_index(&party[0]).unwrap();
+    for tick in [Tick(0), Tick(1)] {
+        assert_eq!(
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::NpcAttack(NpcAttacked {
+                    npc: RoomId(1),
+                    attack: NpcAttack::TobVerzikP3Auto,
+                    target: Some(Actor::Player(player)),
+                }),
+            }],
+            "tick {tick}"
+        );
     }
 
     assert_eq!(result.quality_flags, vec![]);
@@ -2047,47 +2157,46 @@ fn inserts_an_npc_attack_only_the_target_recorded() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let base = build_p3_timeline(
+    let base = build_p3_recording(
         BASE_CLIENT_ID,
-        &party,
+        &challenge,
         1,
         "1Ogp",
         DataSource::Secondary,
         BTreeMap::new(),
-        BTreeMap::new(),
     );
-    let target = build_p3_timeline(
+    let target = build_p3_recording(
         TARGET_CLIENT_ID,
-        &party,
+        &challenge,
         1,
         "1Ogp",
         DataSource::Primary,
         BTreeMap::from([(Tick(0), (NpcAttack::TobVerzikP3Auto, Some("1Ogp")))]),
-        BTreeMap::new(),
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let attack = result
-        .timeline
-        .get(Tick(0))
-        .expect("tick is recorded")
-        .npc(1)
-        .expect("verzik is on the tick")
-        .attack
-        .as_ref()
-        .expect("attack is inserted");
-    assert_eq!(attack.source, TARGET_CLIENT_ID);
-    assert_eq!(attack.value.kind, NpcAttack::TobVerzikP3Auto);
-    let target = attack.value.target.as_ref().expect("target is inserted");
-    assert_eq!(target.source, TARGET_CLIENT_ID);
-    assert_eq!(target.value, Target::Player("1Ogp"));
+    let player = result.recording.party_index(&party[0]).unwrap();
+    assert_eq!(
+        result
+            .recording
+            .get_state(Tick(0))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(TARGET_CLIENT_ID),
+            kind: EventKind::NpcAttack(NpcAttacked {
+                npc: RoomId(1),
+                attack: NpcAttack::TobVerzikP3Auto,
+                target: Some(Actor::Player(player)),
+            }),
+        }]
+    );
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -2103,7 +2212,7 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
         Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
     ];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let recording = |client_id: ClientId, attacks: [(NpcAttack, &str); 2]| -> Timeline {
+    let recording = |client_id: ClientId, attacks: [(NpcAttack, Option<&str>); 3]| -> Recording {
         let events = attacks
             .into_iter()
             .enumerate()
@@ -2133,52 +2242,67 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
                         npc::id::VERZIK_P3_REGULAR,
                         1,
                         attack,
-                        Some(target),
+                        target,
                     ),
                 ]
             })
-            .map(|event| TaggedEvent::new(client_id, event))
             .collect();
-        Timeline::build(&party, Tick(1), events).expect("fixture events are well formed")
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(2), events)
     };
     let base = recording(
         BASE_CLIENT_ID,
         [
-            (NpcAttack::TobVerzikP3Auto, "1Ogp"),
-            (NpcAttack::TobVerzikP3Auto, "1Ogp"),
+            (NpcAttack::TobVerzikP3Auto, Some("1Ogp")),
+            (NpcAttack::TobVerzikP3Auto, Some("1Ogp")),
+            (NpcAttack::TobVerzikP3Range, None),
         ],
     );
     let target = recording(
         TARGET_CLIENT_ID,
         [
-            (NpcAttack::TobVerzikP3Auto, "WWWWWWWWWWQQ"),
-            (NpcAttack::TobVerzikP3Melee, "1Ogp"),
+            (NpcAttack::TobVerzikP3Auto, Some("WWWWWWWWWWQQ")),
+            (NpcAttack::TobVerzikP3Melee, Some("WWWWWWWWWWQQ")),
+            (NpcAttack::TobVerzikP3Auto, Some("1Ogp")),
         ],
     );
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick()),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    for tick in [Tick(0), Tick(1)] {
-        let attack = result
-            .timeline
-            .get(tick)
-            .expect("tick is recorded")
-            .npc(1)
-            .expect("verzik is on the tick")
-            .attack
-            .as_ref()
-            .expect("attack is kept");
-        assert_eq!(attack.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(attack.value.kind, NpcAttack::TobVerzikP3Auto, "tick {tick}");
-        let target = attack.value.target.as_ref().expect("target is kept");
-        assert_eq!(target.source, BASE_CLIENT_ID, "tick {tick}");
-        assert_eq!(target.value, Target::Player("1Ogp"), "tick {tick}");
+    let player = result.recording.party_index(&party[0]).unwrap();
+    for (tick, attack, target) in [
+        (
+            Tick(0),
+            NpcAttack::TobVerzikP3Auto,
+            Some(Actor::Player(player)),
+        ),
+        (
+            Tick(1),
+            NpcAttack::TobVerzikP3Auto,
+            Some(Actor::Player(player)),
+        ),
+        (Tick(2), NpcAttack::TobVerzikP3Range, None),
+    ] {
+        assert_eq!(
+            result
+                .recording
+                .get_state(tick)
+                .expect("tick is recorded")
+                .events,
+            vec![blert::Event {
+                source: Source::Client(BASE_CLIENT_ID),
+                kind: EventKind::NpcAttack(NpcAttacked {
+                    npc: RoomId(1),
+                    attack,
+                    target,
+                }),
+            }],
+            "tick {tick}"
+        );
     }
 
     assert_set_eq(
@@ -2186,24 +2310,35 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
         &[
             QualityFlag::Disagreement {
                 tick: Tick(0),
-                kept_source: BASE_CLIENT_ID,
-                discarded_source: TARGET_CLIENT_ID,
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::NpcAttackTarget {
-                    room_id: 1,
+                    room_id: RoomId(1),
                     npc_id: npc::id::VERZIK_P3_REGULAR,
-                    kept: Target::Player("1Ogp"),
-                    discarded: Target::Player("WWWWWWWWWWQQ"),
+                    kept: Actor::Player(player),
+                    discarded: Actor::Player(result.recording.party_index(&party[1]).unwrap()),
                 },
             },
             QualityFlag::Disagreement {
                 tick: Tick(1),
-                kept_source: BASE_CLIENT_ID,
-                discarded_source: TARGET_CLIENT_ID,
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::NpcAttackKind {
-                    room_id: 1,
+                    room_id: RoomId(1),
                     npc_id: npc::id::VERZIK_P3_REGULAR,
                     kept: NpcAttack::TobVerzikP3Auto,
                     discarded: NpcAttack::TobVerzikP3Melee,
+                },
+            },
+            QualityFlag::Disagreement {
+                tick: Tick(2),
+                kept_source: Source::Client(BASE_CLIENT_ID),
+                discarded_source: Source::Client(TARGET_CLIENT_ID),
+                subject: Disagreement::NpcAttackKind {
+                    room_id: RoomId(1),
+                    npc_id: npc::id::VERZIK_P3_REGULAR,
+                    kept: NpcAttack::TobVerzikP3Range,
+                    discarded: NpcAttack::TobVerzikP3Auto,
                 },
             },
         ],
@@ -2211,7 +2346,7 @@ fn keeps_the_base_npc_attack_in_a_conflict_and_flags() {
     assert_eq!(
         result.counters,
         ReconciliationCounters {
-            npc_attack_pairs: 2,
+            npc_attack_pairs: 3,
             ..Default::default()
         }
     );
@@ -2231,7 +2366,7 @@ fn resolves_projectile_ambiguous_npc_attacks_by_primary_proximity() {
     let recording = |client_id: ClientId,
                      primary_player: (&str, u32, (i32, i32)),
                      attack: NpcAttack|
-     -> Timeline {
+     -> Recording {
         let (name, party_index, coords) = primary_player;
         let events = vec![
             PlayerUpdateEvent::new(Tick(0), stage, name, coords)
@@ -2260,11 +2395,7 @@ fn resolves_projectile_ambiguous_npc_attacks_by_primary_proximity() {
                 Some("1Ogp"),
             ),
         ];
-        let events = events
-            .into_iter()
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        Timeline::build(&party, Tick(0), events).expect("fixture events are well formed")
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(0), events)
     };
     let base = recording(BASE_CLIENT_ID, ("1Ogp", 0, (0, 0)), NpcAttack::TobSoteBall);
     let target = recording(
@@ -2275,27 +2406,27 @@ fn resolves_projectile_ambiguous_npc_attacks_by_primary_proximity() {
 
     let ctx = test_ctx(
         &challenge,
-        stage,
-        ClientBuilder::new(BASE_CLIENT_ID.0, stage, base.last_tick()).primary_player("1Ogp"),
-        ClientBuilder::new(TARGET_CLIENT_ID.0, stage, target.last_tick())
-            .primary_player("WWWWWWWWWWQQ"),
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()).primary_player("1Ogp"),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()).primary_player("WWWWWWWWWWQQ"),
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    let attack = result
-        .timeline
-        .get(Tick(0))
-        .expect("tick is recorded")
-        .npc(1)
-        .expect("sotetseg is on the tick")
-        .attack
-        .as_ref()
-        .expect("attack is kept");
-    assert_eq!(attack.source, TARGET_CLIENT_ID);
-    assert_eq!(attack.value.kind, NpcAttack::TobSoteDeathBall);
-    let target = attack.value.target.as_ref().expect("target is kept");
-    assert_eq!(target.source, TARGET_CLIENT_ID);
-    assert_eq!(target.value, Target::Player("1Ogp"));
+    let player = result.recording.party_index(&party[0]).unwrap();
+    assert_eq!(
+        result
+            .recording
+            .get_state(Tick(0))
+            .expect("tick is recorded")
+            .events,
+        vec![blert::Event {
+            source: Source::Client(TARGET_CLIENT_ID),
+            kind: EventKind::NpcAttack(NpcAttacked {
+                npc: RoomId(1),
+                attack: NpcAttack::TobSoteDeathBall,
+                target: Some(Actor::Player(player)),
+            }),
+        }]
+    );
 
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(

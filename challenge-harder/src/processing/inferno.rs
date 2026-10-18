@@ -323,7 +323,7 @@ impl ChallengeProcessor for InfernoProcessor {
         let split =
             SplitType::try_from(SplitType::InfernoWave1Time as i32 + wave.cast_signed() - 1)
                 .expect("wave time splits are consecutive");
-        ctx.set_stage_split(split, merged.last_tick(), Tick(0), true);
+        ctx.set_stage_split(split, merged.timeline().last_tick(), Tick(0), true);
 
         self.data.waves.push(WaveData {
             stage,
@@ -818,7 +818,7 @@ mod tests {
             processor.data.waves,
             vec![WaveData {
                 stage: Stage::InfernoWave25,
-                ticks_lost: 41,
+                ticks_lost: 42,
                 offset: Ticks(41),
                 npcs: Vec::new(),
                 ticks: Ticks(42),

@@ -179,7 +179,7 @@ impl ChallengeProcessor for MokhaiotlProcessor {
             let index = (stage as i32) - (Stage::MokhaiotlDelve1 as i32);
             let split = SplitType::try_from(SplitType::MokhaiotlDelve1 as i32 + index)
                 .expect("delve splits are consecutive");
-            ctx.set_stage_split(split, merged.last_tick(), Tick(0), true);
+            ctx.set_stage_split(split, merged.timeline().last_tick(), Tick(0), true);
 
             if completed
                 && stage > Stage::MokhaiotlDelve1

@@ -462,13 +462,13 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(result.merged.status(), StageStatus::Completed);
-        assert_eq!(result.merged.last_tick(), Tick(200));
+        assert_eq!(result.merged.timeline().last_tick(), Tick(200));
     }
 
     #[test]
     fn client_without_a_report_processes_from_its_events() {
         let result = run_interpret(&[events(1, &[0, 1, 4])]).unwrap();
         assert_eq!(result.merged.status(), StageStatus::Started);
-        assert_eq!(result.merged.last_tick(), Tick(4));
+        assert_eq!(result.merged.timeline().last_tick(), Tick(4));
     }
 }
