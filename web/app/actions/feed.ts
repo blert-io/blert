@@ -242,30 +242,6 @@ export async function isFollowing(playerId: number): Promise<boolean> {
   return follow !== undefined;
 }
 
-/**
- * Check if the current user is following a player by username.
- * @param username The player username to check.
- * @returns True if the user is following the player.
- */
-export async function isFollowingByUsername(
-  username: string,
-): Promise<boolean> {
-  const userId = await getSignedInUserId();
-  if (userId === null) {
-    return false;
-  }
-
-  const [follow] = await sql<{ user_id: number }[]>`
-    SELECT uf.user_id
-    FROM user_follows uf
-    JOIN players p ON uf.player_id = p.id
-    WHERE uf.user_id = ${userId} AND p.normalized_username = ${normalizeRsn(username)}
-    LIMIT 1
-  `;
-
-  return follow !== undefined;
-}
-
 type SessionWithPlayers = SessionRow & {
   player_ids: number[];
   player_usernames: string[];
