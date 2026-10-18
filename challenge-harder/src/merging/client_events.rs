@@ -1,10 +1,12 @@
 //! Per-client stage event streams.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
-use blert::Tick;
-use blert::proto::event::player::DataSource;
-use blert::proto::{Coords, event};
+use blert::proto::Event;
+use blert::{
+    ConfigVersion, DataSource, FieldError, InvalidVersion, PartyIndex, RawActor, Recording,
+    RecordingBuilder, RejectionReason, Tick,
+};
 use prost::Message;
 
 use crate::lifecycle::core::types::{
@@ -13,36 +15,7 @@ use crate::lifecycle::core::types::{
 use crate::proto::ChallengeEvents;
 
 use super::client_consistency::{self, ConsistencyIssue, MAX_RECORDED_TICK};
-use super::event::TaggedEvent;
-use super::timeline::Timeline;
 use super::{BadData, ChallengeInfo};
-
-/// Stage-scoped data extracted from a client's raw events.
-///
-/// This data does not fit a per-client, per-tick merge model and is handled
-/// separately at the end of the client merge process.
-#[derive(Debug)]
-pub(super) enum StageData {
-    None,
-    Sotetseg { pivots: Vec<SotePivots> },
-}
-
-impl StageData {
-    pub(super) fn new(stage: Stage) -> Self {
-        match stage {
-            Stage::TobSotetseg => Self::Sotetseg { pivots: Vec::new() },
-            _ => Self::None,
-        }
-    }
-}
-
-/// A pivot report from a client.
-#[derive(Debug)]
-pub(super) struct SotePivots {
-    pub maze: event::sote_maze::Maze,
-    pub overworld: Vec<Coords>,
-    pub underworld: Vec<Coords>,
-}
 
 #[derive(Debug)]
 pub(super) enum Anomaly {
@@ -66,10 +39,10 @@ pub(super) struct PluginInfo {
 
 /// A client's report of a how it recorded a stage.
 #[derive(Debug)]
-pub(super) struct ReportedInfo<'a> {
+pub(super) struct ReportedInfo {
     pub id: ClientId,
     pub plugin_info: Option<PluginInfo>,
-    pub primary_player: Option<&'a str>,
+    pub primary_player: Option<PartyIndex>,
     pub status: StageStatus,
     pub reported_accurate: bool,
     pub last_recorded_tick: Tick,
@@ -78,16 +51,15 @@ pub(super) struct ReportedInfo<'a> {
 
 /// A client's processed input into a merge.
 #[derive(Debug)]
-pub(super) struct ClientEvents<'a> {
-    pub info: ReportedInfo<'a>,
-    pub timeline: Timeline<'a>,
+pub(super) struct ClientEvents {
+    pub info: ReportedInfo,
+    pub recording: Recording,
     pub accurate: bool,
-    pub stage_data: StageData,
     pub anomalies: Vec<Anomaly>,
-    pub consistency_issues: Vec<ConsistencyIssue<'a>>,
+    pub consistency_issues: Vec<ConsistencyIssue>,
 }
 
-impl<'a> ClientEvents<'a> {
+impl ClientEvents {
     #[inline]
     #[must_use]
     pub fn is_participant(&self) -> bool {
@@ -106,11 +78,11 @@ impl<'a> ClientEvents<'a> {
     /// alongside the error.
     #[expect(clippy::result_large_err)]
     fn from_client_stream(
-        challenge: &'a ChallengeInfo<'a>,
+        challenge: &ChallengeInfo<'_>,
         stage: Stage,
         id: ClientId,
         stream: &[&ClientStageStream],
-    ) -> Result<ClientEvents<'a>, BadDataClient<'a>> {
+    ) -> Result<ClientEvents, BadDataClient> {
         StreamParser::new(id, challenge, stage).parse(stream)
     }
 }
@@ -118,11 +90,11 @@ impl<'a> ClientEvents<'a> {
 /// Partitions a stage stream's records into per-client events, ordered by
 /// recording length, longest first, then client ID, returning both
 /// successfully parsed clients and invalid ones.
-pub(super) fn from_stage_stream<'a>(
-    challenge: &'a ChallengeInfo<'a>,
+pub(super) fn from_stage_stream(
+    challenge: &ChallengeInfo<'_>,
     stage: Stage,
     records: &[ClientStageStream],
-) -> (Vec<ClientEvents<'a>>, Vec<BadDataClient<'a>>) {
+) -> (Vec<ClientEvents>, Vec<BadDataClient>) {
     let mut partitions: BTreeMap<ClientId, Vec<&ClientStageStream>> = BTreeMap::new();
     for record in records {
         partitions
@@ -153,8 +125,8 @@ pub(super) fn from_stage_stream<'a>(
 
 /// A client excluded from a merge for fatally invalid data.
 #[derive(Debug)]
-pub(super) struct BadDataClient<'a> {
-    pub info: ReportedInfo<'a>,
+pub(super) struct BadDataClient {
+    pub info: ReportedInfo,
     pub error: BadData,
 }
 
@@ -164,7 +136,6 @@ struct StreamParser<'a> {
     challenge: &'a ChallengeInfo<'a>,
     stage: Stage,
     anomalies: Vec<Anomaly>,
-    stage_data: StageData,
 }
 
 impl<'a> StreamParser<'a> {
@@ -174,41 +145,45 @@ impl<'a> StreamParser<'a> {
             challenge,
             stage,
             anomalies: Vec::new(),
-            stage_data: StageData::new(stage),
         }
     }
 
     #[expect(clippy::result_large_err, reason = "return client info")]
-    fn parse(
-        mut self,
-        stream: &[&ClientStageStream],
-    ) -> Result<ClientEvents<'a>, BadDataClient<'a>> {
-        let (mut info, mut raw_events) = self.read_stage_stream(stream);
+    fn parse(mut self, stream: &[&ClientStageStream]) -> Result<ClientEvents, BadDataClient> {
+        let (mut info, raw_events) = self.read_stage_stream(stream);
 
         if let Err(error) = self.check_tick_counts(&mut info) {
             return Err(BadDataClient { info, error });
         }
-        info.primary_player = match self.preprocess_events(&mut raw_events) {
+
+        let mut builder = RecordingBuilder::new(
+            self.client_id,
+            self.config_version(&info),
+            self.stage,
+            self.challenge.mode,
+            self.challenge.party.to_vec(),
+            Some(info.last_recorded_tick),
+        );
+        builder.ingest(raw_events);
+        if let Err(error) = self.check_rejections(&builder, &info) {
+            return Err(BadDataClient { info, error });
+        }
+        let Some(recording) = builder.into_recording() else {
+            return Err(BadDataClient {
+                info,
+                error: BadData::NoRecording,
+            });
+        };
+
+        info.primary_player = match self.find_one_primary_player(&recording) {
             Ok(primary_player) => primary_player,
             Err(error) => return Err(BadDataClient { info, error }),
         };
 
-        let timeline =
-            match Timeline::build(self.challenge.party, info.last_recorded_tick, raw_events) {
-                Ok(timeline) => timeline,
-                Err(error) => {
-                    return Err(BadDataClient {
-                        info,
-                        error: error.into(),
-                    });
-                }
-            };
-
-        let consistency_issues =
-            match client_consistency::check(self.challenge, self.stage, &timeline) {
-                Ok(issues) => issues,
-                Err(error) => return Err(BadDataClient { info, error }),
-            };
+        let consistency_issues = match client_consistency::check(&recording.snapshot()) {
+            Ok(issues) => issues,
+            Err(error) => return Err(BadDataClient { info, error }),
+        };
 
         let derived_accurate = info
             .server_ticks
@@ -226,19 +201,15 @@ impl<'a> StreamParser<'a> {
 
         Ok(ClientEvents {
             info,
-            timeline,
+            recording,
             accurate,
-            stage_data: self.stage_data,
             anomalies: self.anomalies,
             consistency_issues,
         })
     }
 
-    fn read_stage_stream(
-        &mut self,
-        stream: &[&ClientStageStream],
-    ) -> (ReportedInfo<'a>, Vec<TaggedEvent>) {
-        let mut raw_events: Vec<TaggedEvent> = Vec::new();
+    fn read_stage_stream(&mut self, stream: &[&ClientStageStream]) -> (ReportedInfo, Vec<Event>) {
+        let mut raw_events: Vec<Event> = Vec::new();
         let mut saw_stage_end = false;
         let mut info = ReportedInfo {
             id: self.client_id,
@@ -272,14 +243,7 @@ impl<'a> StreamParser<'a> {
                 }
                 ClientStageStream::Events { events, .. } => {
                     match ChallengeEvents::decode(events.as_ref()) {
-                        Ok(message) => {
-                            raw_events.extend(
-                                message
-                                    .events
-                                    .into_iter()
-                                    .map(|event| TaggedEvent::new(self.client_id, event)),
-                            );
-                        }
+                        Ok(message) => raw_events.extend(message.events),
                         Err(error) => {
                             tracing::error!(
                                 client_id = %self.client_id,
@@ -303,32 +267,16 @@ impl<'a> StreamParser<'a> {
             tracing::warn!(client_id = %self.client_id, "client_missing_stage_metadata");
         }
 
-        raw_events.sort_unstable_by_key(|event| event.tick);
-
         if info.last_recorded_tick == Tick(0)
-            && let Some(event) = raw_events.last()
+            && let Some(last_tick) = raw_events.iter().map(|event| Tick(event.tick)).max()
         {
-            info.last_recorded_tick = Tick(event.tick);
-        }
-
-        let cut = raw_events.partition_point(|event| Tick(event.tick) <= info.last_recorded_tick);
-        let dropped = raw_events.len() - cut;
-        raw_events.truncate(cut);
-
-        if dropped > 0 {
-            self.anomalies.push(Anomaly::EventsBeyondReportedTicks);
-            tracing::warn!(
-                client_id = %self.client_id,
-                reported_ticks = %info.last_recorded_tick,
-                dropped_event_count = dropped,
-                "client_events_beyond_reported_ticks",
-            );
+            info.last_recorded_tick = last_tick;
         }
 
         (info, raw_events)
     }
 
-    fn check_tick_counts(&mut self, info: &mut ReportedInfo<'_>) -> Result<(), BadData> {
+    fn check_tick_counts(&mut self, info: &mut ReportedInfo) -> Result<(), BadData> {
         if info.last_recorded_tick > MAX_RECORDED_TICK {
             return Err(BadData::Inconsistent {
                 tick: info.last_recorded_tick,
@@ -356,76 +304,69 @@ impl<'a> StreamParser<'a> {
         Ok(())
     }
 
-    /// Prepares the client's recorded events for merging, while extracting the
-    /// client's primary player and stage data.
-    fn preprocess_events(
+    fn config_version(&self, info: &ReportedInfo) -> ConfigVersion {
+        let Some(version) = info
+            .plugin_info
+            .as_ref()
+            .and_then(|plugin_info| plugin_info.recording_config_version)
+        else {
+            return ConfigVersion::LATEST;
+        };
+        ConfigVersion::parse(version).unwrap_or_else(|InvalidVersion(version)| {
+            tracing::error!(
+                client_id = %self.client_id,
+                version,
+                "client_unsupported_recording_config_version",
+            );
+            ConfigVersion::LATEST
+        })
+    }
+
+    fn check_rejections(
         &mut self,
-        events: &mut Vec<TaggedEvent>,
-    ) -> Result<Option<&'a str>, BadData> {
-        let party = self.challenge.party;
-        let mut primary_players: HashSet<&'a str> = HashSet::new();
-        let mut unknown_players: BTreeMap<String, u32> = BTreeMap::new();
+        builder: &RecordingBuilder,
+        info: &ReportedInfo,
+    ) -> Result<(), BadData> {
+        let mut unknown_players: BTreeMap<&str, u32> = BTreeMap::new();
+        let mut beyond_last_tick = 0;
 
-        events.retain_mut(|event| {
-            let kind = event.r#type();
-            // TODO(frolv): Temporary until everything is migrated to blertlib.
-            if kind == event::Type::Objects {
-                return false;
-            }
-
-            if let Some(player) = event.player.as_mut() {
-                let Some(index) = party.iter().position(|name| *name == *player.name) else {
-                    *unknown_players.entry(player.name.clone()).or_default() += 1;
-                    return false;
-                };
-                player.party_index = u32::try_from(index).expect("party index fits in a u32");
-
-                if kind == event::Type::PlayerUpdate && player.data_source() == DataSource::Primary
-                {
-                    primary_players.insert(party[index].as_str());
+        for rejection in builder.rejections() {
+            match &rejection.reason {
+                RejectionReason::InvalidField {
+                    error: FieldError::UnknownActor(RawActor::Player(name)),
+                    ..
+                } => *unknown_players.entry(name).or_default() += 1,
+                RejectionReason::BeyondLastTick => beyond_last_tick += 1,
+                RejectionReason::InvalidField {
+                    error: FieldError::UnknownActor(RawActor::Npc(_)),
+                    ..
+                }
+                | RejectionReason::AttackNotFound => {}
+                RejectionReason::UnknownType(_)
+                | RejectionReason::WrongStage(_)
+                | RejectionReason::MissingPayload(_)
+                | RejectionReason::InvalidField { .. }
+                | RejectionReason::Inconsistent(_)
+                | RejectionReason::UniqueViolation => {
+                    return Err(BadData::RejectedEvent(rejection.clone()));
                 }
             }
-
-            if let Some(attack) = event.npc_attack.as_mut()
-                && let Some(target) = attack
-                    .target
-                    .take_if(|target| !party.iter().any(|name| name == target.as_str()))
-            {
-                *unknown_players.entry(target).or_default() += 1;
+        }
+        for warning in builder.warnings() {
+            if let FieldError::UnknownActor(RawActor::Player(name)) = &warning.error {
+                *unknown_players.entry(name).or_default() += 1;
             }
+        }
 
-            if let Some(spell) = event.player_spell.as_mut()
-                && let Some(event::spell::Target::TargetPlayer(target)) =
-                    spell.target.take_if(|target| {
-                        matches!(
-                            target,
-                            event::spell::Target::TargetPlayer(target)
-                                if !party.iter().any(|name| name == target.as_str())
-                        )
-                    })
-            {
-                *unknown_players.entry(target).or_default() += 1;
-            }
-
-            // A maze path without tiles is a pivot report.
-            if kind == event::Type::TobSoteMazePath
-                && let Some(maze) = event.sote_maze.as_mut()
-                && maze.overworld_tiles.is_empty()
-            {
-                if let StageData::Sotetseg { pivots } = &mut self.stage_data
-                    && !(maze.overworld_pivots.is_empty() && maze.underworld_pivots.is_empty())
-                {
-                    pivots.push(SotePivots {
-                        maze: maze.maze(),
-                        overworld: std::mem::take(&mut maze.overworld_pivots),
-                        underworld: std::mem::take(&mut maze.underworld_pivots),
-                    });
-                }
-                return false;
-            }
-
-            true
-        });
+        if beyond_last_tick > 0 {
+            self.anomalies.push(Anomaly::EventsBeyondReportedTicks);
+            tracing::warn!(
+                client_id = %self.client_id,
+                reported_ticks = %info.last_recorded_tick,
+                dropped_event_count = beyond_last_tick,
+                "client_events_beyond_reported_ticks",
+            );
+        }
 
         if !unknown_players.is_empty() {
             tracing::error!(
@@ -435,6 +376,20 @@ impl<'a> StreamParser<'a> {
             );
             self.anomalies.push(Anomaly::UnknownPlayer);
         }
+
+        Ok(())
+    }
+
+    fn find_one_primary_player(
+        &self,
+        recording: &Recording,
+    ) -> Result<Option<PartyIndex>, BadData> {
+        let primary_players: BTreeSet<PartyIndex> = recording
+            .states()
+            .flat_map(|(_, state)| state.players.iter())
+            .filter(|(_, player)| matches!(player.data, DataSource::Primary(_)))
+            .map(|(index, _)| index)
+            .collect();
 
         if primary_players.len() > 1 {
             tracing::error!(
@@ -451,7 +406,8 @@ impl<'a> StreamParser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use blert::Rsn;
+    use blert::proto::event;
+    use blert::{BuildRejection, EventKind, NyloWave, Point, Rsn};
     use bytes::Bytes;
 
     use super::*;
@@ -532,9 +488,6 @@ mod tests {
             ],
         );
         assert!(bad_data_clients.is_empty());
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, Tick(200), vec![])
-            .build();
         let reports: Vec<(ClientId, StageStatus, Tick, usize)> = clients
             .into_iter()
             .map(|client| {
@@ -542,7 +495,11 @@ mod tests {
                     client.info.id,
                     client.info.status,
                     client.info.last_recorded_tick,
-                    client.timeline.finalize(&ctx).len(),
+                    client
+                        .recording
+                        .states()
+                        .map(|(_, state)| state.events.len())
+                        .sum(),
                 )
             })
             .collect();
@@ -650,11 +607,15 @@ mod tests {
         assert_eq!(client.info.last_recorded_tick, Tick(12));
         assert!(!client.accurate);
         assert_eq!(client.info.server_ticks, None);
-        assert_eq!(client.timeline.missing_tick_count(), 10);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, Tick(12), vec![])
-            .build();
-        assert_eq!(client.timeline.finalize(&ctx).len(), 3);
+        assert_eq!(client.recording.last_tick(), Tick(12));
+        assert_eq!(
+            client
+                .recording
+                .states()
+                .map(|(tick, _)| tick)
+                .collect::<Vec<_>>(),
+            vec![Tick(4), Tick(8), Tick(12)],
+        );
     }
 
     #[test]
@@ -782,16 +743,18 @@ mod tests {
                 precise: true,
             }),
         );
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, Tick(8), vec![])
-            .build();
-        let ticks: Vec<u32> = client
-            .timeline
-            .finalize(&ctx)
-            .iter()
-            .map(|event| event.tick)
-            .collect();
-        assert_eq!(ticks, vec![4, 8]);
+        assert!(matches!(
+            client.anomalies[..],
+            [Anomaly::EventsBeyondReportedTicks]
+        ));
+        assert_eq!(
+            client
+                .recording
+                .states()
+                .map(|(tick, _)| tick)
+                .collect::<Vec<_>>(),
+            vec![Tick(4), Tick(8)],
+        );
     }
 
     #[test]
@@ -848,17 +811,32 @@ mod tests {
             ],
         );
         assert!(bad_data_clients.is_empty());
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, Tick(16), vec![])
-            .build();
-        let order: Vec<(u32, u32)> = clients
+        let order: Vec<(Tick, EventKind)> = clients
             .remove(0)
-            .timeline
-            .finalize(&ctx)
-            .iter()
-            .map(|event| (event.tick, event.nylo_wave.unwrap().wave))
+            .recording
+            .states()
+            .flat_map(|(tick, state)| {
+                state
+                    .events
+                    .iter()
+                    .map(move |event| (tick, event.kind.clone()))
+            })
             .collect();
-        assert_eq!(order, vec![(4, 1), (8, 2), (12, 3), (16, 4)]);
+        let spawn = |wave| {
+            EventKind::NyloWaveSpawn(NyloWave {
+                wave,
+                nylos_alive: 0,
+            })
+        };
+        assert_eq!(
+            order,
+            vec![
+                (Tick(4), spawn(1)),
+                (Tick(8), spawn(2)),
+                (Tick(12), spawn(3)),
+                (Tick(16), spawn(4)),
+            ],
+        );
     }
 
     #[test]
@@ -896,16 +874,14 @@ mod tests {
         assert_eq!(clients.len(), 1);
         let client = clients.remove(0);
         assert_eq!(client.info.status, StageStatus::Completed);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobNylocas)
-            .recording(true, Tick(12), vec![])
-            .build();
-        let ticks: Vec<u32> = client
-            .timeline
-            .finalize(&ctx)
-            .iter()
-            .map(|event| event.tick)
-            .collect();
-        assert_eq!(ticks, vec![4, 8, 12]);
+        assert_eq!(
+            client
+                .recording
+                .states()
+                .map(|(tick, _)| tick)
+                .collect::<Vec<_>>(),
+            vec![Tick(4), Tick(8), Tick(12)],
+        );
     }
 
     #[test]
@@ -933,7 +909,14 @@ mod tests {
         assert!(clients.is_empty());
         assert_eq!(bad_data_clients.len(), 1);
         let BadDataClient { info, error } = bad_data_clients.remove(0);
-        assert!(matches!(error, BadData::MalformedEvent(_)));
+        assert_eq!(
+            error,
+            BadData::RejectedEvent(BuildRejection {
+                tick: Tick(4),
+                kind: event::Type::PlayerUpdate,
+                reason: RejectionReason::MissingPayload("player"),
+            }),
+        );
         assert_eq!(info.id, ClientId(1));
         assert_eq!(info.status, StageStatus::Completed);
         assert_eq!(info.last_recorded_tick, Tick(8));
@@ -969,117 +952,75 @@ mod tests {
         assert_eq!(
             client.consistency_issues,
             vec![ConsistencyIssue::LargeJump {
-                player: "1Ogp",
+                player: client
+                    .recording
+                    .party_index(&Rsn::try_from("1Ogp").unwrap())
+                    .unwrap(),
                 tick: Tick(5),
                 last_tick: Tick(4),
-                start: Coords { x: 3296, y: 4249 },
-                end: Coords { x: 3306, y: 4249 },
+                start: Point(3296, 4249),
+                end: Point(3306, 4249),
             }],
         );
     }
 
     #[test]
-    fn sote_pivots_are_extracted_into_stage_data() {
-        use event::sote_maze::Maze;
-        use fixtures::SoteMazePath;
-
-        let challenge = test_challenge(Stage::TobSotetseg);
-        let mut events: Vec<TaggedEvent> = vec![
-            fixtures::sote_maze_proc_event(Tick(106), Maze::Maze33),
-            fixtures::sote_maze_path_event(
-                Tick(112),
-                Maze::Maze33,
-                SoteMazePath::OverworldTiles(&[(7, 0)]),
-            ),
-            fixtures::sote_maze_path_event(
-                Tick(124),
-                Maze::Maze33,
-                SoteMazePath::OverworldPivots(&[
-                    (7, 0),
-                    (10, 2),
-                    (11, 4),
-                    (12, 6),
-                    (10, 8),
-                    (9, 10),
-                    (11, 12),
-                    (12, 14),
-                ]),
-            ),
-            fixtures::sote_maze_end_event(Tick(124), Maze::Maze33, Some("1Ogp")),
-        ]
-        .into_iter()
-        .map(|event| TaggedEvent::new(ClientId(1), event))
-        .collect();
-
-        let mut parser = StreamParser::new(ClientId(1), &challenge, Stage::TobSotetseg);
-        parser.preprocess_events(&mut events).expect("good");
-
-        let StageData::Sotetseg { pivots } = &parser.stage_data else {
-            panic!("sotetseg collects stage data");
-        };
-        assert_eq!(pivots.len(), 1);
-        assert_eq!(pivots[0].maze, Maze::Maze33);
-        assert_eq!(pivots[0].underworld, []);
-        assert_eq!(
-            pivots[0].overworld,
-            vec![
-                Coords { x: 7, y: 0 },
-                Coords { x: 10, y: 2 },
-                Coords { x: 11, y: 4 },
-                Coords { x: 12, y: 6 },
-                Coords { x: 10, y: 8 },
-                Coords { x: 9, y: 10 },
-                Coords { x: 11, y: 12 },
-                Coords { x: 12, y: 14 },
-            ],
-        );
-
-        let remaining: Vec<(u32, event::Type)> = events
-            .iter()
-            .map(|event| (event.tick, event.r#type()))
-            .collect();
-        assert_eq!(
-            remaining,
-            vec![
-                (106, event::Type::TobSoteMazeProc),
-                (112, event::Type::TobSoteMazePath),
-                (124, event::Type::TobSoteMazeEnd),
-            ],
-        );
-    }
-
-    #[test]
     fn unknown_action_targets_are_cleared_and_flagged() {
+        let message = ChallengeEvents {
+            events: vec![
+                fixtures::PlayerUpdateEvent::new(Tick(4), Stage::TobMaiden, "1Ogp", (0, 0)).build(),
+                fixtures::npc_update_event(fixtures::NpcEvent {
+                    tick: Tick(4),
+                    stage: Stage::TobMaiden,
+                    npc_id: 8360,
+                    room_id: 1001,
+                    ..Default::default()
+                }),
+                fixtures::npc_attack_event(
+                    Tick(4),
+                    Stage::TobMaiden,
+                    (0, 0),
+                    8360,
+                    1001,
+                    blert::NpcAttack::TobMaidenAuto,
+                    Some("aSaradomin"),
+                ),
+                fixtures::player_spell_event(
+                    Tick(4),
+                    Stage::TobMaiden,
+                    (0, 0),
+                    "1Ogp",
+                    blert::PlayerSpell::HealOther,
+                    Some(event::spell::Target::TargetPlayer("aSaradomin".to_string())),
+                ),
+            ],
+            ..Default::default()
+        };
         let challenge = test_challenge(Stage::TobMaiden);
-        let mut events: Vec<TaggedEvent> = vec![
-            fixtures::npc_attack_event(
-                Tick(4),
-                Stage::TobMaiden,
-                (0, 0),
-                8360,
-                1001,
-                blert::NpcAttack::TobMaidenAuto,
-                Some("aSaradomin"),
-            ),
-            fixtures::player_spell_event(
-                Tick(4),
-                Stage::TobMaiden,
-                (0, 0),
-                "1Ogp",
-                blert::PlayerSpell::HealOther,
-                Some(event::spell::Target::TargetPlayer("aSaradomin".to_string())),
-            ),
-        ]
-        .into_iter()
-        .map(|event| TaggedEvent::new(ClientId(1), event))
-        .collect();
-
-        let mut parser = StreamParser::new(ClientId(1), &challenge, Stage::TobMaiden);
-        parser.preprocess_events(&mut events).expect("good");
-
-        assert!(matches!(parser.anomalies[..], [Anomaly::UnknownPlayer]));
-        assert_eq!(events.len(), 2);
-        assert_eq!(events[0].npc_attack.as_ref().expect("kept").target, None);
-        assert_eq!(events[1].player_spell.as_ref().expect("kept").target, None);
+        let (mut clients, bad_data_clients) = from_stage_stream(
+            &challenge,
+            Stage::TobMaiden,
+            &[
+                ClientStageStream::Events {
+                    client_id: ClientId(1),
+                    events: Bytes::from(message.encode_to_vec()),
+                },
+                end(1, StageStatus::Completed, 8),
+            ],
+        );
+        assert!(bad_data_clients.is_empty());
+        assert_eq!(clients.len(), 1);
+        let client = clients.remove(0);
+        assert!(matches!(client.anomalies[..], [Anomaly::UnknownPlayer]));
+        let targets: Vec<_> = client
+            .recording
+            .events_for_tick(Tick(4))
+            .filter_map(|event| match &event.kind {
+                EventKind::NpcAttack(attack) => Some(attack.target),
+                EventKind::PlayerSpell(cast) => Some(cast.target),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(targets, vec![None, None]);
     }
 }

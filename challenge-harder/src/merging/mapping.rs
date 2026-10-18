@@ -243,11 +243,6 @@ impl MergeMapping {
         self.in_flight = None;
     }
 
-    /// The target client's ID for the in-flight step, if one is in progress.
-    pub fn target_client_id(&self) -> Option<ClientId> {
-        self.in_flight.as_ref().map(|entry| entry.target_client_id)
-    }
-
     /// Returns the active merge step's mappings if one is in progress.
     pub fn current_step(&self) -> Option<&Mappings> {
         self.in_flight.as_ref().map(|entry| &entry.mappings)

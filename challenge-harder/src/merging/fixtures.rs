@@ -2,22 +2,19 @@
 
 use std::collections::BTreeMap;
 
-use blert::proto::event::attack_style::Style;
 use blert::proto::event::sote_maze::Maze;
 use blert::proto::event::{VerzikPhase, XarpusPhase};
 use blert::proto::{Coords, Event, event};
 use blert::{
-    BuildRejection, ConfigVersion, ItemDelta, NpcAttack, PlayerAttack, PlayerSpell, PrayerSet,
-    RecordingBuilder, Rsn, SkillLevel,
+    BuildRejection, ConfigVersion, ItemDelta, NpcAttack, PartyIndex, PlayerAttack, PlayerSpell,
+    PrayerSet, Recording, RecordingBuilder, Rsn, SkillLevel, Timeline,
 };
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
 
 use super::client_consistency::ConsistencyIssue;
-use super::client_events::{ClientEvents, ReportedInfo, StageData};
-use super::event::TaggedEvent;
+use super::client_events::{ClientEvents, ReportedInfo};
 use super::mapping::MergeMapping;
-use super::timeline::Timeline;
 use super::{
     ChallengeInfo, Classification, MergeContext, MergedTimeline, Metadata, RegisteredClient,
     StepResult, Tick, Ticks,
@@ -44,8 +41,14 @@ pub fn merged_events(
         ServerTicks::Missing => events.last().map_or(0, |e| e.tick),
     };
     let recorded_ticks = events.last().map_or(0, |e| e.tick + 1);
-    let mut builder =
-        RecordingBuilder::new(ClientId(1), ConfigVersion::LATEST, stage, mode, party, None);
+    let mut builder = RecordingBuilder::new(
+        ClientId(1),
+        ConfigVersion::LATEST,
+        stage,
+        mode,
+        party,
+        Some(Tick(last_tick)),
+    );
     builder.ingest(events);
     assert_eq!(
         builder.rejections().collect::<Vec<_>>(),
@@ -59,8 +62,6 @@ pub fn merged_events(
         timeline,
         Metadata {
             status,
-            last_tick: Tick(last_tick),
-            missing_tick_count: last_tick.saturating_sub(recorded_ticks),
             offset: match server_ticks {
                 ServerTicks::Precise(_) | ServerTicks::Rounded(_) => {
                     Ticks(last_tick.saturating_sub(recorded_ticks))
@@ -89,36 +90,39 @@ pub(super) fn challenge_info(
     }
 }
 
-pub(super) struct ClientBuilder<'a> {
+pub(super) struct ClientBuilder {
     id: ClientId,
-    stage: Stage,
-    last_recorded_tick: Tick,
-    primary_player: Option<&'a str>,
-    consistency_issues: Vec<ConsistencyIssue<'a>>,
+    recording: Recording,
+    primary_player: Option<PartyIndex>,
+    consistency_issues: Vec<ConsistencyIssue>,
 }
 
-impl<'a> ClientBuilder<'a> {
-    pub(super) fn new(id: u32, stage: Stage, last_recorded_tick: Tick) -> Self {
+impl ClientBuilder {
+    pub(super) fn new(id: u32, recording: Recording) -> Self {
         Self {
             id: ClientId(id),
-            stage,
-            last_recorded_tick,
+            recording,
             primary_player: None,
             consistency_issues: Vec::new(),
         }
     }
 
-    pub(super) fn primary_player(mut self, name: &'a str) -> Self {
-        self.primary_player = Some(name);
+    pub(super) fn primary_player(mut self, name: &str) -> Self {
+        let rsn = Rsn::try_from(name).expect("valid rsn");
+        let player = self
+            .recording
+            .party_index(&rsn)
+            .expect("primary player is in the party");
+        self.primary_player = Some(player);
         self
     }
 
-    pub(super) fn consistency_issue(mut self, issue: ConsistencyIssue<'a>) -> Self {
+    pub(super) fn consistency_issue(mut self, issue: ConsistencyIssue) -> Self {
         self.consistency_issues.push(issue);
         self
     }
 
-    pub(super) fn build(self) -> ClientEvents<'a> {
+    pub(super) fn build(self) -> ClientEvents {
         ClientEvents {
             info: ReportedInfo {
                 id: self.id,
@@ -126,70 +130,32 @@ impl<'a> ClientBuilder<'a> {
                 primary_player: self.primary_player,
                 status: StageStatus::Completed,
                 reported_accurate: true,
-                last_recorded_tick: self.last_recorded_tick,
+                last_recorded_tick: self.recording.last_tick(),
                 server_ticks: None,
             },
-            timeline: Timeline::build(&[], self.last_recorded_tick, Vec::new())
-                .expect("an empty recording is well formed"),
+            recording: self.recording,
             accurate: true,
-            stage_data: StageData::new(self.stage),
             anomalies: Vec::new(),
             consistency_issues: self.consistency_issues,
         }
     }
 }
 
-pub(super) fn merge_context<'a>(
-    challenge: &'a ChallengeInfo<'a>,
-    stage: Stage,
-) -> MergeContextBuilder<'a> {
+pub(super) fn merge_context<'a>(challenge: &'a ChallengeInfo<'a>) -> MergeContextBuilder<'a> {
     MergeContextBuilder {
         challenge,
-        stage,
         clients: Vec::new(),
     }
 }
 
 pub(super) struct MergeContextBuilder<'a> {
     challenge: &'a ChallengeInfo<'a>,
-    stage: Stage,
-    clients: Vec<ClientEvents<'a>>,
+    clients: Vec<ClientEvents>,
 }
 
 impl<'a> MergeContextBuilder<'a> {
-    pub(super) fn client(mut self, client: ClientEvents<'a>) -> Self {
+    pub(super) fn client(mut self, client: ClientEvents) -> Self {
         self.clients.push(client);
-        self
-    }
-
-    pub(super) fn recording(
-        mut self,
-        accurate: bool,
-        last_recorded_tick: Tick,
-        events: Vec<Event>,
-    ) -> Self {
-        let client_id = ClientId(u32::try_from(self.clients.len() + 1).expect("few clients"));
-        let events = events
-            .into_iter()
-            .map(|event| TaggedEvent::new(client_id, event))
-            .collect();
-        self.clients.push(ClientEvents {
-            info: ReportedInfo {
-                id: client_id,
-                plugin_info: None,
-                primary_player: None,
-                status: StageStatus::Completed,
-                reported_accurate: accurate,
-                last_recorded_tick,
-                server_ticks: None,
-            },
-            timeline: Timeline::build(self.challenge.party, last_recorded_tick, events)
-                .expect("fixture events are well formed"),
-            accurate,
-            stage_data: StageData::new(self.stage),
-            anomalies: Vec::new(),
-            consistency_issues: Vec::new(),
-        });
         self
     }
 
@@ -219,7 +185,6 @@ impl<'a> MergeContextBuilder<'a> {
             .collect();
         MergeContext {
             challenge: self.challenge,
-            stage: self.stage,
             clients,
             mapping: MergeMapping::new(base_client_id),
             contested_ticks: BTreeMap::new(),
@@ -227,20 +192,40 @@ impl<'a> MergeContextBuilder<'a> {
     }
 }
 
-pub(super) fn timeline(
+pub(super) fn recording(
+    client_id: ClientId,
+    stage: Stage,
+    mode: ChallengeMode,
     party: &[Rsn],
-    last_recorded_tick: Tick,
+    last_tick: Tick,
     events: Vec<Event>,
-) -> Timeline<'_> {
-    Timeline::build(
-        party,
-        last_recorded_tick,
-        events
-            .into_iter()
-            .map(|event| TaggedEvent::new(ClientId(1), event))
-            .collect(),
-    )
-    .expect("fixture events are well formed")
+) -> Recording {
+    let mut builder = RecordingBuilder::new(
+        client_id,
+        ConfigVersion::LATEST,
+        stage,
+        mode,
+        party.to_vec(),
+        Some(last_tick),
+    );
+    builder.ingest(events);
+    assert_eq!(
+        builder.rejections().collect::<Vec<_>>(),
+        [] as [&BuildRejection; 0]
+    );
+    builder
+        .into_recording()
+        .expect("fixture builds a recording")
+}
+
+pub(super) fn timeline(
+    stage: Stage,
+    mode: ChallengeMode,
+    party: &[Rsn],
+    last_tick: Tick,
+    events: Vec<Event>,
+) -> Timeline {
+    recording(ClientId(1), stage, mode, party, last_tick, events).finalize()
 }
 
 pub struct PlayerUpdateEvent<'a> {
@@ -299,10 +284,24 @@ impl<'a> PlayerUpdateEvent<'a> {
             ..Default::default()
         };
         event.set_type(event::Type::PlayerUpdate);
+        let level = (self.source == event::player::DataSource::Primary).then_some(
+            SkillLevel {
+                current: 99,
+                base: 99,
+            }
+            .to_raw(),
+        );
         event.player = Some(event::Player {
             name: self.name.to_string(),
             party_index: self.party_index,
             data_source: self.source as i32,
+            hitpoints: level,
+            prayer: level,
+            attack: level,
+            strength: level,
+            defence: level,
+            ranged: level,
+            magic: level,
             equipment_deltas: self
                 .equipment_deltas
                 .iter()
@@ -697,20 +696,6 @@ pub fn verzik_bounce_event(
         players_in_range,
         players_not_in_range,
         bounced_player: bounced_player.map(str::to_string),
-    });
-    event
-}
-
-pub fn verzik_attack_style_event(tick: Tick, npc_attack_tick: Tick, style: Style) -> Event {
-    let mut event = Event {
-        tick: tick.0,
-        stage: Stage::TobVerzik as i32,
-        ..Default::default()
-    };
-    event.set_type(event::Type::TobVerzikAttackStyle);
-    event.verzik_attack_style = Some(event::AttackStyle {
-        style: style as i32,
-        npc_attack_tick: npc_attack_tick.0,
     });
     event
 }

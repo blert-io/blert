@@ -395,7 +395,7 @@ fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<s
 
     report.merge = Some(Summary {
         status: merged.status(),
-        last_tick: merged.last_tick(),
+        last_tick: merged.timeline().last_tick(),
         missing_tick_count: merged.missing_tick_count(),
         precise_server_tick_count: merged.has_precise_server_tick_count(),
         accurate_until: merged.accurate_until(),

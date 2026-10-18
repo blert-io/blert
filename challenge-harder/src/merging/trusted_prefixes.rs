@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::{Tick, Ticks};
+use blert::{Actor, EventKind, Tick, Ticks, Timeline};
 
 use crate::lifecycle::core::types::ClientId;
 
@@ -14,8 +14,6 @@ use super::{MergeContext, RegisteredClient, StepResult};
 
 #[derive(Debug)]
 pub(super) struct TimelineInfo {
-    /// Final tick of the merged timeline.
-    pub last_tick: Tick,
     /// Leading offset applied by end alignment.
     pub offset: Ticks,
     /// Whether the merged output inherited accuracy from an accurate base.
@@ -171,10 +169,16 @@ fn support_at_tick(
 }
 
 /// Computes the accurate and queryable prefixes of a merged timeline.
-pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) -> TrustedPrefixes {
+pub(super) fn compute_trusted_prefixes(
+    ctx: &MergeContext,
+    timeline: &Timeline,
+    info: &TimelineInfo,
+) -> TrustedPrefixes {
     let contributors = collect_contributors(ctx);
 
-    let mut accurate_until = info.inherited_accuracy.then_some(info.last_tick.succ());
+    let mut accurate_until = info
+        .inherited_accuracy
+        .then_some(timeline.last_tick().succ());
     let mut queryable_until = None;
 
     // A precise server count whose length the timeline matches exactly proves
@@ -183,7 +187,7 @@ pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) 
         info.offset == 0 && matches!(info.reference_method, ReferenceMethod::PreciseServer);
 
     let offset_tick = Tick::at(info.offset);
-    for m in info.last_tick.up_to_inclusive() {
+    for m in timeline.last_tick().up_to_inclusive() {
         let support = if m >= offset_tick {
             support_at_tick(
                 m - info.offset,
@@ -207,7 +211,21 @@ pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) 
         if queryable_until.is_none() {
             let has_timing_issues = !info.inherited_accuracy && lacks_sufficient_contributors;
             let too_few_clean_clients = support.clean_count < support.contiguous_count.min(2);
-            let has_data_issues = support.contested || too_few_clean_clients;
+            // A death without a player on the same tick means that it was
+            // observed through some secondary means (e.g. a varbit) and not
+            // directly. Its tick is not exact, so restrict queryablility there.
+            // TODO(frolv): This should move into a more general function that
+            // identifies issues that should cause restriction.
+            let has_death_without_state = timeline.get_state(m).is_some_and(|state| {
+                state.events.iter().any(|event| {
+                    matches!(
+                        event.kind,
+                        EventKind::PlayerDeath(player) if !state.has_actor(Actor::Player(player))
+                    )
+                })
+            });
+            let has_data_issues =
+                support.contested || too_few_clean_clients || has_death_without_state;
             if has_timing_issues || has_data_issues {
                 queryable_until = Some(m);
             }
@@ -219,15 +237,14 @@ pub(super) fn compute_trusted_prefixes(ctx: &MergeContext, info: &TimelineInfo) 
     }
 
     TrustedPrefixes {
-        accurate_until: accurate_until.unwrap_or(info.last_tick.succ()),
-        queryable_until: queryable_until.unwrap_or(info.last_tick.succ()),
+        accurate_until: accurate_until.unwrap_or(timeline.last_tick().succ()),
+        queryable_until: queryable_until.unwrap_or(timeline.last_tick().succ()),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use blert::Rsn;
-    use blert::proto::Coords;
+    use blert::{Point, Recording, Rsn};
 
     use super::*;
     use crate::lifecycle::core::types::{ChallengeMode, Stage};
@@ -272,14 +289,27 @@ mod tests {
     fn inherited_accuracy_spans_the_full_timeline_ignoring_coverage() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording.clone())
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(2, recording)
                     .primary_player(PARTY[1].as_str())
                     .build(),
             )
@@ -289,8 +319,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: true,
                     reference_method: ReferenceMethod::AccurateModal,
@@ -307,14 +337,27 @@ mod tests {
     fn two_clients_viewing_the_full_timeline_promote_it() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording.clone())
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(2, recording)
                     .primary_player(PARTY[1].as_str())
                     .build(),
             )
@@ -324,8 +367,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
@@ -342,14 +385,27 @@ mod tests {
     fn accuracy_ends_where_there_are_fewer_than_two_clients() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording.clone())
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(2, recording)
                     .primary_player(PARTY[1].as_str())
                     .build(),
             )
@@ -359,8 +415,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
@@ -377,9 +433,22 @@ mod tests {
     fn a_single_client_timeline_cannot_be_promoted() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording)
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
@@ -388,8 +457,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
@@ -406,17 +475,30 @@ mod tests {
     fn spectators_cannot_promote_a_timeline_without_server_ticks() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
-            .client(fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK).build())
-            .client(fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK).build())
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
+            .client(fixtures::ClientBuilder::new(1, recording.clone()).build())
+            .client(fixtures::ClientBuilder::new(2, recording).build())
             .build();
         commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
 
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
@@ -433,21 +515,37 @@ mod tests {
     fn spectators_can_promote_a_timeline_with_a_precise_server_count_and_zero_offset() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
-            .client(fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK).build())
-            .client(fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK).build())
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
+            .client(fixtures::ClientBuilder::new(1, recording.clone()).build())
+            .client(fixtures::ClientBuilder::new(2, recording).build())
             .build();
         commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
 
         let info = |method: ReferenceMethod, offset: Ticks| TimelineInfo {
-            last_tick: LAST_TICK,
             offset,
             inherited_accuracy: false,
             reference_method: method,
         };
 
         assert_eq!(
-            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::PreciseServer, Ticks(0))),
+            compute_trusted_prefixes(
+                &ctx,
+                &timeline,
+                &info(ReferenceMethod::PreciseServer, Ticks(0)),
+            ),
             TrustedPrefixes {
                 accurate_until: Tick(10),
                 queryable_until: Tick(10),
@@ -455,7 +553,11 @@ mod tests {
         );
 
         assert_eq!(
-            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::ImpreciseServer, Ticks(0))),
+            compute_trusted_prefixes(
+                &ctx,
+                &timeline,
+                &info(ReferenceMethod::ImpreciseServer, Ticks(0)),
+            ),
             TrustedPrefixes {
                 accurate_until: Tick(0),
                 queryable_until: Tick(0),
@@ -463,7 +565,11 @@ mod tests {
         );
 
         assert_eq!(
-            compute_trusted_prefixes(&ctx, &info(ReferenceMethod::PreciseServer, Ticks(1))),
+            compute_trusted_prefixes(
+                &ctx,
+                &timeline,
+                &info(ReferenceMethod::PreciseServer, Ticks(1)),
+            ),
             TrustedPrefixes {
                 accurate_until: Tick(0),
                 queryable_until: Tick(0),
@@ -475,21 +581,35 @@ mod tests {
     fn accuracy_ends_at_a_client_consistency_issue() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let player = recording.party_index(&PARTY[1]).unwrap();
+        let mut ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording.clone())
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(2, recording)
                     .primary_player(PARTY[1].as_str())
                     .consistency_issue(ConsistencyIssue::LargeJump {
-                        player: PARTY[1].as_str(),
+                        player,
                         tick: Tick(4),
                         last_tick: Tick(3),
-                        start: Coords { x: 3168, y: 4436 },
-                        end: Coords { x: 3184, y: 4450 },
+                        start: Point(3168, 4436),
+                        end: Point(3184, 4450),
                     })
                     .build(),
             )
@@ -499,8 +619,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
@@ -517,9 +637,22 @@ mod tests {
     fn queryable_ends_at_a_contested_tick() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording)
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
@@ -530,8 +663,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: true,
                     reference_method: ReferenceMethod::AccurateModal,
@@ -548,14 +681,27 @@ mod tests {
     fn queryable_ends_at_a_contested_tick_before_coverage_loss() {
         const LAST_TICK: Tick = Tick(9);
         let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
-        let mut ctx = fixtures::merge_context(&challenge, Stage::TobMaiden)
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            Vec::new(),
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
             .client(
-                fixtures::ClientBuilder::new(1, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(1, recording.clone())
                     .primary_player(PARTY[0].as_str())
                     .build(),
             )
             .client(
-                fixtures::ClientBuilder::new(2, Stage::TobMaiden, LAST_TICK)
+                fixtures::ClientBuilder::new(2, recording)
                     .primary_player(PARTY[1].as_str())
                     .build(),
             )
@@ -567,8 +713,8 @@ mod tests {
         assert_eq!(
             compute_trusted_prefixes(
                 &ctx,
+                &timeline,
                 &TimelineInfo {
-                    last_tick: LAST_TICK,
                     offset: Ticks(0),
                     inherited_accuracy: false,
                     reference_method: ReferenceMethod::RecordedTicks,
@@ -577,6 +723,72 @@ mod tests {
             TrustedPrefixes {
                 accurate_until: Tick(7),
                 queryable_until: Tick(3),
+            },
+        );
+    }
+
+    #[test]
+    fn queryable_ends_at_a_death_without_state() {
+        const LAST_TICK: Tick = Tick(9);
+        let challenge = challenge_for(Stage::TobMaiden, ChallengeMode::TobRegular);
+        let recording = Recording::vacant(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party.to_vec(),
+            LAST_TICK,
+        );
+        let timeline = fixtures::timeline(
+            Stage::TobMaiden,
+            challenge.mode,
+            challenge.party,
+            LAST_TICK,
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(3), Stage::TobMaiden, "1Ogp", (3176, 4441))
+                    .build(),
+                fixtures::player_death_event(Tick(3), Stage::TobMaiden, (3176, 4441), "1Ogp", 0),
+                fixtures::PlayerUpdateEvent::new(
+                    Tick(6),
+                    Stage::TobMaiden,
+                    "WWWWWWWWWWQQ",
+                    (3169, 4448),
+                )
+                .build(),
+                fixtures::player_death_event(
+                    Tick(7),
+                    Stage::TobMaiden,
+                    (3169, 4448),
+                    "WWWWWWWWWWQQ",
+                    1,
+                ),
+            ],
+        );
+        let mut ctx = fixtures::merge_context(&challenge)
+            .client(
+                fixtures::ClientBuilder::new(1, recording.clone())
+                    .primary_player(PARTY[0].as_str())
+                    .build(),
+            )
+            .client(
+                fixtures::ClientBuilder::new(2, recording)
+                    .primary_player(PARTY[1].as_str())
+                    .build(),
+            )
+            .build();
+        commit_mapping_step(&mut ctx, LAST_TICK, ClientId(2), LAST_TICK);
+
+        assert_eq!(
+            compute_trusted_prefixes(
+                &ctx,
+                &timeline,
+                &TimelineInfo {
+                    offset: Ticks(0),
+                    inherited_accuracy: false,
+                    reference_method: ReferenceMethod::RecordedTicks,
+                },
+            ),
+            TrustedPrefixes {
+                accurate_until: Tick(10),
+                queryable_until: Tick(7),
             },
         );
     }

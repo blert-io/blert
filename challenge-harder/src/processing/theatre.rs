@@ -1146,7 +1146,7 @@ impl ChallengeProcessor for TheatreProcessor {
         stage: Stage,
         merged: &MergedTimeline,
     ) -> Result<ChallengeTicks, db::Error> {
-        let last_tick = merged.last_tick();
+        let last_tick = merged.timeline().last_tick();
 
         let mut chin_prices: HashMap<u32, i32> = HashMap::new();
         for chin in &self.chins_thrown {

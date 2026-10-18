@@ -2,12 +2,9 @@
 
 #![cfg_attr(not(test), expect(dead_code))]
 
-use blert::proto::event;
-use blert::proto::event::player::EquipmentSlot;
-use blert::{NpcAttack, PlayerAttack, SkillLevel, npc};
+use blert::{Actor, EquipmentSlot, EventKind, NpcAttack, PlayerAttack, SkillLevel, TickState, npc};
 
-use super::event::{normalize_npc_attack, normalize_player_attack};
-use super::timeline::{Actor, Sourced, Target, TickState};
+use super::event::{AttackPairing, normalize_npc_attack, normalize_player_attack, pair_attacks};
 
 const VISIBLE_EQUIPMENT_SLOTS: [EquipmentSlot; 9] = [
     EquipmentSlot::Head,
@@ -169,8 +166,8 @@ impl SimilarityScorer {
         let weights = &self.weights;
         let mut score = 0.0;
 
-        for (room_id, state_a) in tick_a.npcs() {
-            let Some(state_b) = tick_b.npc(room_id) else {
+        for (room_id, state_a) in &tick_a.npcs {
+            let Some(state_b) = tick_b.npcs.get(room_id) else {
                 continue;
             };
 
@@ -201,16 +198,17 @@ impl SimilarityScorer {
     }
 
     fn score_player_attacks(&self, tick_a: &TickState, tick_b: &TickState) -> f64 {
-        fn transform<'t>(tick: &'t TickState<'_>) -> Vec<Attack<'t, PlayerAttack>> {
-            tick.players()
-                .filter_map(|(name, state)| {
-                    let attack = state.attack.as_ref()?;
-                    Some(Attack {
-                        actor: Actor::Player(name),
-                        target: attack.value.target.as_ref(),
-                        kind: attack.value.kind,
-                        secondary_id: attack.value.weapon.map_or(0, |weapon| weapon.id),
-                    })
+        fn transform(tick: &TickState) -> Vec<Attack<PlayerAttack>> {
+            tick.events
+                .iter()
+                .filter_map(|event| match &event.kind {
+                    EventKind::PlayerAttack(attacked) => Some(Attack {
+                        actor: Actor::Player(attacked.player),
+                        target: attacked.target,
+                        kind: attacked.attack,
+                        secondary_id: attacked.weapon.map_or(0, |weapon| weapon.id),
+                    }),
+                    _ => None,
                 })
                 .collect()
         }
@@ -231,16 +229,17 @@ impl SimilarityScorer {
     }
 
     fn score_npc_attacks(&self, tick_a: &TickState, tick_b: &TickState) -> f64 {
-        fn transform<'t>(tick: &'t TickState<'_>) -> Vec<Attack<'t, NpcAttack>> {
-            tick.npcs()
-                .filter_map(|(room_id, state)| {
-                    let attack = state.attack.as_ref()?;
-                    Some(Attack {
-                        actor: Actor::Npc(room_id),
-                        target: attack.value.target.as_ref(),
-                        kind: attack.value.kind,
+        fn transform(tick: &TickState) -> Vec<Attack<NpcAttack>> {
+            tick.events
+                .iter()
+                .filter_map(|event| match &event.kind {
+                    EventKind::NpcAttack(attacked) => Some(Attack {
+                        actor: Actor::Npc(attacked.npc),
+                        target: attacked.target,
+                        kind: attacked.attack,
                         secondary_id: 0,
-                    })
+                    }),
+                    _ => None,
                 })
                 .collect()
         }
@@ -263,8 +262,8 @@ impl SimilarityScorer {
     fn score_prayers(&self, tick_a: &TickState, tick_b: &TickState) -> f64 {
         let mut score = 0.0;
 
-        for (name, state_a) in tick_a.players() {
-            let Some(state_b) = tick_b.player(name) else {
+        for (index, state_a) in tick_a.players.iter() {
+            let Some(state_b) = tick_b.players.get(index) else {
                 continue;
             };
 
@@ -290,32 +289,30 @@ impl SimilarityScorer {
     fn score_deaths(&self, tick_a: &TickState, tick_b: &TickState) -> f64 {
         let mut score = 0.0;
 
-        for (name, _) in tick_a.players() {
-            if tick_b.player(name).is_none() {
+        for (index, _) in tick_a.players.iter() {
+            if tick_b.players.get(index).is_none() {
                 continue;
             }
 
             let died = |tick: &TickState| {
-                tick.events_of_type(event::Type::PlayerDeath).any(|event| {
-                    event
-                        .player
-                        .as_ref()
-                        .is_some_and(|player| player.name == name)
-                })
+                tick.events
+                    .iter()
+                    .any(|event| event.kind == EventKind::PlayerDeath(index))
             };
             if died(tick_a) && died(tick_b) {
                 score += self.weights.player_death_positive_signal;
             }
         }
 
-        for (room_id, _) in tick_a.npcs() {
-            if tick_b.npc(room_id).is_none() {
+        for room_id in tick_a.npcs.keys() {
+            if !tick_b.npcs.contains_key(room_id) {
                 continue;
             }
 
             let died = |tick: &TickState| {
-                tick.events_of_type(event::Type::NpcDeath)
-                    .any(|event| event.npc.as_ref().is_some_and(|npc| npc.room_id == room_id))
+                tick.events.iter().any(
+                    |event| matches!(&event.kind, EventKind::NpcDeath(death) if death.npc == *room_id),
+                )
             };
             if died(tick_a) && died(tick_b) {
                 score += self.weights.npc_death_positive_signal;
@@ -342,24 +339,20 @@ fn check_compatibility(tick_a: &TickState, tick_b: &TickState) -> Option<u32> {
 fn check_player_compatibility(tick_a: &TickState, tick_b: &TickState) -> Option<u32> {
     let mut count = 0;
 
-    for (name, state_a) in tick_a.players() {
-        let Some(state_b) = tick_b.player(name) else {
+    for (index, state_a) in tick_a.players.iter() {
+        let Some(state_b) = tick_b.players.get(index) else {
             continue;
         };
 
         count += 1;
-
-        // `died` is deliberately ignored, as it can come from various sources
-        // (HP reaching 0, orb varbits, etc.) which can be affected by lag or
-        // internal game client delays.
 
         if state_a.position != state_b.position {
             return None;
         }
 
         for slot in VISIBLE_EQUIPMENT_SLOTS {
-            let id_a = state_a.equipment[slot as usize].map(|item| item.id);
-            let id_b = state_b.equipment[slot as usize].map(|item| item.id);
+            let id_a = state_a.equipped(slot).map(|item| item.id);
+            let id_b = state_b.equipped(slot).map(|item| item.id);
             if id_a != id_b {
                 return None;
             }
@@ -376,8 +369,8 @@ fn check_player_compatibility(tick_a: &TickState, tick_b: &TickState) -> Option<
 fn check_npc_compatibility(tick_a: &TickState, tick_b: &TickState) -> Option<u32> {
     let mut count = 0;
 
-    for (room_id, state_a) in tick_a.npcs() {
-        let Some(state_b) = tick_b.npc(room_id) else {
+    for (room_id, state_a) in &tick_a.npcs {
+        let Some(state_b) = tick_b.npcs.get(room_id) else {
             continue;
         };
 
@@ -414,9 +407,9 @@ fn normalize_hitpoints(hitpoints: SkillLevel) -> f64 {
 }
 
 /// An attack recorded on a tick.
-struct Attack<'a, K> {
-    actor: Actor<'a>,
-    target: Option<&'a Sourced<Target<'a>>>,
+struct Attack<K> {
+    actor: Actor,
+    target: Option<Actor>,
     kind: K,
     secondary_id: u32,
 }
@@ -428,8 +421,8 @@ enum AttackComparison {
 }
 
 fn compare_attacks<K: PartialEq + Copy>(
-    a: &Attack<'_, K>,
-    b: &Attack<'_, K>,
+    a: &Attack<K>,
+    b: &Attack<K>,
     normalize: fn(K) -> K,
 ) -> AttackComparison {
     if a.secondary_id != b.secondary_id {
@@ -457,8 +450,8 @@ struct AttackScores {
 
 #[allow(clippy::similar_names)]
 fn score_attacks<A: PartialEq + Copy>(
-    tick_a: (&TickState, &[Attack<'_, A>]),
-    tick_b: (&TickState, &[Attack<'_, A>]),
+    tick_a: (&TickState, &[Attack<A>]),
+    tick_b: (&TickState, &[Attack<A>]),
     normalize: fn(A) -> A,
     scores: AttackScores,
 ) -> f64 {
@@ -467,33 +460,6 @@ fn score_attacks<A: PartialEq + Copy>(
 
     if attacks_a.is_empty() && attacks_b.is_empty() {
         return 0.0;
-    }
-
-    let has_actor = |tick: &TickState, actor: Actor| match actor {
-        Actor::Npc(room_id) => tick.npc(room_id).is_some(),
-        Actor::Player(name) => tick.player(name).is_some(),
-    };
-
-    // Each actor can only perform one attack per tick, so check whether the
-    // same actor performed the same attack in both tick states.
-    //
-    // First, categorize actors' attacks by whether they are present in both
-    // tick states, or only one, which will determine how the attack is scored.
-    let mut attacked_in_both = Vec::new();
-    let mut attacked_in_a_only = Vec::new();
-    let mut attacked_in_b_only = Vec::new();
-
-    for attack_a in attacks_a {
-        match attacks_b.iter().find(|b| b.actor == attack_a.actor) {
-            Some(attack_b) => attacked_in_both.push((attack_a, attack_b)),
-            None => attacked_in_a_only.push(attack_a.actor),
-        }
-    }
-
-    for attack_b in attacks_b {
-        if !attacks_a.iter().any(|a| a.actor == attack_b.actor) {
-            attacked_in_b_only.push(attack_b.actor);
-        }
     }
 
     let mut score: f64 = 0.0;
@@ -523,14 +489,36 @@ fn score_attacks<A: PartialEq + Copy>(
     // indicate a match, so we don't want to penalize these omissions or minor
     // inconsistencies. The weak negative penalty primarily exists for
     // tiebreaking.
-    for (a, b) in attacked_in_both {
+    let pairings = pair_attacks(
+        attacks_a,
+        attacks_b,
+        |attack| (attack.actor, attack.kind),
+        normalize,
+    );
+    for pairing in pairings {
+        let (a, b) = match pairing {
+            AttackPairing::Paired { base, target } => (base, target),
+            AttackPairing::BaseOnly(attack) => {
+                if tick_b.has_actor(attack.actor) {
+                    score += scores.weak_negative;
+                }
+                continue;
+            }
+            AttackPairing::TargetOnly(attack) => {
+                if tick_a.has_actor(attack.actor) {
+                    score += scores.weak_negative;
+                }
+                continue;
+            }
+        };
+
         match compare_attacks(a, b, normalize) {
             AttackComparison::Match => {}
             AttackComparison::AmbiguousProjectile => {
                 // Ambiguous attacks are not scored, but a contradictory target
                 // is still penalized.
                 if let (Some(target_a), Some(target_b)) = (a.target, b.target)
-                    && Actor::from(target_a) != Actor::from(target_b)
+                    && target_a != target_b
                 {
                     score += scores.contradictory;
                 }
@@ -544,21 +532,21 @@ fn score_attacks<A: PartialEq + Copy>(
 
         match (a.target, b.target) {
             (Some(target_a), Some(target_b)) => {
-                score += if Actor::from(target_a) == Actor::from(target_b) {
+                score += if target_a == target_b {
                     scores.positive
                 } else {
                     scores.contradictory
                 };
             }
             (Some(t), None) => {
-                score += if has_actor(tick_b, t.into()) {
+                score += if tick_b.has_actor(t) {
                     scores.weak_negative
                 } else {
                     scores.weak_positive
                 };
             }
             (None, Some(t)) => {
-                score += if has_actor(tick_a, t.into()) {
+                score += if tick_a.has_actor(t) {
                     scores.weak_negative
                 } else {
                     scores.weak_positive
@@ -570,42 +558,29 @@ fn score_attacks<A: PartialEq + Copy>(
         }
     }
 
-    for actor in attacked_in_a_only {
-        if has_actor(tick_b, actor) {
-            score += scores.weak_negative;
-        }
-    }
-
-    for actor in attacked_in_b_only {
-        if has_actor(tick_a, actor) {
-            score += scores.weak_negative;
-        }
-    }
-
     score.clamp(scores.min, scores.max)
 }
 
 #[cfg(test)]
 mod tests {
-    use blert::proto::Event;
-    use blert::{Item, ItemDelta, Prayer, PrayerBook, PrayerSet, Rsn, Slot, Tick, item};
+    use blert::proto::{Event, event};
+    use blert::{
+        ChallengeMode, Item, ItemDelta, Prayer, PrayerBook, PrayerSet, Rsn, Slot, Stage, Tick, item,
+    };
 
     use super::*;
-    use crate::lifecycle::core::types::Stage;
     use crate::merging::fixtures;
 
     const STAGE: Stage = Stage::TobMaiden;
 
     /// Builds the tick state a single client's events produce on `tick`.
-    fn tick_state(tick: Tick, events: Vec<Event>) -> TickState<'static> {
-        static PARTY: std::sync::LazyLock<Vec<Rsn>> = std::sync::LazyLock::new(|| {
-            vec![
-                Rsn::try_from("715").unwrap(),
-                Rsn::try_from("caps lock13").unwrap(),
-            ]
-        });
-        fixtures::timeline(&PARTY, tick, events)
-            .get(tick)
+    fn tick_state(tick: Tick, events: Vec<Event>) -> TickState {
+        let party = [
+            Rsn::try_from("715").unwrap(),
+            Rsn::try_from("caps lock13").unwrap(),
+        ];
+        fixtures::timeline(STAGE, ChallengeMode::TobRegular, &party, tick, events)
+            .get_state(tick)
             .expect("tick has recorded state")
             .clone()
     }
@@ -697,7 +672,13 @@ mod tests {
     #[test]
     fn no_shared_actors_scores_zero() {
         let base = tick_state(Tick(1), vec![player_update(Tick(1), "715", (5, 5), &[])]);
-        let actorless_target = tick_state(Tick(1), vec![fixtures::bloat_up_event(Tick(1))]);
+        let actorless_target = tick_state(
+            Tick(1),
+            vec![fixtures::maiden_blood_splats_event(
+                Tick(1),
+                &[(3184, 4447)],
+            )],
+        );
         assert_eq!(SimilarityScorer::new().score(&base, &actorless_target), 0.0);
 
         let disjoint_target = tick_state(
@@ -1314,6 +1295,158 @@ mod tests {
     }
 
     #[test]
+    fn matching_verzik_ball_tick_attacks_score_each_pair() {
+        let party = [Rsn::try_from("1Ogp").unwrap()];
+        let ball_tick = || {
+            fixtures::timeline(
+                Stage::TobVerzik,
+                ChallengeMode::TobHard,
+                &party,
+                Tick(3),
+                vec![
+                    fixtures::PlayerUpdateEvent::new(
+                        Tick(3),
+                        Stage::TobVerzik,
+                        "1Ogp",
+                        (3168, 4313),
+                    )
+                    .build(),
+                    fixtures::npc_spawn_event(fixtures::NpcEvent {
+                        tick: Tick(3),
+                        stage: Stage::TobVerzik,
+                        coords: (3165, 4309),
+                        npc_id: npc::id::VERZIK_P3_HARD,
+                        room_id: 60329,
+                        ..Default::default()
+                    }),
+                    fixtures::npc_attack_event(
+                        Tick(3),
+                        Stage::TobVerzik,
+                        (3165, 4309),
+                        npc::id::VERZIK_P3_HARD,
+                        60329,
+                        NpcAttack::TobVerzikP3Ball,
+                        Some("1Ogp"),
+                    ),
+                    fixtures::npc_attack_event(
+                        Tick(3),
+                        Stage::TobVerzik,
+                        (3165, 4309),
+                        npc::id::VERZIK_P3_HARD,
+                        60329,
+                        NpcAttack::TobVerzikP3Range,
+                        Some("1Ogp"),
+                    ),
+                ],
+            )
+            .get_state(Tick(3))
+            .expect("tick has recorded state")
+            .clone()
+        };
+        let base = ball_tick();
+        let target = ball_tick();
+
+        let weights = ScoringWeights {
+            baseline_compatibility_weight: 0.0,
+            component_hitpoints_weight: 0.0,
+            component_attacks_weight: 1.0,
+            npc_attack_positive_signal: 3.0,
+            ..ScoringWeights::default()
+        };
+        assert_eq!(
+            SimilarityScorer::with_weights(weights).score(&base, &target),
+            6.0
+        );
+    }
+
+    #[test]
+    fn verzik_ball_missing_from_one_side_scores_weakly_negative() {
+        let party = [Rsn::try_from("1Ogp").unwrap()];
+        let base = fixtures::timeline(
+            Stage::TobVerzik,
+            ChallengeMode::TobHard,
+            &party,
+            Tick(4),
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(4), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::npc_spawn_event(fixtures::NpcEvent {
+                    tick: Tick(4),
+                    stage: Stage::TobVerzik,
+                    coords: (3165, 4309),
+                    npc_id: npc::id::VERZIK_P3_HARD,
+                    room_id: 64384,
+                    ..Default::default()
+                }),
+                fixtures::npc_attack_event(
+                    Tick(4),
+                    Stage::TobVerzik,
+                    (3165, 4309),
+                    npc::id::VERZIK_P3_HARD,
+                    64384,
+                    NpcAttack::TobVerzikP3Ball,
+                    Some("1Ogp"),
+                ),
+                fixtures::npc_attack_event(
+                    Tick(4),
+                    Stage::TobVerzik,
+                    (3165, 4309),
+                    npc::id::VERZIK_P3_HARD,
+                    64384,
+                    NpcAttack::TobVerzikP3Range,
+                    Some("1Ogp"),
+                ),
+            ],
+        )
+        .get_state(Tick(4))
+        .expect("tick has recorded state")
+        .clone();
+        let target = fixtures::timeline(
+            Stage::TobVerzik,
+            ChallengeMode::TobHard,
+            &party,
+            Tick(4),
+            vec![
+                fixtures::PlayerUpdateEvent::new(Tick(4), Stage::TobVerzik, "1Ogp", (3168, 4313))
+                    .build(),
+                fixtures::npc_spawn_event(fixtures::NpcEvent {
+                    tick: Tick(4),
+                    stage: Stage::TobVerzik,
+                    coords: (3165, 4309),
+                    npc_id: npc::id::VERZIK_P3_HARD,
+                    room_id: 64384,
+                    ..Default::default()
+                }),
+                fixtures::npc_attack_event(
+                    Tick(4),
+                    Stage::TobVerzik,
+                    (3165, 4309),
+                    npc::id::VERZIK_P3_HARD,
+                    64384,
+                    NpcAttack::TobVerzikP3Range,
+                    Some("1Ogp"),
+                ),
+            ],
+        )
+        .get_state(Tick(4))
+        .expect("tick has recorded state")
+        .clone();
+
+        let weights = ScoringWeights {
+            baseline_compatibility_weight: 0.0,
+            component_hitpoints_weight: 0.0,
+            component_attacks_weight: 1.0,
+            npc_attack_positive_signal: 3.0,
+            npc_attack_weak_negative_signal: -1.5,
+            ..ScoringWeights::default()
+        };
+        assert_eq!(
+            SimilarityScorer::with_weights(weights).score(&base, &target),
+            1.5
+        );
+    }
+
+    #[test]
     fn matching_overhead_prayers_score_positively_and_others_are_ignored() {
         let mut base_prayers = PrayerSet::empty(PrayerBook::Normal);
         base_prayers.add(Prayer::ProtectFromMagic);
@@ -1415,23 +1548,17 @@ mod tests {
     fn matching_player_deaths_score_positively() {
         let base = tick_state(
             Tick(1),
-            vec![fixtures::player_death_event(
-                Tick(1),
-                STAGE,
-                (0, 0),
-                "715",
-                0,
-            )],
+            vec![
+                player_update(Tick(1), "715", (0, 0), &[]),
+                fixtures::player_death_event(Tick(1), STAGE, (0, 0), "715", 0),
+            ],
         );
         let target = tick_state(
             Tick(1),
-            vec![fixtures::player_death_event(
-                Tick(1),
-                STAGE,
-                (0, 0),
-                "715",
-                0,
-            )],
+            vec![
+                player_update(Tick(1), "715", (0, 0), &[]),
+                fixtures::player_death_event(Tick(1), STAGE, (0, 0), "715", 0),
+            ],
         );
 
         let weights = ScoringWeights {
@@ -1445,18 +1572,12 @@ mod tests {
     fn one_sided_player_deaths_are_ignored() {
         let base = tick_state(
             Tick(1),
-            vec![fixtures::player_death_event(
-                Tick(1),
-                STAGE,
-                (0, 0),
-                "715",
-                0,
-            )],
+            vec![
+                player_update(Tick(1), "715", (0, 0), &[]),
+                fixtures::player_death_event(Tick(1), STAGE, (0, 0), "715", 0),
+            ],
         );
-        let target = tick_state(
-            Tick(1),
-            vec![fixtures::PlayerUpdateEvent::new(Tick(1), STAGE, "715", (0, 0)).build()],
-        );
+        let target = tick_state(Tick(1), vec![player_update(Tick(1), "715", (0, 0), &[])]);
 
         let weights = ScoringWeights {
             baseline_compatibility_weight: 0.0,

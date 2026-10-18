@@ -4,7 +4,10 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use blert::proto::event;
-use blert::{Tick, Ticks};
+use blert::{
+    Actor, DataSource, EventKind, NpcAttacked, NpcState, ObjectKind, PartyIndex, PlayerAttacked,
+    PlayerState, Point, Recording, RoomId, Source, Tick, TickObjects, TickState, Ticks,
+};
 use serde::Serialize;
 
 use crate::lifecycle::core::types::ClientId;
@@ -12,20 +15,19 @@ use crate::lifecycle::core::types::ClientId;
 use super::RegisteredClient;
 use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
 use super::classification::{ClientClassification, ReferenceMethod};
-use super::client_events::{self, BadDataClient, ClientEvents, ReportedInfo};
-use super::event::IdentityKey;
+use super::client_events::{BadDataClient, ClientEvents, ReportedInfo};
+use super::event::{IdentityKey, event_type};
 use super::mapping::{MergeMapping, TickMapping};
 use super::report::{
-    Actor, ClientMetadata, MergeClassification, MergeStatus, QualityFlag, RejectionReason, Side,
+    ActorDef, ClientMetadata, MergeClassification, MergeStatus, QualityFlag, RejectionReason, Side,
     StepConfidence,
 };
-use super::timeline::{GraphicsCoords, GraphicsKind, NpcState, PlayerState, Target, TickState};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct InputClient {
     client_id: ClientId,
-    primary_player: Option<String>,
+    primary_player: Option<PartyIndex>,
     metadata: Option<ClientMetadata>,
     reported_accurate: bool,
     accurate: bool,
@@ -38,23 +40,35 @@ struct InputClient {
 #[serde(rename_all = "camelCase")]
 struct StageData {
     sote_pivots: Vec<SotePivot>,
+    inferno_wave_start: Option<Ticks>,
 }
 
-impl From<&client_events::StageData> for StageData {
-    fn from(data: &client_events::StageData) -> Self {
+impl From<&blert::StageData> for StageData {
+    fn from(data: &blert::StageData) -> Self {
         match data {
-            client_events::StageData::None => Self {
+            blert::StageData::None => Self {
                 sote_pivots: Vec::new(),
+                inferno_wave_start: None,
             },
-            client_events::StageData::Sotetseg { pivots } => Self {
-                sote_pivots: pivots
+            blert::StageData::Sotetseg { mazes } => Self {
+                sote_pivots: mazes
                     .iter()
-                    .map(|pivot| SotePivot {
-                        maze: pivot.maze as i32,
-                        overworld: pivot.overworld.iter().map(Coords::from).collect(),
-                        underworld: pivot.underworld.iter().map(Coords::from).collect(),
+                    .map(|(maze, pivots)| SotePivot {
+                        maze: *maze as i32,
+                        overworld: pivots.overworld.iter().copied().map(Coords::from).collect(),
+                        underworld: pivots
+                            .underworld
+                            .iter()
+                            .copied()
+                            .map(Coords::from)
+                            .collect(),
                     })
                     .collect(),
+                inferno_wave_start: None,
+            },
+            blert::StageData::Inferno { wave_start } => Self {
+                sote_pivots: Vec::new(),
+                inferno_wave_start: Some(*wave_start),
             },
         }
     }
@@ -69,15 +83,15 @@ struct SotePivot {
 
 #[derive(Debug, Serialize)]
 struct Coords {
-    x: i32,
-    y: i32,
+    x: u16,
+    y: u16,
 }
 
-impl From<&blert::proto::Coords> for Coords {
-    fn from(coords: &blert::proto::Coords) -> Self {
+impl From<Point> for Coords {
+    fn from(point: Point) -> Self {
         Self {
-            x: coords.x,
-            y: coords.y,
+            x: point.0,
+            y: point.1,
         }
     }
 }
@@ -116,35 +130,40 @@ struct PlayerAttackSummary {
     target: Option<u64>,
 }
 
+impl From<&PlayerAttacked> for PlayerAttackSummary {
+    fn from(attacked: &PlayerAttacked) -> Self {
+        Self {
+            r#type: attacked.attack as i32,
+            weapon_id: attacked.weapon.map(|weapon| weapon.id),
+            target: match attacked.target {
+                Some(blert::Actor::Npc(room_id)) => Some(room_id.0),
+                Some(blert::Actor::Player(_)) | None => None,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerSummary {
-    username: String,
+    party_index: PartyIndex,
     source: i32,
-    x: i32,
-    y: i32,
+    x: u16,
+    y: u16,
     attack: Option<PlayerAttackSummary>,
 }
 
-impl From<(&str, &PlayerState<'_>)> for PlayerSummary {
-    fn from((username, state): (&str, &PlayerState<'_>)) -> Self {
+impl PlayerSummary {
+    fn new(index: PartyIndex, state: &PlayerState, attacked: Option<&PlayerAttacked>) -> Self {
         Self {
-            username: username.to_string(),
-            source: state.data_source as i32,
-            x: state.position.x,
-            y: state.position.y,
-            attack: state.attack.as_ref().map(|attack| PlayerAttackSummary {
-                r#type: attack.value.kind as i32,
-                weapon_id: attack.value.weapon.as_ref().map(|weapon| weapon.id),
-                target: attack
-                    .value
-                    .target
-                    .as_ref()
-                    .and_then(|target| match &target.value {
-                        Target::Npc { room_id, .. } => Some(*room_id),
-                        Target::Player(_) => None,
-                    }),
-            }),
+            party_index: index,
+            source: match state.data {
+                DataSource::Primary(_) => event::player::DataSource::Primary as i32,
+                DataSource::Secondary => event::player::DataSource::Secondary as i32,
+            },
+            x: state.position.0,
+            y: state.position.1,
+            attack: attacked.map(PlayerAttackSummary::from),
         }
     }
 }
@@ -160,7 +179,19 @@ struct SkillLevelSummary {
 #[serde(rename_all = "camelCase")]
 struct NpcAttackSummary {
     r#type: i32,
-    target: Option<String>,
+    target: Option<PartyIndex>,
+}
+
+impl From<&NpcAttacked> for NpcAttackSummary {
+    fn from(attacked: &NpcAttacked) -> Self {
+        Self {
+            r#type: attacked.attack as i32,
+            target: match attacked.target {
+                Some(blert::Actor::Player(index)) => Some(index),
+                Some(blert::Actor::Npc(_)) | None => None,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -168,34 +199,24 @@ struct NpcAttackSummary {
 struct NpcSummary {
     room_id: u64,
     id: u32,
-    x: i32,
-    y: i32,
+    x: u16,
+    y: u16,
     hitpoints: SkillLevelSummary,
-    attack: Option<NpcAttackSummary>,
+    attacks: Vec<NpcAttackSummary>,
 }
 
-impl From<(u64, &NpcState<'_>)> for NpcSummary {
-    fn from((room_id, state): (u64, &NpcState<'_>)) -> Self {
+impl NpcSummary {
+    fn new(room_id: RoomId, state: &NpcState, attacks: Vec<&NpcAttacked>) -> Self {
         Self {
-            room_id,
+            room_id: room_id.0,
             id: state.id,
-            x: state.position.x,
-            y: state.position.y,
+            x: state.position.point.0,
+            y: state.position.point.1,
             hitpoints: SkillLevelSummary {
                 current: state.hitpoints.current,
                 base: state.hitpoints.base,
             },
-            attack: state.attack.as_ref().map(|attack| NpcAttackSummary {
-                r#type: attack.value.kind as i32,
-                target: attack
-                    .value
-                    .target
-                    .as_ref()
-                    .and_then(|target| match &target.value {
-                        Target::Player(name) => Some((*name).to_string()),
-                        Target::Npc { .. } => None,
-                    }),
-            }),
+            attacks: attacks.into_iter().map(NpcAttackSummary::from).collect(),
         }
     }
 }
@@ -204,23 +225,36 @@ impl From<(u64, &NpcState<'_>)> for NpcSummary {
 #[serde(rename_all = "camelCase")]
 struct GraphicsSummary {
     r#type: &'static str,
-    counts_by_source: BTreeMap<ClientId, u32>,
+    counts_by_source: BTreeMap<Source, u32>,
 }
 
-impl From<(&GraphicsKind, &GraphicsCoords)> for GraphicsSummary {
-    fn from((kind, coords): (&GraphicsKind, &GraphicsCoords)) -> Self {
-        let mut counts_by_source: BTreeMap<ClientId, u32> = BTreeMap::new();
-        for sourced in coords.iter() {
-            *counts_by_source.entry(sourced.source).or_default() += 1;
+impl GraphicsSummary {
+    fn from_objects(objects: &TickObjects) -> Vec<Self> {
+        let mut counts: BTreeMap<ObjectKind, BTreeMap<Source, u32>> = BTreeMap::new();
+        for (kind, _, source) in objects.iter() {
+            *counts.entry(kind).or_default().entry(source).or_default() += 1;
         }
-        Self {
-            r#type: match kind {
-                GraphicsKind::MaidenBloodSplats => "TOB_MAIDEN_BLOOD_SPLATS",
-                GraphicsKind::SoteMazeTiles => "TOB_SOTE_OVERWORLD_TILES",
-                GraphicsKind::VerzikYellows => "TOB_VERZIK_YELLOWS",
-            },
-            counts_by_source,
-        }
+        counts
+            .into_iter()
+            .filter_map(|(kind, counts_by_source)| {
+                let r#type = match kind {
+                    ObjectKind::MaidenBloodSplats => "TOB_MAIDEN_BLOOD_SPLATS",
+                    ObjectKind::SoteMazeTiles => "TOB_SOTE_OVERWORLD_TILES",
+                    ObjectKind::VerzikYellows => "TOB_VERZIK_YELLOWS",
+
+                    // Solo challenges only.
+                    ObjectKind::ColosseumReentryPrimaryPool
+                    | ObjectKind::ColosseumReentrySecondaryPool
+                    | ObjectKind::MokhaiotlRock
+                    | ObjectKind::MokhaiotlSplat
+                    | ObjectKind::MokhaiotlShockwave => return None,
+                };
+                Some(Self {
+                    r#type,
+                    counts_by_source,
+                })
+            })
+            .collect()
     }
 }
 
@@ -234,19 +268,47 @@ struct TickSummary {
     event_counts: BTreeMap<&'static str, u32>,
 }
 
-impl From<&TickState<'_>> for TickSummary {
-    fn from(state: &TickState<'_>) -> Self {
+impl TickSummary {
+    fn new(tick: Tick, state: &TickState) -> Self {
         let mut event_counts: BTreeMap<&'static str, u32> = BTreeMap::new();
-        for event in state.events() {
+        for event in &state.events {
             *event_counts
-                .entry(event.r#type().as_str_name())
+                .entry(event_type(&event.kind).as_str_name())
                 .or_default() += 1;
         }
         Self {
-            tick: state.tick(),
-            players: state.players().map(PlayerSummary::from).collect(),
-            npcs: state.npcs().map(NpcSummary::from).collect(),
-            graphics: state.graphics().map(GraphicsSummary::from).collect(),
+            tick,
+            players: state
+                .players
+                .iter()
+                .map(|(index, player)| {
+                    let attacked = state.events.iter().find_map(|event| match &event.kind {
+                        EventKind::PlayerAttack(attacked) if attacked.player == index => {
+                            Some(attacked)
+                        }
+                        _ => None,
+                    });
+                    PlayerSummary::new(index, player, attacked)
+                })
+                .collect(),
+            npcs: state
+                .npcs
+                .iter()
+                .map(|(&room_id, npc)| {
+                    let attacks = state
+                        .events
+                        .iter()
+                        .filter_map(|event| match &event.kind {
+                            EventKind::NpcAttack(attacked) if attacked.npc == room_id => {
+                                Some(attacked)
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                    NpcSummary::new(room_id, npc, attacks)
+                })
+                .collect(),
+            graphics: GraphicsSummary::from_objects(&state.objects),
             event_counts,
         }
     }
@@ -408,7 +470,7 @@ pub(super) enum StreamOutcome {
 #[derive(Debug)]
 pub(super) struct StreamResolution<'a> {
     pub kind: event::Type,
-    pub key: &'a IdentityKey<'a>,
+    pub key: &'a IdentityKey,
     pub base: Option<StreamOccurrence>,
     pub target: Option<StreamOccurrence>,
     pub resolved_tick: Tick,
@@ -437,7 +499,7 @@ pub(super) enum AttackMappedDiscardReason {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AttackMappedCandidate {
-    source_client_id: ClientId,
+    source: Source,
     client_tick: Tick,
     client_attack_tick: Tick,
 }
@@ -445,7 +507,7 @@ struct AttackMappedCandidate {
 impl From<&super::consolidator::AttackMappedCandidate<'_>> for AttackMappedCandidate {
     fn from(candidate: &super::consolidator::AttackMappedCandidate<'_>) -> Self {
         Self {
-            source_client_id: candidate.event.source(),
+            source: candidate.event.source,
             client_tick: candidate.client_tick,
             client_attack_tick: candidate.client_attack_tick,
         }
@@ -460,7 +522,7 @@ pub(super) struct AttackMappedResolution<'a> {
     pub target: Option<&'a super::consolidator::AttackMappedCandidate<'a>>,
     pub resolved_tick: Tick,
     pub winner: super::consolidator::Side,
-    pub resolution: Option<super::consolidator::Resolution<'a>>,
+    pub resolution: Option<super::consolidator::Resolution>,
 }
 
 #[derive(Debug, Serialize)]
@@ -488,14 +550,14 @@ struct AttackMappedDiscardEntry {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Measurement {
-    primary_player: String,
+    primary_player: PartyIndex,
     distance: f64,
 }
 
-impl From<&super::consolidator::Measurement<'_>> for Measurement {
-    fn from(measurement: &super::consolidator::Measurement<'_>) -> Self {
+impl From<&super::consolidator::Measurement> for Measurement {
+    fn from(measurement: &super::consolidator::Measurement) -> Self {
         Self {
-            primary_player: measurement.primary_player.to_string(),
+            primary_player: measurement.primary_player,
             distance: measurement.distance,
         }
     }
@@ -517,8 +579,8 @@ enum Resolution {
     },
 }
 
-impl From<&super::consolidator::Resolution<'_>> for Resolution {
-    fn from(resolution: &super::consolidator::Resolution<'_>) -> Self {
+impl From<&super::consolidator::Resolution> for Resolution {
+    fn from(resolution: &super::consolidator::Resolution) -> Self {
         match resolution {
             super::consolidator::Resolution::Unexpected => Self::Unexpected,
             super::consolidator::Resolution::KeepBase => Self::KeepBase,
@@ -536,24 +598,25 @@ impl From<&super::consolidator::Resolution<'_>> for Resolution {
 }
 
 #[derive(Debug)]
-pub(super) struct ActionConflict<'a> {
+pub(super) struct ActionConflict {
     pub tick: Tick,
-    pub actor: super::timeline::Actor<'a>,
-    pub base_source: ClientId,
+    pub actor: Actor,
+    pub base_source: Source,
     pub base_kind: &'static str,
-    pub target_source: ClientId,
+    pub target_source: Source,
     pub target_kind: &'static str,
-    pub resolution: super::consolidator::Resolution<'a>,
+    pub resolution: super::consolidator::Resolution,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ActionConflictEntry {
     tick: Tick,
+    #[serde(with = "ActorDef")]
     actor: Actor,
-    base_source: ClientId,
+    base_source: Source,
     base_kind: &'static str,
-    target_source: ClientId,
+    target_source: Source,
     target_kind: &'static str,
     resolution: Resolution,
 }
@@ -670,43 +733,42 @@ impl Tracer {
         &self.output
     }
 
-    pub(super) fn record_input_client(&mut self, client: &ClientEvents<'_>) {
+    pub(super) fn record_input_client(&mut self, client: &ClientEvents) {
         let ticks = client
-            .timeline
-            .tick_states()
-            .iter()
-            .flatten()
-            .map(TickSummary::from)
+            .recording
+            .states()
+            .map(|(tick, state)| TickSummary::new(tick, state))
             .collect();
         self.input_client(
             &client.info,
             client.accurate,
             ticks,
-            StageData::from(&client.stage_data),
+            StageData::from(client.recording.stage_data()),
         );
     }
 
-    pub(super) fn record_bad_data_client(&mut self, client: &BadDataClient<'_>) {
+    pub(super) fn record_bad_data_client(&mut self, client: &BadDataClient) {
         self.input_client(
             &client.info,
             client.info.reported_accurate,
             Vec::new(),
             StageData {
                 sote_pivots: Vec::new(),
+                inferno_wave_start: None,
             },
         );
     }
 
     fn input_client(
         &mut self,
-        info: &ReportedInfo<'_>,
+        info: &ReportedInfo,
         accurate: bool,
         ticks: Vec<TickSummary>,
         stage_data: StageData,
     ) {
         self.output.input_clients.push(InputClient {
             client_id: info.id,
-            primary_player: info.primary_player.map(str::to_string),
+            primary_player: info.primary_player,
             metadata: info.plugin_info.as_ref().map(ClientMetadata::from),
             reported_accurate: info.reported_accurate,
             accurate,
@@ -719,7 +781,7 @@ impl Tracer {
     pub(super) fn record_classification(
         &mut self,
         classification: &ClientClassification,
-        clients: &[ClientEvents<'_>],
+        clients: &[ClientEvents],
     ) {
         let ids = |indices: &[usize]| -> Vec<ClientId> {
             indices.iter().map(|&i| clients[i].info.id).collect()
@@ -858,7 +920,7 @@ impl Tracer {
             });
     }
 
-    pub(super) fn record_action_conflict(&mut self, conflict: &ActionConflict<'_>) {
+    pub(super) fn record_action_conflict(&mut self, conflict: &ActionConflict) {
         let Some(step) = &mut self.current_step else {
             return;
         };
@@ -867,7 +929,7 @@ impl Tracer {
             .action_conflicts
             .push(ActionConflictEntry {
                 tick: conflict.tick,
-                actor: conflict.actor.into(),
+                actor: conflict.actor,
                 base_source: conflict.base_source,
                 base_kind: conflict.base_kind,
                 target_source: conflict.target_source,
@@ -898,7 +960,7 @@ impl Tracer {
     }
 
     /// Commits the in-progress merge step into the output with its outcome.
-    pub(super) fn end_merge_step(&mut self, client: &RegisteredClient<'_>) {
+    pub(super) fn end_merge_step(&mut self, client: &RegisteredClient) {
         if let Some(current) = self.current_step.take() {
             let status = MergeStatus::from(client);
             self.output.merge_steps.push(MergeStep {
@@ -923,10 +985,13 @@ impl Tracer {
         }
     }
 
-    pub(super) fn record_intermediate_snapshot(&mut self, ticks: &[Option<TickState>]) {
-        self.output
-            .intermediate_snapshots
-            .push(ticks.iter().flatten().map(TickSummary::from).collect());
+    pub(super) fn record_intermediate_snapshot(&mut self, recording: &Recording) {
+        self.output.intermediate_snapshots.push(
+            recording
+                .states()
+                .map(|(tick, state)| TickSummary::new(tick, state))
+                .collect(),
+        );
     }
 
     pub(super) fn record_trusted_prefixes(
