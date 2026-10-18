@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use blert::proto::Event;
 use blert::{
-    ConfigVersion, DataSource, FieldError, InvalidVersion, PartyIndex, RawActor, Recording,
-    RecordingBuilder, RejectionReason, Tick,
+    ConfigVersion, DataSource, FieldError, InvalidVersion, PartyIndex, PluginVersion, RawActor,
+    Recording, RecordingBuilder, RejectionReason, Tick,
 };
 use prost::Message;
 
@@ -155,9 +155,29 @@ impl<'a> StreamParser<'a> {
         if let Err(error) = self.check_tick_counts(&mut info) {
             return Err(BadDataClient { info, error });
         }
+        if !stream
+            .iter()
+            .any(|record| matches!(record, ClientStageStream::Events { .. }))
+        {
+            return Err(BadDataClient {
+                info,
+                error: BadData::NoRecording,
+            });
+        }
+        let Some(plugin_version) = info
+            .plugin_info
+            .as_ref()
+            .and_then(|plugin_info| plugin_info.plugin_version.parse::<PluginVersion>().ok())
+        else {
+            return Err(BadDataClient {
+                info,
+                error: BadData::InvalidPluginVersion,
+            });
+        };
 
         let mut builder = RecordingBuilder::new(
             self.client_id,
+            plugin_version,
             self.config_version(&info),
             self.stage,
             self.challenge.mode,
@@ -483,6 +503,7 @@ mod tests {
                 end(1, StageStatus::Completed, 185),
                 events(2, &[0]),
                 end(2, StageStatus::Wiped, 200),
+                metadata(3),
                 events(3, &[0]),
                 end(3, StageStatus::Wiped, 200),
             ],
@@ -520,6 +541,8 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
+                events(1, &[4, 8]),
                 end(1, StageStatus::Wiped, 100),
                 end(1, StageStatus::Completed, 190),
             ],
@@ -655,6 +678,7 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
                 events(1, &[4, 8]),
                 ClientStageStream::End {
                     client_id: ClientId(1),
@@ -726,6 +750,7 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
                 events(1, &[4, 8, 12, 16]),
                 end(1, StageStatus::Completed, 8),
             ],
@@ -805,6 +830,7 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
                 batch(&[(8, 2), (16, 4)]),
                 batch(&[(4, 1), (12, 3)]),
                 end(1, StageStatus::Completed, 16),
@@ -846,6 +872,7 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
                 events(1, &[4, 8]),
                 ClientStageStream::Events {
                     client_id: ClientId(1),
@@ -899,6 +926,7 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
                 ClientStageStream::Events {
                     client_id: ClientId(1),
                     events: Bytes::from(message.encode_to_vec()),
@@ -938,6 +966,7 @@ mod tests {
             &challenge,
             Stage::TobNylocas,
             &[
+                metadata(1),
                 ClientStageStream::Events {
                     client_id: ClientId(1),
                     events: Bytes::from(message.encode_to_vec()),
@@ -1001,6 +1030,7 @@ mod tests {
             &challenge,
             Stage::TobMaiden,
             &[
+                metadata(1),
                 ClientStageStream::Events {
                     client_id: ClientId(1),
                     events: Bytes::from(message.encode_to_vec()),

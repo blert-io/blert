@@ -107,6 +107,8 @@ pub enum BadData {
     InvalidServerTickCount,
     #[error("no recording")]
     NoRecording,
+    #[error("invalid plugin version")]
+    InvalidPluginVersion,
 }
 
 /// Merges the events recorded by a stage's clients into a canonical timeline.
@@ -683,7 +685,7 @@ mod tests {
     use prost::Message;
 
     use super::*;
-    use crate::lifecycle::core::types::{ClientId, ServerTicks, StageUpdate};
+    use crate::lifecycle::core::types::{ClientId, ServerTicks, StageUpdate, UserId};
     use crate::proto::ChallengeEvents;
 
     fn nylocas_challenge() -> ChallengeInfo<'static> {
@@ -703,6 +705,13 @@ mod tests {
             ..Default::default()
         };
         let records = vec![
+            ClientStageStream::Metadata {
+                client_id: ClientId(1),
+                user_id: UserId(10),
+                plugin_version: "0.10.0-RUNELITE".into(),
+                runelite_version: "runelite-1.13.2".into(),
+                recording_config_version: Some(1),
+            },
             ClientStageStream::Events {
                 client_id: ClientId(1),
                 events: Bytes::from(payload.encode_to_vec()),
@@ -749,7 +758,23 @@ mod tests {
     #[test]
     fn alerts_raised_during_the_merge_are_reported() {
         let challenge = nylocas_challenge();
+        let payload = ChallengeEvents {
+            events: vec![wave_event(Tick(4), 1)],
+            ..Default::default()
+        };
+        let metadata = |client_id: u32| ClientStageStream::Metadata {
+            client_id: ClientId(client_id),
+            user_id: UserId(i64::from(client_id) * 10),
+            plugin_version: "0.10.0-RUNELITE".into(),
+            runelite_version: "runelite-1.13.2".into(),
+            recording_config_version: Some(1),
+        };
         let records = vec![
+            metadata(1),
+            ClientStageStream::Events {
+                client_id: ClientId(1),
+                events: Bytes::from(payload.encode_to_vec()),
+            },
             ClientStageStream::End {
                 client_id: ClientId(1),
                 update: StageUpdate {
@@ -762,6 +787,11 @@ mod tests {
                         precise: true,
                     }),
                 },
+            },
+            metadata(2),
+            ClientStageStream::Events {
+                client_id: ClientId(2),
+                events: Bytes::from(payload.encode_to_vec()),
             },
             ClientStageStream::End {
                 client_id: ClientId(2),
@@ -802,8 +832,29 @@ mod tests {
                     server_ticks: None,
                 },
             };
+        let payload = ChallengeEvents {
+            events: vec![wave_event(Tick(4), 1)],
+            ..Default::default()
+        };
+        let metadata = |client_id: u32| ClientStageStream::Metadata {
+            client_id: ClientId(client_id),
+            user_id: UserId(i64::from(client_id) * 10),
+            plugin_version: "0.10.0-RUNELITE".into(),
+            runelite_version: "runelite-1.13.2".into(),
+            recording_config_version: Some(1),
+        };
         let records = vec![
+            metadata(1),
+            ClientStageStream::Events {
+                client_id: ClientId(1),
+                events: Bytes::from(payload.encode_to_vec()),
+            },
             end(1, StageStatus::Wiped, 95),
+            metadata(2),
+            ClientStageStream::Events {
+                client_id: ClientId(2),
+                events: Bytes::from(payload.encode_to_vec()),
+            },
             end(2, StageStatus::Completed, 90),
         ];
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
@@ -822,7 +873,22 @@ mod tests {
     #[test]
     fn bad_data_clients_are_reported_as_skipped() {
         let challenge = nylocas_challenge();
+        let payload = ChallengeEvents {
+            events: vec![wave_event(Tick(4), 1)],
+            ..Default::default()
+        };
         let records = vec![
+            ClientStageStream::Metadata {
+                client_id: ClientId(1),
+                user_id: UserId(10),
+                plugin_version: "0.10.0-RUNELITE".into(),
+                runelite_version: "runelite-1.13.2".into(),
+                recording_config_version: Some(1),
+            },
+            ClientStageStream::Events {
+                client_id: ClientId(1),
+                events: Bytes::from(payload.encode_to_vec()),
+            },
             ClientStageStream::End {
                 client_id: ClientId(1),
                 update: StageUpdate {
@@ -872,7 +938,12 @@ mod tests {
                 },
                 ClientOutcome {
                     id: ClientId(1),
-                    metadata: None,
+                    metadata: Some(report::ClientMetadata {
+                        user_id: UserId(10),
+                        plugin_version: "0.10.0-RUNELITE".to_string(),
+                        runelite_version: "runelite-1.13.2".to_string(),
+                        recording_config_version: Some(1),
+                    }),
                     primary_player: None,
                     stage_status: StageStatus::Completed,
                     reported_accurate: false,
@@ -962,11 +1033,20 @@ mod tests {
                 }),
             },
         };
+        let metadata = |client_id: u32| ClientStageStream::Metadata {
+            client_id: ClientId(client_id),
+            user_id: UserId(i64::from(client_id) * 10),
+            plugin_version: "0.10.0-RUNELITE".into(),
+            runelite_version: "runelite-1.13.2".into(),
+            recording_config_version: Some(1),
+        };
         let records = vec![
+            metadata(1),
             ClientStageStream::Events {
                 client_id: ClientId(1),
                 events: Bytes::from(payload.encode_to_vec()),
             },
+            metadata(2),
             ClientStageStream::Events {
                 client_id: ClientId(2),
                 events: Bytes::from(payload.encode_to_vec()),
@@ -980,7 +1060,12 @@ mod tests {
         assert!(merged.is_some());
         let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
-            metadata: None,
+            metadata: Some(report::ClientMetadata {
+                user_id: UserId(i64::from(client_id) * 10),
+                plugin_version: "0.10.0-RUNELITE".to_string(),
+                runelite_version: "runelite-1.13.2".to_string(),
+                recording_config_version: Some(1),
+            }),
             primary_player: None,
             stage_status: StageStatus::Completed,
             reported_accurate: true,
@@ -1078,8 +1163,17 @@ mod tests {
                 }),
             },
         };
+        let metadata = |client_id: u32| ClientStageStream::Metadata {
+            client_id: ClientId(client_id),
+            user_id: UserId(i64::from(client_id) * 10),
+            plugin_version: "0.10.0-RUNELITE".into(),
+            runelite_version: "runelite-1.13.2".into(),
+            recording_config_version: Some(1),
+        };
         let records = vec![
+            metadata(1),
             recording(1, Tick(5)),
+            metadata(2),
             recording(2, Tick(20)),
             end(1),
             end(2),
@@ -1089,7 +1183,7 @@ mod tests {
         let (base_only, _) = merge(
             &challenge,
             Stage::TobNylocas,
-            &[recording(1, Tick(5)), end(1)],
+            &[metadata(1), recording(1, Tick(5)), end(1)],
             None,
         );
 
@@ -1107,7 +1201,12 @@ mod tests {
         );
         let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
-            metadata: None,
+            metadata: Some(report::ClientMetadata {
+                user_id: UserId(i64::from(client_id) * 10),
+                plugin_version: "0.10.0-RUNELITE".to_string(),
+                runelite_version: "runelite-1.13.2".to_string(),
+                recording_config_version: Some(1),
+            }),
             primary_player: None,
             stage_status: StageStatus::Completed,
             reported_accurate: true,
@@ -1225,8 +1324,17 @@ mod tests {
                 }),
             },
         };
+        let metadata = |client_id: u32| ClientStageStream::Metadata {
+            client_id: ClientId(client_id),
+            user_id: UserId(i64::from(client_id) * 10),
+            plugin_version: "0.10.0-RUNELITE".into(),
+            runelite_version: "runelite-1.13.2".into(),
+            recording_config_version: Some(1),
+        };
         let records = vec![
+            metadata(1),
             recording(1, PlayerAttack::Scythe),
+            metadata(2),
             recording(2, PlayerAttack::BgsSpec),
             end(1),
             end(2),
@@ -1237,7 +1345,7 @@ mod tests {
         let (base_only, _) = merge(
             &challenge,
             Stage::TobNylocas,
-            &[recording(1, PlayerAttack::Scythe), end(1)],
+            &[metadata(1), recording(1, PlayerAttack::Scythe), end(1)],
             None,
         );
 
@@ -1252,7 +1360,12 @@ mod tests {
         let player = merged.timeline().party_index(&challenge.party[0]).unwrap();
         let outcome = |client_id: u32, status: report::MergeStatus| ClientOutcome {
             id: ClientId(client_id),
-            metadata: None,
+            metadata: Some(report::ClientMetadata {
+                user_id: UserId(i64::from(client_id) * 10),
+                plugin_version: "0.10.0-RUNELITE".to_string(),
+                runelite_version: "runelite-1.13.2".to_string(),
+                recording_config_version: Some(1),
+            }),
             primary_player: None,
             stage_status: StageStatus::Completed,
             reported_accurate: true,
@@ -1355,6 +1468,13 @@ mod tests {
             ..Default::default()
         };
         let records = vec![
+            ClientStageStream::Metadata {
+                client_id: ClientId(1),
+                user_id: UserId(10),
+                plugin_version: "0.10.0-RUNELITE".into(),
+                runelite_version: "runelite-1.13.2".into(),
+                recording_config_version: Some(1),
+            },
             ClientStageStream::Events {
                 client_id: ClientId(1),
                 events: Bytes::from(payload.encode_to_vec()),

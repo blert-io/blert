@@ -168,7 +168,7 @@ mod tests {
     use super::super::db;
     use super::*;
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage, StageStatus,
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, Stage, StageStatus, UserId,
     };
     use crate::merging::fixtures::{
         PlayerUpdateEvent, ServerTicks, merged_events, player_death_event,
@@ -351,10 +351,19 @@ mod tests {
 
         let result = interpret(
             info,
-            &[ClientStageStream::Events {
-                client_id: ClientId(1),
-                events: Bytes::from(message.encode_to_vec()),
-            }],
+            &[
+                ClientStageStream::Metadata {
+                    client_id: ClientId(1),
+                    user_id: UserId(10),
+                    plugin_version: "0.10.0-RUNELITE".into(),
+                    runelite_version: "runelite-1.13.2".into(),
+                    recording_config_version: Some(1),
+                },
+                ClientStageStream::Events {
+                    client_id: ClientId(1),
+                    events: Bytes::from(message.encode_to_vec()),
+                },
+            ],
             &mut PanicOnEvent,
         );
 

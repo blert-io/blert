@@ -6,8 +6,8 @@ use std::sync::LazyLock;
 
 use blert::golden::assert_golden;
 use blert::{
-    ChallengeMode, ClientId, ConfigVersion, Modified, Mokhaiotl, NpcProperties, RecordingBuilder,
-    Rsn, Stage, Tick, TickState, Timeline, proto,
+    ChallengeMode, ClientId, ConfigVersion, Modified, Mokhaiotl, NpcProperties, PluginVersion,
+    RecordingBuilder, Rsn, Stage, Tick, TickState, Timeline, proto,
 };
 use flate2::read::GzDecoder;
 use prost::Message;
@@ -39,6 +39,8 @@ struct ChallengeInfo {
 #[serde(rename_all = "camelCase")]
 struct Record {
     client_id: u32,
+    plugin_version: Option<String>,
+    recording_config_version: Option<u32>,
     events: Option<Vec<u8>>,
     update: Option<StageUpdate>,
 }
@@ -57,8 +59,9 @@ struct Fixture {
     clients: BTreeMap<ClientId, Client>,
 }
 
-#[derive(Default)]
 struct Client {
+    plugin_version: PluginVersion,
+    config_version: ConfigVersion,
     batches: Vec<Vec<proto::Event>>,
     last_tick: Option<Tick>,
 }
@@ -75,8 +78,28 @@ impl Fixture {
         let capture: Capture = serde_json::from_str(&contents).expect("fixture is a capture");
 
         let mut clients = BTreeMap::<ClientId, Client>::new();
+        for record in &capture.raw_events {
+            if let Some(plugin_version) = &record.plugin_version {
+                clients.insert(
+                    ClientId(record.client_id),
+                    Client {
+                        plugin_version: plugin_version.parse().expect("plugin version parses"),
+                        config_version: record.recording_config_version.map_or(
+                            ConfigVersion::NONE,
+                            |version| {
+                                ConfigVersion::parse(version).expect("config version is supported")
+                            },
+                        ),
+                        batches: Vec::new(),
+                        last_tick: None,
+                    },
+                );
+            }
+        }
         for record in capture.raw_events {
-            let client = clients.entry(ClientId(record.client_id)).or_default();
+            let client = clients
+                .get_mut(&ClientId(record.client_id))
+                .expect("client has metadata");
             if let Some(events) = record.events {
                 let batch = proto::EventStream::decode(events.as_slice()).expect("batch decodes");
                 client.batches.push(batch.events);
@@ -114,7 +137,8 @@ fn assert_golden_output(fixture: &Fixture) {
     for (client_id, client) in &fixture.clients {
         let mut builder = RecordingBuilder::new(
             *client_id,
-            ConfigVersion::LATEST,
+            client.plugin_version,
+            client.config_version,
             fixture.stage,
             fixture.mode,
             fixture.party.clone(),
@@ -144,7 +168,8 @@ fn assert_refresh_matches_snapshot(fixture: &Fixture) {
     for (client_id, client) in &fixture.clients {
         let mut builder = RecordingBuilder::new(
             *client_id,
-            ConfigVersion::LATEST,
+            client.plugin_version,
+            client.config_version,
             fixture.stage,
             fixture.mode,
             fixture.party.clone(),
@@ -278,7 +303,8 @@ fn mokhaiotl_delve_8() {
         .expect("fixture has a client");
     let mut builder = RecordingBuilder::new(
         client_id,
-        ConfigVersion::LATEST,
+        client.plugin_version,
+        client.config_version,
         fixture.stage,
         fixture.mode,
         fixture.party.clone(),

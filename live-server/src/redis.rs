@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use blert::{ChallengeMode, ClientId, Rsn, Stage, proto};
+use blert::{ChallengeMode, ClientId, InvalidPluginVersion, PluginVersion, Rsn, Stage, proto};
 use redis::{FromRedisValue, Pipeline, Value};
 use serde::Deserialize;
 use serde_repr::Deserialize_repr;
@@ -195,7 +195,8 @@ pub enum StageStreamRecord {
     /// Raw protobuf bytes (serialized `ChallengeEvents`).
     Events(Vec<u8>),
     Metadata {
-        recording_config_version: u32,
+        plugin_version: PluginVersion,
+        recording_config_version: Option<u32>,
     },
 }
 
@@ -315,8 +316,7 @@ impl RedisQuery {
 }
 
 /// Parses an `XRANGE` response into `StageStreamEntry` values, keeping
-/// `STAGE_EVENTS` entries (type 0) and `CLIENT_METADATA` entries (type 2) that
-/// carry a recording config version.
+/// `STAGE_EVENTS` entries (type 0) and `CLIENT_METADATA` entries (type 2).
 fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, RedisQueryError> {
     // XRANGE returns an array of [id, [field, value, field, value, ...]]
     let entries: Vec<Value> = FromRedisValue::from_redis_value(value)?;
@@ -329,6 +329,7 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
         let mut tag: Option<i32> = None;
         let mut client_id: Option<ClientId> = None;
         let mut events: Option<Vec<u8>> = None;
+        let mut plugin_version: Option<PluginVersion> = None;
         let mut recording_config_version: Option<u32> = None;
 
         while let (Some(k), Some(v)) = (iter.next(), iter.next()) {
@@ -346,6 +347,13 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
                     events = FromRedisValue::from_redis_value(v)
                         .map_err(|_| RedisQueryError::Parse("invalid events".into()))?;
                 }
+                "pluginVersion" => {
+                    let version: String = FromRedisValue::from_redis_value(v)
+                        .map_err(|_| RedisQueryError::Parse("invalid plugin version".into()))?;
+                    plugin_version = Some(version.parse().map_err(|e: InvalidPluginVersion| {
+                        RedisQueryError::Parse(e.to_string())
+                    })?);
+                }
                 "recordingConfigVersion" => {
                     recording_config_version =
                         FromRedisValue::from_redis_value(v).map_err(|_| {
@@ -356,9 +364,10 @@ fn parse_stage_stream_response(value: Value) -> Result<Vec<StageStreamEntry>, Re
             }
         }
 
-        let record = match (tag, events, recording_config_version) {
+        let record = match (tag, events, plugin_version) {
             (Some(0), Some(events), _) => StageStreamRecord::Events(events),
-            (Some(2), _, Some(recording_config_version)) => StageStreamRecord::Metadata {
+            (Some(2), _, Some(plugin_version)) => StageStreamRecord::Metadata {
+                plugin_version,
                 recording_config_version,
             },
             _ => continue,
@@ -767,7 +776,8 @@ mod tests {
                 assert_eq!(
                     entries[0].record,
                     StageStreamRecord::Metadata {
-                        recording_config_version: 1
+                        plugin_version: PluginVersion::new(0, 10, 0),
+                        recording_config_version: Some(1),
                     }
                 );
                 assert_eq!(entries[1].id, "1234-0");
@@ -813,11 +823,20 @@ mod tests {
         let resp = query.parse_response(value).unwrap();
         match resp {
             RedisResponse::StageStream(entries) => {
-                assert_eq!(entries.len(), 2);
+                assert_eq!(entries.len(), 3);
                 assert_eq!(entries[0].id, "100-0");
                 assert_eq!(entries[0].client_id, ClientId(1));
-                assert_eq!(entries[1].id, "300-0");
+                assert_eq!(entries[1].id, "250-0");
                 assert_eq!(entries[1].client_id, ClientId(2));
+                assert_eq!(
+                    entries[1].record,
+                    StageStreamRecord::Metadata {
+                        plugin_version: PluginVersion::new(0, 9, 24),
+                        recording_config_version: None,
+                    }
+                );
+                assert_eq!(entries[2].id, "300-0");
+                assert_eq!(entries[2].client_id, ClientId(2));
             }
             other => panic!("expected StageStream, got {other:?}"),
         }

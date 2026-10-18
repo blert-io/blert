@@ -17,8 +17,8 @@ use crate::proto::event::{Type, object_update};
 use crate::skill::SkillLevel;
 use crate::tick::{Tick, Ticks};
 use crate::{
-    ChallengeMode, ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PlayerAttack, Point, Rect,
-    Source, Stage, npc, proto,
+    ChallengeMode, ClientId, ColosseumHandicap, CombatStyle, NpcAttack, PlayerAttack,
+    PluginVersion, Point, Rect, Source, Stage, npc, proto,
 };
 
 use super::interpret::{self, ObjectDef, RawObjects};
@@ -136,6 +136,8 @@ impl Modified {
 #[derive(Debug)]
 pub struct RecordingBuilder {
     client_id: ClientId,
+    #[expect(dead_code)]
+    plugin_version: PluginVersion,
     config_version: ConfigVersion,
     stage: Stage,
     mode: ChallengeMode,
@@ -161,6 +163,7 @@ impl RecordingBuilder {
     #[must_use]
     pub fn new(
         client_id: ClientId,
+        plugin_version: PluginVersion,
         config_version: ConfigVersion,
         stage: Stage,
         mode: ChallengeMode,
@@ -172,6 +175,7 @@ impl RecordingBuilder {
 
         Self {
             client_id,
+            plugin_version,
             config_version,
             stage,
             mode,

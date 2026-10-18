@@ -7,7 +7,7 @@ use blert::proto::event::{VerzikPhase, XarpusPhase};
 use blert::proto::{Coords, Event, event};
 use blert::{
     BuildRejection, ConfigVersion, ItemDelta, NpcAttack, PartyIndex, PlayerAttack, PlayerSpell,
-    PrayerSet, Recording, RecordingBuilder, Rsn, SkillLevel, Timeline,
+    PluginVersion, PrayerSet, Recording, RecordingBuilder, Rsn, SkillLevel, Timeline,
 };
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage, StageExt, StageStatus};
@@ -43,6 +43,7 @@ pub fn merged_events(
     let recorded_ticks = events.last().map_or(0, |e| e.tick + 1);
     let mut builder = RecordingBuilder::new(
         ClientId(1),
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         stage,
         mode,
@@ -202,6 +203,7 @@ pub(super) fn recording(
 ) -> Recording {
     let mut builder = RecordingBuilder::new(
         client_id,
+        PluginVersion::new(0, 10, 0),
         ConfigVersion::LATEST,
         stage,
         mode,
