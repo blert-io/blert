@@ -664,7 +664,7 @@
     width: 100%;
     display: flex;
     flex-flow: row wrap;
-    gap: 6px;
+    gap: 4px;
     padding: 10px;
     border-radius: 6px;
     transition: all 0.2s ease;
@@ -754,7 +754,7 @@
     }
 
     .item {
-      padding: 3px;
+      padding: 1px;
       border-radius: 4px;
       border: 1px solid transparent;
       transition: all 0.2s ease;
@@ -772,33 +772,14 @@
 
       &.editing {
         cursor: default;
-
-        &:hover {
-          transform: none;
-        }
-
-        &:active {
-          transform: none;
-        }
       }
 
-      &:not(.editing) {
-        &:hover {
-          cursor: pointer;
-          transform: scale(1.08);
+      &:not(.editing):hover {
+        cursor: pointer;
 
-          &:not(.selected) {
-            background: rgba(var(--blert-surface-light-base), 0.6);
-            border-color: rgba(var(--blert-purple-base), 0.2);
-          }
-        }
-
-        &:active {
-          transform: scale(1.02);
-        }
-
-        &.selected:hover {
-          transform: scale(1.04);
+        &:not(.selected) {
+          background: rgba(var(--blert-surface-light-base), 0.6);
+          border-color: rgba(var(--blert-purple-base), 0.2);
         }
       }
 
@@ -806,8 +787,6 @@
         border-color: rgba(var(--blert-purple-base), 0.15);
 
         &:hover {
-          transform: none;
-
           i {
             color: var(--blert-purple);
           }

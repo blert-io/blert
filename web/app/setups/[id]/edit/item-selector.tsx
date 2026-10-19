@@ -45,7 +45,7 @@ const DEFAULT_ITEMS: Record<ItemCategory, number[]> = {
   ],
 };
 
-const ITEM_SIZE = 28;
+const ITEM_SIZE = 32;
 
 function ItemButton({
   id,
@@ -84,7 +84,14 @@ function ItemButton({
   return (
     <div className={styles.itemContainer}>
       <button className={className} onClick={handleClick}>
-        <Item id={id} name={name} quantity={1} size={ITEM_SIZE} />
+        <Item
+          id={id}
+          name={name}
+          quantity={1}
+          size={ITEM_SIZE}
+          fitContent
+          pixelated
+        />
       </button>
       {onRemove && (
         <button
@@ -365,6 +372,8 @@ export function ItemSelector() {
                   name={context.selectedItem.name}
                   quantity={1}
                   size={ITEM_SIZE}
+                  fitContent
+                  pixelated
                 />
               </div>
               <span className={styles.name}>{context.selectedItem.name}</span>

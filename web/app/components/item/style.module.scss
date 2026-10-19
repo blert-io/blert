@@ -8,9 +8,13 @@
 
   .quantity {
     position: absolute;
-    font-family: var(--font-runescape);
+    top: 1px;
+    left: 0;
+    font-family: var(--font-runescape-small);
     font-weight: 400;
-    font-size: 14px;
-    text-shadow: 1px 1px 1px black;
+    font-size: 16px;
+    line-height: 12px;
+    white-space: nowrap;
+    text-shadow: 1px 1px 0 black;
   }
 }

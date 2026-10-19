@@ -17,13 +17,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'oldschool.runescape.wiki',
-        pathname: '/images/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'chisel.weirdgloop.org',
-        pathname: '/static/img/osrs-sprite/**',
+        hostname: 'sprites.blert.io',
+        pathname: '/items/**',
       },
     ],
   },

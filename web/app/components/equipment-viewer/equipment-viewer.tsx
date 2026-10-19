@@ -13,22 +13,33 @@ type EquipmentViewerProps = {
   source?: DataSource;
 };
 
-const EQUIPMENT_OFFSETS: Record<string, React.CSSProperties> = {
-  [EquipmentSlot.HEAD]: { top: 3, left: 73 },
-  [EquipmentSlot.CAPE]: { top: 53, left: 22 },
-  [EquipmentSlot.AMULET]: { top: 53, left: 73 },
-  [EquipmentSlot.AMMO]: { top: 53, left: 124 },
-  [EquipmentSlot.WEAPON]: { top: 101, left: 3 },
-  [EquipmentSlot.TORSO]: { top: 101, left: 73 },
-  [EquipmentSlot.SHIELD]: { top: 101, left: 142 },
-  [EquipmentSlot.LEGS]: { top: 151, left: 73 },
-  [EquipmentSlot.GLOVES]: { top: 201, left: 3 },
-  [EquipmentSlot.BOOTS]: { top: 201, left: 73 },
-  [EquipmentSlot.RING]: { top: 201, left: 142 },
-  [EquipmentSlot.QUIVER]: { top: 3, left: 124 },
+type SlotLayout = {
+  top: number;
+  left: number;
+  baseIcon: string;
 };
 
-const ITEM_SIZE = 36;
+const EQUIPMENT_SLOTS: Record<string, SlotLayout> = {
+  [EquipmentSlot.HEAD]: { top: 3, left: 59, baseIcon: 'head' },
+  [EquipmentSlot.CAPE]: { top: 42, left: 18, baseIcon: 'cape' },
+  [EquipmentSlot.AMULET]: { top: 42, left: 59, baseIcon: 'amulet' },
+  [EquipmentSlot.AMMO]: { top: 42, left: 100, baseIcon: 'ammo' },
+  [EquipmentSlot.WEAPON]: { top: 81, left: 3, baseIcon: 'weapon' },
+  [EquipmentSlot.TORSO]: { top: 81, left: 59, baseIcon: 'torso' },
+  [EquipmentSlot.SHIELD]: { top: 81, left: 115, baseIcon: 'shield' },
+  [EquipmentSlot.LEGS]: { top: 121, left: 59, baseIcon: 'legs' },
+  [EquipmentSlot.GLOVES]: { top: 161, left: 3, baseIcon: 'gloves' },
+  [EquipmentSlot.BOOTS]: { top: 161, left: 59, baseIcon: 'boots' },
+  [EquipmentSlot.RING]: { top: 161, left: 115, baseIcon: 'ring' },
+  [EquipmentSlot.QUIVER]: { top: 3, left: 100, baseIcon: 'ammo' },
+};
+
+const SCREEN_WIDTH = 154;
+const SCREEN_HEIGHT = 200;
+const SLOT_SIZE = 36;
+const ICON_SIZE = 32;
+
+const PIXELATED: React.CSSProperties = { imageRendering: 'pixelated' };
 
 // The equipment viewer needs to constantly re-render during live views, and
 // Next's Image adds a lot of unnecessary rendering overhead.
@@ -36,7 +47,6 @@ const ITEM_SIZE = 36;
 
 export default function EquipmentViewer(props: EquipmentViewerProps) {
   const { equipment, username, source = DataSource.SECONDARY } = props;
-  let items: React.ReactNode[] = [];
 
   let className = styles.equipmentViewer;
   if (props.className) {
@@ -45,92 +55,96 @@ export default function EquipmentViewer(props: EquipmentViewerProps) {
 
   const hasQuiver = !!equipment?.[EquipmentSlot.QUIVER];
 
-  if (equipment) {
-    items = Object.entries(equipment).map(([slot, item], index) => {
-      if (item === null) {
-        return null;
-      }
+  const items: React.ReactNode[] = Object.entries(EQUIPMENT_SLOTS).map(
+    ([key, { top, left, baseIcon: icon }]) => {
+      const slot = Number(key);
+      const item = equipment?.[slot] ?? null;
 
-      const style: React.CSSProperties = {
-        position: 'absolute',
-        width: ITEM_SIZE,
-        height: ITEM_SIZE,
-        ...EQUIPMENT_OFFSETS[slot],
-      };
+      if (item === null) {
+        // The quiver slot is only shown when it holds ammo.
+        if (slot === EquipmentSlot.QUIVER) {
+          return null;
+        }
+        const offset = (SLOT_SIZE - ICON_SIZE) / 2;
+        return (
+          <img
+            key={key}
+            src={`/images/equipment/slot-${icon}.png`}
+            alt=""
+            width={ICON_SIZE}
+            height={ICON_SIZE}
+            style={{
+              ...PIXELATED,
+              position: 'absolute',
+              top: top + offset,
+              left: left + offset,
+            }}
+          />
+        );
+      }
 
       const tooltipContent = `${item.quantity > 1 ? `${item.quantity.toLocaleString()}× ` : ''}${item.name}`;
 
       return (
-        <span key={`${slot}-${index}`}>
-          <div
-            style={style}
-            data-tooltip-id={GLOBAL_TOOLTIP_ID}
-            data-tooltip-content={tooltipContent}
-          >
-            <img
-              style={{ position: 'absolute', zIndex: 1 }}
-              src="/images/equipment-background.png"
-              alt=""
-              width={ITEM_SIZE}
-              height={ITEM_SIZE}
-            />
-            <Item
-              style={{ zIndex: 2 }}
-              id={item.id}
-              name={item.name}
-              quantity={item.quantity}
-              size={ITEM_SIZE}
-            />
-          </div>
-        </span>
+        <div
+          key={key}
+          style={{
+            position: 'absolute',
+            width: SLOT_SIZE,
+            height: SLOT_SIZE,
+            top,
+            left,
+          }}
+          data-tooltip-id={GLOBAL_TOOLTIP_ID}
+          data-tooltip-content={tooltipContent}
+        >
+          <Item
+            id={item.id}
+            name={item.name}
+            quantity={item.quantity}
+            size={SLOT_SIZE}
+            pixelated
+          />
+        </div>
       );
-    });
+    },
+  );
 
-    if (source === DataSource.SECONDARY) {
+  if (!equipment) {
+    items.push(
+      <div key="empty" className={styles.empty} style={{ top: 80 }}>
+        No equipment data available.
+      </div>,
+    );
+  } else if (source === DataSource.SECONDARY) {
+    for (const slot of [EquipmentSlot.AMMO, EquipmentSlot.RING]) {
+      const { top, left } = EQUIPMENT_SLOTS[slot];
       items.push(
         <div
           className={styles.missing}
-          key={`${username}-${EquipmentSlot.AMMO}`}
+          key={`${username}-${slot}`}
           style={{
             position: 'absolute',
-            height: ITEM_SIZE + 8,
-            width: ITEM_SIZE + 8,
-            top: 48,
-            left: 120,
-          }}
-        >
-          No data
-        </div>,
-        <div
-          className={styles.missing}
-          key={`${username}-${EquipmentSlot.RING}`}
-          style={{
-            position: 'absolute',
-            height: ITEM_SIZE + 8,
-            width: ITEM_SIZE + 8,
-            top: 197,
-            left: 139,
+            height: SLOT_SIZE + 2,
+            width: SLOT_SIZE + 2,
+            top: top - 1,
+            left: left - 1,
           }}
         >
           No data
         </div>,
       );
     }
-  } else {
-    items.push(
-      <div key="empty" className={styles.empty} style={{ top: 96 }}>
-        No equipment data available.
-      </div>,
-    );
   }
 
   return (
     <div className={className}>
       <img
-        src={`/images/equipment${hasQuiver ? '-quiver' : ''}.png`}
+        src={`/images/equipment/background${hasQuiver ? '-quiver' : ''}.png`}
         alt="Equipment screen"
-        width={182}
-        height={240}
+        width={SCREEN_WIDTH}
+        height={SCREEN_HEIGHT}
+        style={PIXELATED}
       />
       {items}
     </div>

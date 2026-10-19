@@ -1,6 +1,6 @@
 import { BCFResolver } from '@blert/bcf';
 
-import { getActionMetadata } from '../attack-metadata';
+import { getActionImageUrl, getActionMetadata } from '../attack-metadata';
 
 const MAX_RETRIES = 2;
 
@@ -65,9 +65,9 @@ export class ImageCache {
         }
 
         for (const action of cell.actions) {
-          const { imageUrl } = getActionMetadata(action);
-          if (imageUrl !== undefined) {
-            urls.add(imageUrl);
+          const { image } = getActionMetadata(action);
+          if (image !== undefined) {
+            urls.add(getActionImageUrl(image));
           }
         }
       }

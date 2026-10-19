@@ -18,7 +18,6 @@ export type ActionEntry = {
   action: BCFAction;
   name: string;
   aliases: string[];
-  imageUrl?: string;
   style: CombatStyle | null;
   cooldown: number;
 };
@@ -88,7 +87,6 @@ function entry(
     tab,
     name: name ?? metadata.name,
     aliases,
-    imageUrl: metadata.imageUrl,
     action,
     style: null,
     cooldown: 1,

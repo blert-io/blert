@@ -267,7 +267,8 @@ export function Slot(props: SlotProps) {
           id={props.item}
           name={name}
           quantity={1}
-          size={30}
+          size={36}
+          pixelated
           data-slot-item={props.item}
         />
       </div>

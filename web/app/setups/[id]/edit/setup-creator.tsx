@@ -637,6 +637,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                     name={context.selectedItem.name}
                     quantity={1}
                     size={32}
+                    fitContent
+                    pixelated
                   />
                   <span className="sr-only">
                     Unselect item: {context.selectedItem.name}

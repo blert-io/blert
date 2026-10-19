@@ -10,7 +10,7 @@
     padding: 8px;
     color: var(--blert-font-color-secondary);
     font-size: 0.9em;
-    width: 160px;
+    width: 140px;
     left: 50%;
     transform: translateX(-50%);
   }
@@ -18,14 +18,15 @@
   .missing {
     background: var(--blert-surface-dark);
     border: 1px solid var(--blert-surface-light);
-    border-radius: 8px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
-    font-size: 12px;
+    font-size: 10px;
+    line-height: 1.2;
     color: var(--blert-font-color-secondary);
-    padding: 4px;
+    padding: 2px;
 
     :global([data-theme='aero']) & {
       background: rgba(74, 80, 90, 0.9);

@@ -1,66 +1,52 @@
-const WIKI_IMAGE_BASE_URL = 'https://oldschool.runescape.wiki/images';
-const CACHE_SPRITE_DUMP_URL =
-  'https://chisel.weirdgloop.org/static/img/osrs-sprite';
+import itemSprites from '../../resources/item_sprites.json';
 
-// A common case is items which have different sprites for each quantity from
-// 1 to 5. A lot of range ammo falls into this category. This regex attempts to
-// match as many of these items as possible.
-const ONE_TO_FIVE_REGEX =
-  /(arrow(\(p\+*\)|tips|heads| \(lit\))?|bolts( ?\((unf|e|p\+*)\))?)$/;
-const ONE_TO_FIVE_ITEMS = new Set(['Atlatl dart']);
+const ITEM_SPRITE_BASE_URL = 'https://sprites.blert.io/items';
 
-function is1to5Item(name: string): boolean {
-  return ONE_TO_FIVE_ITEMS.has(name) || ONE_TO_FIVE_REGEX.exec(name) !== null;
-}
+type ItemSprite = {
+  stackThresholds: number[];
+};
 
-const BARROWS_REGEX = /^(Ahrim's|Dharok's|Guthan's|Karil's|Torag's|Verac's)/;
-
-function isBarrowsItem(name: string): boolean {
-  return BARROWS_REGEX.exec(name) !== null;
-}
-
-/**
- * Converts an in-game item name to the filename of its image on the wiki.
- * Handles special cases like items whose sprites change based on quantity.
- */
-function normalizeToWiki(name: string, quantity: number): string {
-  // Treat locked items as their unlocked counterparts.
-  name = name.replace(/\(l\)/, '');
-
-  const words = name.trim().split(' ');
-  if (isBarrowsItem(name)) {
-    // Ignore the degradation state of Barrows items.
-    if (!Number.isNaN(Number.parseInt(words[words.length - 1]))) {
-      words.pop();
-    }
-  }
-
-  const stem = words.join('_');
-
-  if (is1to5Item(name)) {
-    const qty = Math.min(quantity, 5);
-    return `${stem}_${qty}`;
-  }
-
-  return stem;
-}
+const ITEM_SPRITES: Record<number, ItemSprite | undefined> = itemSprites;
 
 /**
  * Returns the image URL for an OSRS item sprite.
  *
  * @param id The item ID.
- * @param name The item's in-game name.
- * @param quantity The item quantity (affects sprite for ammo-type items).
+ * @param quantity The item quantity, which changes the sprite of some items.
  */
-export function getItemImageUrl(
-  id: number,
-  name: string,
-  quantity: number,
-): string {
-  if (is1to5Item(name)) {
-    return `${WIKI_IMAGE_BASE_URL}/${normalizeToWiki(name, quantity)}.png`;
+export function getItemImageUrl(id: number, quantity = 1): string {
+  const threshold = ITEM_SPRITES[id]?.stackThresholds.findLast(
+    (t) => quantity >= t,
+  );
+  if (threshold !== undefined) {
+    return `${ITEM_SPRITE_BASE_URL}/${id}_${threshold}.png`;
   }
-  return `${CACHE_SPRITE_DUMP_URL}/${id}.png`;
+  return `${ITEM_SPRITE_BASE_URL}/${id}.png`;
+}
+
+const ITEM_SPRITE_WIDTH = 36;
+const ITEM_SPRITE_HEIGHT = 32;
+
+const ITEM_SPRITE_CONTENT_SIZE = 32;
+
+/**
+ * Returns the size at which to draw an item sprite so that its item fits
+ * within a `width` by `height` box.
+ */
+export function fitItemSprite(
+  width: number,
+  height: number,
+): { width: number; height: number } {
+  const scale = Math.min(width, height) / ITEM_SPRITE_CONTENT_SIZE;
+  return {
+    width: ITEM_SPRITE_WIDTH * scale,
+    height: ITEM_SPRITE_HEIGHT * scale,
+  };
+}
+
+/** Returns true if `url` is the URL of a Blert item sprite. */
+export function isItemSpriteUrl(url: string): boolean {
+  return url.startsWith(`${ITEM_SPRITE_BASE_URL}/`);
 }
 
 const COSMETIC_TO_BASE_ID: Record<number, number> = {
