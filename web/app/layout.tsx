@@ -34,6 +34,12 @@ const runescape = localFont({
   variable: '--font-runescape',
 });
 
+// A pixel font, sharp only at multiples of 16px.
+const runescapeSmall = localFont({
+  src: '../public/fonts/runescape-small.ttf',
+  variable: '--font-runescape-small',
+});
+
 const cinzel = Cinzel({ subsets: ['latin'], variable: '--font-cinzel' });
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -97,7 +103,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${styles.body} ${cinzel.variable} ${plusJakartaSans.className} ${plusJakartaSans.variable} ${robotoMono.variable} ${runescape.variable}`}
+        className={`${styles.body} ${cinzel.variable} ${plusJakartaSans.className} ${plusJakartaSans.variable} ${robotoMono.variable} ${runescape.variable} ${runescapeSmall.variable}`}
         style={{ overflowX: 'hidden' }}
       >
         <Styler />

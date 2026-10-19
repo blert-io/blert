@@ -1284,21 +1284,33 @@ function weaponForAttack(
   return { id, name: attack.weaponName ?? simpleItemCache.getItemName(id) };
 }
 
-/** Returns the image URL of the weapon used by `attack`. */
-export function getWeaponImageUrl(attack: BCFAttackAction): string {
+export type ActionImage =
+  { type: 'item'; itemId: number } | { type: 'url'; url: string };
+
+/** Returns the URL of an action image. */
+export function getActionImageUrl(image: ActionImage): string {
+  return image.type === 'item' ? getItemImageUrl(image.itemId) : image.url;
+}
+
+function getWeaponImage(attack: BCFAttackAction): ActionImage {
   const weapon = weaponForAttack(attack);
   if (weapon !== null) {
-    return getItemImageUrl(weapon.id, weapon.name, 1);
+    return { type: 'item', itemId: weapon.id };
   }
 
   switch (bcfToPlayerAttack(attack.attackType)) {
     case PlayerAttack.PUNCH:
-      return '/images/combat/punch.webp';
+      return { type: 'url', url: '/images/combat/punch.webp' };
     case PlayerAttack.KICK:
-      return '/images/combat/kick.webp';
+      return { type: 'url', url: '/images/combat/kick.webp' };
     default:
-      return '/images/huh.png';
+      return { type: 'url', url: '/images/huh.png' };
   }
+}
+
+/** Returns the image URL of the weapon used by `attack`. */
+export function getWeaponImageUrl(attack: BCFAttackAction): string {
+  return getActionImageUrl(getWeaponImage(attack));
 }
 
 const BARRAGES = new Set<PlayerAttack>([
@@ -1338,15 +1350,15 @@ export function getAttackBadgeUrl(attack: BCFAttackAction): string | undefined {
 
 export type ActionMetadata = {
   name: string;
-  imageUrl?: string;
-  /** A small image in the corner of `imageUrl`. */
+  image?: ActionImage;
+  /** A small image in the corner of `image`. */
   badgeUrl?: string;
 };
 
 const UTILITY_METADATA: Record<string, ActionMetadata> = {
   SURGE_POTION: {
     name: 'Surge potion',
-    imageUrl: getItemImageUrl(30875, 'Surge potion(4)', 1),
+    image: { type: 'item', itemId: 30875 },
   },
 };
 
@@ -1356,25 +1368,30 @@ export function getActionMetadata(action: BCFAction): ActionMetadata {
     case 'attack':
       return {
         name: weaponForAttack(action)?.name ?? action.attackType,
-        imageUrl: getWeaponImageUrl(action),
+        image: getWeaponImage(action),
         badgeUrl: getAttackBadgeUrl(action),
       };
     case 'spell': {
       const type = PlayerSpell[action.spellType as keyof typeof PlayerSpell];
       const meta = SPELL_METADATA[type] ?? SPELL_METADATA[PlayerSpell.UNKNOWN];
-      return { name: meta.name, imageUrl: meta.imageUrl };
+      return { name: meta.name, image: { type: 'url', url: meta.imageUrl } };
     }
     case 'utility':
       return (
         UTILITY_METADATA[action.utilityType] ?? { name: action.utilityType }
       );
     case 'death':
-      return { name: 'Death', imageUrl: '/images/combat/skull.webp' };
+      return {
+        name: 'Death',
+        image: { type: 'url', url: '/images/combat/skull.webp' },
+      };
     case 'npcAttack':
       return {
         name: action.attackType,
-        imageUrl:
-          NPC_ATTACK_METADATA[bcfToNpcAttack(action.attackType)].imageUrl,
+        image: {
+          type: 'url',
+          url: NPC_ATTACK_METADATA[bcfToNpcAttack(action.attackType)].imageUrl,
+        },
       };
     case 'npcPhase':
       return { name: action.phaseType };

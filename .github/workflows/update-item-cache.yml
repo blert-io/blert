@@ -64,12 +64,8 @@ jobs:
           commit-message: 'web: Refresh item cache data'
           title: 'web: Refresh item cache data'
           body: |
-            Automated regeneration of `web/resources/{extended,simple}_items.json`
-            and `web/resources/item_sprites.json` from the latest live OSRS cache
-            via the item-cache dumper image.
+            Automated regeneration of `web/resources/{extended,simple}_items.json` and `web/resources/item_sprites.json` from the latest live OSRS cache via the item-cache dumper image.
 
-            Uploaded ${{ steps.regenerate.outputs.new-sprites }} new and
-            ${{ steps.regenerate.outputs.changed-sprites }} changed item sprites to
-            https://sprites.blert.io/items/.
+            Uploaded ${{ steps.regenerate.outputs.new-sprites }} new and ${{ steps.regenerate.outputs.changed-sprites }} changed item sprites to https://sprites.blert.io/items/.
           labels: |
             automation

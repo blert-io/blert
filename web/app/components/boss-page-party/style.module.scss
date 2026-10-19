@@ -9,7 +9,7 @@
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px;
     width: 100%;
     max-width: 1400px;
     padding: 0px;
@@ -27,7 +27,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 220px;
+    width: 186px;
     overflow: hidden;
     transition: all 0.2s ease;
 
@@ -37,22 +37,17 @@
 
     h2 {
       margin: 0;
-      padding: 8px;
+      padding: 6px;
       width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       text-align: center;
-      font-size: 1.1em;
+      font-size: 1em;
       color: var(--blert-font-color-primary);
       font-weight: 500;
       background: var(--blert-surface-dark);
       border-bottom: 1px solid var(--blert-surface-light);
-
-      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-        font-size: 1em;
-        padding: 6px;
-      }
     }
 
     .prayers {
@@ -68,7 +63,7 @@
       display: flex;
       justify-content: center;
       width: 100%;
-      padding: 8px 0;
+      padding: 6px 0;
     }
 
     .skills {

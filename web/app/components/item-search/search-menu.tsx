@@ -60,7 +60,7 @@ export default function SearchMenu({
     customAction: () => onSelect(item),
     customElement: (
       <div className={styles.item}>
-        <Item id={item.id} name={item.name} quantity={1} size={24} />
+        <Item id={item.id} name={item.name} quantity={1} size={24} fitContent />
         <span className={styles.name}>{item.name}</span>
         {showIds && <span className={styles.id}>({item.id})</span>}
       </div>

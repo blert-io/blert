@@ -2,6 +2,8 @@
 
 import Image from 'next/image';
 
+import { fitItemSprite, isItemSpriteUrl } from '@/utils/item';
+
 export function isValidImageUrl(url: string): boolean {
   if (url.startsWith('/')) {
     return !url.startsWith('//');
@@ -66,9 +68,20 @@ export function HintImage({
     );
   }
 
-  const baseStyle: React.CSSProperties = fill
-    ? { objectFit: 'contain', width: '100%', height: '100%' }
-    : { objectFit: 'contain', width: size, height: size };
+  const isItemSprite = isItemSpriteUrl(src);
+
+  let baseStyle: React.CSSProperties;
+  if (fill) {
+    baseStyle = { objectFit: 'contain', width: '100%', height: '100%' };
+  } else if (isItemSprite && size !== undefined) {
+    const sprite = fitItemSprite(size, size);
+    baseStyle = {
+      ...sprite,
+      margin: `${(size - sprite.height) / 2}px ${(size - sprite.width) / 2}px`,
+    };
+  } else {
+    baseStyle = { objectFit: 'contain', width: size, height: size };
+  }
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -76,6 +89,7 @@ export function HintImage({
       src={src}
       alt={alt}
       className={className}
+      crossOrigin={isItemSprite ? 'anonymous' : undefined}
       loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"

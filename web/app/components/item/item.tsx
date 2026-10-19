@@ -1,4 +1,4 @@
-import { getItemImageUrl } from '@/utils/item';
+import { fitItemSprite, getItemImageUrl } from '@/utils/item';
 
 import styles from './style.module.scss';
 
@@ -27,6 +27,13 @@ type ItemProps = {
   quantity: number;
   outlineColor?: string;
   size: number;
+  /**
+   * Fits the item, rather than its whole sprite, within `size`. The edges of
+   * the sprite overflow the box.
+   */
+  fitContent?: boolean;
+  /** Disables image smoothing. Use only when the sprite is drawn at 1:1. */
+  pixelated?: boolean;
   className?: string;
   style?: React.CSSProperties;
   [key: `data-${string}`]: string | undefined;
@@ -42,11 +49,13 @@ export default function Item({
   quantity,
   outlineColor,
   size,
+  fitContent,
+  pixelated,
   className,
   style,
   ...dataAttributes
 }: ItemProps) {
-  const imageUrl = getItemImageUrl(id, name, quantity);
+  const imageUrl = getItemImageUrl(id, quantity);
 
   const { text: quantityText, color: quantityColor } = formatQuantity(quantity);
 
@@ -55,6 +64,18 @@ export default function Item({
     imageStyle.filter =
       `drop-shadow(1px 2px 0 ${outlineColor})` +
       ` drop-shadow(-1px -1px 0 ${outlineColor})`;
+  }
+  if (pixelated) {
+    imageStyle.imageRendering = 'pixelated';
+  }
+
+  let imageWidth = size;
+  let imageHeight = size;
+  if (fitContent) {
+    const sprite = fitItemSprite(size, size);
+    imageWidth = sprite.width;
+    imageHeight = sprite.height;
+    imageStyle.margin = `${(size - imageHeight) / 2}px ${(size - imageWidth) / 2}px`;
   }
 
   const cssStyle = {
@@ -73,8 +94,9 @@ export default function Item({
       <img
         src={imageUrl}
         alt={name}
-        height={size}
-        width={size}
+        crossOrigin="anonymous"
+        height={imageHeight}
+        width={imageWidth}
         style={imageStyle}
       />
       {quantityText && (

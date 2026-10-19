@@ -40,6 +40,7 @@ import {
   useStableEvents,
   useStageEvents,
 } from '@/utils/boss-room-state';
+import { getItemImageUrl } from '@/utils/item';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
@@ -374,8 +375,11 @@ export default function VerzikPage() {
         entities.push(
           new ObjectEntity(
             dawnState.position,
-            'https://chisel.weirdgloop.org/static/img/osrs-sprite/22516.png',
+            getItemImageUrl(22516),
             'Dawnbringer',
+            1,
+            undefined,
+            true,
           ),
         );
       }

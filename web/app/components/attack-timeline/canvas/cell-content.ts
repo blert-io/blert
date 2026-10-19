@@ -7,6 +7,7 @@ import {
 } from '@blert/bcf';
 import { PlayerAttack, PlayerSpell } from '@blert/common';
 
+import { fitItemSprite, isItemSpriteUrl } from '@/utils/item';
 import { simpleItemCache } from '@/utils/item-cache/simple';
 import { SPELL_METADATA } from '@/utils/spell';
 
@@ -14,6 +15,7 @@ import {
   ATTACK_METADATA,
   bcfToNpcAttack,
   bcfToPlayerAttack,
+  getActionImageUrl,
   getActionMetadata,
   getAttackBadgeUrl,
   getWeaponImageUrl,
@@ -30,18 +32,30 @@ function spellMeta(spell: BCFSpellAction) {
   return SPELL_METADATA[type];
 }
 
+/**
+ * Returns the size at which to draw an image to fit it within a box,
+ * preserving its aspect ratio.
+ */
+function containedSize(
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+): { w: number; h: number } {
+  if (isItemSpriteUrl(img.src)) {
+    const sprite = fitItemSprite(width, height);
+    return { w: sprite.width, h: sprite.height };
+  }
+  const scale = Math.min(width / img.naturalWidth, height / img.naturalHeight);
+  return { w: img.naturalWidth * scale, h: img.naturalHeight * scale };
+}
+
 /** Draws an image scaled to fit within a box, preserving aspect ratio. */
 function drawContainedImage(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   box: BoundingBox,
 ): void {
-  const scale = Math.min(
-    box.width / img.naturalWidth,
-    box.height / img.naturalHeight,
-  );
-  const w = img.naturalWidth * scale;
-  const h = img.naturalHeight * scale;
+  const { w, h } = containedSize(img, box.width, box.height);
   ctx.drawImage(
     img,
     box.x + (box.width - w) / 2,
@@ -133,7 +147,8 @@ function drawBlunderImage(
   ctx.shadowOffsetX = 2;
   ctx.shadowOffsetY = 4;
 
-  ctx.drawImage(img, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+  const { w, h } = containedSize(img, drawSize, drawSize);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
 
   ctx.restore();
 }
@@ -348,9 +363,9 @@ export function drawPlayerCell(
   const customStates: CustomState[] = [];
 
   if (utility !== undefined) {
-    const { name, imageUrl } = getActionMetadata(utility);
-    if (imageUrl !== undefined) {
-      customStates.push({ iconUrl: imageUrl, fullText: name });
+    const { name, image } = getActionMetadata(utility);
+    if (image !== undefined) {
+      customStates.push({ iconUrl: getActionImageUrl(image), fullText: name });
     }
   }
 
@@ -507,7 +522,7 @@ function drawCustomStates(
   let allDrawn = true;
 
   const first = states[0];
-  const iconSize = Math.floor((cellSize / 2) * (first.iconScale ?? 1));
+  const iconSize = Math.floor(cellSize / 2);
 
   if (first.iconUrl !== undefined) {
     allDrawn = drawCachedImage(ctx, imageCache, first.iconUrl, {

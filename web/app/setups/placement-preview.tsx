@@ -148,7 +148,8 @@ export function PlacementPreview({
             id={item.id}
             name={extendedItemCache.getItemName(item.id)}
             quantity={item.quantity}
-            size={30}
+            size={36}
+            pixelated
           />
         )}
       </div>,

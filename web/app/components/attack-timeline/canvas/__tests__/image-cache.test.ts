@@ -100,7 +100,7 @@ describe('ImageCache', () => {
       const cache = new ImageCache(() => {
         /* no-op */
       });
-      cache.get('https://chisel.weirdgloop.org/static/img/osrs-sprite/123.png');
+      cache.get('https://sprites.blert.io/items/123.png');
       expect(lastMockImage().crossOrigin).toBe('anonymous');
     });
 

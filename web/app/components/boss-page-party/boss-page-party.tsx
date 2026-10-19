@@ -107,6 +107,7 @@ const PlayerPanel = memo(
         <div className={styles.prayers}>
           <KeyPrayers
             prayerSet={state?.player.prayerSet ?? 0}
+            size={26}
             source={state?.player.source}
           />
         </div>
@@ -236,7 +237,7 @@ export default function BossPageParty({
   return (
     <Card className={styles.bossPageParty} header={{ title: 'Party' }}>
       {display.isCompact() && party.length > 1 ? (
-        <Carousel maxItemWidth={236} label="Party members">
+        <Carousel maxItemWidth={202} label="Party members">
           {party}
         </Carousel>
       ) : (

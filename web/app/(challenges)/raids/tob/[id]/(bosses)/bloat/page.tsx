@@ -262,8 +262,7 @@ export default function BloatPage() {
           tick,
           states: [
             {
-              iconUrl: getItemImageUrl(amulet.id, amulet.name, 1),
-              iconScale: 0.8,
+              iconUrl: getItemImageUrl(amulet.id),
               fullText: amulet.name,
             },
           ],
