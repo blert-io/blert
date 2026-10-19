@@ -18,9 +18,25 @@ use verzik::VerzikInterpreter;
 
 use crate::proto::event::object_update;
 use crate::{
-    BuildMismatch, ClientId, Event, EventKind, ObjectKind, Point, Recording, Stage, TickState,
-    proto,
+    BuildMismatch, ClientId, ConfigVersion, Event, EventKind, NpcDeath, ObjectKind, PluginVersion,
+    Point, RawActor, Recording, RoomId, Stage, Tick, TickState, npc, proto,
 };
+
+const GENERIC_DEATHS: [(PluginVersion, &[u32]); 1] = [(
+    bloat::MIN_SUPPORTED_VERSION,
+    &[
+        npc::id::BLOAT_ENTRY,
+        npc::id::BLOAT_REGULAR,
+        npc::id::BLOAT_HARD,
+    ],
+)];
+
+struct InterpretContext {
+    client_id: ClientId,
+    plugin_version: PluginVersion,
+    #[expect(dead_code)]
+    config_version: ConfigVersion,
+}
 
 /// An `Interpreter` is responsible for converting raw signals recorded by a
 /// plugin into events. Interpreters run in two phases: `decide` performs the
@@ -29,27 +45,142 @@ use crate::{
 trait Interpreter: Sized {
     fn decide(&mut self, _recording: &Recording) {}
 
-    fn apply(self, recording: &mut Recording);
+    /// Writes any planned updates to the recording's state and events.
+    /// Returns the earliest tick that changed that would not otherwise have
+    /// been modified by ingesting the same raw state.
+    ///
+    /// For example, if an interpreter reads raw signals from a particular tick
+    /// and inserts events on that same tick, it can return `None`, as the
+    /// addition of new raw signals would already have marked the tick as
+    /// modified. However, if it reaches back into earlier ticks in response
+    /// to those signals, it should return that tick.
+    fn apply(self, recording: &mut Recording) -> Option<Tick>;
 
-    fn interpret(mut self, recording: &mut Recording) {
+    fn interpret(mut self, recording: &mut Recording) -> Option<Tick> {
         self.decide(recording);
-        self.apply(recording);
+        self.apply(recording)
     }
 }
 
-fn interpret(recording: &mut Recording, client_id: ClientId) {
-    match recording.stage() {
-        Stage::TobMaiden => MaidenInterpreter::new(client_id).interpret(recording),
-        Stage::TobBloat => BloatInterpreter::new(client_id).interpret(recording),
-        Stage::TobSotetseg => SotetsegInterpreter::new(client_id).interpret(recording),
-        Stage::TobVerzik => VerzikInterpreter::new(client_id).interpret(recording),
-        stage if (Stage::ColosseumWave1..=Stage::ColosseumWave12).contains(&stage) => {
-            ColosseumInterpreter::new(client_id).interpret(recording);
+// TODO(frolv): Temporary until bespoke events are removed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum InterpretMode {
+    Write,
+    Compare,
+}
+
+pub(super) fn interpret(
+    recording: &mut Recording,
+    client_id: ClientId,
+    plugin_version: PluginVersion,
+    config_version: ConfigVersion,
+    mode: InterpretMode,
+) -> Option<Tick> {
+    if config_version == ConfigVersion::NONE {
+        return None;
+    }
+
+    let ctx = InterpretContext {
+        client_id,
+        plugin_version,
+        config_version,
+    };
+
+    if mode == InterpretMode::Compare {
+        return match recording.stage() {
+            Stage::TobMaiden => MaidenInterpreter::new(&ctx).interpret(recording),
+            Stage::TobSotetseg => SotetsegInterpreter::new(&ctx).interpret(recording),
+            Stage::TobVerzik => VerzikInterpreter::new(&ctx).interpret(recording),
+            stage if (Stage::ColosseumWave1..=Stage::ColosseumWave12).contains(&stage) => {
+                ColosseumInterpreter::new(&ctx).interpret(recording)
+            }
+            stage if (Stage::MokhaiotlDelve1..=Stage::MokhaiotlDelve8plus).contains(&stage) => {
+                MokhaiotlInterpreter::new(&ctx).interpret(recording)
+            }
+            _ => None,
+        };
+    }
+
+    let deaths = NpcDeathInterpreter::new(&ctx).interpret(recording);
+    let bloat = if recording.stage() == Stage::TobBloat {
+        BloatInterpreter::new(&ctx).interpret(recording)
+    } else {
+        None
+    };
+    deaths.into_iter().chain(bloat).min()
+}
+
+struct NpcDeathInterpreter<'a> {
+    ctx: &'a InterpretContext,
+    last_seen: BTreeMap<RoomId, Tick>,
+}
+
+impl<'a> NpcDeathInterpreter<'a> {
+    fn new(ctx: &'a InterpretContext) -> Self {
+        Self {
+            ctx,
+            last_seen: BTreeMap::new(),
         }
-        stage if (Stage::MokhaiotlDelve1..=Stage::MokhaiotlDelve8plus).contains(&stage) => {
-            MokhaiotlInterpreter::new(client_id).interpret(recording);
+    }
+}
+
+impl Interpreter for NpcDeathInterpreter<'_> {
+    fn decide(&mut self, recording: &Recording) {
+        let ids = GENERIC_DEATHS
+            .iter()
+            .filter(|(version, _)| self.ctx.plugin_version >= *version)
+            .flat_map(|(_, ids)| ids.iter().copied())
+            .collect::<BTreeSet<_>>();
+        for (tick, state) in recording.states() {
+            for (&room_id, npc) in &state.npcs {
+                if ids.contains(&npc.id) {
+                    self.last_seen.insert(room_id, tick);
+                }
+            }
         }
-        _ => {}
+    }
+
+    fn apply(self, recording: &mut Recording) -> Option<Tick> {
+        let mut last_seen = self
+            .last_seen
+            .iter()
+            .map(|(&room_id, &tick)| (tick, room_id))
+            .collect::<Vec<_>>();
+        last_seen.sort();
+        let mut last_seen = last_seen.into_iter().peekable();
+        let mut pending_deaths = Vec::new();
+        let mut changed = None;
+
+        for (tick, state) in recording.states_mut() {
+            let removed = state
+                .events
+                .extract_if(.., |event| {
+                    matches!(
+                        event.kind,
+                        EventKind::NpcDeath(death) if self.last_seen.contains_key(&death.npc)
+                    )
+                })
+                .collect::<Vec<_>>();
+            let added = pending_deaths
+                .drain(..)
+                .map(|death| Event::recorded(self.ctx.client_id, EventKind::NpcDeath(death)))
+                .collect::<Vec<_>>();
+            if changed.is_none() && removed != added {
+                changed = Some(tick);
+            }
+            state.events.extend(added);
+
+            while let Some((_, room_id)) = last_seen.next_if(|&(seen_tick, _)| seen_tick == tick) {
+                let npc = &state.npcs[&room_id];
+                pending_deaths.push(NpcDeath {
+                    position: npc.position.point,
+                    npc: room_id,
+                    npc_id: Some(npc.id),
+                });
+            }
+        }
+
+        changed
     }
 }
 
@@ -107,19 +238,20 @@ impl RawObjects {
     }
 }
 
-/// Returns each tick where output from an interpreter differs from that of the
-/// bespoke events sent by the plugin.
+/// An NPC as recorded by a plugin.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct RawNpc {
+    pub(super) animation: Option<u32>,
+    pub(super) target: Option<RawActor>,
+    pub(super) spot_anims: Vec<u32>,
+}
+
+/// Returns each tick where `interpretation` differs from the bespoke events
+/// sent by the plugin in `recording`.
 // TODO(frolv): Temporary until bespoke object events are removed.
-pub(super) fn compare(recording: &Recording, client_id: ClientId) -> Vec<BuildMismatch> {
+pub(super) fn compare(recording: &Recording, interpretation: &Recording) -> Vec<BuildMismatch> {
     let (objects, events): (&[ObjectKind], &[proto::event::Type]) = match recording.stage() {
         Stage::TobMaiden => (&[ObjectKind::MaidenBloodSplats], &[]),
-        Stage::TobBloat => (
-            &[],
-            &[
-                proto::event::Type::TobBloatHandsDrop,
-                proto::event::Type::TobBloatHandsSplat,
-            ],
-        ),
         Stage::TobSotetseg => (&[ObjectKind::SoteMazeTiles], &[]),
         Stage::TobVerzik => (&[ObjectKind::VerzikYellows], &[]),
         stage if (Stage::ColosseumWave1..=Stage::ColosseumWave12).contains(&stage) => (
@@ -143,9 +275,6 @@ pub(super) fn compare(recording: &Recording, client_id: ClientId) -> Vec<BuildMi
         ),
         _ => return Vec::new(),
     };
-
-    let mut interpretation = recording.clone();
-    interpret(&mut interpretation, client_id);
 
     let object_values = |state: &TickState, kind: ObjectKind| -> BTreeSet<String> {
         state
@@ -201,12 +330,6 @@ fn event_values(event: &Event) -> Option<(proto::event::Type, Vec<String>)> {
     let positions =
         |points: &[Point]| -> Vec<String> { points.iter().map(Point::to_string).collect() };
     match &event.kind {
-        EventKind::BloatHandsDrop(points) => {
-            Some((proto::event::Type::TobBloatHandsDrop, positions(points)))
-        }
-        EventKind::BloatHandsSplat(points) => {
-            Some((proto::event::Type::TobBloatHandsSplat, positions(points)))
-        }
         EventKind::SolPools(points) => {
             Some((proto::event::Type::ColosseumSolPools, positions(points)))
         }

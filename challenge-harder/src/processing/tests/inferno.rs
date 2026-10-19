@@ -51,7 +51,8 @@ async fn wave_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::InfernoWave42, &load_fixture("inferno_wave_42")).await;
+    let fixture = load_fixture("inferno_wave_42");
+    prepare_fixture(uuid, Stage::InfernoWave42, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -59,7 +60,10 @@ async fn wave_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),

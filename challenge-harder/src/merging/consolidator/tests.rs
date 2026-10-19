@@ -1485,7 +1485,7 @@ fn deduplicates_agreeing_player_attacks() {
         stage,
         &challenge,
         Some(PlayerAttack::Scythe),
-        Some(maiden),
+        Some(maiden.clone()),
     );
     let target = single_tick_with_attack(
         TARGET_CLIENT_ID,
@@ -1613,7 +1613,7 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
             .collect();
         fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
     };
-    let base = recording(BASE_CLIENT_ID, [None, Some(maiden)]);
+    let base = recording(BASE_CLIENT_ID, [None, Some(maiden.clone())]);
     let target = recording(TARGET_CLIENT_ID, [Some(maiden), None]);
 
     let ctx = test_ctx(
@@ -1698,8 +1698,8 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
     let base = recording(
         BASE_CLIENT_ID,
         [
-            (PlayerAttack::Scythe, maiden),
-            (PlayerAttack::Scythe, maiden),
+            (PlayerAttack::Scythe, maiden.clone()),
+            (PlayerAttack::Scythe, maiden.clone()),
         ],
     );
     let target = recording(

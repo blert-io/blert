@@ -1,10 +1,11 @@
 use crate::proto::event::object_update;
+use crate::tick::Tick;
 use crate::{
-    ClientId, Event, EventKind, ObjectKind, Point, Recording, Rect, SolDust, SolDustDirection,
-    SolLaserPhase, Source, TickState, npc,
+    Event, EventKind, ObjectKind, Point, Recording, Rect, SolDust, SolDustDirection, SolLaserPhase,
+    Source, TickState, npc,
 };
 
-use super::{Interpreter, ObjectDef};
+use super::{InterpretContext, Interpreter, ObjectDef};
 
 const REENTRY_PRIMARY_POOL: ObjectDef = ObjectDef(object_update::Type::Game, 50743);
 const REENTRY_SECONDARY_POOL: ObjectDef = ObjectDef(object_update::Type::Ground, 50744);
@@ -36,12 +37,12 @@ const OBJECTS: [(ObjectDef, ObjectKind); 2] = [
     ),
 ];
 
-pub(super) struct ColosseumInterpreter {
-    client_id: ClientId,
+pub(super) struct ColosseumInterpreter<'a> {
+    ctx: &'a InterpretContext,
 }
 
-impl Interpreter for ColosseumInterpreter {
-    fn apply(self, recording: &mut Recording) {
+impl Interpreter for ColosseumInterpreter<'_> {
+    fn apply(self, recording: &mut Recording) -> Option<Tick> {
         for (_, state) in recording.states_mut() {
             let events = [
                 self.sol_pools(state),
@@ -58,9 +59,11 @@ impl Interpreter for ColosseumInterpreter {
 
             for &(def, kind) in &OBJECTS {
                 if let Some(raw) = state.raw_objects.get(def) {
-                    state
-                        .objects
-                        .insert(kind, Source::Client(self.client_id), raw.iter().copied());
+                    state.objects.insert(
+                        kind,
+                        Source::Client(self.ctx.client_id),
+                        raw.iter().copied(),
+                    );
                 }
             }
 
@@ -72,12 +75,14 @@ impl Interpreter for ColosseumInterpreter {
             });
             state.events.extend(events);
         }
+
+        None
     }
 }
 
-impl ColosseumInterpreter {
-    pub(super) fn new(client_id: ClientId) -> Self {
-        Self { client_id }
+impl<'a> ColosseumInterpreter<'a> {
+    pub(super) fn new(ctx: &'a InterpretContext) -> Self {
+        Self { ctx }
     }
 
     fn sol_pools(&self, state: &TickState) -> Option<Event> {
@@ -87,7 +92,10 @@ impl ColosseumInterpreter {
             .iter()
             .copied()
             .collect::<Vec<_>>();
-        Some(Event::recorded(self.client_id, EventKind::SolPools(pools)))
+        Some(Event::recorded(
+            self.ctx.client_id,
+            EventKind::SolPools(pools),
+        ))
     }
 
     fn sol_lasers(&self, state: &TickState) -> Option<Event> {
@@ -100,7 +108,10 @@ impl ColosseumInterpreter {
         } else {
             return None;
         };
-        Some(Event::recorded(self.client_id, EventKind::SolLasers(phase)))
+        Some(Event::recorded(
+            self.ctx.client_id,
+            EventKind::SolLasers(phase),
+        ))
     }
 
     fn sol_dust(&self, state: &TickState) -> Option<Event> {
@@ -147,6 +158,9 @@ impl ColosseumInterpreter {
             // Safe ring 3 tiles away, everything else is dust: second shield.
             _ => SolDust::Shield2,
         };
-        Some(Event::recorded(self.client_id, EventKind::SolDust(dust)))
+        Some(Event::recorded(
+            self.ctx.client_id,
+            EventKind::SolDust(dust),
+        ))
     }
 }

@@ -184,6 +184,7 @@ impl<'a> Encoder<'a> {
                     previous.and_then(|previous| previous.properties.as_ref()) != Some(properties)
                 })
                 .and_then(NpcProperties::to_proto),
+            ..Default::default()
         });
         event
     }
@@ -401,6 +402,7 @@ impl<'a> Encoder<'a> {
                     hitpoints: npc.map_or(0, |npc| npc.hitpoints.to_raw()),
                     active_prayers: npc.map_or(0, |npc| npc.prayers.to_raw()),
                     r#type: None,
+                    ..Default::default()
                 });
                 Some(event)
             }
@@ -445,6 +447,7 @@ impl<'a> Encoder<'a> {
                     hitpoints: npc.hitpoints.to_raw(),
                     active_prayers: npc.prayers.to_raw(),
                     r#type: npc.properties.as_ref().and_then(NpcProperties::to_proto),
+                    ..Default::default()
                 });
                 Some(event)
             }

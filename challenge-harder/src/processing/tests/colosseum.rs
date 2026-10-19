@@ -52,18 +52,10 @@ async fn wave_test() {
         .await
         .unwrap();
 
-    prepare_fixture(
-        uuid,
-        Stage::ColosseumWave1,
-        &load_fixture("colosseum_wave_1"),
-    )
-    .await;
-    prepare_fixture(
-        uuid,
-        Stage::ColosseumWave2,
-        &load_fixture("colosseum_wave_2"),
-    )
-    .await;
+    let wave_1 = load_fixture("colosseum_wave_1");
+    let wave_2 = load_fixture("colosseum_wave_2");
+    prepare_fixture(uuid, Stage::ColosseumWave1, &wave_1.records).await;
+    prepare_fixture(uuid, Stage::ColosseumWave2, &wave_2.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -71,7 +63,10 @@ async fn wave_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: wave_1.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),

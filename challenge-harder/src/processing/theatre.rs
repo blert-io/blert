@@ -1697,7 +1697,7 @@ mod tests {
                     attack: PlayerAttack::ElderMaul,
                     weapon_id: blert::item::id::ELDER_MAUL,
                     distance_to_target: 1,
-                    target: maiden,
+                    target: maiden.clone(),
                 }),
                 PlayerUpdateEvent::new(Tick(16), Stage::TobMaiden, "1Ogp", (3168, 4445)).build(),
                 player_attack_event(PlayerAttackEvent {
@@ -1795,7 +1795,7 @@ mod tests {
                     attack: PlayerAttack::ChinBlack,
                     weapon_id: blert::item::id::BLACK_CHINCHOMPA,
                     distance_to_target: 4,
-                    target: n4_crab,
+                    target: n4_crab.clone(),
                 }),
                 PlayerUpdateEvent::new(Tick(75), Stage::TobMaiden, "WWWWWWWWWWQQ", (3174, 4449))
                     .party_index(1)

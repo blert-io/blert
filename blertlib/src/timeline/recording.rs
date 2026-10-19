@@ -209,6 +209,7 @@ mod tests {
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
                 events: Vec::new(),
             },
         );
@@ -239,6 +240,7 @@ mod tests {
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
                 events: Vec::new(),
             },
         );
@@ -318,6 +320,7 @@ mod tests {
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
                 events: Vec::new(),
             },
         );
@@ -341,6 +344,7 @@ mod tests {
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
                 events: vec![Event::recorded(
                     ClientId(14),
                     EventKind::XarpusPhase(XarpusPhase::XarpusP2),
@@ -390,6 +394,7 @@ mod tests {
                 )]),
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
                 events: vec![Event::recorded(
                     ClientId(1),
                     EventKind::NpcAttack(NpcAttacked {
@@ -407,6 +412,7 @@ mod tests {
                 npcs: BTreeMap::new(),
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
                 events: vec![Event::recorded(
                     ClientId(1),
                     EventKind::VerzikBounce(VerzikBounce {

@@ -317,7 +317,7 @@ impl<'a> PlayerUpdateEvent<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct PlayerAttackEvent<'a> {
     pub tick: Tick,
     pub stage: Stage,
@@ -434,6 +434,7 @@ fn npc_event(event_type: event::Type, options: NpcEvent) -> Event {
         hitpoints: options.hitpoints.to_raw(),
         active_prayers: options.prayers.unwrap_or_default(),
         r#type: options.kind,
+        ..Default::default()
     });
     event
 }

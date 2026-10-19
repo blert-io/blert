@@ -21,7 +21,7 @@ use crate::{
     PluginVersion, Point, Rect, Source, Stage, npc, proto,
 };
 
-use super::interpret::{self, ObjectDef, RawObjects};
+use super::interpret::{self, InterpretMode, ObjectDef, RawNpc, RawObjects};
 use super::{ConfigVersion, Recording, SoteMazePivots, StageData, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
@@ -136,7 +136,6 @@ impl Modified {
 #[derive(Debug)]
 pub struct RecordingBuilder {
     client_id: ClientId,
-    #[expect(dead_code)]
     plugin_version: PluginVersion,
     config_version: ConfigVersion,
     stage: Stage,
@@ -151,8 +150,6 @@ pub struct RecordingBuilder {
     // TODO(frolv): Temporary until bespoke object events are removed.
     mismatches: BTreeMap<Tick, Vec<BuildMismatch>>,
     legacy_objects: bool,
-    // TODO(frolv): Temporary until bespoke object events are removed.
-    object_updates: bool,
 }
 
 impl RecordingBuilder {
@@ -188,7 +185,6 @@ impl RecordingBuilder {
             warnings: BTreeMap::new(),
             mismatches: BTreeMap::new(),
             legacy_objects: false,
-            object_updates: false,
         }
     }
 
@@ -260,9 +256,6 @@ impl RecordingBuilder {
             };
             if legacy_objects {
                 self.legacy_objects = true;
-            }
-            if event.r#type() == Type::Objects {
-                self.object_updates = true;
             }
 
             if event.stage() != self.stage {
@@ -343,15 +336,30 @@ impl RecordingBuilder {
             modified.stage_data |= finished.stage_data;
         }
         self.events.append(&mut pending);
+        if let Some(tick) = interpret::interpret(
+            &mut recording,
+            self.client_id,
+            self.plugin_version,
+            self.config_version,
+            InterpretMode::Write,
+        ) {
+            modified.update_tick(tick);
+        }
         // TODO(frolv): Temporary until bespoke object events are removed.
-        if self.object_updates {
-            self.mismatches.clear();
-            for mismatch in interpret::compare(&recording, self.client_id) {
-                self.mismatches
-                    .entry(mismatch.tick)
-                    .or_default()
-                    .push(mismatch);
-            }
+        let mut interpretation = recording.clone();
+        interpret::interpret(
+            &mut interpretation,
+            self.client_id,
+            self.plugin_version,
+            self.config_version,
+            InterpretMode::Compare,
+        );
+        self.mismatches.clear();
+        for mismatch in interpret::compare(&recording, &interpretation) {
+            self.mismatches
+                .entry(mismatch.tick)
+                .or_default()
+                .push(mismatch);
         }
         self.recording = Some(recording);
 
@@ -408,6 +416,7 @@ impl<'a> TickBuilder<'a> {
                 npcs: BTreeMap::new(),
                 objects,
                 raw_objects,
+                raw_npcs: BTreeMap::new(),
                 events: Vec::new(),
             },
             processed: 0,
@@ -471,8 +480,9 @@ impl<'a> TickBuilder<'a> {
                     self.last_seen_actors,
                     event,
                 ) {
-                    Ok((room_id, state)) => {
+                    Ok((room_id, state, raw)) => {
                         self.state.npcs.insert(room_id, state);
+                        self.state.raw_npcs.insert(room_id, raw);
                     }
                     Err(reason) => {
                         self.rejections
@@ -1072,7 +1082,7 @@ fn extract_npc_state(
     recording: &Recording,
     last_seen_actors: &HashMap<Actor, Tick>,
     event: &proto::Event,
-) -> Result<(RoomId, NpcState), RejectionReason> {
+) -> Result<(RoomId, NpcState, RawNpc), RejectionReason> {
     let npc = expect_npc(event)?;
     let room_id = RoomId(npc.room_id);
     let prior = last_seen_actors
@@ -1086,8 +1096,14 @@ fn extract_npc_state(
         npc.id
     };
 
-    // TODO(frolv): Send size from the plugin.
-    let size = npc::definition(npc_id).map_or(1, |definition| definition.size);
+    let size = if npc.size == 0 {
+        npc::definition(npc_id).map_or(1, |definition| definition.size)
+    } else {
+        u16::try_from(npc.size).map_err(|_| RejectionReason::InvalidField {
+            field: "size",
+            error: FieldError::OutOfDomain(npc.size.to_string()),
+        })?
+    };
     let position = Rect::square(parse_point(event)?, size);
 
     let properties = match &npc.r#type {
@@ -1136,6 +1152,22 @@ fn extract_npc_state(
             hitpoints: SkillLevel::from_raw(npc.hitpoints),
             prayers: PrayerSet::from_raw(npc.active_prayers),
             properties,
+        },
+        RawNpc {
+            animation: npc.animation,
+            target: npc
+                .target
+                .as_ref()
+                .and_then(|target| target.target.as_ref())
+                .map(|target| match target {
+                    proto::event::npc::target::Target::Player(name) => {
+                        RawActor::Player(name.clone())
+                    }
+                    proto::event::npc::target::Target::NpcRoomId(room_id) => {
+                        RawActor::Npc(*room_id)
+                    }
+                }),
+            spot_anims: npc.spot_anims.clone(),
         },
     ))
 }

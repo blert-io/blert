@@ -1,7 +1,8 @@
 use crate::proto::event::object_update;
-use crate::{ClientId, ObjectKind, Point, Recording, Rect, Source};
+use crate::tick::Tick;
+use crate::{ObjectKind, Point, Recording, Rect, Source};
 
-use super::{Interpreter, ObjectDef};
+use super::{InterpretContext, Interpreter, ObjectDef};
 
 const MAZE_TILE: ObjectDef = ObjectDef(object_update::Type::Ground, 33035);
 
@@ -11,25 +12,25 @@ const OVERWORLD_MAZE: Rect = Rect {
     height: 15,
 };
 
-pub(super) struct SotetsegInterpreter {
-    client_id: ClientId,
+pub(super) struct SotetsegInterpreter<'a> {
+    ctx: &'a InterpretContext,
 }
 
-impl SotetsegInterpreter {
-    pub(super) fn new(client_id: ClientId) -> Self {
-        Self { client_id }
+impl<'a> SotetsegInterpreter<'a> {
+    pub(super) fn new(ctx: &'a InterpretContext) -> Self {
+        Self { ctx }
     }
 }
 
-impl Interpreter for SotetsegInterpreter {
-    fn apply(self, recording: &mut Recording) {
+impl Interpreter for SotetsegInterpreter<'_> {
+    fn apply(self, recording: &mut Recording) -> Option<Tick> {
         let Point(x, y) = OVERWORLD_MAZE.point;
         for (_, state) in recording.states_mut() {
             state.objects.clear(ObjectKind::SoteMazeTiles);
             if let Some(points) = state.raw_objects.get(MAZE_TILE) {
                 state.objects.insert(
                     ObjectKind::SoteMazeTiles,
-                    Source::Client(self.client_id),
+                    Source::Client(self.ctx.client_id),
                     points
                         .iter()
                         .filter(|&&point| OVERWORLD_MAZE.contains(point))
@@ -37,5 +38,6 @@ impl Interpreter for SotetsegInterpreter {
                 );
             }
         }
+        None
     }
 }

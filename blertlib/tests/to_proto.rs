@@ -243,6 +243,13 @@ fn tob_bloat() {
 }
 
 #[test]
+fn tob_bloat_offload() {
+    let fixture = Fixture::load("tob_bloat_offload");
+    assert_golden_output(&fixture);
+    assert_refresh_matches_snapshot(&fixture);
+}
+
+#[test]
 fn tob_nylocas() {
     let fixture = Fixture::load("tob_nylocas");
     assert_golden_output(&fixture);

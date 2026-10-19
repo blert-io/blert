@@ -112,7 +112,8 @@ async fn maiden_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::TobMaiden, &load_fixture("tob_maiden")).await;
+    let fixture = load_fixture("tob_maiden");
+    prepare_fixture(uuid, Stage::TobMaiden, &fixture.records).await;
 
     let price_resolver = Arc::new(PriceResolver::new(None));
     price_resolver.populate([(item::id::BLACK_CHINCHOMPA, BLACK_CHINCHOMPA_PRICE)]);
@@ -123,7 +124,10 @@ async fn maiden_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         price_resolver,
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -403,7 +407,8 @@ async fn bloat_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::TobBloat, &load_fixture("tob_bloat")).await;
+    let fixture = load_fixture("tob_bloat");
+    prepare_fixture(uuid, Stage::TobBloat, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -411,7 +416,10 @@ async fn bloat_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -743,7 +751,8 @@ async fn nylocas_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::TobNylocas, &load_fixture("tob_nylocas")).await;
+    let fixture = load_fixture("tob_nylocas");
+    prepare_fixture(uuid, Stage::TobNylocas, &fixture.records).await;
 
     let price_resolver = Arc::new(PriceResolver::new(None));
     price_resolver.populate([(item::id::BLACK_CHINCHOMPA, BLACK_CHINCHOMPA_PRICE)]);
@@ -754,7 +763,10 @@ async fn nylocas_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         price_resolver,
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -1069,7 +1081,8 @@ async fn sotetseg_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::TobSotetseg, &load_fixture("tob_sotetseg")).await;
+    let fixture = load_fixture("tob_sotetseg");
+    prepare_fixture(uuid, Stage::TobSotetseg, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -1077,7 +1090,10 @@ async fn sotetseg_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -1348,7 +1364,8 @@ async fn xarpus_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::TobXarpus, &load_fixture("tob_xarpus")).await;
+    let fixture = load_fixture("tob_xarpus");
+    prepare_fixture(uuid, Stage::TobXarpus, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -1356,7 +1373,10 @@ async fn xarpus_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -1661,7 +1681,8 @@ async fn verzik_test() {
         .await
         .unwrap();
 
-    prepare_fixture(uuid, Stage::TobVerzik, &load_fixture("tob_verzik")).await;
+    let fixture = load_fixture("tob_verzik");
+    prepare_fixture(uuid, Stage::TobVerzik, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -1669,7 +1690,10 @@ async fn verzik_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -1945,12 +1969,8 @@ async fn bloat_merge_low_confidence_test() {
         .await
         .unwrap();
 
-    prepare_fixture(
-        uuid,
-        Stage::TobBloat,
-        &load_fixture("tob_bloat_merge_low_confidence"),
-    )
-    .await;
+    let fixture = load_fixture("tob_bloat_merge_low_confidence");
+    prepare_fixture(uuid, Stage::TobBloat, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -1958,7 +1978,10 @@ async fn bloat_merge_low_confidence_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -2097,12 +2120,8 @@ async fn bloat_merge_unmerged_client_test() {
         .await
         .unwrap();
 
-    prepare_fixture(
-        uuid,
-        Stage::TobBloat,
-        &load_fixture("tob_bloat_merge_unmerged_client"),
-    )
-    .await;
+    let fixture = load_fixture("tob_bloat_merge_unmerged_client");
+    prepare_fixture(uuid, Stage::TobBloat, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -2110,7 +2129,10 @@ async fn bloat_merge_unmerged_client_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -2249,12 +2271,8 @@ async fn nylocas_merge_consistency_rejection_test() {
         .await
         .unwrap();
 
-    prepare_fixture(
-        uuid,
-        Stage::TobNylocas,
-        &load_fixture("tob_nylocas_merge_consistency_rejection"),
-    )
-    .await;
+    let fixture = load_fixture("tob_nylocas_merge_consistency_rejection");
+    prepare_fixture(uuid, Stage::TobNylocas, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -2262,7 +2280,10 @@ async fn nylocas_merge_consistency_rejection_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
@@ -2399,12 +2420,8 @@ async fn verzik_merge_clean_test() {
         .await
         .unwrap();
 
-    prepare_fixture(
-        uuid,
-        Stage::TobVerzik,
-        &load_fixture("tob_verzik_merge_clean"),
-    )
-    .await;
+    let fixture = load_fixture("tob_verzik_merge_clean");
+    prepare_fixture(uuid, Stage::TobVerzik, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -2412,7 +2429,10 @@ async fn verzik_merge_clean_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),

@@ -25,7 +25,7 @@ mod theatre;
 static FIXTURE_TESTS: LazyLock<tokio::sync::Mutex<()>> =
     LazyLock::new(|| tokio::sync::Mutex::new(()));
 
-fn load_fixture(name: &str) -> Vec<ClientStageStream> {
+fn load_fixture(name: &str) -> MergeCapture {
     let path = format!(
         "{}/tests/fixtures/{name}.json.gz",
         env!("CARGO_MANIFEST_DIR"),
@@ -35,9 +35,7 @@ fn load_fixture(name: &str) -> Vec<ClientStageStream> {
     flate2::read::GzDecoder::new(file)
         .read_to_end(&mut contents)
         .expect("fixture decompresses");
-    MergeCapture::decode(&contents)
-        .expect("fixture is a capture")
-        .records
+    MergeCapture::decode(&contents).expect("fixture is a capture")
 }
 
 /// Loads a stage stream fixture into Redis.
