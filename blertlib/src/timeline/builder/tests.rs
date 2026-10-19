@@ -464,6 +464,7 @@ fn builder_ingest_npc_spawn() {
             style: proto::event::npc::nylo::Style::Range as i32,
             spawn_type: proto::event::npc::nylo::SpawnType::West as i32,
         })),
+        ..Default::default()
     });
 
     assert_eq!(builder.ingest([spawn]).from_tick, Some(Tick(4)));
@@ -555,6 +556,7 @@ fn builder_ingest_moves_maiden_spawn_to_tick_0() {
             hitpoints: 172_034_625,
             active_prayers: 0,
             r#type: Some(proto::event::npc::Type::Basic(())),
+            ..Default::default()
         }),
         ..Default::default()
     };
@@ -671,6 +673,7 @@ fn builder_ingest_does_not_move_maiden_spawn_if_room_state_is_past_entry() {
             hitpoints: 172_034_625,
             active_prayers: 0,
             r#type: Some(proto::event::npc::Type::Basic(())),
+            ..Default::default()
         }),
         ..Default::default()
     };
@@ -765,6 +768,7 @@ fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
             hitpoints: 172_034_625,
             active_prayers: 0,
             r#type: Some(proto::event::npc::Type::Basic(())),
+            ..Default::default()
         }),
         ..Default::default()
     };
@@ -791,6 +795,95 @@ fn builder_ingest_keeps_maiden_spawn_after_tick_2() {
             }
         )])
     );
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_reports_moved_npc_death() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(2),
+        PluginVersion::new(0, 10, 1),
+        ConfigVersion::LATEST,
+        Stage::TobBloat,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
+        None,
+    );
+
+    let first_bloat = proto::Event {
+        r#type: proto::event::Type::NpcUpdate as i32,
+        tick: 0,
+        stage: Stage::TobBloat as i32,
+        x_coord: 3292,
+        y_coord: 4440,
+        npc: Some(proto::event::Npc {
+            id: 8359,
+            room_id: 58490,
+            hitpoints: 98_305_500,
+            active_prayers: 0,
+            size: 5,
+            r#type: Some(proto::event::npc::Type::Basic(())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let player = proto::Event {
+        r#type: proto::event::Type::PlayerUpdate as i32,
+        tick: 1,
+        stage: Stage::TobBloat as i32,
+        x_coord: 3303,
+        y_coord: 4448,
+        player: Some(proto::event::Player {
+            name: "WWWWWWWWWWQQ".to_string(),
+            data_source: proto::event::player::DataSource::Secondary as i32,
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let second_bloat = proto::Event {
+        r#type: proto::event::Type::NpcUpdate as i32,
+        tick: 2,
+        stage: Stage::TobBloat as i32,
+        x_coord: 3290,
+        y_coord: 4440,
+        npc: Some(proto::event::Npc {
+            id: 8359,
+            room_id: 58490,
+            hitpoints: 98_305_500,
+            active_prayers: 0,
+            size: 5,
+            r#type: Some(proto::event::npc::Type::Basic(())),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    assert_eq!(
+        builder.ingest([first_bloat, player]).from_tick,
+        Some(Tick(0))
+    );
+    assert_eq!(
+        builder
+            .recording()
+            .unwrap()
+            .get_state(Tick(1))
+            .unwrap()
+            .events,
+        [Event::recorded(
+            ClientId(2),
+            EventKind::NpcDeath(NpcDeath {
+                position: Point(3292, 4440),
+                npc: RoomId(58490),
+                npc_id: Some(8359),
+            })
+        )]
+    );
+
+    assert_eq!(builder.ingest([second_bloat]).from_tick, Some(Tick(1)));
+    let recording = builder.recording().unwrap();
+    assert_eq!(recording.get_state(Tick(1)).unwrap().events, []);
+    assert_eq!(recording.get_state(Tick(2)).unwrap().events, []);
     assert_eq!(builder.rejections().count(), 0);
     assert_eq!(builder.warnings().count(), 0);
 }
@@ -2295,6 +2388,7 @@ fn builder_ingest_attack_style() {
         hitpoints: 152_963_461,
         active_prayers: 0,
         r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
     });
     let mut auto = proto::Event {
         tick: 271,
@@ -2412,6 +2506,7 @@ fn builder_ingest_attack_style_same_tick() {
         hitpoints: 29_557_336,
         active_prayers: 0,
         r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
     });
     let mut auto = proto::Event {
         tick: 26,
@@ -2529,6 +2624,7 @@ fn builder_ingest_attack_reference() {
         hitpoints: 157_223_301,
         active_prayers: 0,
         r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
     });
     let mut cabbage = proto::Event {
         tick: 83,
@@ -2574,6 +2670,7 @@ fn builder_ingest_attack_reference() {
         hitpoints: 35_129_733,
         active_prayers: 0,
         r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
     });
     let mut bounce = proto::Event {
         tick: 215,
@@ -3201,6 +3298,7 @@ fn extract_player_state_update_from_last_seen_tick() {
             npcs: BTreeMap::new(),
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
+            raw_npcs: BTreeMap::new(),
             events: vec![],
         },
     );
@@ -3383,6 +3481,7 @@ fn extract_npc_state_spawn() {
             style: proto::event::npc::nylo::Style::Range as i32,
             spawn_type: proto::event::npc::nylo::SpawnType::West as i32,
         })),
+        ..Default::default()
     });
     assert_eq!(
         extract_npc_state(ClientId(3), &recording, &last_seen_actors, &spawn),
@@ -3400,7 +3499,8 @@ fn extract_npc_state_spawn() {
                     style: CombatStyle::Ranged,
                     spawn: NyloSpawn::West,
                 })),
-            }
+            },
+            RawNpc::default(),
         ))
     );
 
@@ -3437,6 +3537,7 @@ fn extract_npc_state_spawn() {
             style: 7,
             spawn_type: proto::event::npc::nylo::SpawnType::West as i32,
         })),
+        ..Default::default()
     });
     assert_eq!(
         extract_npc_state(ClientId(3), &recording, &last_seen_actors, &unknown_style),
@@ -3478,6 +3579,7 @@ fn extract_npc_state_update_last_seen_tick() {
             )]),
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
+            raw_npcs: BTreeMap::new(),
             events: vec![],
         },
     );
@@ -3497,6 +3599,7 @@ fn extract_npc_state_update_last_seen_tick() {
         hitpoints: 524_296,
         active_prayers: 0,
         r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
     });
     assert_eq!(
         extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
@@ -3509,7 +3612,8 @@ fn extract_npc_state_update_last_seen_tick() {
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
                 properties: Some(nylo),
-            }
+            },
+            RawNpc::default(),
         ))
     );
 }

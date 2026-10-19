@@ -1,4 +1,4 @@
-import { Challenge, Event } from '../generated/event_pb';
+import { Challenge, ChallengeMode, Event } from '../generated/event_pb';
 import {
   AttackDefinition,
   ServerMessage,
@@ -188,6 +188,74 @@ describe('jsonToServerMessage', () => {
 
       expect(npc?.getId()).toBe(0);
       expect(npc?.getRoomId()).toBe(59422);
+    });
+
+    it('converts NPC_UPDATE events with generic NPC fields', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.NPC_UPDATE,
+            stage: 11,
+            tick: 5,
+            xCoord: 10,
+            yCoord: 20,
+            npc: {
+              id: 7,
+              roomId: 8,
+              hitpoints: 30,
+              size: 2,
+              animation: 13,
+              target: { player: '1Ogp' },
+              spotAnims: [19, 23],
+              basic: {},
+            },
+          },
+          {
+            type: Event.Type.NPC_UPDATE,
+            stage: 11,
+            tick: 5,
+            xCoord: 11,
+            yCoord: 21,
+            npc: {
+              id: 7,
+              roomId: 9,
+              hitpoints: 31,
+              size: 3,
+              target: { npcRoomId: 8 },
+              basic: {},
+            },
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const [first, second] = proto
+        .getChallengeEventsList()
+        .map((event) => event.getNpc());
+
+      expect(first?.getId()).toBe(7);
+      expect(first?.getRoomId()).toBe(8);
+      expect(first?.getHitpoints()).toBe(30);
+      expect(first?.getSize()).toBe(2);
+      expect(first?.hasAnimation()).toBe(true);
+      expect(first?.getAnimation()).toBe(13);
+      expect(first?.getTarget()?.getTargetCase()).toBe(
+        Event.Npc.Target.TargetCase.PLAYER,
+      );
+      expect(first?.getTarget()?.getPlayer()).toBe('1Ogp');
+      expect(first?.getSpotAnimsList()).toEqual([19, 23]);
+
+      expect(second?.getId()).toBe(7);
+      expect(second?.getRoomId()).toBe(9);
+      expect(second?.getHitpoints()).toBe(31);
+      expect(second?.getSize()).toBe(3);
+      expect(second?.hasAnimation()).toBe(false);
+      expect(second?.getTarget()?.getTargetCase()).toBe(
+        Event.Npc.Target.TargetCase.NPC_ROOM_ID,
+      );
+      expect(second?.getTarget()?.getNpcRoomId()).toBe(8);
+      expect(second?.getSpotAnimsList()).toEqual([]);
     });
 
     it('converts an NPC_SPAWN event with nylo data', () => {
@@ -1219,6 +1287,14 @@ describe('round-trip conversion', () => {
                   onCreation: true,
                 },
               ],
+              npcDefinitions: [
+                {
+                  ids: [8359],
+                  mode: ChallengeMode.TOB_REGULAR,
+                  hitpoints: [1500, 1500, 1500, 1750, 2000],
+                  hitpointsVarbit: { id: 6448, scale: 1000 },
+                },
+              ],
             },
           },
           {
@@ -1247,6 +1323,18 @@ describe('round-trip conversion', () => {
     expect(tobObjects[0].getType()).toBe(Event.ObjectUpdate.Type.GROUND);
     expect(tobObjects[0].getOnCreation()).toBe(false);
     expect(tobObjects[1].getOnCreation()).toBe(true);
+    const [npc] = config
+      .getChallengesList()[0]
+      .getScope()!
+      .getNpcDefinitionsList();
+    expect(npc.getIdsList()).toEqual([8359]);
+    expect(npc.getMode()).toBe(ChallengeMode.TOB_REGULAR);
+    expect(npc.getHitpointsList()).toEqual([1500, 1500, 1500, 1750, 2000]);
+    expect(npc.getHitpointsVarbit()!.getId()).toBe(6448);
+    expect(npc.getHitpointsVarbit()!.getScale()).toBe(1000);
+    expect(
+      config.getChallengesList()[1].getScope()!.getNpcDefinitionsList(),
+    ).toEqual([]);
 
     const resultJson = serverMessageToJson(proto);
     expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);

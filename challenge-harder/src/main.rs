@@ -195,6 +195,7 @@ async fn configure_challenge_processor(
                 .and_then(|limit| limit.parse().ok())
                 .unwrap_or(processing::TheatreConfig::default().daily_bloat_hand_limit),
         },
+        latest_config_version: Some(blert::ConfigVersion::LATEST.get()),
     };
 
     let mut pipeline = processing::Pipeline::new(

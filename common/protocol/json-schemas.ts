@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Challenge, Event } from '../generated/event_pb';
+import { Challenge, ChallengeMode, Event } from '../generated/event_pb';
 
 /**
  * Schema for integer enum values.
@@ -146,9 +146,24 @@ export const objectCaptureSchema = z.object({
   onCreation: z.boolean().optional(),
 });
 
+// RecordingConfig.HitpointsVarbit
+export const hitpointsVarbitSchema = z.object({
+  id: uint32Schema,
+  scale: uint32Schema,
+});
+
+// RecordingConfig.NpcDefinition
+export const npcDefinitionSchema = z.object({
+  ids: z.array(uint32Schema),
+  mode: enumMemberSchema(ChallengeMode).optional(),
+  hitpoints: z.array(uint32Schema).optional(),
+  hitpointsVarbit: hitpointsVarbitSchema.optional(),
+});
+
 // RecordingConfig.Scope
 export const scopeSchema = z.object({
   objects: z.array(objectCaptureSchema),
+  npcDefinitions: z.array(npcDefinitionSchema).optional(),
 });
 
 // RecordingConfig.ChallengeScope
@@ -267,12 +282,22 @@ export const verzikCrabSchema = z.object({
   spawn: enumValueSchema,
 });
 
+// Event.Npc.Target
+export const npcTargetSchema = z.union([
+  z.object({ player: z.string() }),
+  z.object({ npcRoomId: z.number().int() }),
+]);
+
 // Event.Npc
 export const npcSchema = z.object({
   id: z.number().int(),
   roomId: z.number().int(),
   hitpoints: z.number().int().optional(),
   activePrayers: z.number().int().optional(),
+  size: uint32Schema.optional(),
+  animation: uint32Schema.optional(),
+  target: npcTargetSchema.optional(),
+  spotAnims: z.array(uint32Schema).optional(),
   basic: z.object({}).optional(),
   maidenCrab: maidenCrabSchema.optional(),
   nylo: nyloSchema.optional(),

@@ -62,12 +62,8 @@ async fn delve_test() {
         .await
         .unwrap();
 
-    prepare_fixture(
-        uuid,
-        Stage::MokhaiotlDelve8,
-        &load_fixture("mokhaiotl_delve_8"),
-    )
-    .await;
+    let fixture = load_fixture("mokhaiotl_delve_8");
+    prepare_fixture(uuid, Stage::MokhaiotlDelve8, &fixture.records).await;
 
     let dir = tempfile::tempdir().expect("tempdir");
     let pipeline = Pipeline::new(
@@ -75,7 +71,10 @@ async fn delve_test() {
         Arc::new(redis),
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
         Arc::new(PriceResolver::new(None)),
-        ProcessorConfig::default(),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
     )
     .with_capturer(StreamCapturer::new(
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),

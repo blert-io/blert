@@ -1,6 +1,6 @@
 /// The version of a plugin recording config.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ConfigVersion(u32);
+pub struct ConfigVersion(pub(crate) u32);
 
 impl std::fmt::Display for ConfigVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -25,7 +25,7 @@ impl ConfigVersion {
     pub const NONE: Self = Self(0);
 
     /// The most current supported config version.
-    pub const LATEST: Self = Self(1);
+    pub const LATEST: Self = Self(2);
 
     /// Attempts to parse a config version from an integer value.
     ///

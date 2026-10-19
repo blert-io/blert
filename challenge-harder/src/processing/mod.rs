@@ -128,6 +128,7 @@ impl Default for TheatreConfig {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ProcessorConfig {
     pub theatre: TheatreConfig,
+    pub latest_config_version: Option<u32>,
 }
 
 /// Complete event processing pipeline.

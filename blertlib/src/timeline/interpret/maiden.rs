@@ -1,7 +1,8 @@
 use crate::proto::event::object_update;
-use crate::{ClientId, ObjectKind, Recording, Source};
+use crate::tick::Tick;
+use crate::{ObjectKind, Recording, Source};
 
-use super::{Interpreter, ObjectDef};
+use super::{InterpretContext, Interpreter, ObjectDef};
 
 const BLOOD_TRAIL: ObjectDef = ObjectDef(object_update::Type::Game, 32984);
 const BLOOD_SPLAT: ObjectDef = ObjectDef(object_update::Type::Graphics, 1579);
@@ -11,18 +12,18 @@ const OBJECTS: [(ObjectDef, ObjectKind); 2] = [
     (BLOOD_SPLAT, ObjectKind::MaidenBloodSplats),
 ];
 
-pub(super) struct MaidenInterpreter {
-    client_id: ClientId,
+pub(super) struct MaidenInterpreter<'a> {
+    ctx: &'a InterpretContext,
 }
 
-impl MaidenInterpreter {
-    pub(super) fn new(client_id: ClientId) -> Self {
-        Self { client_id }
+impl<'a> MaidenInterpreter<'a> {
+    pub(super) fn new(ctx: &'a InterpretContext) -> Self {
+        Self { ctx }
     }
 }
 
-impl Interpreter for MaidenInterpreter {
-    fn apply(self, recording: &mut Recording) {
+impl Interpreter for MaidenInterpreter<'_> {
+    fn apply(self, recording: &mut Recording) -> Option<Tick> {
         for (_, state) in recording.states_mut() {
             for &(_, kind) in &OBJECTS {
                 state.objects.clear(kind);
@@ -31,11 +32,12 @@ impl Interpreter for MaidenInterpreter {
                 if let Some(points) = state.raw_objects.get(def) {
                     state.objects.insert(
                         kind,
-                        Source::Client(self.client_id),
+                        Source::Client(self.ctx.client_id),
                         points.iter().copied(),
                     );
                 }
             }
         }
+        None
     }
 }

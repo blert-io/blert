@@ -5,7 +5,7 @@ import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
 import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import { z } from 'zod';
 
-import { Coords, Event } from '../generated/event_pb';
+import { ChallengeMode, Coords, Event } from '../generated/event_pb';
 import {
   AttackDefinition,
   ChallengeEndRequest,
@@ -20,6 +20,7 @@ import {
 import {
   attackDefinitionSchema,
   EventJson,
+  npcDefinitionSchema,
   npcSchema,
   objectCaptureSchema,
   pastChallengeSchema,
@@ -633,6 +634,24 @@ function npcJsonToProto(json: z.infer<typeof npcSchema>): Event.Npc {
   if (json.activePrayers !== undefined) {
     npc.setActivePrayers(json.activePrayers);
   }
+  if (json.size !== undefined) {
+    npc.setSize(json.size);
+  }
+  if (json.animation !== undefined) {
+    npc.setAnimation(json.animation);
+  }
+  if (json.target !== undefined) {
+    const target = new Event.Npc.Target();
+    if ('player' in json.target) {
+      target.setPlayer(json.target.player);
+    } else {
+      target.setNpcRoomId(json.target.npcRoomId);
+    }
+    npc.setTarget(target);
+  }
+  if (json.spotAnims !== undefined) {
+    npc.setSpotAnimsList(json.spotAnims);
+  }
 
   if (json.maidenCrab !== undefined) {
     const crab = new Event.Npc.MaidenCrab();
@@ -794,6 +813,23 @@ function scopeJsonToProto(
       return capture;
     }),
   );
+  scope.setNpcDefinitionsList(
+    (json.npcDefinitions ?? []).map((d) => {
+      const definition = new RecordingConfig.NpcDefinition();
+      definition.setIdsList(d.ids);
+      if (d.mode !== undefined) {
+        definition.setMode(d.mode as AnyEnum);
+      }
+      definition.setHitpointsList(d.hitpoints ?? []);
+      if (d.hitpointsVarbit !== undefined) {
+        const varbit = new RecordingConfig.HitpointsVarbit();
+        varbit.setId(d.hitpointsVarbit.id);
+        varbit.setScale(d.hitpointsVarbit.scale);
+        definition.setHitpointsVarbit(varbit);
+      }
+      return definition;
+    }),
+  );
   return scope;
 }
 
@@ -904,7 +940,7 @@ function recordingConfigToJson(
 function scopeToJson(
   scope: RecordingConfig.Scope,
 ): z.infer<typeof scopeSchema> {
-  return {
+  const json: z.infer<typeof scopeSchema> = {
     objects: scope.getObjectsList().map((capture) => {
       const json: z.infer<typeof objectCaptureSchema> = {
         type: capture.getType(),
@@ -916,6 +952,23 @@ function scopeToJson(
       return json;
     }),
   };
+  if (scope.getNpcDefinitionsList().length > 0) {
+    json.npcDefinitions = scope.getNpcDefinitionsList().map((definition) => {
+      const json: z.infer<typeof npcDefinitionSchema> = {
+        ids: definition.getIdsList(),
+        hitpoints: definition.getHitpointsList(),
+      };
+      if (definition.getMode() !== ChallengeMode.NO_MODE) {
+        json.mode = definition.getMode();
+      }
+      if (definition.hasHitpointsVarbit()) {
+        const varbit = definition.getHitpointsVarbit()!;
+        json.hitpointsVarbit = { id: varbit.getId(), scale: varbit.getScale() };
+      }
+      return json;
+    });
+  }
+  return json;
 }
 
 function pastChallengeToJson(
