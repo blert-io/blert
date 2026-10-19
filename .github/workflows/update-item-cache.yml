@@ -1,7 +1,9 @@
 name: Update item cache
 
-# Regenerates web/resources/{extended,simple}_items.json from the latest live
-# OSRS cache using the item-cache dumper image, opening a PR when on changes.
+# Regenerates web/resources/{extended,simple}_items.json and
+# web/resources/item_sprites.json from the latest live OSRS cache
+# using the item-cache dumper image, opening a PR on changes.
+# Changed item sprites are uploaded to the blert-sprites bucket.
 #
 # The dumper exists at https://github.com/blert-io/item-cache.
 
@@ -27,14 +29,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Regenerate item data
+      - name: Regenerate item data and upload sprites
+        id: regenerate
+        env:
+          SPRITES_BUCKET: blert-sprites
+          SPRITES_PREFIX: items
+          S3_ENDPOINT_URL: https://nyc3.digitaloceanspaces.com
+          AWS_ACCESS_KEY_ID: ${{ secrets.SPRITES_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SPRITES_SECRET_ACCESS_KEY }}
         run: |
-          mkdir -p "${RUNNER_TEMP}/osrs-cache"
+          mkdir -p "${RUNNER_TEMP}/osrs-cache" "${RUNNER_TEMP}/sprites"
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -v "${GITHUB_WORKSPACE}/web/resources:/resources" \
             -v "${RUNNER_TEMP}/osrs-cache:/work/cache" \
+            -v "${RUNNER_TEMP}/sprites:/sprites" \
+            -e SPRITES_DIR=/sprites \
+            -e SPRITES_BUCKET -e SPRITES_PREFIX -e S3_ENDPOINT_URL \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
             "${IMAGE}"
+
+          uploaded="${RUNNER_TEMP}/sprites/uploaded.txt"
+          echo "new-sprites=$(grep -c '^new ' "$uploaded" || true)" >> "$GITHUB_OUTPUT"
+          echo "changed-sprites=$(grep -c '^changed ' "$uploaded" || true)" >> "$GITHUB_OUTPUT"
 
       - name: Create or update pull request
         uses: peter-evans/create-pull-request@v8
@@ -48,6 +65,11 @@ jobs:
           title: 'web: Refresh item cache data'
           body: |
             Automated regeneration of `web/resources/{extended,simple}_items.json`
-            from the latest live OSRS cache via the item-cache dumper image.
+            and `web/resources/item_sprites.json` from the latest live OSRS cache
+            via the item-cache dumper image.
+
+            Uploaded ${{ steps.regenerate.outputs.new-sprites }} new and
+            ${{ steps.regenerate.outputs.changed-sprites }} changed item sprites to
+            https://sprites.blert.io/items/.
           labels: |
             automation
