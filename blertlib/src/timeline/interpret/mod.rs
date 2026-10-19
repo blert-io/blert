@@ -344,3 +344,98 @@ fn event_values(event: &Event) -> Option<(proto::event::Type, Vec<String>)> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ChallengeMode, NpcState, Players, PrayerBook, PrayerSet, Rect, Rsn, SkillLevel, Source,
+        TickObjects,
+    };
+
+    #[test]
+    fn npc_death_interpreter_replaces_earlier_death_on_later_state() {
+        let ctx = InterpretContext {
+            client_id: ClientId(2),
+            plugin_version: PluginVersion::new(0, 10, 1),
+            config_version: ConfigVersion::LATEST,
+        };
+        let bloat = |position: Point| TickState {
+            players: Players::empty(1),
+            npcs: BTreeMap::from([(
+                RoomId(58490),
+                NpcState {
+                    source: Source::Client(ClientId(2)),
+                    id: 8359,
+                    position: Rect::square(position, 5),
+                    hitpoints: SkillLevel {
+                        current: 1500,
+                        base: 1500,
+                    },
+                    prayers: PrayerSet::empty(PrayerBook::Normal),
+                    properties: None,
+                },
+            )]),
+            objects: TickObjects::default(),
+            raw_objects: RawObjects::default(),
+            raw_npcs: BTreeMap::from([(RoomId(58490), RawNpc::default())]),
+            events: Vec::new(),
+        };
+
+        let mut recording = Recording::vacant(
+            Stage::TobBloat,
+            ChallengeMode::TobRegular,
+            vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()],
+            Tick(1),
+        );
+        recording.set_state(Tick(0), bloat(Point(3292, 4440)));
+        recording.set_state(
+            Tick(1),
+            TickState {
+                players: Players::empty(1),
+                npcs: BTreeMap::new(),
+                objects: TickObjects::default(),
+                raw_objects: RawObjects::default(),
+                raw_npcs: BTreeMap::new(),
+                events: Vec::new(),
+            },
+        );
+
+        assert_eq!(
+            NpcDeathInterpreter::new(&ctx).interpret(&mut recording),
+            Some(Tick(1))
+        );
+        assert_eq!(
+            recording
+                .states()
+                .flat_map(|(tick, state)| state.events.iter().map(move |event| (tick, event)))
+                .collect::<Vec<_>>(),
+            [(
+                Tick(1),
+                &Event::recorded(
+                    ClientId(2),
+                    EventKind::NpcDeath(NpcDeath {
+                        position: Point(3292, 4440),
+                        npc: RoomId(58490),
+                        npc_id: Some(8359),
+                    })
+                )
+            )]
+        );
+
+        recording.extend_to(Tick(2));
+        recording.set_state(Tick(2), bloat(Point(3290, 4440)));
+
+        assert_eq!(
+            NpcDeathInterpreter::new(&ctx).interpret(&mut recording),
+            Some(Tick(1))
+        );
+        assert_eq!(
+            recording
+                .states()
+                .flat_map(|(tick, state)| state.events.iter().map(move |event| (tick, event)))
+                .collect::<Vec<_>>(),
+            []
+        );
+    }
+}
