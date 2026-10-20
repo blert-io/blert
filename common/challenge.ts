@@ -54,6 +54,13 @@ export interface TobRaid extends Challenge {
   tobStats: TobChallengeStats;
 }
 
+export interface TfaRaid extends Challenge {
+  type: ChallengeType.TFA;
+  tfa: TfaData;
+  // TODO(frolv): Add tfaStats from a tfa_challenge_stats table once the boss
+  // names are known.
+}
+
 export type SpawnedNpc = Coords & {
   npcId: NpcId;
 };
@@ -163,6 +170,14 @@ export type TobChallengeStats = {
 };
 
 export interface TobRoom extends StageData {
+  deaths: string[];
+}
+
+export type TfaData = {
+  bosses: TfaBoss[];
+};
+
+export interface TfaBoss extends StageData {
   deaths: string[];
 }
 

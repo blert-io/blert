@@ -348,6 +348,23 @@ export enum SplitType {
   INFERNO_WAVE_67_TIME = 301,
   INFERNO_WAVE_68_TIME = 302,
   INFERNO_WAVE_69_TIME = 303,
+
+  // Fractured Archive splits.
+  TFA_CHALLENGE = 400,
+  TFA_OVERALL = 401,
+  TFA_GUARDIAN = 410,
+  TFA_EZEKIEL = 420,
+  TFA_BORK = 430,
+  TFA_NECROMANCER = 440,
+  TFA_DREADNOTH = 450,
+  TFA_XARTH = 460,
+  TFA_DAGONHAI = 470,
+  TFA_FINAL = 480,
+
+  TFA_ROW_1_START = TFA_GUARDIAN,
+  TFA_ROW_2_START = 402,
+  TFA_ROW_3_START = 403,
+  TFA_FINAL_START = 404,
 }
 
 const genericTobSplits = [
@@ -570,6 +587,34 @@ export function splitName(
       return full ? 'Xarpus entry time' : 'Xarpus entry';
     case SplitType.TOB_VERZIK_START:
       return full ? 'Verzik entry time' : 'Verzik entry';
+
+    case SplitType.TFA_CHALLENGE:
+      return full ? 'TFA challenge time' : 'Challenge time';
+    case SplitType.TFA_OVERALL:
+      return full ? 'TFA overall time' : 'Overall time';
+    case SplitType.TFA_GUARDIAN:
+      return full ? 'Guardian room time' : 'Guardian';
+    case SplitType.TFA_EZEKIEL:
+      return full ? 'Ezekiel room time' : 'Ezekiel';
+    case SplitType.TFA_BORK:
+      return full ? 'Bork room time' : 'Bork';
+    case SplitType.TFA_NECROMANCER:
+      return full ? 'Necromancer room time' : 'Necromancer';
+    case SplitType.TFA_DREADNOTH:
+      return full ? 'Dreadnoth room time' : 'Dreadnoth';
+    case SplitType.TFA_XARTH:
+      return full ? 'Xarth room time' : 'Xarth';
+    case SplitType.TFA_DAGONHAI:
+      return full ? "Dagon'hai Trio room time" : "Dagon'hai";
+    case SplitType.TFA_FINAL:
+      return full ? 'Final Boss room time' : 'Final Boss';
+    case SplitType.TFA_ROW_2_START:
+      return full ? 'Row 2 entry time' : 'Row 2 entry';
+    case SplitType.TFA_ROW_3_START:
+      return full ? 'Row 3 entry time' : 'Row 3 entry';
+    case SplitType.TFA_FINAL_START:
+      return full ? 'Final Boss entry time' : 'Final Boss entry';
+
     case SplitType.COLOSSEUM_CHALLENGE:
       return full ? 'Colosseum challenge time' : 'Challenge time';
     case SplitType.COLOSSEUM_OVERALL:
@@ -742,6 +787,17 @@ export function splitToStage(split: SplitType): Stage {
     return Stage.TOB_VERZIK;
   }
 
+  const splitsPerTfaBoss = SplitType.TFA_EZEKIEL - SplitType.TFA_GUARDIAN;
+  const tfaBoss = Math.floor(
+    (split - SplitType.TFA_GUARDIAN) / splitsPerTfaBoss,
+  );
+  if (
+    split >= SplitType.TFA_GUARDIAN &&
+    tfaBoss <= Stage.TFA_FINAL - Stage.TFA_GUARDIAN
+  ) {
+    return Stage.TFA_GUARDIAN + tfaBoss;
+  }
+
   if (
     split >= SplitType.COLOSSEUM_WAVE_1 &&
     split <= SplitType.COLOSSEUM_WAVE_12
@@ -777,10 +833,21 @@ export const RELEVANT_PB_SPLITS: SplitType[] = [
   SplitType.TOB_MAIDEN,
   SplitType.TOB_BLOAT,
   SplitType.TOB_NYLO_BOSS_SPAWN,
-  SplitType.TOB_SOTETSEG,
   SplitType.TOB_NYLO_ROOM,
+  SplitType.TOB_SOTETSEG,
   SplitType.TOB_XARPUS,
   SplitType.TOB_VERZIK_ROOM,
+
+  SplitType.TFA_CHALLENGE,
+  SplitType.TFA_OVERALL,
+  SplitType.TFA_GUARDIAN,
+  SplitType.TFA_EZEKIEL,
+  SplitType.TFA_BORK,
+  SplitType.TFA_NECROMANCER,
+  SplitType.TFA_DREADNOTH,
+  SplitType.TFA_XARTH,
+  SplitType.TFA_DAGONHAI,
+  SplitType.TFA_FINAL,
 
   SplitType.COLOSSEUM_CHALLENGE,
   SplitType.COLOSSEUM_OVERALL,

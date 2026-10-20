@@ -29,6 +29,7 @@ import {
   RoomNpcMap,
   RoomNpcType,
   Stage,
+  TfaData,
   TobRoom,
   TobRooms,
   VerzikCrab,
@@ -236,12 +237,20 @@ export class DataRepository {
 
   public async loadTobChallengeData(uuid: string): Promise<TobRooms> {
     const challengeData = await this.loadChallengeDataProto(uuid);
-
     if (!challengeData.hasTobRooms()) {
       throw new DataRepository.InvalidType();
     }
 
     return this.parseTobRooms(challengeData);
+  }
+
+  public async loadTfaChallengeData(uuid: string): Promise<TfaData> {
+    const challengeData = await this.loadChallengeDataProto(uuid);
+    if (!challengeData.hasTfa()) {
+      throw new DataRepository.InvalidType();
+    }
+
+    return this.parseTfaData(challengeData);
   }
 
   public async loadColosseumChallengeData(
@@ -462,6 +471,25 @@ export class DataRepository {
     }
 
     return tobRooms;
+  }
+
+  private parseTfaData(data: ChallengeData): TfaData {
+    const tfaData: TfaData = { bosses: [] };
+
+    if (data.hasTfa()) {
+      const tfa = data.getTfa()!;
+      tfaData.bosses = tfa.getBossesList().map((boss) => ({
+        stage: tfaBossToStage(boss),
+        ticksLost: boss.getTicksLost(),
+        offset: boss.hasOffset() ? boss.getOffset() : undefined,
+        deaths: boss.getDeathsList(),
+        npcs: npcsFromProto(boss.getNpcsList()),
+      }));
+
+      tfaData.bosses.sort((a, b) => a.stage - b.stage);
+    }
+
+    return tfaData;
   }
 
   public async deleteDirectory(path: string): Promise<void> {
@@ -888,6 +916,33 @@ export namespace DataRepository {
       super('Failed to read/write challenge data');
     }
   }
+}
+
+function tfaBossToStage(boss: ChallengeData.TfaBoss): Stage {
+  const bossCase = boss.getBossCase();
+  switch (bossCase) {
+    case ChallengeData.TfaBoss.BossCase.GUARDIAN:
+      return Stage.TFA_GUARDIAN;
+    case ChallengeData.TfaBoss.BossCase.EZEKIEL:
+      return Stage.TFA_EZEKIEL;
+    case ChallengeData.TfaBoss.BossCase.BORK:
+      return Stage.TFA_BORK;
+    case ChallengeData.TfaBoss.BossCase.NECROMANCER:
+      return Stage.TFA_NECROMANCER;
+    case ChallengeData.TfaBoss.BossCase.DREADNOTH:
+      return Stage.TFA_DREADNOTH;
+    case ChallengeData.TfaBoss.BossCase.XARTH:
+      return Stage.TFA_XARTH;
+    case ChallengeData.TfaBoss.BossCase.DAGONHAI:
+      return Stage.TFA_DAGONHAI;
+    case ChallengeData.TfaBoss.BossCase.FINAL:
+      return Stage.TFA_FINAL;
+    case ChallengeData.TfaBoss.BossCase.BOSS_NOT_SET:
+      return Stage.UNKNOWN;
+  }
+
+  const _exhaustive: never = bossCase;
+  return Stage.UNKNOWN;
 }
 
 /**
