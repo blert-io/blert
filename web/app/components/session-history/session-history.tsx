@@ -164,6 +164,7 @@ function SessionCard({
     ChallengeType.TOB,
     ChallengeType.TOA,
     ChallengeType.COX,
+    ChallengeType.TFA,
   ].includes(session.challengeType)
     ? 'Raid'
     : 'Run';

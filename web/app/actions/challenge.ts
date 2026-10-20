@@ -27,6 +27,7 @@ import {
   SpawnedNpc,
   SplitType,
   Stage,
+  TfaRaid,
   TobChallengeStats,
   TobRaid,
   WaveSpawn,
@@ -180,6 +181,11 @@ export async function loadChallenge(
 
       break;
     }
+
+    case ChallengeType.TFA:
+      (challenge as TfaRaid).tfa =
+        await dataRepository.loadTfaChallengeData(id);
+      break;
 
     case ChallengeType.COLOSSEUM: {
       const colosseum = challenge as ColosseumChallenge;
@@ -2912,6 +2918,9 @@ export const loadPlayerWithStats = cache(
           playerWithStats.mokhaiotl_delves_completed ?? 0,
         mokhaiotlDeepDelvesCompleted:
           playerWithStats.mokhaiotl_deep_delves_completed ?? 0,
+        tfaCompletions: playerWithStats.tfa_completions ?? 0,
+        tfaWipes: playerWithStats.tfa_wipes ?? 0,
+        tfaResets: playerWithStats.tfa_resets ?? 0,
         deathsTotal: playerWithStats.deaths_total ?? 0,
         deathsMaiden: playerWithStats.deaths_maiden ?? 0,
         deathsBloat: playerWithStats.deaths_bloat ?? 0,

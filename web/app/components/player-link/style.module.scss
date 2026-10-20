@@ -10,20 +10,23 @@
 }
 
 .tooltipContent {
-  min-width: 180px;
+  min-width: 200px;
   max-width: 280px;
 }
 
 .tooltipHeader {
   display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
+}
+
+.name {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--blert-font-color-primary);
-  margin-bottom: 0.5rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(var(--blert-surface-light-base), 0.6);
 
   i {
     color: var(--blert-purple);
@@ -36,64 +39,52 @@
   color: var(--blert-font-color-primary);
 }
 
-.statsGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-
-  &:last-child {
-    text-align: right;
-  }
-}
-
-.label {
-  font-size: 0.7rem;
+.meta {
+  font-size: 0.75rem;
   color: var(--blert-font-color-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
 }
 
 .value {
   font-family: var(--font-roboto-mono), monospace;
-  font-size: 0.85rem;
   font-weight: 500;
   color: var(--blert-font-color-primary);
 }
 
-.completionsGrid {
+.completions {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(var(--blert-surface-light-base), 0.4);
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .completionStat {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  background: rgba(var(--blert-surface-dark-base), 0.5);
-  border-radius: 4px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .challengeIcon {
-  flex-shrink: 0;
   object-fit: contain;
+}
+
+.challengeName {
+  font-weight: 500;
+  color: var(--blert-font-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .count {
   font-family: var(--font-roboto-mono), monospace;
   font-weight: 600;
-  color: var(--blert-font-color-primary);
+  color: var(--blert-purple);
+}
+
+.empty {
+  font-size: 0.8rem;
+  color: var(--blert-font-color-secondary);
 }
 
 .loading {

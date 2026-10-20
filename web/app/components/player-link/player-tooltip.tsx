@@ -14,6 +14,14 @@ import styles from './style.module.scss';
 
 const TOOLTIP_DELAY_MS = 750;
 
+const COMPLETION_STATS: [ChallengeType, keyof PlayerWithStats['stats']][] = [
+  [ChallengeType.TOB, 'tobCompletions'],
+  [ChallengeType.TFA, 'tfaCompletions'],
+  [ChallengeType.COLOSSEUM, 'colosseumCompletions'],
+  [ChallengeType.INFERNO, 'infernoCompletions'],
+  [ChallengeType.MOKHAIOTL, 'mokhaiotlCompletions'],
+];
+
 const MAX_CACHE_SIZE = 50;
 const playerCache = new Map<string, PlayerWithStats>();
 
@@ -115,43 +123,46 @@ function PlayerTooltipRenderer({
   }
 
   const { data } = state;
+  const completions = COMPLETION_STATS.map(([challengeType, stat]) => ({
+    challengeType,
+    count: data.stats[stat],
+  }))
+    .filter(({ count }) => count > 0)
+    .sort((a, b) => b.count - a.count);
 
   return (
     <div className={styles.tooltipContent}>
       <div className={styles.tooltipHeader}>
-        <i className="fas fa-user" />
-        <span className={styles.username}>{data.username}</span>
-      </div>
-      <div className={styles.statsGrid}>
-        <div className={styles.stat}>
-          <span className={styles.label}>Recordings</span>
-          <span className={styles.value}>{data.totalRecordings}</span>
+        <div className={styles.name}>
+          <i className="fas fa-user" />
+          <span className={styles.username}>{data.username}</span>
         </div>
-        <div className={styles.stat}>
-          <span className={styles.label}>First Recorded</span>
-          <span className={styles.value}>
-            {data.firstRecorded?.toLocaleDateString() ?? 'Never'}
-          </span>
+        <div className={styles.meta}>
+          <span className={styles.value}>{data.totalRecordings}</span>{' '}
+          {data.totalRecordings === 1 ? 'recording' : 'recordings'}
+          {data.firstRecorded !== null && (
+            <>
+              {' · since '}
+              <span className={styles.value}>
+                {data.firstRecorded.toLocaleDateString()}
+              </span>
+            </>
+          )}
         </div>
       </div>
-      <div className={styles.completionsGrid}>
-        <CompletionStat
-          challengeType={ChallengeType.TOB}
-          count={data.stats.tobCompletions}
-        />
-        <CompletionStat
-          challengeType={ChallengeType.COLOSSEUM}
-          count={data.stats.colosseumCompletions}
-        />
-        <CompletionStat
-          challengeType={ChallengeType.INFERNO}
-          count={data.stats.infernoCompletions}
-        />
-        <CompletionStat
-          challengeType={ChallengeType.MOKHAIOTL}
-          count={data.stats.mokhaiotlCompletions}
-        />
-      </div>
+      {completions.length > 0 ? (
+        <div className={styles.completions}>
+          {completions.map(({ challengeType, count }) => (
+            <CompletionStat
+              key={challengeType}
+              challengeType={challengeType}
+              count={count}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className={styles.empty}>No completions yet</div>
+      )}
     </div>
   );
 }
@@ -167,10 +178,13 @@ function CompletionStat({ challengeType, count }: CompletionStatProps) {
       <Image
         className={styles.challengeIcon}
         src={challengeLogo(challengeType)}
-        alt={challengeName(challengeType)}
+        alt=""
         width={20}
         height={20}
       />
+      <span className={styles.challengeName}>
+        {challengeName(challengeType)}
+      </span>
       <span className={styles.count}>{count}</span>
     </div>
   );

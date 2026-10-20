@@ -484,6 +484,11 @@ button {
   --challenge-color-end: #d98a7a;
 }
 
+[data-challenge='tfa'] {
+  --challenge-color: #5ac846;
+  --challenge-color-end: #8fdc5a;
+}
+
 [data-challenge='unk'] {
   --challenge-color: #c3c7c9;
 }

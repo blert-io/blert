@@ -8,6 +8,7 @@ import {
   SessionStatus,
   normalizeRsn,
 } from '@blert/common';
+import { ChallengeData } from '@blert/common/generated/challenge_storage_pb';
 
 import {
   aggregateChallenges,
@@ -15,6 +16,7 @@ import {
   countUniquePlayers,
   findChallenges,
   getPlayerStatsHistory,
+  loadChallenge,
   loadPbsForPlayer,
   loadPlayerWithStats,
   loadSessionsPage,
@@ -22,6 +24,7 @@ import {
   PlayerWithStats,
   SessionQuery,
 } from '@/actions/challenge';
+import dataRepository from '@/actions/data-repository';
 import { sql } from '@/actions/db';
 import { InvalidQueryError } from '@/actions/errors';
 
@@ -1702,6 +1705,124 @@ describe('challenges', () => {
   });
 });
 
+describe('loadChallenge', () => {
+  const UUID = '25252525-2525-2525-2525-252525252525';
+
+  afterEach(async () => {
+    await sql`DELETE FROM challenge_players`;
+    await sql`DELETE FROM challenges`;
+    await sql`DELETE FROM challenge_sessions`;
+    await sql`DELETE FROM players`;
+    await dataRepository.deleteChallenge(UUID);
+  });
+
+  it('loads a tfa raid with its boss data', async () => {
+    const [{ id: sessionId }] = await sql<{ id: number }[]>`
+      INSERT INTO challenge_sessions ${sql({
+        uuid: '52525252-5252-5252-5252-525252525252',
+        challenge_type: ChallengeType.TFA,
+        challenge_mode: ChallengeMode.NO_MODE,
+        scale: 2,
+        party_hash: 'party-tfa',
+        start_time: new Date('2026-10-20T11:00:00Z'),
+        status: SessionStatus.ACTIVE,
+      })} RETURNING id
+    `;
+    const [{ id: challengeId }] = await sql<{ id: number }[]>`
+      INSERT INTO challenges ${sql({
+        session_id: sessionId,
+        uuid: UUID,
+        type: ChallengeType.TFA,
+        status: ChallengeStatus.IN_PROGRESS,
+        stage: Stage.TFA_EZEKIEL,
+        start_time: new Date('2026-10-20T11:00:00Z'),
+        scale: 2,
+      })} RETURNING id
+    `;
+    const players = await sql`
+      INSERT INTO players ${sql(
+        [
+          { username: '715', normalized_username: normalizeRsn('715') },
+          { username: 'Sacolyn', normalized_username: normalizeRsn('Sacolyn') },
+        ],
+        ['username', 'normalized_username'],
+      )} RETURNING id
+    `;
+    await sql`
+      INSERT INTO challenge_players ${sql(
+        [
+          {
+            challenge_id: challengeId,
+            player_id: players[0].id,
+            username: '715',
+            orb: 0,
+            primary_gear: 0,
+          },
+          {
+            challenge_id: challengeId,
+            player_id: players[1].id,
+            username: 'Sacolyn',
+            orb: 1,
+            primary_gear: 0,
+          },
+        ],
+        ['challenge_id', 'player_id', 'username', 'orb', 'primary_gear'],
+      )}
+    `;
+
+    const guardian = new ChallengeData.TfaBoss();
+    guardian.setTicksLost(3);
+    guardian.setGuardian(new ChallengeData.TfaBoss.Guardian());
+    const raid = new ChallengeData.TfaRaid();
+    raid.setBossesList([guardian]);
+    const data = new ChallengeData();
+    data.setChallengeId(UUID);
+    data.setTfa(raid);
+    await dataRepository.saveChallengeDataProto(UUID, data);
+
+    expect(await loadChallenge(ChallengeType.TFA, UUID)).toEqual({
+      uuid: UUID,
+      sessionUuid: '52525252-5252-5252-5252-525252525252',
+      type: ChallengeType.TFA,
+      stage: Stage.TFA_EZEKIEL,
+      startTime: new Date('2026-10-20T11:00:00Z'),
+      finishTime: null,
+      status: ChallengeStatus.IN_PROGRESS,
+      mode: ChallengeMode.NO_MODE,
+      scale: 2,
+      challengeTicks: 0,
+      overallTicks: null,
+      totalDeaths: 0,
+      party: [
+        {
+          username: '715',
+          currentUsername: '715',
+          primaryGear: 0,
+          deaths: [],
+        },
+        {
+          username: 'Sacolyn',
+          currentUsername: 'Sacolyn',
+          primaryGear: 0,
+          deaths: [],
+        },
+      ],
+      splits: {},
+      tfa: {
+        bosses: [
+          {
+            stage: Stage.TFA_GUARDIAN,
+            ticksLost: 3,
+            offset: undefined,
+            deaths: [],
+            npcs: {},
+          },
+        ],
+      },
+    });
+  });
+});
+
 describe('loadPlayerWithStats', () => {
   const ZERO_STATS: PlayerWithStats['stats'] = {
     tobCompletions: 0,
@@ -1719,6 +1840,9 @@ describe('loadPlayerWithStats', () => {
     mokhaiotlTotalDelves: 0,
     mokhaiotlDelvesCompleted: 0,
     mokhaiotlDeepDelvesCompleted: 0,
+    tfaCompletions: 0,
+    tfaWipes: 0,
+    tfaResets: 0,
     deathsTotal: 0,
     deathsMaiden: 0,
     deathsBloat: 0,
@@ -1762,10 +1886,18 @@ describe('loadPlayerWithStats', () => {
 
   it("returns a player's latest snapshot", async () => {
     await sql`
-      INSERT INTO player_stats (player_id, date, tob_completions, deaths_total)
+      INSERT INTO player_stats (
+        player_id,
+        date,
+        tob_completions,
+        tfa_completions,
+        tfa_wipes,
+        tfa_resets,
+        deaths_total
+      )
       VALUES
-        (${playerId}, ${new Date('2026-01-10')}, 5, 3),
-        (${playerId}, ${new Date('2026-05-10')}, 12, 8)
+        (${playerId}, ${new Date('2026-01-10')}, 5, 0, 1, 0, 3),
+        (${playerId}, ${new Date('2026-05-10')}, 12, 2, 3, 4, 8)
     `;
 
     expect(await loadPlayerWithStats('Amili')).toEqual({
@@ -1773,7 +1905,14 @@ describe('loadPlayerWithStats', () => {
       username: 'Amili',
       totalRecordings: 0,
       firstRecorded: new Date('2026-01-10'),
-      stats: { ...ZERO_STATS, tobCompletions: 12, deathsTotal: 8 },
+      stats: {
+        ...ZERO_STATS,
+        tobCompletions: 12,
+        tfaCompletions: 2,
+        tfaWipes: 3,
+        tfaResets: 4,
+        deathsTotal: 8,
+      },
     });
   });
 

@@ -78,6 +78,9 @@ export function challengeSlug(
   if (type === ChallengeType.MOKHAIOTL) {
     return 'mok';
   }
+  if (type === ChallengeType.TFA) {
+    return 'tfa';
+  }
 
   switch (mode) {
     case ChallengeMode.TOB_HARD:

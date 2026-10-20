@@ -4,6 +4,7 @@ import {
   isCoxStage,
   isInfernoStage,
   isMokhaiotlStage,
+  isTfaStage,
   isToaStage,
   isTobStage,
   Stage,
@@ -59,6 +60,17 @@ describe('Stage classification', () => {
         expect(mokhaiotlStages.has(stage)).toBe(true);
       } else {
         expect(mokhaiotlStages.has(stage)).toBe(false);
+      }
+    }
+  });
+
+  it('classifies tfa stages correctly', () => {
+    const tfaStages = new Set(stagesForChallenge(ChallengeType.TFA));
+    for (const stage of allStages) {
+      if (isTfaStage(stage)) {
+        expect(tfaStages.has(stage)).toBe(true);
+      } else {
+        expect(tfaStages.has(stage)).toBe(false);
       }
     }
   });

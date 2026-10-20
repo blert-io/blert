@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use crate::lifecycle::core::types::ChallengeType;
 use crate::merging::{
     ClientAnomaly, ClientOutcome, MergeAlert, MergeCapture, MergeReport, MergeStatus,
     MergedTimeline, QualityFlag,
@@ -35,6 +36,7 @@ pub enum CaptureReason {
     UnmergedClients,
     QualityFlags,
     TimelineOffset,
+    Tfa,
     Baseline,
     Development,
 }
@@ -53,6 +55,7 @@ impl CaptureReason {
             Self::UnmergedClients => "unmerged_clients",
             Self::QualityFlags => "quality_flags",
             Self::TimelineOffset => "timeline_offset",
+            Self::Tfa => "tfa",
             Self::Baseline => "baseline",
             Self::Development => "development",
         }
@@ -72,6 +75,7 @@ pub struct CaptureRates {
     pub unmerged_clients: f64,
     pub quality_flags: f64,
     pub timeline_offset: f64,
+    pub tfa: f64,
     pub baseline: f64,
     pub development: f64,
 }
@@ -90,6 +94,7 @@ impl Default for CaptureRates {
             unmerged_clients: 0.25,
             quality_flags: 0.25,
             timeline_offset: 0.05,
+            tfa: 1.0,
             baseline: 0.005,
             development: 1.0,
         }
@@ -110,6 +115,7 @@ impl CaptureRates {
             CaptureReason::UnmergedClients => self.unmerged_clients,
             CaptureReason::QualityFlags => self.quality_flags,
             CaptureReason::TimelineOffset => self.timeline_offset,
+            CaptureReason::Tfa => self.tfa,
             CaptureReason::Baseline => self.baseline,
             CaptureReason::Development => self.development,
         }
@@ -133,7 +139,11 @@ fn is_noteworthy_flag(flag: &QualityFlag) -> bool {
     }
 }
 
-pub fn capture_reasons(report: &MergeReport, development: bool) -> Vec<CaptureReason> {
+pub fn capture_reasons(
+    challenge_type: ChallengeType,
+    report: &MergeReport,
+    development: bool,
+) -> Vec<CaptureReason> {
     let mut reasons = BTreeSet::new();
 
     for alert in &report.alerts {
@@ -203,6 +213,10 @@ pub fn capture_reasons(report: &MergeReport, development: bool) -> Vec<CaptureRe
         reasons.insert(CaptureReason::UnmergedClients);
     }
 
+    if challenge_type == ChallengeType::Tfa {
+        reasons.insert(CaptureReason::Tfa);
+    }
+
     if development {
         reasons.insert(CaptureReason::Development);
     }
@@ -255,7 +269,7 @@ impl StreamCapturer {
         report: &MergeReport,
         streams: &MergeCapture,
     ) -> Option<Capture> {
-        let reasons = capture_reasons(report, self.development);
+        let reasons = capture_reasons(challenge.challenge_type, report, self.development);
         let should_capture = reasons
             .iter()
             .any(|reason| rand::random::<f64>() < self.rates.rate(*reason));
@@ -285,7 +299,8 @@ impl StreamCapturer {
         streams: &MergeCapture,
         clients: &[ClientOutcome],
     ) -> Option<Capture> {
-        {
+        let is_tfa = challenge.challenge_type == ChallengeType::Tfa;
+        if !is_tfa {
             let mut window = self
                 .window
                 .lock()
@@ -314,8 +329,13 @@ impl StreamCapturer {
         let attempt = challenge
             .stage_attempt
             .map_or(String::new(), |attempt| format!(":{attempt}"));
+        let directory = if is_tfa {
+            "tfa-captures"
+        } else {
+            "merge-captures"
+        };
         let file = format!(
-            "merge-captures/{}:{}{attempt}_events.json",
+            "{directory}/{}:{}{attempt}_events.json",
             challenge.uuid, challenge.stage as i32
         );
         let names = reasons

@@ -90,6 +90,10 @@ export type PlayerStats = {
   mokhaiotlTotalDelves: number;
   mokhaiotlDelvesCompleted: number;
   mokhaiotlDeepDelvesCompleted: number;
+
+  tfaCompletions: number;
+  tfaWipes: number;
+  tfaResets: number;
 };
 
 const OSRS_HISCORES_API =
