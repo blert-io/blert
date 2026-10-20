@@ -154,7 +154,7 @@ export default function XarpusPage() {
             (evt) =>
               new ObjectEntity(
                 { x: evt.xCoord, y: evt.yCoord },
-                '/xarpus_spit.png',
+                '/images/objects/xarpus-acid-pool.png',
                 'Xarpus Splat',
                 1,
                 /*borderColor=*/ undefined,

@@ -1,6 +1,6 @@
 import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import * as THREE from 'three';
 
 import {
@@ -14,10 +14,15 @@ export enum BloatHandState {
   SPLAT,
 }
 
+/** The number of different graphics a hand can land as. */
+export const BLOAT_HAND_VARIANTS = 4;
+
 export type BloatHandData = {
   state: BloatHandState;
   dropProgress: number;
   dropTicks: number;
+  /** Which graphic the hand lands as, from 0 to `BLOAT_HAND_VARIANTS - 1`. */
+  variant: number;
 };
 
 // Progress within the falling animation when the hand starts dropping.
@@ -35,19 +40,22 @@ export default function BloatHandRenderer({
 }) {
   const { config, playing } = useReplayContext();
 
-  const { state, dropProgress, dropTicks } = entity.data;
-  const droppingStateRef = useRef<{ startTime: number } | null>(null);
+  const { state, dropProgress, dropTicks, variant } = entity.data;
+  const droppingStateRef = useRef<{
+    entity: CustomEntity<BloatHandData>;
+    startTime: number;
+  } | null>(null);
 
-  const shadowTexture = useTexture('/images/objects/bloat_hand_drop.png');
-  const handTexture = useTexture('/images/objects/bloat_hand_splat.png');
+  const shadowTexture = useTexture(
+    `/images/objects/bloat-hand-${variant + 1}-shadow.png`,
+  );
+  const handTexture = useTexture(
+    `/images/objects/bloat-hand-${variant + 1}.png`,
+  );
 
   const groupRef = useRef<THREE.Group>(null);
   const shadowRef = useRef<THREE.Mesh>(null);
   const handRef = useRef<THREE.Mesh>(null);
-
-  useEffect(() => {
-    droppingStateRef.current = null;
-  }, [entity]);
 
   useFrame(({ clock }) => {
     if (!groupRef.current || !shadowRef.current || !handRef.current) {
@@ -57,12 +65,12 @@ export default function BloatHandRenderer({
     const shouldInterpolate = config.interpolationEnabled && playing;
     const currentTime = clock.getElapsedTime() * 1000;
 
-    const dropState = droppingStateRef.current ?? {
-      startTime: currentTime,
-    };
-    droppingStateRef.current = dropState;
+    // Restart the tick's animation in the first frame that draws its entity.
+    if (droppingStateRef.current?.entity !== entity) {
+      droppingStateRef.current = { entity, startTime: currentTime };
+    }
 
-    const elapsed = currentTime - dropState.startTime;
+    const elapsed = currentTime - droppingStateRef.current.startTime;
 
     if (state === BloatHandState.FALLING) {
       // Grow the size of the shadow as the hand falls.

@@ -350,7 +350,7 @@ export default function Maiden() {
         (coords) =>
           new ObjectEntity(
             coords,
-            '/images/objects/maiden_blood_splat.png',
+            '/images/objects/maiden-blood-splat.png',
             'Blood Splat',
             1,
             BLOOD_SPLAT_COLOR,

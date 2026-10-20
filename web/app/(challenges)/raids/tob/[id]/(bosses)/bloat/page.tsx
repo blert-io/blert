@@ -42,10 +42,15 @@ import {
 } from '@/utils/boss-room-state';
 import { inRect } from '@/utils/coords';
 import { getItemImageUrl } from '@/utils/item';
+import { hash } from '@/utils/math';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
-import BloatHandRenderer, { BloatHandData, BloatHandState } from './bloat-hand';
+import BloatHandRenderer, {
+  BLOAT_HAND_VARIANTS,
+  BloatHandData,
+  BloatHandState,
+} from './bloat-hand';
 import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
@@ -299,6 +304,14 @@ export default function BloatPage() {
                 state,
                 dropProgress: handsForTick.intensity / BLOAT_HAND_DROP_TICKS,
                 dropTicks: BLOAT_HAND_DROP_TICKS,
+                // Pick a different hand graphic for each hand.
+                variant: Math.floor(
+                  hash(
+                    handsForTick.dropTick * 12.9898 +
+                      hand.x * 78.233 +
+                      hand.y * 37.719,
+                  ) * BLOAT_HAND_VARIANTS,
+                ),
               },
               `bloat-hand-${handsForTick.dropTick}-${hand.x}-${hand.y}`,
             ),
