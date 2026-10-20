@@ -392,7 +392,7 @@ export default function VerzikPage() {
           entities.push(
             new ObjectEntity(
               yellow,
-              '/verzik_p3_yellow.webp',
+              '/images/objects/verzik-yellow-pool.png',
               'Verzik yellow pool',
               1,
               undefined,

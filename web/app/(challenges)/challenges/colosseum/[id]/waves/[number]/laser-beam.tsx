@@ -10,8 +10,7 @@ import {
   easeOutCubic,
   useReplayContext,
 } from '@/components/map-renderer';
-
-import { hash } from './hash';
+import { hash } from '@/utils/math';
 
 export type BeamAxis = 'x' | 'y';
 export type LaserPhase = 'scan' | 'shot' | 'residual';

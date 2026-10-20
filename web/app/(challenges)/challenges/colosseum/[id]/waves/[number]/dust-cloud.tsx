@@ -10,8 +10,7 @@ import {
   osrsToThreePosition,
   useReplayContext,
 } from '@/components/map-renderer';
-
-import { hash } from './hash';
+import { hash } from '@/utils/math';
 
 export type DustCloudData = {
   age: number;
