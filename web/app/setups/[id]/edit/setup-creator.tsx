@@ -1,6 +1,7 @@
 'use client';
 
 import { challengeName, ChallengeType } from '@blert/common';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,37 +16,41 @@ import DebugOverlay, {
   DebugRow,
   DebugSection,
 } from '@/components/debug-overlay';
+import Dropdown, { DROPDOWN_FIELD } from '@/components/dropdown';
 import Input from '@/components/input';
 import Item from '@/components/item';
 import MarkdownEditor from '@/components/markdown-editor';
+import { MenuItem } from '@/components/menu';
 import { Modal } from '@/components/modal/modal';
 import RadioInput from '@/components/radio-input';
 import Tabs from '@/components/tabs';
 import { useToast } from '@/components/toast';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay, useIsApple, useWidthThreshold } from '@/display';
-
-import { slotIdFromString } from '../../container-grid';
-import { ContextMenuWrapper } from './context-menu';
-import DeleteModal from '../../delete-modal';
+import { challengeLogo } from '@/logo';
+import { slotIdFromString } from '@/setups/container-grid';
+import DeleteModal from '@/setups/delete-modal';
 import {
   EditableGearSetup,
   EditingContext,
   OperationMode,
   SetupEditingContext,
-} from '../../editing-context';
-import ItemCounts from '../../item-counts';
-import { setupLocalStorage } from '../../local-storage';
-import { ItemSelector } from './item-selector';
-import PlayerList from '../../player-list';
+} from '@/setups/editing-context';
+import ItemCounts from '@/setups/item-counts';
+import { setupLocalStorage } from '@/setups/local-storage';
+import PlayerList from '@/setups/player-list';
 import {
   GearSetup,
   hasAllItems,
   newGearSetupPlayer,
+  SETUP_CHALLENGE_TYPES,
   setupScale,
-} from '../../setup';
+} from '@/setups/setup';
 
-import setupStyles from '../../style.module.scss';
+import { ContextMenuWrapper } from './context-menu';
+import { ItemSelector } from './item-selector';
+
+import setupStyles from '@/setups/style.module.scss';
 import styles from './style.module.scss';
 
 const MAX_PARTY_SIZE = 8;
@@ -117,6 +122,63 @@ function SaveButton({
       <span className={styles.saveTime}>{getSaveTimeText()}</span>
       <span className="sr-only">Save</span>
     </button>
+  );
+}
+
+function ChallengeOption({ challenge }: { challenge: ChallengeType }) {
+  return (
+    <span className={styles.challengeOption}>
+      <span className={styles.challengeLogo}>
+        <Image
+          src={challengeLogo(challenge)}
+          alt=""
+          fill
+          sizes="24px"
+          style={{ objectFit: 'contain' }}
+        />
+      </span>
+      {challengeName(challenge)}
+    </span>
+  );
+}
+
+const CHALLENGE_MENU_ITEMS: MenuItem[] = SETUP_CHALLENGE_TYPES.map(
+  (challenge) => ({
+    label: challengeName(challenge),
+    value: challenge,
+    customElement: <ChallengeOption challenge={challenge} />,
+  }),
+);
+
+function ChallengeSelector({
+  value,
+  onChange,
+}: {
+  value: ChallengeType;
+  onChange: (challenge: ChallengeType) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dropdown
+      items={CHALLENGE_MENU_ITEMS}
+      onClose={() => setOpen(false)}
+      onSelection={(challenge) => onChange(challenge as ChallengeType)}
+      open={open}
+      targetId="setup-challenge-type"
+    >
+      <button
+        id="setup-challenge-type"
+        className={`${styles.challengeSelect} ${DROPDOWN_FIELD}`}
+        onClick={() => setOpen(!open)}
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <ChallengeOption challenge={value} />
+        <i className="fas fa-chevron-down" />
+      </button>
+    </Dropdown>
   );
 }
 
@@ -538,57 +600,18 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
               />
               <div className={styles.group}>
                 <div className={styles.challengeType}>
-                  <label className={styles.label}>Challenge type</label>
-                  <RadioInput.Group
-                    name="setup-challenge-type"
-                    onChange={(value) =>
-                      context.update((prev) => ({
-                        ...prev,
-                        challenge: value as ChallengeType,
-                      }))
-                    }
+                  <label
+                    className={styles.label}
+                    htmlFor="setup-challenge-type"
                   >
-                    <RadioInput.Option
-                      checked={context.setup.challenge === ChallengeType.TOB}
-                      id={`setup-challenge-type-${ChallengeType.TOB}`}
-                      label="ToB"
-                      value={ChallengeType.TOB}
-                    />
-                    <RadioInput.Option
-                      checked={context.setup.challenge === ChallengeType.COX}
-                      id={`setup-challenge-type-${ChallengeType.COX}`}
-                      label="CoX"
-                      value={ChallengeType.COX}
-                    />
-                    <RadioInput.Option
-                      checked={context.setup.challenge === ChallengeType.TOA}
-                      id={`setup-challenge-type-${ChallengeType.TOA}`}
-                      label="ToA"
-                      value={ChallengeType.TOA}
-                    />
-                    <RadioInput.Option
-                      checked={context.setup.challenge === ChallengeType.TFA}
-                      id={`setup-challenge-type-${ChallengeType.TFA}`}
-                      label="TFA"
-                      value={ChallengeType.TFA}
-                    />
-                    <RadioInput.Option
-                      checked={
-                        context.setup.challenge === ChallengeType.INFERNO
-                      }
-                      id={`setup-challenge-type-${ChallengeType.INFERNO}`}
-                      label={display.isCompact() ? 'Inf' : 'Inferno'}
-                      value={ChallengeType.INFERNO}
-                    />
-                    <RadioInput.Option
-                      checked={
-                        context.setup.challenge === ChallengeType.COLOSSEUM
-                      }
-                      id={`setup-challenge-type-${ChallengeType.COLOSSEUM}`}
-                      label="Colo"
-                      value={ChallengeType.COLOSSEUM}
-                    />
-                  </RadioInput.Group>
+                    Challenge type
+                  </label>
+                  <ChallengeSelector
+                    value={context.setup.challenge}
+                    onChange={(challenge) =>
+                      context.update((prev) => ({ ...prev, challenge }))
+                    }
+                  />
                 </div>
               </div>
               <div className={styles.descriptionWrapper}>

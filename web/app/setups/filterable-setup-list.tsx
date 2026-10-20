@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, useTransition } from 'react';
 
 import { SetupCursor, SetupList, SetupState } from '@/actions/setup';
-import VoteBar from '@/components/vote-bar';
 import { useToast } from '@/components/toast';
+import VoteBar from '@/components/vote-bar';
+import { SETUP_CHALLENGE_TYPES } from '@/setups/setup';
 
 import styles from './setup-list.module.scss';
 
@@ -301,12 +302,11 @@ export function FilterableSetupList({
               }}
             >
               <option value="">All Challenges</option>
-              <option value={ChallengeType.TOB}>Theatre of Blood</option>
-              <option value={ChallengeType.COX}>Chambers of Xeric</option>
-              <option value={ChallengeType.TOA}>Tombs of Amascut</option>
-              <option value={ChallengeType.TFA}>Fractured Archive</option>
-              <option value={ChallengeType.INFERNO}>Inferno</option>
-              <option value={ChallengeType.COLOSSEUM}>Colosseum</option>
+              {SETUP_CHALLENGE_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {challengeName(type)}
+                </option>
+              ))}
             </select>
           </div>
 

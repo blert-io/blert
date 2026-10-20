@@ -1,14 +1,8 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 
+import Dropdown, { DROPDOWN_FIELD } from '@/components/dropdown';
 import Input, { InputProps } from '@/components/input';
-import Menu, { MenuItem } from '@/components/menu';
+import { MenuItem } from '@/components/menu';
 
 import styles from './style.module.scss';
 
@@ -102,14 +96,19 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
 
     const isControlled = props.value !== undefined;
 
-    const menu = useMemo(() => {
-      return (
-        <Menu
-          attach="bottom"
-          onBrowse={onBrowse}
-          itemClass={styles.suggestion}
+    let inputClassName = `${styles.input} ${DROPDOWN_FIELD}`;
+    if (className) {
+      inputClassName += ` ${className}`;
+    }
+
+    return (
+      <div
+        className={styles.wrapper}
+        style={{ width: inputProps.fluid ? '100%' : inputProps.width }}
+      >
+        <Dropdown
           items={suggestions}
-          menuClass={styles.suggestions}
+          onBrowse={onBrowse}
           onSelection={(value) => {
             closeMenu();
             onSelection?.(value as string);
@@ -119,63 +118,47 @@ const PlayerSearch = forwardRef<HTMLInputElement, PlayerSearchProps>(
           }}
           open={suggestions.length > 0}
           targetId={props.id}
-        />
-      );
-    }, [suggestions, props.id, isControlled, onBrowse, onSelection, closeMenu]);
-
-    let inputClassName = styles.input;
-    if (className) {
-      inputClassName += ` ${className}`;
-    }
-    if (suggestions.length > 0) {
-      inputClassName += ` ${styles.open}`;
-    }
-
-    return (
-      <div
-        className={styles.wrapper}
-        style={{ width: inputProps.fluid ? '100%' : inputProps.width }}
-      >
-        <Input
-          {...inputProps}
-          inputClassName={inputClassName}
-          onBlur={() => {
-            closeMenu();
-          }}
-          onChange={handleChange}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+        >
+          <Input
+            {...inputProps}
+            inputClassName={inputClassName}
+            onBlur={() => {
               closeMenu();
-              onSelection?.(props.value ?? inputRef.current!.value);
-              if (!isControlled) {
-                inputRef.current!.value = '';
+            }}
+            onChange={handleChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                closeMenu();
+                onSelection?.(props.value ?? inputRef.current!.value);
+                if (!isControlled) {
+                  inputRef.current!.value = '';
+                }
               }
-            }
-            onKeyDown?.(e);
-          }}
-          ref={(element) => {
-            inputRef.current = element;
-            if (typeof ref === 'function') {
-              ref(element);
-            } else if (ref) {
-              ref.current = element;
-            }
-          }}
-          onFocus={() => {
-            if (inputRef.current!.value !== '') {
-              setSuggestions(
-                cache
-                  .getAndUpdate(
-                    inputRef.current!.value,
-                    setIfCurrent(inputRef.current!.value),
-                  )
-                  ?.map(toMenuItem) ?? [],
-              );
-            }
-          }}
-          type="text"
-        />
-        {menu}
+              onKeyDown?.(e);
+            }}
+            ref={(element) => {
+              inputRef.current = element;
+              if (typeof ref === 'function') {
+                ref(element);
+              } else if (ref) {
+                ref.current = element;
+              }
+            }}
+            onFocus={() => {
+              if (inputRef.current!.value !== '') {
+                setSuggestions(
+                  cache
+                    .getAndUpdate(
+                      inputRef.current!.value,
+                      setIfCurrent(inputRef.current!.value),
+                    )
+                    ?.map(toMenuItem) ?? [],
+                );
+              }
+            }}
+            type="text"
+          />
+        </Dropdown>
       </div>
     );
   },
