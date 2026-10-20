@@ -168,11 +168,14 @@ impl MovementChecker<'_> {
                 _ => false,
             },
             // Not yet supported.
-            Some(ChallengeType::Cox | ChallengeType::Toa | ChallengeType::Tfa) => {
+            Some(ChallengeType::Cox | ChallengeType::Toa) => {
                 unimplemented!("hello implementer fill this in")
             }
             Some(
-                ChallengeType::UnknownChallenge | ChallengeType::Inferno | ChallengeType::Mokhaiotl,
+                ChallengeType::UnknownChallenge
+                | ChallengeType::Inferno
+                | ChallengeType::Mokhaiotl
+                | ChallengeType::Tfa,
             )
             | None => false,
         }

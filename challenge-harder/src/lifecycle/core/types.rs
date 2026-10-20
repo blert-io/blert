@@ -364,6 +364,16 @@ impl StageStatusExt for StageStatus {
     }
 }
 
+// Players pick one boss out of each of the middle three rows;
+// count both as equal progress.
+pub const TFA_ROWS: [&[Stage]; 5] = [
+    &[Stage::TfaGuardian],
+    &[Stage::TfaEzekiel, Stage::TfaBork],
+    &[Stage::TfaNecromancer, Stage::TfaDreadnoth],
+    &[Stage::TfaXarth, Stage::TfaDagonhai],
+    &[Stage::TfaFinal],
+];
+
 impl StageExt for Stage {
     fn challenge_type(self) -> Option<ChallengeType> {
         match self as i32 {
@@ -389,22 +399,12 @@ impl StageExt for Stage {
         match self.challenge_type() {
             // TODO(frolv): Handle toa.
             None | Some(ChallengeType::Toa) => Vec::new(),
-            Some(ChallengeType::Tfa) => {
-                // Players pick one boss out of each of the middle three rows;
-                // count both as equal progress.
-                const ROWS: [&[Stage]; 5] = [
-                    &[Stage::TfaGuardian],
-                    &[Stage::TfaEzekiel, Stage::TfaBork],
-                    &[Stage::TfaNecromancer, Stage::TfaDreadnoth],
-                    &[Stage::TfaXarth, Stage::TfaDagonhai],
-                    &[Stage::TfaFinal],
-                ];
-                ROWS.iter()
-                    .skip_while(|row| !row.contains(&self))
-                    .skip(1)
-                    .flat_map(|row| row.iter().copied())
-                    .collect()
-            }
+            Some(ChallengeType::Tfa) => TFA_ROWS
+                .iter()
+                .skip_while(|row| !row.contains(&self))
+                .skip(1)
+                .flat_map(|row| row.iter().copied())
+                .collect(),
             Some(ty) => ((self as i32 + 1)..)
                 .map_while(|value| {
                     Stage::try_from(value)
