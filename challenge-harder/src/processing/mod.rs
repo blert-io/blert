@@ -15,6 +15,7 @@ use crate::price::PriceResolver;
 use crate::redis::Store;
 use crate::repository::DataRepository;
 
+use archive::ArchiveProcessor;
 use challenge_processor::ChallengeProcessor;
 use colosseum::ColosseumProcessor;
 use inferno::InfernoProcessor;
@@ -27,6 +28,7 @@ pub use session::PostgresSessionFinalizer;
 
 pub mod db;
 
+mod archive;
 mod challenge;
 mod challenge_processor;
 mod colosseum;
@@ -63,15 +65,16 @@ fn processor_for(
             challenge.clone(),
             custom_data,
         )?))),
+        ChallengeType::Tfa => Ok(Some(Box::new(ArchiveProcessor::new(
+            challenge.clone(),
+            custom_data,
+        )?))),
         ChallengeType::Tob => Ok(Some(Box::new(TheatreProcessor::new(
             config.theatre,
             challenge.clone(),
             custom_data,
         )?))),
-        ChallengeType::Cox
-        | ChallengeType::Toa
-        | ChallengeType::Tfa
-        | ChallengeType::UnknownChallenge => Ok(None),
+        ChallengeType::Cox | ChallengeType::Toa | ChallengeType::UnknownChallenge => Ok(None),
     }
 }
 
