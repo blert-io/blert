@@ -59,6 +59,20 @@ const TRACKED_SPLITS: SplitConfig[] = [
   // Mokhaiotl
   { split: SplitType.MOKHAIOTL_CHALLENGE, tier: RecordTier.POST_TIES },
   { split: SplitType.MOKHAIOTL_OVERALL, tier: RecordTier.POST_TIES },
+
+  // Fractured Archive
+  { split: SplitType.TFA_CHALLENGE, tier: RecordTier.POST_TIES },
+  { split: SplitType.TFA_OVERALL, tier: RecordTier.POST_TIES },
+
+  // Fractured Archive bosses
+  { split: SplitType.TFA_GUARDIAN, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_EZEKIEL, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_BORK, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_NECROMANCER, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_DREADNOTH, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_XARTH, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_DAGONHAI, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_FINAL, tier: RecordTier.NEW_RECORDS_ONLY },
 ];
 
 /**
