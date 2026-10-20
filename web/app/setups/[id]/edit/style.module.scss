@@ -1,4 +1,4 @@
-@use '../../../mixins.scss' as *;
+@use '@/mixins.scss' as *;
 
 .setupsPage {
   width: 100%;
@@ -319,7 +319,7 @@
   .challengeType {
     display: flex;
     flex-direction: column;
-    width: 680px;
+    width: min(280px, 100%);
   }
 
   .descriptionWrapper {
@@ -398,6 +398,51 @@
       top: 1px;
     }
   }
+}
+
+// Matches the `Input` fields around it.
+.challengeSelect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 5px;
+  background: none;
+  color: var(--blert-font-color-primary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+
+  &:hover,
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(var(--blert-purple-base), 0.9);
+  }
+
+  i {
+    color: var(--blert-font-color-secondary);
+    font-size: 12px;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroField;
+  }
+}
+
+.challengeOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.challengeLogo {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .itemSelector {

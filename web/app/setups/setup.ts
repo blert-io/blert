@@ -13,6 +13,16 @@ export type GearSetup = {
   players: GearSetupPlayer[];
 };
 
+export const SETUP_CHALLENGE_TYPES: ChallengeType[] = [
+  ChallengeType.TOB,
+  ChallengeType.COX,
+  ChallengeType.TOA,
+  ChallengeType.TFA,
+  ChallengeType.INFERNO,
+  ChallengeType.COLOSSEUM,
+  ChallengeType.MOKHAIOTL,
+];
+
 export type GearSetupPlayer = {
   name: string;
   inventory: PlayerInventory;

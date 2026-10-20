@@ -51,6 +51,11 @@ export type MenuItem = {
 export const MENU_DIVIDER: MenuItem = { label: '' };
 
 type MenuProps = {
+  /**
+   * Edge of the target to which to attach the menu. If not set, the menu opens
+   * a few pixels below the target. Menus automatically switch sides if they
+   * cannot fit into the viewport.
+   */
   attach?: 'top' | 'bottom';
   /**
    * Default direction in which submenus should cascade, as a hint to the menu
@@ -64,6 +69,11 @@ type MenuProps = {
   menuClass?: string;
   onBrowse?: (item: MenuItem | null) => void;
   onClose?: () => void;
+  /**
+   * In menus positioned via `targetId`, called when the menu is opened or
+   * switches sides, with the target edge from which it opened.
+   */
+  onPlacement?: (edge: 'top' | 'bottom') => void;
   onSelection?: (value: string | number) => void;
   open: boolean;
   position?: { x: number; y: number };
@@ -80,6 +90,7 @@ type MenuImplProps = MenuProps & {
 };
 
 const VIEWPORT_PADDING = 8;
+const TARGET_GAP = 5;
 
 function MenuImpl(props: MenuImplProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -329,17 +340,19 @@ function isInteractive(item: MenuItem): boolean {
 export default function Menu(props: MenuProps) {
   const [ready, setReady] = useState(false);
   const [allowClose, setAllowClose] = useState(false);
-  const [wrapperAdjustment, setWrapperAdjustment] = useState<{
+  const [placement, setPlacement] = useState<{
     x: number;
     y: number;
-    // Track which position/target this adjustment was calculated for.
+    // Edge of the target the menu opened from, if it has a target.
+    edge: 'top' | 'bottom' | null;
+    // Track which position/target this placement was calculated for.
     for: string;
   } | null>(null);
   const portalNode = useRef<HTMLElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { items, open, onBrowse, onSelection, onClose } = props;
+  const { items, open, onBrowse, onSelection, onClose, onPlacement } = props;
 
   const [activeElements, setActiveElements] = useState<(number | null)[]>(() =>
     createActiveElementsList(items),
@@ -541,9 +554,15 @@ export default function Menu(props: MenuProps) {
     ? `position:${props.position.x},${props.position.y}`
     : `targetId:${props.targetId}`;
 
-  // Adjust root menu position if it overflows the viewport.
+  // Place the root menu on the side of its target where it fits, and adjust
+  // its position if it still overflows the viewport.
   useLayoutEffect(() => {
-    if (!wrapperRef.current || !ready || !props.open) {
+    if (!props.open) {
+      setPlacement(null);
+      return;
+    }
+
+    if (!wrapperRef.current || !ready) {
       return;
     }
 
@@ -558,6 +577,7 @@ export default function Menu(props: MenuProps) {
 
     let rawLeft: number;
     let rawTop: number;
+    let edge: 'top' | 'bottom' | null = null;
 
     if (props.position) {
       rawLeft = props.position.x;
@@ -568,14 +588,29 @@ export default function Menu(props: MenuProps) {
         return;
       }
       const targetRect = target.getBoundingClientRect();
-      rawLeft = targetRect.left;
-      if (props.attach === 'top') {
-        rawTop = targetRect.top;
-      } else if (props.attach === 'bottom') {
-        rawTop = targetRect.top + targetRect.height;
-      } else {
-        rawTop = targetRect.top + targetRect.height + 5;
+      const gap = props.attach === undefined ? TARGET_GAP : 0;
+      const topAbove = targetRect.top - gap - menuRect.height;
+      const topBelow = targetRect.bottom + gap;
+      const fitsAbove = topAbove >= VIEWPORT_PADDING;
+      const fitsBelow = topBelow + menuRect.height <= vh - VIEWPORT_PADDING;
+
+      // Stay on the side the menu opened on while it fits there, so it doesn't
+      // jump between sides as its items change.
+      const preferred =
+        placement?.for === menuTarget && placement.edge !== null
+          ? placement.edge
+          : (props.attach ?? 'bottom');
+
+      // Like submenus, only switch sides if the other side fits.
+      edge = preferred;
+      if (preferred === 'bottom' && !fitsBelow && fitsAbove) {
+        edge = 'top';
+      } else if (preferred === 'top' && !fitsAbove && fitsBelow) {
+        edge = 'bottom';
       }
+
+      rawLeft = targetRect.left;
+      rawTop = edge === 'top' ? topAbove : topBelow;
     } else {
       return;
     }
@@ -602,22 +637,28 @@ export default function Menu(props: MenuProps) {
       adjustY = VIEWPORT_PADDING - rawTop;
     }
 
-    if (adjustX !== 0 || adjustY !== 0) {
-      setWrapperAdjustment({
-        x: adjustX,
-        y: adjustY,
-        for: menuTarget,
-      });
-    } else {
-      setWrapperAdjustment(null);
+    const opened = placement?.for !== menuTarget;
+    if (
+      opened ||
+      placement.edge !== edge ||
+      placement.x !== adjustX ||
+      placement.y !== adjustY
+    ) {
+      setPlacement({ x: adjustX, y: adjustY, edge, for: menuTarget });
+    }
+    if (edge !== null && (opened || placement.edge !== edge)) {
+      onPlacement?.(edge);
     }
   }, [
     ready,
     menuTarget,
+    placement,
+    onPlacement,
     props.open,
     props.position,
     props.attach,
     props.targetId,
+    props.items,
   ]);
 
   if (
@@ -629,11 +670,16 @@ export default function Menu(props: MenuProps) {
     return null;
   }
 
+  const current = placement?.for === menuTarget ? placement : null;
+  const adjustX = current?.x ?? 0;
+  const adjustY = current?.y ?? 0;
+
   const style: React.CSSProperties = {};
+  let edge: 'top' | 'bottom' | null = null;
 
   if (props.position) {
-    style.top = props.position.y;
-    style.left = props.position.x;
+    style.top = props.position.y + adjustY;
+    style.left = props.position.x + adjustX;
   } else if (props.targetId) {
     const target = document.getElementById(props.targetId);
     if (!target) {
@@ -642,34 +688,33 @@ export default function Menu(props: MenuProps) {
     }
 
     const rect = target.getBoundingClientRect();
-    style.left = rect.left;
+    style.left = rect.left + adjustX;
 
     if (!props.width) {
       style.width = rect.width;
     }
 
-    if (props.attach === 'top') {
-      style.top = rect.top;
-    } else if (props.attach === 'bottom') {
-      style.top = rect.top + rect.height;
+    edge = current?.edge ?? props.attach ?? 'bottom';
+    const gap = props.attach === undefined ? TARGET_GAP : 0;
+
+    // Anchor a menu above its target by its bottom edge so that it stays
+    // against the target as its height changes.
+    if (edge === 'top') {
+      style.bottom =
+        document.documentElement.clientHeight - rect.top + gap - adjustY;
     } else {
-      style.top = rect.top + rect.height + 5;
+      style.top = rect.bottom + gap + adjustY;
     }
   } else {
     console.error('Menu requires either a position or a targetId');
     return null;
   }
 
-  const adjustmentMatchesPosition = wrapperAdjustment?.for === menuTarget;
-  if (adjustmentMatchesPosition) {
-    style.top += wrapperAdjustment.y;
-    style.left += wrapperAdjustment.x;
-  }
-
   return createPortal(
     <div className={styles.menuWrapper} ref={wrapperRef} style={style}>
       <MenuImpl
         {...props}
+        attach={props.attach === undefined ? undefined : (edge ?? props.attach)}
         activeElements={activeElements}
         setActiveElements={setActiveElements}
         depth={0}

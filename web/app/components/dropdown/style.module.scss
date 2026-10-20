@@ -1,0 +1,80 @@
+@use '@/mixins.scss' as *;
+
+.dropdown {
+  display: contents;
+
+  // The field shares the list's border and opens onto it.
+  &.below .field,
+  &.above .field {
+    border-color: rgba(var(--blert-purple-base), 0.9);
+  }
+
+  &.below .field {
+    border-radius: 5px 5px 0 0;
+    border-bottom-color: transparent;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &.above .field {
+    border-radius: 0 0 5px 5px;
+    border-top-color: transparent;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  // Aero: don't blend into the list, which floats separately.
+  :global([data-theme='aero']) &.below .field,
+  :global([data-theme='aero']) &.above .field {
+    border-radius: 10px;
+    @include aeroFieldFocus;
+  }
+}
+
+.list {
+  border-color: rgba(var(--blert-purple-base), 0.9) !important;
+  background: linear-gradient(
+    180deg,
+    var(--blert-panel-background-color) 0%,
+    rgba(var(--blert-surface-dark-base), 0.98) 100%
+  );
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.15) !important;
+
+  :global([data-theme='aero']) & {
+    border-color: rgba(120, 165, 200, 0.5) !important;
+    box-shadow: 0 10px 28px rgba(60, 120, 165, 0.3) !important;
+  }
+
+  .row {
+    padding: 8px 12px;
+    color: var(--blert-font-color-primary);
+    font-weight: 400;
+    transition: all 0.15s ease;
+    position: relative;
+
+    &:hover {
+      background: rgba(var(--blert-purple-base), 0.1);
+      padding-left: 16px;
+    }
+
+    // Animation for newly opened rows
+    @for $i from 1 through 10 {
+      &:nth-child(#{$i}) {
+        animation: slideInRow 0.2s ease-out forwards;
+        animation-delay: #{$i * 0.02}s;
+        opacity: 0;
+      }
+    }
+  }
+}
+
+@keyframes slideInRow {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

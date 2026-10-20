@@ -1,28 +1,7 @@
 @use '@/mixins.scss' as *;
 
-$MAX_ITEMS: 10;
-$ITEM_HEIGHT: 36px;
-$ITEM_PADDING: 4px;
-$MAX_MENU_HEIGHT: ($ITEM_HEIGHT + $ITEM_PADDING * 2) * $MAX_ITEMS;
-
 .itemSearch {
   position: relative;
-
-  &.openBelow {
-    input {
-      border-radius: 5px 5px 0 0;
-      border-bottom: none;
-      padding-bottom: 9px; // Compensate for border
-    }
-  }
-
-  &.openAbove {
-    input {
-      border-radius: 0 0 5px 5px;
-      border-top: none;
-      padding-top: 9px; // Compensate for border
-    }
-  }
 
   input {
     padding: 8px 12px;
@@ -80,51 +59,14 @@ $MAX_MENU_HEIGHT: ($ITEM_HEIGHT + $ITEM_PADDING * 2) * $MAX_ITEMS;
     .key {
       @include aeroKeycap;
     }
-
-    // The menu floats separately.
-    &.openBelow input,
-    &.openAbove input {
-      border-radius: 10px;
-      border: 1px solid rgba(120, 165, 200, 0.5);
-      padding: 8px 12px;
-    }
   }
-}
-
-:global([data-theme='aero']) .menu {
-  border-radius: 10px;
-  border-color: rgba(120, 165, 200, 0.5);
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.85),
-    rgba(224, 242, 252, 0.72)
-  );
-  backdrop-filter: blur(16px) saturate(1.4);
-  box-shadow: 0 10px 28px rgba(60, 120, 165, 0.3);
-}
-
-.menu {
-  min-width: 200px;
-  max-height: $MAX_MENU_HEIGHT;
-  display: flex;
-  flex-direction: column;
-  border-color: rgba(var(--blert-purple-base), 0.6);
-  background: linear-gradient(
-    145deg,
-    rgba(var(--blert-panel-background-color-base), 1),
-    rgba(var(--blert-surface-dark-base), 1)
-  );
 }
 
 .item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
   width: 100%;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  height: 36px;
 
   .name {
     font-size: 14px;

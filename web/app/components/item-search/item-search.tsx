@@ -1,14 +1,15 @@
 'use client';
 
 import { EquipmentSlot } from '@blert/common';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import Dropdown, { DROPDOWN_FIELD } from '@/components/dropdown';
+import Item from '@/components/item';
+import { MenuItem } from '@/components/menu';
 import {
   ExtendedItemData,
   extendedItemCache,
 } from '@/utils/item-cache/extended';
-
-import SearchMenu, { ITEM_HEIGHT } from './search-menu';
 
 import styles from './style.module.scss';
 
@@ -39,12 +40,6 @@ export type ItemSearchInputProps = {
 
 const INPUT_WIDTH = 320;
 
-const enum State {
-  CLOSED,
-  OPEN_BELOW,
-  OPEN_ABOVE,
-}
-
 export default function ItemSearchInput({
   id,
   slot,
@@ -60,26 +55,7 @@ export default function ItemSearchInput({
 }: ItemSearchInputProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ExtendedItemData[]>([]);
-  const [state, setState] = useState<State>(State.CLOSED);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  const isOpen = state !== State.CLOSED;
-
-  const setIsOpen = useCallback(
-    (open: boolean) => {
-      if (open) {
-        const rect = wrapperRef.current?.getBoundingClientRect();
-        if (rect) {
-          const maxMenuHeight = ITEM_HEIGHT * maxResults;
-          const isAbove = rect.top + maxMenuHeight > window.innerHeight;
-          setState(isAbove ? State.OPEN_ABOVE : State.OPEN_BELOW);
-        }
-      } else {
-        setState(State.CLOSED);
-      }
-    },
-    [maxResults, setState],
-  );
+  const [isOpen, setIsOpen] = useState(false);
 
   const search = useCallback(
     (value: string) => {
@@ -120,53 +96,55 @@ export default function ItemSearchInput({
 
   const handleClickOutside = useCallback(() => {
     setIsOpen(false);
-  }, [setIsOpen]);
+  }, []);
 
   const handleFocus = useCallback(() => {
     setIsOpen(true);
-  }, [setIsOpen]);
+  }, []);
 
   useEffect(() => {
     if (query === '') {
       setResults([]);
       setIsOpen(false);
     }
-  }, [query, setIsOpen]);
+  }, [query]);
 
-  const showMenu = isOpen && results.length > 0;
-
-  let className = styles.itemSearch;
-  if (showMenu) {
-    className += ` ${state === State.OPEN_ABOVE ? styles.openAbove : styles.openBelow}`;
-  }
+  const items: MenuItem[] = results.map((item) => ({
+    label: item.name,
+    customAction: () => handleSelect(item),
+    customElement: (
+      <div className={styles.item}>
+        <Item id={item.id} name={item.name} quantity={1} size={24} fitContent />
+        <span className={styles.name}>{item.name}</span>
+        {showIds && <span className={styles.id}>({item.id})</span>}
+      </div>
+    ),
+  }));
 
   return (
-    <div className={className} ref={wrapperRef} style={{ width: INPUT_WIDTH }}>
-      <input
-        autoComplete="off"
-        id={id}
-        className={styles.input}
-        ref={inputRef}
-        type="text"
-        value={query}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
-        onFocus={handleFocus}
-        placeholder={placeholder}
-        disabled={disabled}
-        style={{ width: INPUT_WIDTH }}
-      />
-      {displayKey && <span className={styles.key}>{displayKey}</span>}
-      <SearchMenu
-        attach={state === State.OPEN_ABOVE ? 'top' : 'bottom'}
-        open={showMenu}
+    <div className={styles.itemSearch} style={{ width: INPUT_WIDTH }}>
+      <Dropdown
+        items={items}
         onClose={handleClickOutside}
-        results={results}
-        onSelect={handleSelect}
+        open={isOpen && results.length > 0}
         targetId={id}
-        width={INPUT_WIDTH}
-        showIds={showIds}
-      />
+      >
+        <input
+          autoComplete="off"
+          id={id}
+          className={DROPDOWN_FIELD}
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onFocus={handleFocus}
+          placeholder={placeholder}
+          disabled={disabled}
+          style={{ width: INPUT_WIDTH }}
+        />
+        {displayKey && <span className={styles.key}>{displayKey}</span>}
+      </Dropdown>
     </div>
   );
 }
