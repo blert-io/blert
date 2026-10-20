@@ -355,5 +355,10 @@
   "33595": {"stackThresholds":[2,3,4,5]},
   "33601": {"stackThresholds":[2,3,4,5]},
   "34390": {"stackThresholds":[2,3,4,5,25,100,250,1000,10000]},
-  "34604": {"stackThresholds":[1000,25000]}
+  "34604": {"stackThresholds":[1000,25000]},
+  "34684": {"stackThresholds":[2,3,4,5]},
+  "34690": {"stackThresholds":[2,3,4,5]},
+  "34696": {"stackThresholds":[2,3,4,5]},
+  "34702": {"stackThresholds":[2,3,4,5]},
+  "34708": {"stackThresholds":[2,3,4,5]}
 }
