@@ -46,12 +46,12 @@ describe('GET /api/v1/raids/tfa/[id]/events', () => {
 
   it('filters by a specified event type', async () => {
     const events = [
-      { type: EventType.NPC_SPAWN, stage: Stage.TFA_FINAL, tick: 0 },
+      { type: EventType.NPC_SPAWN, stage: Stage.TFA_OCELLUS, tick: 0 },
     ];
     mockedLoadEventsForStage.mockResolvedValue(events as unknown as Events);
     const response = await GET(
       apiRequest(PATH, {
-        stage: `${Stage.TFA_FINAL}`,
+        stage: `${Stage.TFA_OCELLUS}`,
         type: `${EventType.NPC_SPAWN}`,
       }),
       { params: Promise.resolve({ id: UUID }) },
@@ -60,7 +60,7 @@ describe('GET /api/v1/raids/tfa/[id]/events', () => {
     expect(await response.json()).toEqual(events);
     expect(mockedLoadEventsForStage).toHaveBeenCalledWith(
       UUID,
-      Stage.TFA_FINAL,
+      Stage.TFA_OCELLUS,
       EventType.NPC_SPAWN,
     );
   });

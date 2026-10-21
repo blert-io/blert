@@ -288,6 +288,8 @@ async fn finish_challenge(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use axum::body::Body;
     use axum::http::Request;
     use http_body_util::BodyExt;
@@ -295,6 +297,7 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
+    use crate::lifecycle::core::event::LifecycleEvent;
     use crate::lifecycle::sim::Collector;
 
     fn test_router() -> Router {
@@ -397,6 +400,64 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn finish_accepts_an_overall_time_without_a_challenge_time() {
+        let (tx, rx) = tokio::sync::watch::channel(false);
+        std::mem::forget(tx);
+        let collector = Arc::new(Collector::default());
+        let router = router(Arc::new(Coordinator::with_stores(
+            Arc::clone(&collector) as _,
+            Arc::clone(&collector) as _,
+            rx,
+        )));
+
+        let (status, body) = post(
+            &router,
+            "/challenges/new",
+            &json!({
+                "userId": 1, "clientId": 10, "sessionToken": "tok",
+                "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
+                "type": 7, "mode": 0, "party": ["WWWWWWWWWWQQ"], "stage": 60,
+                "recordingType": 1,
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let uuid: Uuid = body["uuid"]
+            .as_str()
+            .expect("uuid in response")
+            .parse()
+            .unwrap();
+
+        let (status, _) = post(
+            &router,
+            &format!("/challenges/{uuid}/finish"),
+            &json!({
+                "userId": 1, "clientId": 10, "sessionToken": "tok", "soft": false,
+                "times": { "challenge": null, "overall": 2290 },
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let times: Vec<Option<ReportedTimes>> = collector
+            .journal(uuid)
+            .into_iter()
+            .filter_map(|entry| match entry.event {
+                LifecycleEvent::ClientFinished { times, .. } => Some(times),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            times,
+            vec![Some(ReportedTimes {
+                challenge: None,
+                overall: Some(2290),
+            })],
+        );
     }
 
     #[tokio::test]

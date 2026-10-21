@@ -96,11 +96,11 @@ const STAGE_PATHS: Record<NonWaveStage, string> = {
   [Stage.TFA_GUARDIAN]: 'guardian',
   [Stage.TFA_EZEKIEL]: 'ezekiel',
   [Stage.TFA_BORK]: 'bork',
-  [Stage.TFA_NECROMANCER]: 'necromancer',
+  [Stage.TFA_MOIA]: 'moia',
   [Stage.TFA_DREADNOTH]: 'dreadnoth',
-  [Stage.TFA_XARTH]: 'xarth',
   [Stage.TFA_DAGONHAI]: 'dagonhai',
-  [Stage.TFA_FINAL]: 'final',
+  [Stage.TFA_XARTH]: 'xarth',
+  [Stage.TFA_OCELLUS]: 'ocellus',
 };
 
 /**

@@ -640,6 +640,30 @@ export class DataRepository {
       case Stage.MOKHAIOTL_DELVE_8PLUS:
         fileName = 'delve-8plus';
         break;
+      case Stage.TFA_GUARDIAN:
+        fileName = 'guardian';
+        break;
+      case Stage.TFA_EZEKIEL:
+        fileName = 'ezekiel';
+        break;
+      case Stage.TFA_BORK:
+        fileName = 'bork';
+        break;
+      case Stage.TFA_MOIA:
+        fileName = 'moia';
+        break;
+      case Stage.TFA_DREADNOTH:
+        fileName = 'dreadnoth';
+        break;
+      case Stage.TFA_DAGONHAI:
+        fileName = 'dagonhai';
+        break;
+      case Stage.TFA_XARTH:
+        fileName = 'xarth';
+        break;
+      case Stage.TFA_OCELLUS:
+        fileName = 'ocellus';
+        break;
       default:
         throw new Error(`Invalid stage: ${stage}`);
     }
@@ -927,16 +951,16 @@ function tfaBossToStage(boss: ChallengeData.TfaBoss): Stage {
       return Stage.TFA_EZEKIEL;
     case ChallengeData.TfaBoss.BossCase.BORK:
       return Stage.TFA_BORK;
-    case ChallengeData.TfaBoss.BossCase.NECROMANCER:
-      return Stage.TFA_NECROMANCER;
+    case ChallengeData.TfaBoss.BossCase.MOIA:
+      return Stage.TFA_MOIA;
     case ChallengeData.TfaBoss.BossCase.DREADNOTH:
       return Stage.TFA_DREADNOTH;
-    case ChallengeData.TfaBoss.BossCase.XARTH:
-      return Stage.TFA_XARTH;
     case ChallengeData.TfaBoss.BossCase.DAGONHAI:
       return Stage.TFA_DAGONHAI;
-    case ChallengeData.TfaBoss.BossCase.FINAL:
-      return Stage.TFA_FINAL;
+    case ChallengeData.TfaBoss.BossCase.XARTH:
+      return Stage.TFA_XARTH;
+    case ChallengeData.TfaBoss.BossCase.OCELLUS:
+      return Stage.TFA_OCELLUS;
     case ChallengeData.TfaBoss.BossCase.BOSS_NOT_SET:
       return Stage.UNKNOWN;
   }

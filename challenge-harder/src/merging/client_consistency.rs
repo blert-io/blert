@@ -167,15 +167,18 @@ impl MovementChecker<'_> {
                 // Maiden, Bloat, Nylocas, and Xarpus have no special teleports.
                 _ => false,
             },
+            // TODO(frolv): Handle TFA boss mechanics which move players.
+            Some(ChallengeType::Tfa) => {
+                // TODO(frolv): Detect Ezekiel and Ocellus mechanics instead of allowing every jump.
+                matches!(stage, Stage::TfaEzekiel | Stage::TfaOcellus)
+                    || world::crosses_tfa_arena_boundary(stage, last, current)
+            }
             // Not yet supported.
             Some(ChallengeType::Cox | ChallengeType::Toa) => {
                 unimplemented!("hello implementer fill this in")
             }
             Some(
-                ChallengeType::UnknownChallenge
-                | ChallengeType::Inferno
-                | ChallengeType::Mokhaiotl
-                | ChallengeType::Tfa,
+                ChallengeType::UnknownChallenge | ChallengeType::Inferno | ChallengeType::Mokhaiotl,
             )
             | None => false,
         }
@@ -1457,6 +1460,93 @@ mod tests {
                 end: Point(3168, 4308),
             }]),
         );
+    }
+
+    #[test]
+    fn movement_permits_tfa_arena_entry() {
+        let cases = [
+            (Stage::TfaEzekiel, (4074, 5535), (4066, 5535)),
+            (Stage::TfaBork, (4178, 5599), (4185, 5599)),
+            (Stage::TfaMoia, (4074, 5663), (4066, 5663)),
+            (Stage::TfaDreadnoth, (4176, 5663), (4185, 5663)),
+            (Stage::TfaDagonhai, (4079, 5599), (4073, 5599)),
+            (Stage::TfaXarth, (4177, 5535), (4184, 5535)),
+        ];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
+        for (stage, start, end) in cases {
+            let timeline = fixtures::timeline(
+                stage,
+                ChallengeMode::NoMode,
+                &party,
+                Tick(2),
+                vec![
+                    fixtures::PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(1), stage, "1Ogp", end).build(),
+                ],
+            );
+            assert_eq!(check(&timeline), Ok(vec![]), "stage {stage:?}");
+        }
+    }
+
+    #[test]
+    fn movement_permits_moves_out_of_tfa_arenas() {
+        let cases = [
+            (Stage::TfaGuardian, (4127, 5590), (4097, 5569)),
+            (Stage::TfaEzekiel, (4063, 5535), (4033, 5505)),
+            (Stage::TfaBork, (4191, 5599), (4161, 5569)),
+            (Stage::TfaMoia, (4063, 5663), (4033, 5633)),
+            (Stage::TfaDreadnoth, (4191, 5663), (4161, 5633)),
+            (Stage::TfaXarth, (4191, 5535), (4161, 5505)),
+            (Stage::TfaOcellus, (4127, 5673), (4097, 5633)),
+        ];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
+        for (stage, start, end) in cases {
+            let timeline = fixtures::timeline(
+                stage,
+                ChallengeMode::NoMode,
+                &party,
+                Tick(2),
+                vec![
+                    fixtures::PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(1), stage, "1Ogp", end).build(),
+                ],
+            );
+            assert_eq!(check(&timeline), Ok(vec![]), "stage {stage:?}");
+        }
+    }
+
+    #[test]
+    fn movement_flags_tfa_jumps_not_crossing_the_arena_boundary() {
+        let cases = [
+            (Stage::TfaMoia, (4059, 5663), (4067, 5663)),
+            (Stage::TfaMoia, (4082, 5663), (4072, 5663)),
+        ];
+        let party = vec![Rsn::try_from("1Ogp").unwrap()];
+        for (stage, start, end) in cases {
+            let timeline = fixtures::timeline(
+                stage,
+                ChallengeMode::NoMode,
+                &party,
+                Tick(2),
+                vec![
+                    fixtures::PlayerUpdateEvent::new(Tick(0), stage, "1Ogp", start).build(),
+                    fixtures::PlayerUpdateEvent::new(Tick(1), stage, "1Ogp", end).build(),
+                ],
+            );
+            let point =
+                |(x, y): (i32, i32)| Point(u16::try_from(x).unwrap(), u16::try_from(y).unwrap());
+            assert_eq!(
+                check(&timeline),
+                Ok(vec![ConsistencyIssue::LargeJump {
+                    player: timeline.party_index(&party[0]).unwrap(),
+                    tick: Tick(1),
+                    last_tick: Tick(0),
+                    start: point(start),
+                    end: point(end),
+                }]),
+                "{start:?} to {end:?}",
+            );
+        }
     }
 
     #[test]

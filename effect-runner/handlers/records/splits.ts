@@ -68,11 +68,11 @@ const TRACKED_SPLITS: SplitConfig[] = [
   { split: SplitType.TFA_GUARDIAN, tier: RecordTier.NEW_RECORDS_ONLY },
   { split: SplitType.TFA_EZEKIEL, tier: RecordTier.NEW_RECORDS_ONLY },
   { split: SplitType.TFA_BORK, tier: RecordTier.NEW_RECORDS_ONLY },
-  { split: SplitType.TFA_NECROMANCER, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_MOIA, tier: RecordTier.NEW_RECORDS_ONLY },
   { split: SplitType.TFA_DREADNOTH, tier: RecordTier.NEW_RECORDS_ONLY },
-  { split: SplitType.TFA_XARTH, tier: RecordTier.NEW_RECORDS_ONLY },
   { split: SplitType.TFA_DAGONHAI, tier: RecordTier.NEW_RECORDS_ONLY },
-  { split: SplitType.TFA_FINAL, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_XARTH, tier: RecordTier.NEW_RECORDS_ONLY },
+  { split: SplitType.TFA_OCELLUS, tier: RecordTier.NEW_RECORDS_ONLY },
 ];
 
 /**

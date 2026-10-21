@@ -276,7 +276,7 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
     let info = ChallengeInfo {
         status: ChallengeStatus::Completed,
         reported_times: Some(ReportedTimes {
-            challenge: 848,
+            challenge: Some(848),
             overall: None,
         }),
         finished_unix_ms: Some(1_785_859_016_486),
@@ -400,6 +400,183 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         session.get::<_, Option<SystemTime>>(1),
         Some(UNIX_EPOCH + Duration::from_millis(1_785_859_016_486)),
     );
+
+    client
+        .execute("DELETE FROM challenges WHERE id = $1", &[&challenge_id])
+        .await
+        .expect("cleanup");
+    client
+        .execute(
+            "DELETE FROM player_stats WHERE player_id = $1",
+            &[&player_id],
+        )
+        .await
+        .expect("cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = $1", &[&player_id])
+        .await
+        .expect("cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("cleanup");
+}
+
+#[tokio::test]
+async fn reported_overall_time_without_challenge_time_keeps_the_recorded_ticks() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let dir = tempfile::tempdir().expect("temp repository");
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+
+    let uuid = Uuid::new_v4();
+    let player = format!("1Ogp {}", &uuid.to_string()[..7]);
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tfa,
+        mode: ChallengeMode::NoMode,
+        party: vec![Rsn::try_from(player.clone()).unwrap()],
+        party_changed: false,
+        stage: Stage::TfaOcellus,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: 1_792_561_330_000,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        },
+    )
+    .await
+    .expect("create guard should pass");
+    let custom_data = challenge::create(&mut run, &repository, ProcessorConfig::default())
+        .await
+        .expect("create should succeed");
+    run.txn
+        .commit(&ProcessingPayload::None, custom_data.as_ref())
+        .await
+        .expect("create should commit");
+
+    let boss = |stage: Stage| {
+        json!({
+            "stage": stage as i32,
+            "ticksLost": 0,
+            "offset": 0,
+            "deaths": [],
+            "npcs": [],
+        })
+    };
+    let custom = json!({
+        "bosses": [
+            boss(Stage::TfaGuardian),
+            boss(Stage::TfaEzekiel),
+            boss(Stage::TfaMoia),
+            boss(Stage::TfaXarth),
+            boss(Stage::TfaOcellus),
+        ],
+        "inaccurateRoom": false,
+    });
+    let txn = db
+        .start_transaction(
+            uuid,
+            Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TfaOcellus,
+                attempt: None,
+            },
+        )
+        .await
+        .expect("stage guard should pass");
+    txn.execute(
+        "UPDATE challenges SET challenge_ticks = $1 WHERE id = $2",
+        &[&2074_i32, &txn.challenge_id()],
+    )
+    .await
+    .expect("seed should apply");
+    txn.commit(
+        &ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 1238,
+        },
+        Some(&custom),
+    )
+    .await
+    .expect("stage should commit");
+
+    let info = ChallengeInfo {
+        status: ChallengeStatus::Completed,
+        reported_times: Some(ReportedTimes {
+            challenge: None,
+            overall: Some(2290),
+        }),
+        finished_unix_ms: Some(1_792_564_125_137),
+        ..info
+    };
+    let mut run = ProcessingRun::start(
+        &db,
+        ProcessingRequest {
+            trigger: Trigger::Finish { seq: JournalSeq(3) },
+            challenge: info.clone(),
+        },
+    )
+    .await
+    .expect("finish guard should pass");
+    challenge::finish(&mut run, &repository, ProcessorConfig::default())
+        .await
+        .expect("finish should succeed");
+    run.txn
+        .commit(&ProcessingPayload::None, None)
+        .await
+        .expect("finish should commit");
+
+    let client = db.checkout().await.expect("client");
+    let row = client
+        .query_one(
+            "SELECT c.id, c.status, c.challenge_ticks, c.overall_ticks, c.full_recording,
+                    p.id AS player_id
+             FROM challenges c
+             JOIN players p ON p.username = $2
+             WHERE c.uuid = $1",
+            &[&uuid, &player],
+        )
+        .await
+        .expect("challenge row should remain");
+    let challenge_id: i32 = row.get(0);
+    let player_id: i32 = row.get(5);
+    assert_eq!(row.get::<_, i16>(1), ChallengeStatus::Completed as i16);
+    assert_eq!(row.get::<_, i32>(2), 2074);
+    assert_eq!(row.get::<_, Option<i32>>(3), Some(2290));
+    assert!(row.get::<_, bool>(4));
+
+    let splits = client
+        .query(
+            "SELECT type, scale, ticks, accurate FROM challenge_splits
+             WHERE challenge_id = $1
+             ORDER BY type",
+            &[&challenge_id],
+        )
+        .await
+        .expect("splits query");
+    assert_eq!(splits.len(), 2);
+    assert_eq!(splits[0].get::<_, i16>(0), 400);
+    assert_eq!(splits[0].get::<_, i16>(1), 1);
+    assert_eq!(splits[0].get::<_, i32>(2), 2074);
+    assert!(splits[0].get::<_, bool>(3));
+    assert_eq!(splits[1].get::<_, i16>(0), 401);
+    assert_eq!(splits[1].get::<_, i16>(1), 1);
+    assert_eq!(splits[1].get::<_, i32>(2), 2290);
+    assert!(splits[1].get::<_, bool>(3));
 
     client
         .execute("DELETE FROM challenges WHERE id = $1", &[&challenge_id])

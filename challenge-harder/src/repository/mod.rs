@@ -228,6 +228,14 @@ fn file_for_stage(stage: Stage, attempt: Option<u32>) -> Result<String, Error> {
         Stage::TobXarpus => "xarpus".into(),
         Stage::TobVerzik => "verzik".into(),
         Stage::MokhaiotlDelve8plus => "delve-8plus".into(),
+        Stage::TfaGuardian => "guardian".into(),
+        Stage::TfaEzekiel => "ezekiel".into(),
+        Stage::TfaBork => "bork".into(),
+        Stage::TfaMoia => "moia".into(),
+        Stage::TfaDreadnoth => "dreadnoth".into(),
+        Stage::TfaDagonhai => "dagonhai".into(),
+        Stage::TfaXarth => "xarth".into(),
+        Stage::TfaOcellus => "ocellus".into(),
         stage => {
             let value = stage as i32;
             match value {
@@ -275,6 +283,14 @@ mod tests {
             (Stage::MokhaiotlDelve1, "delve-1"),
             (Stage::MokhaiotlDelve8, "delve-8"),
             (Stage::MokhaiotlDelve8plus, "delve-8plus"),
+            (Stage::TfaGuardian, "guardian"),
+            (Stage::TfaEzekiel, "ezekiel"),
+            (Stage::TfaBork, "bork"),
+            (Stage::TfaMoia, "moia"),
+            (Stage::TfaDreadnoth, "dreadnoth"),
+            (Stage::TfaDagonhai, "dagonhai"),
+            (Stage::TfaXarth, "xarth"),
+            (Stage::TfaOcellus, "ocellus"),
         ];
         for (stage, expected) in cases {
             assert_eq!(file_for_stage(stage, None).unwrap(), expected, "{stage:?}");

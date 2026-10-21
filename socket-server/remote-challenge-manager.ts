@@ -149,13 +149,16 @@ export class RemoteChallengeManager extends ChallengeManager {
     soft: boolean,
   ): Promise<void> {
     // The plugin uses -1 to indicate that a time was not reported.
-    // Not all challenges report an overall time.
+    // Not all challenges report both times.
     const ts = Date.now();
 
     let times = null;
-    if (inGameTimes && inGameTimes.challenge > 0) {
+    if (
+      inGameTimes !== null &&
+      (inGameTimes.challenge > 0 || inGameTimes.overall > 0)
+    ) {
       times = {
-        challenge: inGameTimes.challenge,
+        challenge: inGameTimes.challenge > 0 ? inGameTimes.challenge : null,
         overall: inGameTimes.overall > 0 ? inGameTimes.overall : null,
       };
     }

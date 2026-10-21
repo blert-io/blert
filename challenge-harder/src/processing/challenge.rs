@@ -192,17 +192,17 @@ pub async fn finish(
 
     let recorded_ticks = processor.final_challenge_ticks(stored.challenge_ticks);
     let mut final_ticks = recorded_ticks;
-    if let Some(times) = info.reported_times
-        && Ticks(times.challenge) != recorded_ticks
+    if let Some(reported_ticks) = info.reported_times.and_then(|times| times.challenge)
+        && Ticks(reported_ticks) != recorded_ticks
     {
         tracing::warn!(
             uuid = %info.uuid,
             %recorded_ticks,
-            reported_ticks = times.challenge,
+            reported_ticks,
             "challenge_time_mismatch",
         );
         metrics::record_reported_time_mismatch();
-        final_ticks = Ticks(times.challenge);
+        final_ticks = Ticks(reported_ticks);
     }
 
     // Correct the challenge ticks based on the server report. Any ticks

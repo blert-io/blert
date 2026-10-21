@@ -20,8 +20,10 @@ use crate::proto::{ChallengeData, challenge_data};
 
 /// In-flight state stored between stages.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CustomData {
     bosses: Vec<BossData>,
+    inaccurate_room: bool,
 }
 
 /// Final state of a processed boss, following the `TfaBoss` proto message.
@@ -41,11 +43,11 @@ impl BossData {
             Stage::TfaGuardian => tfa_boss::Boss::Guardian(tfa_boss::Guardian {}),
             Stage::TfaEzekiel => tfa_boss::Boss::Ezekiel(tfa_boss::Ezekiel {}),
             Stage::TfaBork => tfa_boss::Boss::Bork(tfa_boss::Bork {}),
-            Stage::TfaNecromancer => tfa_boss::Boss::Necromancer(tfa_boss::Necromancer {}),
+            Stage::TfaMoia => tfa_boss::Boss::Moia(tfa_boss::Moia {}),
             Stage::TfaDreadnoth => tfa_boss::Boss::Dreadnoth(tfa_boss::Dreadnoth {}),
-            Stage::TfaXarth => tfa_boss::Boss::Xarth(tfa_boss::Xarth {}),
             Stage::TfaDagonhai => tfa_boss::Boss::Dagonhai(tfa_boss::Dagonhai {}),
-            Stage::TfaFinal => tfa_boss::Boss::Final(tfa_boss::Final {}),
+            Stage::TfaXarth => tfa_boss::Boss::Xarth(tfa_boss::Xarth {}),
+            Stage::TfaOcellus => tfa_boss::Boss::Ocellus(tfa_boss::Ocellus {}),
             stage => panic!("invalid TFA stage {stage:?}"),
         };
         challenge_data::TfaBoss {
@@ -63,11 +65,11 @@ fn boss_split(stage: Stage) -> SplitType {
         Stage::TfaGuardian => SplitType::TfaGuardian,
         Stage::TfaEzekiel => SplitType::TfaEzekiel,
         Stage::TfaBork => SplitType::TfaBork,
-        Stage::TfaNecromancer => SplitType::TfaNecromancer,
+        Stage::TfaMoia => SplitType::TfaMoia,
         Stage::TfaDreadnoth => SplitType::TfaDreadnoth,
-        Stage::TfaXarth => SplitType::TfaXarth,
         Stage::TfaDagonhai => SplitType::TfaDagonhai,
-        Stage::TfaFinal => SplitType::TfaFinal,
+        Stage::TfaXarth => SplitType::TfaXarth,
+        Stage::TfaOcellus => SplitType::TfaOcellus,
         _ => panic!("invalid TFA stage {stage:?}"),
     }
 }
@@ -75,8 +77,8 @@ fn boss_split(stage: Stage) -> SplitType {
 fn next_row_start_split(stage: Stage) -> Option<SplitType> {
     match stage {
         Stage::TfaEzekiel | Stage::TfaBork => Some(SplitType::TfaRow2Start),
-        Stage::TfaNecromancer | Stage::TfaDreadnoth => Some(SplitType::TfaRow3Start),
-        Stage::TfaXarth | Stage::TfaDagonhai => Some(SplitType::TfaFinalStart),
+        Stage::TfaMoia | Stage::TfaDreadnoth => Some(SplitType::TfaRow3Start),
+        Stage::TfaDagonhai | Stage::TfaXarth => Some(SplitType::TfaFinalStart),
         _ => None,
     }
 }
@@ -149,6 +151,10 @@ impl ChallengeProcessor for ArchiveProcessor {
 
         ctx.set_stage_split(boss_split(stage), last_tick, Tick(0), true);
 
+        if merged.status() != StageStatus::Completed || !merged.fully_accurate() {
+            self.data.inaccurate_room = true;
+        }
+
         if merged.status() == StageStatus::Completed
             && self.has_fully_recorded_up_to(stage)
             && let Some(row_start) = next_row_start_split(stage)
@@ -156,7 +162,11 @@ impl ChallengeProcessor for ArchiveProcessor {
             ctx.set_challenge_split(
                 row_start,
                 stored.challenge_ticks + last_tick.duration(),
-                Some(!self.challenge.party_changed && merged.has_precise_server_tick_count()),
+                Some(
+                    !self.challenge.party_changed
+                        && !self.data.inaccurate_room
+                        && merged.has_precise_server_tick_count(),
+                ),
             );
         }
 
@@ -170,7 +180,11 @@ impl ChallengeProcessor for ArchiveProcessor {
         ctx: &mut ChallengeContext,
         final_ticks: Ticks,
     ) -> Result<(), db::Error> {
-        ctx.set_challenge_split(SplitType::TfaChallenge, final_ticks, None);
+        ctx.set_challenge_split(
+            SplitType::TfaChallenge,
+            final_ticks,
+            self.data.inaccurate_room.then_some(false),
+        );
         if let Some(overall) = self
             .challenge
             .reported_times

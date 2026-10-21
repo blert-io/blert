@@ -23,11 +23,11 @@ describe('DataRepository', () => {
 
   describe('loadTfaChallengeData', () => {
     it('loads TFA data with bosses in stage order', async () => {
-      const necromancer = new ChallengeData.TfaBoss();
-      necromancer.setTicksLost(2);
-      necromancer.setDeathsList(['Sacolyn', '1Ogp']);
-      necromancer.setOffset(14);
-      necromancer.setNecromancer(new ChallengeData.TfaBoss.Necromancer());
+      const moia = new ChallengeData.TfaBoss();
+      moia.setTicksLost(2);
+      moia.setDeathsList(['Sacolyn', '1Ogp']);
+      moia.setOffset(14);
+      moia.setMoia(new ChallengeData.TfaBoss.Moia());
 
       const guardian = new ChallengeData.TfaBoss();
       guardian.setTicksLost(1);
@@ -39,7 +39,7 @@ describe('DataRepository', () => {
       ezekiel.setEzekiel(new ChallengeData.TfaBoss.Ezekiel());
 
       const raid = new ChallengeData.TfaRaid();
-      raid.setBossesList([necromancer, guardian, ezekiel]);
+      raid.setBossesList([moia, guardian, ezekiel]);
       const data = new ChallengeData();
       data.setChallengeId(UUID);
       data.setTfa(raid);
@@ -62,7 +62,7 @@ describe('DataRepository', () => {
             npcs: {},
           },
           {
-            stage: Stage.TFA_NECROMANCER,
+            stage: Stage.TFA_MOIA,
             ticksLost: 2,
             offset: 14,
             deaths: ['Sacolyn', '1Ogp'],

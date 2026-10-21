@@ -239,7 +239,8 @@ const _: () = {
 /// Client-reported completion times, in ticks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReportedTimes {
-    pub challenge: u32,
+    /// Absent if the challenge type doesn't report challenge time.
+    pub challenge: Option<u32>,
     /// Absent if the challenge type doesn't report overall time.
     pub overall: Option<u32>,
 }
@@ -369,9 +370,9 @@ impl StageStatusExt for StageStatus {
 pub const TFA_ROWS: [&[Stage]; 5] = [
     &[Stage::TfaGuardian],
     &[Stage::TfaEzekiel, Stage::TfaBork],
-    &[Stage::TfaNecromancer, Stage::TfaDreadnoth],
-    &[Stage::TfaXarth, Stage::TfaDagonhai],
-    &[Stage::TfaFinal],
+    &[Stage::TfaMoia, Stage::TfaDreadnoth],
+    &[Stage::TfaDagonhai, Stage::TfaXarth],
+    &[Stage::TfaOcellus],
 ];
 
 impl StageExt for Stage {
@@ -444,7 +445,7 @@ impl ChallengeTypeExt for ChallengeType {
             ChallengeType::Tob => Some(Stage::TobVerzik),
             ChallengeType::Cox => Some(Stage::CoxOlm),
             ChallengeType::Toa => Some(Stage::ToaWardens),
-            ChallengeType::Tfa => Some(Stage::TfaFinal),
+            ChallengeType::Tfa => Some(Stage::TfaOcellus),
             ChallengeType::Mokhaiotl => Some(Stage::MokhaiotlDelve8),
             ChallengeType::Colosseum => Some(Stage::ColosseumWave12),
             ChallengeType::Inferno => Some(Stage::InfernoWave69),
@@ -481,7 +482,7 @@ mod tests {
             (Stage::TobMaiden, Stage::TobVerzik, ChallengeType::Tob),
             (Stage::CoxTekton, Stage::CoxOlm, ChallengeType::Cox),
             (Stage::ToaApmeken, Stage::ToaWardens, ChallengeType::Toa),
-            (Stage::TfaGuardian, Stage::TfaFinal, ChallengeType::Tfa),
+            (Stage::TfaGuardian, Stage::TfaOcellus, ChallengeType::Tfa),
             (
                 Stage::MokhaiotlDelve1,
                 Stage::MokhaiotlDelve8plus,
@@ -525,28 +526,28 @@ mod tests {
             vec![
                 Stage::TfaEzekiel,
                 Stage::TfaBork,
-                Stage::TfaNecromancer,
+                Stage::TfaMoia,
                 Stage::TfaDreadnoth,
-                Stage::TfaXarth,
                 Stage::TfaDagonhai,
-                Stage::TfaFinal,
+                Stage::TfaXarth,
+                Stage::TfaOcellus,
             ]
         );
         assert_eq!(
             Stage::TfaEzekiel.later_stages(),
             vec![
-                Stage::TfaNecromancer,
+                Stage::TfaMoia,
                 Stage::TfaDreadnoth,
-                Stage::TfaXarth,
                 Stage::TfaDagonhai,
-                Stage::TfaFinal,
+                Stage::TfaXarth,
+                Stage::TfaOcellus,
             ]
         );
         assert_eq!(
             Stage::TfaDreadnoth.later_stages(),
-            vec![Stage::TfaXarth, Stage::TfaDagonhai, Stage::TfaFinal]
+            vec![Stage::TfaDagonhai, Stage::TfaXarth, Stage::TfaOcellus]
         );
-        assert_eq!(Stage::TfaFinal.later_stages(), vec![]);
+        assert_eq!(Stage::TfaOcellus.later_stages(), vec![]);
     }
 
     #[test]

@@ -669,7 +669,7 @@ mod tests {
         }
 
         let times = ReportedTimes {
-            challenge: 1_437,
+            challenge: Some(1_437),
             overall: Some(1_500),
         };
         apply(
@@ -715,7 +715,7 @@ mod tests {
                     definitive: true,
                     soft: false,
                     times: Some(ReportedTimes {
-                        challenge: 1_440,
+                        challenge: Some(1_440),
                         overall: Some(1_503),
                     }),
                 },
@@ -1241,7 +1241,7 @@ mod tests {
                     definitive: true,
                     soft: false,
                     times: Some(ReportedTimes {
-                        challenge: 1_437,
+                        challenge: Some(1_437),
                         overall: Some(1_500),
                     }),
                 },
@@ -1299,7 +1299,7 @@ mod tests {
                 status: ChallengeStatus::Wiped,
                 created_unix_ms: 0,
                 reported_times: Some(ReportedTimes {
-                    challenge: 1_437,
+                    challenge: Some(1_437),
                     overall: Some(1_500),
                 }),
                 finished_unix_ms: Some(1_785_693_975_535),

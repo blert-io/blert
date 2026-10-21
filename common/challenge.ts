@@ -389,11 +389,11 @@ export enum Stage {
   TFA_GUARDIAN = StageProto.TFA_GUARDIAN,
   TFA_EZEKIEL = StageProto.TFA_EZEKIEL,
   TFA_BORK = StageProto.TFA_BORK,
-  TFA_NECROMANCER = StageProto.TFA_NECROMANCER,
+  TFA_MOIA = StageProto.TFA_MOIA,
   TFA_DREADNOTH = StageProto.TFA_DREADNOTH,
-  TFA_XARTH = StageProto.TFA_XARTH,
   TFA_DAGONHAI = StageProto.TFA_DAGONHAI,
-  TFA_FINAL = StageProto.TFA_FINAL,
+  TFA_XARTH = StageProto.TFA_XARTH,
+  TFA_OCELLUS = StageProto.TFA_OCELLUS,
 
   MOKHAIOTL_DELVE_1 = StageProto.MOKHAIOTL_DELVE_1,
   MOKHAIOTL_DELVE_2 = StageProto.MOKHAIOTL_DELVE_2,
@@ -1051,16 +1051,16 @@ export function stageName(stage: Stage, short: boolean = false): string {
       return 'Ezekiel';
     case Stage.TFA_BORK:
       return 'Bork';
-    case Stage.TFA_NECROMANCER:
-      return 'Necromancer';
+    case Stage.TFA_MOIA:
+      return 'Moia';
     case Stage.TFA_DREADNOTH:
       return 'Dreadnoth';
+    case Stage.TFA_DAGONHAI:
+      return "The Dagon'hai";
     case Stage.TFA_XARTH:
       return 'Xarth';
-    case Stage.TFA_DAGONHAI:
-      return "Dagon'hai Trio";
-    case Stage.TFA_FINAL:
-      return 'Final Boss';
+    case Stage.TFA_OCELLUS:
+      return 'Ocellus';
 
     case Stage.COX_TEKTON:
       return 'Tekton';
@@ -1149,11 +1149,11 @@ const STAGES_BY_CHALLENGE = {
     Stage.TFA_GUARDIAN,
     Stage.TFA_EZEKIEL,
     Stage.TFA_BORK,
-    Stage.TFA_NECROMANCER,
+    Stage.TFA_MOIA,
     Stage.TFA_DREADNOTH,
-    Stage.TFA_XARTH,
     Stage.TFA_DAGONHAI,
-    Stage.TFA_FINAL,
+    Stage.TFA_XARTH,
+    Stage.TFA_OCELLUS,
   ],
   [ChallengeType.COX]: [
     Stage.COX_TEKTON,
@@ -1328,11 +1328,11 @@ export type TfaStage =
   | Stage.TFA_GUARDIAN
   | Stage.TFA_EZEKIEL
   | Stage.TFA_BORK
-  | Stage.TFA_NECROMANCER
+  | Stage.TFA_MOIA
   | Stage.TFA_DREADNOTH
-  | Stage.TFA_XARTH
   | Stage.TFA_DAGONHAI
-  | Stage.TFA_FINAL;
+  | Stage.TFA_XARTH
+  | Stage.TFA_OCELLUS;
 
 /**
  * Returns true if the stage is part of the Fractured Archive.
@@ -1340,7 +1340,7 @@ export type TfaStage =
  * @returns True if the stage is a TFA stage.
  */
 export function isTfaStage(stage: Stage): stage is TfaStage {
-  return stage >= Stage.TFA_GUARDIAN && stage <= Stage.TFA_FINAL;
+  return stage >= Stage.TFA_GUARDIAN && stage <= Stage.TFA_OCELLUS;
 }
 
 export type ColosseumStage =
