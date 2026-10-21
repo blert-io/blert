@@ -20,6 +20,7 @@ import { SetupListItem } from '@/actions/setup';
 import ActivityChart from '@/components/activity-chart';
 import Card, { CardLink } from '@/components/card';
 import Carousel from '@/components/carousel';
+import ChallengeSelector from '@/components/challenge-selector';
 import RadioInput from '@/components/radio-input';
 import { challengeLogo } from '@/logo';
 import { useClientOnly } from '@/hooks/client-only';
@@ -35,13 +36,12 @@ const DEFAULT_REFRESH_INTERVAL = 30 * 1000;
 
 const enum LocalStorageKey {
   SELECTED_CHALLENGE = 'home-selected-challenge',
-  STATS_TIME_PERIOD = 'home-stats-time-period',
-  LEADERBOARD_TIME_PERIOD = 'home-leaderboard-time-period',
-  ACTIVITY_FILTER = 'home-activity-filter',
+  TIME_PERIOD = 'home-time-period',
 }
 
 const SUPPORTED_CHALLENGES = [
   ChallengeType.TOB,
+  ChallengeType.TFA,
   ChallengeType.COLOSSEUM,
   ChallengeType.INFERNO,
   ChallengeType.MOKHAIOTL,
@@ -50,7 +50,6 @@ const SUPPORTED_CHALLENGES = [
 type SupportedChallenge = (typeof SUPPORTED_CHALLENGES)[number];
 
 type ChallengeInfo = {
-  flavorBefore: string;
   name: string;
   description: string;
   hubUrl: string;
@@ -63,7 +62,6 @@ type ChallengeInfo = {
 
 const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
   [ChallengeType.TOB]: {
-    flavorBefore: 'Enter the',
     name: 'Theatre of Blood',
     description:
       'Replay every crab spawn, Nylo wave, maze, and everything in between ' +
@@ -74,8 +72,17 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardScales: [5, 4, 3, 2],
     leaderboardUrl: '/leaderboards/tob',
   },
+  [ChallengeType.TFA]: {
+    name: 'The Fractured Archive',
+    description:
+      'Follow your team as you progress through the Archive to face Ocellus.',
+    hubUrl: '/raids/tfa',
+    browseText: 'Browse Raids',
+    leaderboardSplit: SplitType.TFA_CHALLENGE,
+    leaderboardScales: [8, 7, 6, 5, 4, 3],
+    leaderboardUrl: '/leaderboards/tfa',
+  },
   [ChallengeType.COLOSSEUM]: {
-    flavorBefore: 'Conquer the',
     name: 'Colosseum',
     description:
       'Track modifier choices, solve pillar stacks, and analyze each wave as ' +
@@ -87,7 +94,6 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardUrl: '/leaderboards/colosseum',
   },
   [ChallengeType.INFERNO]: {
-    flavorBefore: 'Survive the',
     name: 'Inferno',
     description:
       'Break down wave spawns, positioning, and prayer flicks from the ' +
@@ -99,7 +105,6 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
     leaderboardUrl: '/leaderboards/inferno',
   },
   [ChallengeType.MOKHAIOTL]: {
-    flavorBefore: 'Face the',
     name: 'Doom of Mokhaiotl',
     description:
       'Follow each delve as you descend into the ruins, tracking every orb, ' +
@@ -129,8 +134,16 @@ const enum TimePeriod {
   DAY,
   WEEK,
   MONTH,
-  ALL,
 }
+
+const TIME_PERIODS = [TimePeriod.DAY, TimePeriod.WEEK, TimePeriod.MONTH];
+
+const TIME_PERIOD_INFO: Record<TimePeriod, { label: string; heading: string }> =
+  {
+    [TimePeriod.DAY]: { label: 'Day', heading: 'Today' },
+    [TimePeriod.WEEK]: { label: 'Week', heading: 'Past week' },
+    [TimePeriod.MONTH]: { label: 'Month', heading: 'Past month' },
+  };
 
 function startOfTimePeriod(period: TimePeriod): Date {
   const start = new Date();
@@ -143,43 +156,25 @@ function startOfTimePeriod(period: TimePeriod): Date {
     case TimePeriod.MONTH:
       start.setMonth(start.getMonth() - 1);
       break;
-    case TimePeriod.ALL:
-      return new Date(0);
   }
   return start;
 }
 
-type ChallengeSelectorProps = {
-  selected: SupportedChallenge;
-  onSelect: (type: SupportedChallenge) => void;
+type ChallengeOverviewProps = {
+  challengeType: SupportedChallenge;
 };
 
-function ChallengeSelector({ selected, onSelect }: ChallengeSelectorProps) {
-  const [open, setOpen] = useState(false);
+function ChallengeOverview({ challengeType }: ChallengeOverviewProps) {
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [uniquePlayers, setUniquePlayers] = useState<number | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const info = CHALLENGE_INFO[selected];
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (
-        dropdownRef.current !== null &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+  const info = CHALLENGE_INFO[challengeType];
 
   useEffect(() => {
     setTotalCount(null);
     setUniquePlayers(null);
 
     const controller = new AbortController();
-    const params = queryString({ type: selected });
+    const params = queryString({ type: challengeType });
 
     fetch(`/api/v1/challenges/stats?${params}`, {
       signal: controller.signal,
@@ -214,86 +209,48 @@ function ChallengeSelector({ selected, onSelect }: ChallengeSelectorProps) {
       });
 
     return () => controller.abort();
-  }, [selected]);
+  }, [challengeType]);
 
-  const term = challengeTerm(selected, true).toLowerCase();
+  const term = challengeTerm(challengeType, true).toLowerCase();
 
   return (
-    <div
-      className={styles.challengeSelectorWrap}
-      data-challenge={challengeSlug(selected)}
-    >
-      <Card primary className={styles.challengeSelector}>
-        <div className={styles.selectorHeader}>
-          <span className={styles.flavorText}>{info.flavorBefore}</span>
-          <div className={styles.dropdown} ref={dropdownRef}>
-            <button
-              className={styles.dropdownToggle}
-              onClick={() => setOpen(!open)}
-            >
-              <span>{info.name}</span>
-              <i
-                className={`fas fa-chevron-down ${styles.dropdownCaret} ${open ? styles.open : ''}`}
-              />
-            </button>
-            {open && (
-              <div className={styles.dropdownMenu}>
-                {SUPPORTED_CHALLENGES.map((type) => (
-                  <button
-                    key={type}
-                    className={`${styles.dropdownItem} ${type === selected ? styles.active : ''}`}
-                    onClick={() => {
-                      onSelect(type);
-                      setOpen(false);
-                    }}
-                  >
-                    <span
-                      className={styles.dropdownDot}
-                      data-challenge={challengeSlug(type)}
-                    />
-                    {CHALLENGE_INFO[type].name}
-                  </button>
-                ))}
-              </div>
-            )}
+    <div className={styles.exploreColumn}>
+      <div className={styles.overviewBody}>
+        <div className={styles.overviewImage}>
+          <Image
+            src={info.image ?? challengeLogo(challengeType)}
+            alt={info.name}
+            width={62}
+            height={62}
+            style={{ objectFit: 'contain' }}
+          />
+        </div>
+        <div className={styles.overviewText}>
+          <h3 className={styles.overviewName}>{info.name}</h3>
+          <p className={styles.overviewDescription}>{info.description}</p>
+        </div>
+      </div>
+      <div className={styles.overviewStats}>
+        {totalCount !== null && (
+          <div className={styles.overviewStat}>
+            <span className={styles.overviewStatValue}>
+              {totalCount.toLocaleString()}
+            </span>
+            <span className={styles.overviewStatLabel}>{term} recorded</span>
           </div>
-        </div>
-
-        <div className={styles.selectorBody}>
-          <div className={styles.selectorImage}>
-            <Image
-              src={info.image ?? challengeLogo(selected)}
-              alt={info.name}
-              width={72}
-              height={72}
-              style={{ objectFit: 'contain' }}
-            />
+        )}
+        {uniquePlayers !== null && (
+          <div className={styles.overviewStat}>
+            <span className={`${styles.overviewStatValue} ${styles.muted}`}>
+              {uniquePlayers.toLocaleString()}
+            </span>
+            <span className={styles.overviewStatLabel}>players tracked</span>
           </div>
-          <p className={styles.challengeDescription}>{info.description}</p>
-        </div>
-        <div className={styles.selectorStats}>
-          {totalCount !== null && (
-            <div className={styles.selectorStat}>
-              <span className={styles.selectorStatValue}>
-                {totalCount.toLocaleString()}
-              </span>
-              <span className={styles.selectorStatLabel}>{term} recorded</span>
-            </div>
-          )}
-          {uniquePlayers !== null && (
-            <div className={styles.selectorStat}>
-              <span className={`${styles.selectorStatValue} ${styles.muted}`}>
-                {uniquePlayers.toLocaleString()}
-              </span>
-              <span className={styles.selectorStatLabel}>players tracked</span>
-            </div>
-          )}
-        </div>
-
-        <Link href={info.hubUrl} className={styles.selectorCta}>
-          {info.browseText} <i className="fas fa-arrow-right" />
-        </Link>
-      </Card>
+        )}
+      </div>
+      <Link href={info.hubUrl} className={styles.overviewCta}>
+        {info.browseText} <i className="fas fa-arrow-right" />
+      </Link>
     </div>
   );
 }
@@ -312,9 +269,10 @@ type GroupedCount = Record<number, { '*': { count: number } }>;
 
 type ChallengeStatsProps = {
   challengeType: SupportedChallenge;
+  timePeriod: TimePeriod;
 };
 
-function ChallengeStatsCard({ challengeType }: ChallengeStatsProps) {
+function ChallengeStats({ challengeType, timePeriod }: ChallengeStatsProps) {
   const term = challengeTerm(challengeType, true);
   const [stats, setStats] = useState<Stats>({
     total: 0,
@@ -322,24 +280,6 @@ function ChallengeStatsCard({ challengeType }: ChallengeStatsProps) {
     mostPopularScale: { scale: 0, percentage: 0 },
     avgCompletionTicks: null,
   });
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>(TimePeriod.DAY);
-
-  useEffect(() => {
-    const storedTimePeriod = window.localStorage.getItem(
-      LocalStorageKey.STATS_TIME_PERIOD,
-    );
-    if (storedTimePeriod !== null) {
-      setTimePeriod(parseInt(storedTimePeriod));
-    }
-  }, []);
-
-  const changeTimePeriod = useCallback((period: TimePeriod) => {
-    setTimePeriod(period);
-    window.localStorage.setItem(
-      LocalStorageKey.STATS_TIME_PERIOD,
-      period.toString(),
-    );
-  }, []);
 
   const fetchStats = useCallback(
     async (signal?: AbortSignal) => {
@@ -420,39 +360,10 @@ function ChallengeStatsCard({ challengeType }: ChallengeStatsProps) {
     CHALLENGE_INFO[challengeType].leaderboardScales.length > 1;
 
   return (
-    <Card
-      header={{
-        title: 'Stats',
-        action: (
-          <RadioInput.Group
-            name="time-selector"
-            className={styles.filters}
-            onChange={(value) => changeTimePeriod(value as TimePeriod)}
-            compact
-            joined
-          >
-            <RadioInput.Option
-              value={TimePeriod.DAY}
-              id="time-selector-day"
-              label="Day"
-              checked={timePeriod === TimePeriod.DAY}
-            />
-            <RadioInput.Option
-              value={TimePeriod.WEEK}
-              id="time-selector-week"
-              label="Week"
-              checked={timePeriod === TimePeriod.WEEK}
-            />
-            <RadioInput.Option
-              value={TimePeriod.MONTH}
-              id="time-selector-month"
-              label="Month"
-              checked={timePeriod === TimePeriod.MONTH}
-            />
-          </RadioInput.Group>
-        ),
-      }}
-    >
+    <div className={styles.exploreColumn}>
+      <h3 className={styles.subheading}>
+        {TIME_PERIOD_INFO[timePeriod].heading}
+      </h3>
       <div className={styles.statsRow}>
         <div className={styles.stat}>
           <span className={styles.value}>{stats.total}</span>
@@ -497,7 +408,7 @@ function ChallengeStatsCard({ challengeType }: ChallengeStatsProps) {
         )}
       </div>
       <ActivityChartWrapper challengeType={challengeType} />
-    </Card>
+    </div>
   );
 }
 
@@ -571,10 +482,6 @@ type ScaleLeaderboard = {
   entries: LeaderboardEntry[];
 };
 
-type LeaderboardCardProps = {
-  challengeType: SupportedChallenge;
-};
-
 function Leaderboard({
   leaderboard,
   challengeType,
@@ -588,9 +495,10 @@ function Leaderboard({
 
   return (
     <div className={styles.leaderboardList}>
-      {hasMultipleScales && (
-        <h3 className={styles.carouselTitle}>{scaleName(leaderboard.scale)}</h3>
-      )}
+      <h3 className={styles.subheading}>
+        Top times
+        {hasMultipleScales && ` · ${scaleName(leaderboard.scale)}`}
+      </h3>
       <div className={styles.leaderboardEntries}>
         {leaderboard.entries.length > 0 ? (
           leaderboard.entries.map((entry) => (
@@ -650,28 +558,15 @@ function Leaderboard({
   );
 }
 
-function LeaderboardCard({ challengeType }: LeaderboardCardProps) {
-  const [timePeriod, setTimePeriod] = useState<TimePeriod>(TimePeriod.DAY);
+type TopTimesProps = {
+  challengeType: SupportedChallenge;
+  timePeriod: TimePeriod;
+};
+
+function TopTimes({ challengeType, timePeriod }: TopTimesProps) {
   const [leaderboards, setLeaderboards] = useState<ScaleLeaderboard[]>([]);
   const info = CHALLENGE_INFO[challengeType];
   const hasMultipleScales = info.leaderboardScales.length > 1;
-
-  useEffect(() => {
-    const storedTimePeriod = window.localStorage.getItem(
-      LocalStorageKey.LEADERBOARD_TIME_PERIOD,
-    );
-    if (storedTimePeriod !== null) {
-      setTimePeriod(parseInt(storedTimePeriod));
-    }
-  }, []);
-
-  const changeTimePeriod = useCallback((period: TimePeriod) => {
-    setTimePeriod(period);
-    window.localStorage.setItem(
-      LocalStorageKey.LEADERBOARD_TIME_PERIOD,
-      period.toString(),
-    );
-  }, []);
 
   const fetchLeaderboards = useCallback(
     async (signal?: AbortSignal) => {
@@ -725,73 +620,39 @@ function LeaderboardCard({ challengeType }: LeaderboardCardProps) {
   }, [fetchLeaderboards]);
 
   return (
-    <Card
-      header={{
-        title: 'Top Times',
-        action: (
-          <RadioInput.Group
-            name="leaderboard-time-selector"
-            className={styles.filters}
-            onChange={(value) => changeTimePeriod(value as TimePeriod)}
-            compact
-            joined
+    <div className={styles.exploreColumn}>
+      {hasMultipleScales ? (
+        leaderboards.length > 0 ? (
+          <Carousel
+            autoCycle
+            cycleDuration={11300}
+            showArrows={false}
+            loop
+            label="Leaderboards by scale"
           >
-            <RadioInput.Option
-              value={TimePeriod.DAY}
-              id="leaderboard-time-selector-day"
-              label="Day"
-              checked={timePeriod === TimePeriod.DAY}
-            />
-            <RadioInput.Option
-              value={TimePeriod.MONTH}
-              id="leaderboard-time-selector-month"
-              label="Month"
-              checked={timePeriod === TimePeriod.MONTH}
-            />
-            <RadioInput.Option
-              value={TimePeriod.ALL}
-              id="leaderboard-time-selector-all"
-              label="All Time"
-              checked={timePeriod === TimePeriod.ALL}
-            />
-          </RadioInput.Group>
-        ),
-      }}
-    >
-      <div className={styles.leaderboards}>
-        {hasMultipleScales ? (
-          leaderboards.length > 0 ? (
-            <Carousel
-              autoCycle
-              cycleDuration={11300}
-              showArrows={false}
-              loop
-              label="Leaderboards by scale"
-            >
-              {leaderboards.map((leaderboard) => (
-                <Leaderboard
-                  key={`${timePeriod}-${leaderboard.scale}`}
-                  leaderboard={leaderboard}
-                  challengeType={challengeType}
-                />
-              ))}
-            </Carousel>
-          ) : (
-            <div className={styles.emptyState}>
-              <i className="fas fa-trophy" />
-              <p>No leaderboards found for this period</p>
-            </div>
-          )
+            {leaderboards.map((leaderboard) => (
+              <Leaderboard
+                key={`${timePeriod}-${leaderboard.scale}`}
+                leaderboard={leaderboard}
+                challengeType={challengeType}
+              />
+            ))}
+          </Carousel>
         ) : (
-          leaderboards.length > 0 && (
-            <Leaderboard
-              leaderboard={leaderboards[0]}
-              challengeType={challengeType}
-            />
-          )
-        )}
-      </div>
-    </Card>
+          <div className={styles.emptyState}>
+            <i className="fas fa-trophy" />
+            <p>No leaderboards found for this period</p>
+          </div>
+        )
+      ) : (
+        leaderboards.length > 0 && (
+          <Leaderboard
+            leaderboard={leaderboards[0]}
+            challengeType={challengeType}
+          />
+        )
+      )}
+    </div>
   );
 }
 
@@ -1006,18 +867,15 @@ export function ActivityFeed({
   );
 }
 
-type GuideCardItem = {
+type ShowcaseGuide = {
   title: string;
   description: string;
   href: string;
-  updatedAt?: Date;
-  guideType?: string;
-  score?: number;
-  views?: number;
-  author?: string;
+  updatedAt: Date;
+  guideType: string;
 };
 
-const SHOWCASE_GUIDES: GuideCardItem[] = [
+const SHOWCASE_GUIDES: ShowcaseGuide[] = [
   {
     title: 'Humid Bloat',
     description:
@@ -1035,24 +893,14 @@ const SHOWCASE_GUIDES: GuideCardItem[] = [
   },
 ];
 
-export function GuidesCard() {
-  const [setups, setSetups] = useState<GuideCardItem[]>([]);
+export function CommunityCard() {
+  const [setups, setSetups] = useState<SetupListItem[]>([]);
 
   const fetchSetups = useCallback(async () => {
     try {
       const res = await fetch('/api/setups?limit=2&sort=score&state=published');
       const data = (await res.json()) as { setups: SetupListItem[] };
-      setSetups(
-        data.setups.map((setup) => ({
-          title: setup.name,
-          description: '',
-          href: `/setups/${setup.publicId}`,
-          updatedAt: setup.updatedAt ? new Date(setup.updatedAt) : undefined,
-          score: setup.score,
-          views: setup.views,
-          author: setup.author,
-        })),
-      );
+      setSetups(data.setups);
     } catch {
       // Ignore API errors as stats will refresh.
     }
@@ -1068,73 +916,81 @@ export function GuidesCard() {
   }, [fetchSetups]);
 
   return (
-    <div className={styles.communityGrid}>
-      <Card header={{ title: 'Browse Guides' }} className={styles.guidesPanel}>
-        <div className={styles.communityList}>
-          {SHOWCASE_GUIDES.map((item, i) => (
-            <Link key={i} href={item.href} className={styles.guideItem}>
-              <span className={styles.guideTitle}>
-                <i className="fas fa-book" />
-                {item.title}
+    <Card header={{ title: 'Learn from the community' }}>
+      <div className={styles.communitySections}>
+        <section className={`${styles.communitySection} ${styles.guides}`}>
+          <h3 className={styles.subheading}>
+            <i className="fas fa-book" />
+            Guides
+          </h3>
+          {SHOWCASE_GUIDES.map((guide) => (
+            <Link
+              key={guide.href}
+              href={guide.href}
+              className={styles.communityItem}
+            >
+              <span className={styles.communityTitle}>{guide.title}</span>
+              <span className={styles.guideDescription}>
+                {guide.description}
               </span>
-              <div className={styles.guideInfo}>
-                {item.guideType && (
-                  <span className={styles.guideType}>{item.guideType}</span>
-                )}
-                {item.updatedAt && (
-                  <span className={styles.guideDate}>
-                    Updated <ReactTimeago date={item.updatedAt} />
-                  </span>
-                )}
-              </div>
-              <p className={styles.guideDesc}>{item.description}</p>
+              <span className={styles.communityMeta}>
+                {guide.guideType} · Updated{' '}
+                <ReactTimeago date={guide.updatedAt} />
+              </span>
             </Link>
           ))}
-        </div>
-        <CardLink href="/guides" text="View All Guides" />
-      </Card>
-      <Card
-        header={{ title: 'Top Community Gear Setups' }}
-        className={styles.setupsPanel}
-      >
-        <div className={styles.communityList}>
-          {setups.map((item, i) => (
-            <Link key={i} href={item.href} className={styles.guideItem}>
-              <span className={styles.guideTitle}>
-                <i className="fas fa-shield-halved" />
-                {item.title}
+          <CardLink href="/guides" text="View All Guides" />
+        </section>
+        <section className={`${styles.communitySection} ${styles.setups}`}>
+          <h3 className={styles.subheading}>
+            <i className="fas fa-shield-halved" />
+            Top community gear setups
+          </h3>
+          {setups.map((setup) => (
+            <Link
+              key={setup.publicId}
+              href={`/setups/${setup.publicId}`}
+              className={`${styles.communityItem} ${styles.setupItem}`}
+            >
+              <span className={styles.setupInfo}>
+                <span className={styles.communityTitle}>{setup.name}</span>
+                <span className={styles.communityMeta}>by {setup.author}</span>
               </span>
-              <div className={styles.guideInfo}>
-                {item.author && (
-                  <span className={styles.guideAuthor}>by {item.author}</span>
-                )}
-              </div>
-              {item.score !== undefined && (
-                <div className={styles.setupStats}>
-                  <div className={styles.score}>
-                    <i className="fas fa-star" />
-                    <span>{item.score}</span>
-                  </div>
-                  <div className={styles.views}>
-                    <i className="fas fa-eye" />
-                    <span>{item.views}</span>
-                  </div>
-                </div>
-              )}
+              <span className={styles.setupStats}>
+                <span className={styles.setupScore}>
+                  <i className="fas fa-star" />
+                  {setup.score}
+                </span>
+                <span>
+                  <i className="fas fa-eye" />
+                  {setup.views.toLocaleString()}
+                </span>
+              </span>
             </Link>
           ))}
-        </div>
-        <CardLink href="/setups" text="View All Setups" />
-      </Card>
-    </div>
+          <CardLink href="/setups" text="View All Setups" />
+        </section>
+      </div>
+    </Card>
   );
 }
 
 export function HomeCards() {
   const [selectedChallenge, setSelectedChallenge] =
     useState<SupportedChallenge | null>(null);
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>(TimePeriod.DAY);
 
   useEffect(() => {
+    const storedPeriod = window.localStorage.getItem(
+      LocalStorageKey.TIME_PERIOD,
+    );
+    if (storedPeriod !== null) {
+      const parsed = parseInt(storedPeriod);
+      if (TIME_PERIODS.includes(parsed)) {
+        setTimePeriod(parsed);
+      }
+    }
+
     const stored = window.localStorage.getItem(
       LocalStorageKey.SELECTED_CHALLENGE,
     );
@@ -1156,27 +1012,73 @@ export function HomeCards() {
     );
   }, []);
 
-  if (selectedChallenge === null) {
-    return (
-      <div className={styles.statsGrid}>
-        {Array.from({ length: 3 }, (_, i) => (
-          <Card key={i} className={styles.skeletonCard}>
-            <div className={styles.skeletonText} style={{ width: '100%' }}>
+  const changeTimePeriod = useCallback((period: TimePeriod) => {
+    setTimePeriod(period);
+    window.localStorage.setItem(LocalStorageKey.TIME_PERIOD, period.toString());
+  }, []);
+
+  return (
+    <Card
+      header={{
+        title: 'Explore',
+        action: (
+          <RadioInput.Group
+            name="time-selector"
+            className={styles.filters}
+            onChange={(value) => changeTimePeriod(value as TimePeriod)}
+            compact
+            joined
+          >
+            {TIME_PERIODS.map((period) => (
+              <RadioInput.Option
+                key={period}
+                value={period}
+                id={`time-selector-${TIME_PERIOD_INFO[period].label.toLowerCase()}`}
+                label={TIME_PERIOD_INFO[period].label}
+                checked={timePeriod === period}
+              />
+            ))}
+          </RadioInput.Group>
+        ),
+      }}
+    >
+      <div className={styles.challengePicker}>
+        {selectedChallenge !== null && (
+          <ChallengeSelector
+            challenges={SUPPORTED_CHALLENGES}
+            id="home-challenge"
+            onChange={handleSelect}
+            value={selectedChallenge}
+          />
+        )}
+      </div>
+      {selectedChallenge === null ? (
+        <div className={styles.exploreColumns}>
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className={styles.skeletonColumn}>
               <div className={styles.skeletonLine} style={{ width: '60%' }} />
               <div className={styles.skeletonLine} style={{ width: '80%' }} />
               <div className={styles.skeletonLine} style={{ width: '40%' }} />
             </div>
-          </Card>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.statsGrid}>
-      <ChallengeSelector selected={selectedChallenge} onSelect={handleSelect} />
-      <ChallengeStatsCard challengeType={selectedChallenge} />
-      <LeaderboardCard challengeType={selectedChallenge} />
-    </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          className={styles.exploreColumns}
+          data-challenge={challengeSlug(selectedChallenge)}
+        >
+          <ChallengeOverview challengeType={selectedChallenge} />
+          <ChallengeStats
+            challengeType={selectedChallenge}
+            timePeriod={timePeriod}
+          />
+          <TopTimes
+            key={selectedChallenge}
+            challengeType={selectedChallenge}
+            timePeriod={timePeriod}
+          />
+        </div>
+      )}
+    </Card>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
-import { challengeName, ChallengeType } from '@blert/common';
-import Image from 'next/image';
+import { challengeName } from '@blert/common';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -12,22 +11,20 @@ import {
   type SetupMetadata,
 } from '@/actions/setup';
 import Button from '@/components/button';
+import ChallengeSelector from '@/components/challenge-selector';
 import DebugOverlay, {
   DebugRow,
   DebugSection,
 } from '@/components/debug-overlay';
-import Dropdown, { DROPDOWN_FIELD } from '@/components/dropdown';
 import Input from '@/components/input';
 import Item from '@/components/item';
 import MarkdownEditor from '@/components/markdown-editor';
-import { MenuItem } from '@/components/menu';
 import { Modal } from '@/components/modal/modal';
 import RadioInput from '@/components/radio-input';
 import Tabs from '@/components/tabs';
 import { useToast } from '@/components/toast';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay, useIsApple, useWidthThreshold } from '@/display';
-import { challengeLogo } from '@/logo';
 import { slotIdFromString } from '@/setups/container-grid';
 import DeleteModal from '@/setups/delete-modal';
 import {
@@ -122,63 +119,6 @@ function SaveButton({
       <span className={styles.saveTime}>{getSaveTimeText()}</span>
       <span className="sr-only">Save</span>
     </button>
-  );
-}
-
-function ChallengeOption({ challenge }: { challenge: ChallengeType }) {
-  return (
-    <span className={styles.challengeOption}>
-      <span className={styles.challengeLogo}>
-        <Image
-          src={challengeLogo(challenge)}
-          alt=""
-          fill
-          sizes="24px"
-          style={{ objectFit: 'contain' }}
-        />
-      </span>
-      {challengeName(challenge)}
-    </span>
-  );
-}
-
-const CHALLENGE_MENU_ITEMS: MenuItem[] = SETUP_CHALLENGE_TYPES.map(
-  (challenge) => ({
-    label: challengeName(challenge),
-    value: challenge,
-    customElement: <ChallengeOption challenge={challenge} />,
-  }),
-);
-
-function ChallengeSelector({
-  value,
-  onChange,
-}: {
-  value: ChallengeType;
-  onChange: (challenge: ChallengeType) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Dropdown
-      items={CHALLENGE_MENU_ITEMS}
-      onClose={() => setOpen(false)}
-      onSelection={(challenge) => onChange(challenge as ChallengeType)}
-      open={open}
-      targetId="setup-challenge-type"
-    >
-      <button
-        id="setup-challenge-type"
-        className={`${styles.challengeSelect} ${DROPDOWN_FIELD}`}
-        onClick={() => setOpen(!open)}
-        type="button"
-        aria-expanded={open}
-        aria-haspopup="menu"
-      >
-        <ChallengeOption challenge={value} />
-        <i className="fas fa-chevron-down" />
-      </button>
-    </Dropdown>
   );
 }
 
@@ -607,6 +547,8 @@ export default function GearSetupsCreator({ setup }: GearSetupsCreatorProps) {
                     Challenge type
                   </label>
                   <ChallengeSelector
+                    challenges={SETUP_CHALLENGE_TYPES}
+                    id="setup-challenge-type"
                     value={context.setup.challenge}
                     onChange={(challenge) =>
                       context.update((prev) => ({ ...prev, challenge }))
