@@ -26,6 +26,20 @@ struct CustomData {
     inaccurate_room: bool,
 }
 
+impl CustomData {
+    fn route(&self) -> i16 {
+        self.bosses.iter().fold(0, |route, boss| {
+            match TFA_ROWS
+                .iter()
+                .position(|row| row.get(1) == Some(&boss.stage))
+            {
+                Some(row) => route | (1 << (row - 1)),
+                None => route,
+            }
+        })
+    }
+}
+
 /// Final state of a processed boss, following the `TfaBoss` proto message.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,6 +97,20 @@ fn next_row_start_split(stage: Stage) -> Option<SplitType> {
     }
 }
 
+fn deaths_column(stage: Stage) -> &'static str {
+    match stage {
+        Stage::TfaGuardian => "guardian_deaths",
+        Stage::TfaEzekiel => "ezekiel_deaths",
+        Stage::TfaBork => "bork_deaths",
+        Stage::TfaMoia => "moia_deaths",
+        Stage::TfaDreadnoth => "dreadnoth_deaths",
+        Stage::TfaDagonhai => "dagonhai_deaths",
+        Stage::TfaXarth => "xarth_deaths",
+        Stage::TfaOcellus => "ocellus_deaths",
+        _ => panic!("invalid TFA stage {stage:?}"),
+    }
+}
+
 #[derive(Debug)]
 pub struct ArchiveProcessor {
     challenge: ChallengeInfo,
@@ -118,13 +146,18 @@ impl ChallengeProcessor for ArchiveProcessor {
     ) {
     }
 
-    async fn on_create(&mut self, _txn: &db::Transaction) -> Result<(), db::Error> {
+    async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error> {
+        txn.execute(
+            "INSERT INTO tfa_challenge_stats (challenge_id) VALUES ($1)",
+            &[&txn.challenge_id()],
+        )
+        .await?;
         Ok(())
     }
 
     async fn on_stage_finished(
         &mut self,
-        _txn: &db::Transaction,
+        txn: &db::Transaction,
         _price_resolver: &PriceResolver,
         stored: &StoredState,
         ctx: &mut StageContext,
@@ -169,6 +202,19 @@ impl ChallengeProcessor for ArchiveProcessor {
                 ),
             );
         }
+
+        let deaths = i32::try_from(ctx.deaths().len()).expect("max 8 deaths");
+        let route = self
+            .has_fully_recorded_up_to(stage)
+            .then(|| self.data.route());
+        txn.execute(
+            &format!(
+                "UPDATE tfa_challenge_stats SET {} = $1, route = $2 WHERE challenge_id = $3",
+                deaths_column(stage),
+            ),
+            &[&deaths, &route, &txn.challenge_id()],
+        )
+        .await?;
 
         Ok(ChallengeTicks::Add(last_tick.duration()))
     }

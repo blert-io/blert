@@ -27,7 +27,9 @@ import {
   SpawnedNpc,
   SplitType,
   Stage,
+  TfaChallengeStats,
   TfaRaid,
+  TfaStage,
   TobChallengeStats,
   TobRaid,
   WaveSpawn,
@@ -37,10 +39,12 @@ import {
   handicapBase,
   handicapLevel,
   isPostgresInvalidTextRepresentation,
+  isTfaStage,
   normalizeRsn,
   protoToJsonEvent,
   snakeToCamel,
   snakeToCamelObject,
+  stagesForChallenge,
 } from '@blert/common';
 // TODO(frolv): Typescript doesn't like the re-export from common/db so we have
 // to import it directly.
@@ -182,10 +186,29 @@ export async function loadChallenge(
       break;
     }
 
-    case ChallengeType.TFA:
-      (challenge as TfaRaid).tfa =
-        await dataRepository.loadTfaChallengeData(id);
+    case ChallengeType.TFA: {
+      const raid = challenge as TfaRaid;
+
+      await Promise.all([
+        dataRepository.loadTfaChallengeData(id),
+        sql`
+          SELECT *
+          FROM tfa_challenge_stats
+          WHERE challenge_id = ${rawChallenge.id}
+        `,
+      ]).then(([tfaData, [stats]]) => {
+        raid.tfa = tfaData;
+        if (stats) {
+          raid.tfaStats = statsObject(stats);
+        }
+      });
+
+      if (!raid.tfaStats) {
+        return null;
+      }
+
       break;
+    }
 
     case ChallengeType.COLOSSEUM: {
       const colosseum = challenge as ColosseumChallenge;
@@ -246,7 +269,10 @@ export async function loadChallenge(
 }
 
 type StatsObject =
-  TobChallengeStats | MokhaiotlChallengeStats | InfernoChallengeStats;
+  | TobChallengeStats
+  | TfaChallengeStats
+  | MokhaiotlChallengeStats
+  | InfernoChallengeStats;
 
 function statsObject<T extends StatsObject>(rawRow: Record<string, any>): T {
   delete rawRow.id;
@@ -256,6 +282,7 @@ function statsObject<T extends StatsObject>(rawRow: Record<string, any>): T {
 
 type StatsTarget = {
   tobStats?: TobChallengeStats;
+  tfaStats?: TfaChallengeStats;
   mokhaiotlStats?: MokhaiotlChallengeStats;
   infernoStats?: InfernoChallengeStats;
   colosseumStats?: ColosseumChallengeStats;
@@ -340,6 +367,25 @@ async function attachChallengeStats<T extends StatsTarget>(
           target.tobStats = tobStats;
         }
       })(),
+    );
+  }
+
+  const tfaIds = idsByType.get(ChallengeType.TFA);
+  if (tfaIds !== undefined && tfaIds.length > 0) {
+    promises.push(
+      sql<(StatsObject & { challenge_id: number })[]>`
+        SELECT * FROM tfa_challenge_stats
+        WHERE challenge_id = ANY(${tfaIds})
+      `.then((rows) => {
+        for (const row of rows) {
+          const challengeId = (row as { challenge_id: number }).challenge_id;
+          const target = targetsById.get(challengeId);
+          if (target === undefined) {
+            continue;
+          }
+          target.tfaStats = statsObject<TfaChallengeStats>(row);
+        }
+      }),
     );
   }
 
@@ -479,6 +525,7 @@ export type ChallengeOverview = Pick<
   splits?: Partial<Record<SplitType, SplitValue>>;
 } & Partial<
     Pick<TobRaid, 'tobStats'> &
+      Pick<TfaRaid, 'tfaStats'> &
       Pick<MokhaiotlChallenge, 'mokhaiotlStats'> &
       Pick<InfernoChallenge, 'infernoStats'> &
       Pick<ColosseumChallenge, 'colosseumStats'>
@@ -3045,10 +3092,22 @@ function stageToStatsField(stage: Stage): string | null {
   }
 }
 
+const TFA_DEATHS_FIELDS: Record<TfaStage, string> = {
+  [Stage.TFA_GUARDIAN]: 'guardian_deaths',
+  [Stage.TFA_EZEKIEL]: 'ezekiel_deaths',
+  [Stage.TFA_BORK]: 'bork_deaths',
+  [Stage.TFA_MOIA]: 'moia_deaths',
+  [Stage.TFA_DREADNOTH]: 'dreadnoth_deaths',
+  [Stage.TFA_DAGONHAI]: 'dagonhai_deaths',
+  [Stage.TFA_XARTH]: 'xarth_deaths',
+  [Stage.TFA_OCELLUS]: 'ocellus_deaths',
+};
+
 export async function getTotalDeathsByStage(
   stages: Stage[],
 ): Promise<Record<Stage, number>> {
   const statsFields: [Stage, string][] = [];
+  const tfaStages: TfaStage[] = [];
   const otherStages: Stage[] = [];
 
   const deathsByStage = {} as Record<Stage, number>;
@@ -3057,6 +3116,8 @@ export async function getTotalDeathsByStage(
     const field = stageToStatsField(stage);
     if (field !== null) {
       statsFields.push([stage, field]);
+    } else if (isTfaStage(stage)) {
+      tfaStages.push(stage);
     } else {
       otherStages.push(stage);
     }
@@ -3087,6 +3148,26 @@ export async function getTotalDeathsByStage(
     );
   }
 
+  if (tfaStages.length > 0) {
+    const aggregateColumns = tfaStages.flatMap((stage, i) => {
+      const field = TFA_DEATHS_FIELDS[stage];
+      const sum = sql`SUM(${sql(field)}) AS ${sql(stage.toString())}`;
+      return i > 0 ? [sql`, `, sum] : sum;
+    });
+
+    promises.push(
+      sql<Record<string, string | null>[]>`
+        SELECT ${aggregateColumns} FROM tfa_challenge_stats
+      `.then(([stagesAndDeaths]) => {
+        Object.entries(stagesAndDeaths).forEach(([stage, deaths]) => {
+          if (deaths !== null) {
+            deathsByStage[parseInt(stage)] = parseInt(deaths);
+          }
+        });
+      }),
+    );
+  }
+
   if (otherStages.length > 0) {
     // TODO(frolv): The only other challenge recorded currently are solo only,
     // so this hack works for now. Eventually, all deaths should be tracked
@@ -3109,6 +3190,25 @@ export async function getTotalDeathsByStage(
 
   await Promise.all(promises);
   return deathsByStage;
+}
+
+export async function getTfaReachedByStage(): Promise<Record<Stage, number>> {
+  const stages = stagesForChallenge(ChallengeType.TFA).filter(isTfaStage);
+  const aggregateColumns = stages.flatMap((stage, i) => {
+    const field = TFA_DEATHS_FIELDS[stage];
+    const count = sql`COUNT(${sql(field)}) AS ${sql(stage.toString())}`;
+    return i > 0 ? [sql`, `, count] : count;
+  });
+
+  const [raidsByStage] = await sql<Record<string, string>[]>`
+    SELECT ${aggregateColumns} FROM tfa_challenge_stats
+  `;
+
+  const reachedByStage = {} as Record<Stage, number>;
+  Object.entries(raidsByStage).forEach(([stage, raids]) => {
+    reachedByStage[parseInt(stage)] = parseInt(raids);
+  });
+  return reachedByStage;
 }
 
 export type PlayerWithCurrentUsername = {

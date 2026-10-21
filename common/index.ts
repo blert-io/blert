@@ -116,6 +116,7 @@ export type {
   RoomNpcMap,
   Session,
   SpawnedNpc,
+  TfaChallengeStats,
   TfaRaid,
   TobChallengeStats,
   TobRaid,
