@@ -805,7 +805,7 @@ function scopeJsonToProto(
 ): RecordingConfig.Scope {
   const scope = new RecordingConfig.Scope();
   scope.setObjectsList(
-    json.objects.map((o) => {
+    (json.objects ?? []).map((o) => {
       const capture = new RecordingConfig.ObjectCapture();
       capture.setType(o.type as AnyEnum);
       capture.setIdsList(o.ids);
@@ -820,7 +820,9 @@ function scopeJsonToProto(
       if (d.mode !== undefined) {
         definition.setMode(d.mode as AnyEnum);
       }
-      definition.setHitpointsList(d.hitpoints ?? []);
+      definition.setHitpointsList(
+        (d.hitpoints ?? []).map((hitpoints) => hitpoints ?? 0),
+      );
       if (d.hitpointsVarbit !== undefined) {
         const varbit = new RecordingConfig.HitpointsVarbit();
         varbit.setId(d.hitpointsVarbit.id);
@@ -956,7 +958,9 @@ function scopeToJson(
     json.npcDefinitions = scope.getNpcDefinitionsList().map((definition) => {
       const json: z.infer<typeof npcDefinitionSchema> = {
         ids: definition.getIdsList(),
-        hitpoints: definition.getHitpointsList(),
+        hitpoints: definition
+          .getHitpointsList()
+          .map((hitpoints) => (hitpoints === 0 ? null : hitpoints)),
       };
       if (definition.getMode() !== ChallengeMode.NO_MODE) {
         json.mode = definition.getMode();
