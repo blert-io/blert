@@ -337,6 +337,50 @@ function isInteractive(item: MenuItem): boolean {
   );
 }
 
+/** The element a positioned menu follows, with the menu's offset within it. */
+type Anchor = {
+  element: Element;
+  offsetX: number;
+  offsetY: number;
+};
+
+/**
+ * Returns the topmost element under a point, other than the elements within
+ * `exclude`, as an anchor for the point.
+ */
+function anchorAt(
+  position: { x: number; y: number },
+  exclude: Element,
+): Anchor | null {
+  const element = document
+    .elementsFromPoint(position.x, position.y)
+    .find((el) => !exclude.contains(el));
+  if (element === undefined) {
+    return null;
+  }
+  const rect = element.getBoundingClientRect();
+  return {
+    element,
+    offsetX: position.x - rect.left,
+    offsetY: position.y - rect.top,
+  };
+}
+
+/**
+ * Returns where a point originally opened over `anchor` is now. Falls back to
+ * the original point if there is no anchor or it has left the document.
+ */
+function anchoredPosition(
+  position: { x: number; y: number },
+  anchor: Anchor | null,
+): { x: number; y: number } {
+  if (!anchor?.element.isConnected) {
+    return position;
+  }
+  const rect = anchor.element.getBoundingClientRect();
+  return { x: rect.left + anchor.offsetX, y: rect.top + anchor.offsetY };
+}
+
 export default function Menu(props: MenuProps) {
   const [ready, setReady] = useState(false);
   const [allowClose, setAllowClose] = useState(false);
@@ -345,9 +389,13 @@ export default function Menu(props: MenuProps) {
     y: number;
     // Edge of the target the menu opened from, if it has a target.
     edge: 'top' | 'bottom' | null;
+    // Element under the point the menu opened at, if it has a position.
+    anchor: Anchor | null;
     // Track which position/target this placement was calculated for.
     for: string;
   } | null>(null);
+  // Bumped when the menu needs to re-measure its target or anchor.
+  const [layoutVersion, setLayoutVersion] = useState(0);
   const portalNode = useRef<HTMLElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -554,6 +602,36 @@ export default function Menu(props: MenuProps) {
     ? `position:${props.position.x},${props.position.y}`
     : `targetId:${props.targetId}`;
 
+  // The menu is positioned from its target or anchor's rect at render, so
+  // re-render it when anything scrolls or the viewport resizes.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let frame: number | null = null;
+    const remeasure = () => {
+      frame ??= requestAnimationFrame(() => {
+        frame = null;
+        setLayoutVersion((version) => version + 1);
+      });
+    };
+
+    // Scroll events don't bubble, so capture them to see every container.
+    window.addEventListener('scroll', remeasure, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener('resize', remeasure);
+    return () => {
+      window.removeEventListener('scroll', remeasure, { capture: true });
+      window.removeEventListener('resize', remeasure);
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+      }
+    };
+  }, [open]);
+
   // Place the root menu on the side of its target where it fits, and adjust
   // its position if it still overflows the viewport.
   useLayoutEffect(() => {
@@ -578,10 +656,16 @@ export default function Menu(props: MenuProps) {
     let rawLeft: number;
     let rawTop: number;
     let edge: 'top' | 'bottom' | null = null;
+    let anchor: Anchor | null = null;
 
     if (props.position) {
-      rawLeft = props.position.x;
-      rawTop = props.position.y;
+      anchor =
+        placement?.for === menuTarget
+          ? placement.anchor
+          : anchorAt(props.position, wrapperRef.current);
+      const point = anchoredPosition(props.position, anchor);
+      rawLeft = point.x;
+      rawTop = point.y;
     } else if (props.targetId) {
       const target = document.getElementById(props.targetId);
       if (target === null) {
@@ -644,13 +728,14 @@ export default function Menu(props: MenuProps) {
       placement.x !== adjustX ||
       placement.y !== adjustY
     ) {
-      setPlacement({ x: adjustX, y: adjustY, edge, for: menuTarget });
+      setPlacement({ x: adjustX, y: adjustY, edge, anchor, for: menuTarget });
     }
     if (edge !== null && (opened || placement.edge !== edge)) {
       onPlacement?.(edge);
     }
   }, [
     ready,
+    layoutVersion,
     menuTarget,
     placement,
     onPlacement,
@@ -678,8 +763,9 @@ export default function Menu(props: MenuProps) {
   let edge: 'top' | 'bottom' | null = null;
 
   if (props.position) {
-    style.top = props.position.y + adjustY;
-    style.left = props.position.x + adjustX;
+    const point = anchoredPosition(props.position, current?.anchor ?? null);
+    style.top = point.y + adjustY;
+    style.left = point.x + adjustX;
   } else if (props.targetId) {
     const target = document.getElementById(props.targetId);
     if (!target) {
