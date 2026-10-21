@@ -25,7 +25,7 @@ impl ConfigVersion {
     pub const NONE: Self = Self(0);
 
     /// The most current supported config version.
-    pub const LATEST: Self = Self(2);
+    pub const LATEST: Self = Self(3);
 
     /// Attempts to parse a config version from an integer value.
     ///
@@ -50,5 +50,20 @@ impl ConfigVersion {
 impl Default for ConfigVersion {
     fn default() -> Self {
         Self::LATEST
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn latest_matches_recording_config() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../../proto/recording_config.json")).unwrap();
+        assert_eq!(
+            config["version"].as_u64(),
+            Some(u64::from(ConfigVersion::LATEST.get())),
+        );
     }
 }
