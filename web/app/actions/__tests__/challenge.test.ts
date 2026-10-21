@@ -7,6 +7,7 @@ import {
   Stage,
   SessionStatus,
   normalizeRsn,
+  stagesForChallenge,
 } from '@blert/common';
 import { ChallengeData } from '@blert/common/generated/challenge_storage_pb';
 
@@ -16,6 +17,8 @@ import {
   countUniquePlayers,
   findChallenges,
   getPlayerStatsHistory,
+  getTfaReachedByStage,
+  getTotalDeathsByStage,
   loadChallenge,
   loadPbsForPlayer,
   loadPlayerWithStats,
@@ -1716,7 +1719,7 @@ describe('loadChallenge', () => {
     await dataRepository.deleteChallenge(UUID);
   });
 
-  it('loads a tfa raid with its boss data', async () => {
+  it('loads a tfa raid with its boss data and stats', async () => {
     const [{ id: sessionId }] = await sql<{ id: number }[]>`
       INSERT INTO challenge_sessions ${sql({
         uuid: '52525252-5252-5252-5252-525252525252',
@@ -1769,6 +1772,13 @@ describe('loadChallenge', () => {
         ['challenge_id', 'player_id', 'username', 'orb', 'primary_gear'],
       )}
     `;
+    await sql`
+      INSERT INTO tfa_challenge_stats ${sql({
+        challenge_id: challengeId,
+        route: 0,
+        guardian_deaths: 0,
+      })}
+    `;
 
     const guardian = new ChallengeData.TfaBoss();
     guardian.setTicksLost(3);
@@ -1818,6 +1828,17 @@ describe('loadChallenge', () => {
             npcs: {},
           },
         ],
+      },
+      tfaStats: {
+        route: 0,
+        guardianDeaths: 0,
+        ezekielDeaths: null,
+        borkDeaths: null,
+        moiaDeaths: null,
+        dreadnothDeaths: null,
+        dagonhaiDeaths: null,
+        xarthDeaths: null,
+        ocellusDeaths: null,
       },
     });
   });
@@ -2150,4 +2171,150 @@ describe('getPlayerStatsHistory', () => {
       );
     },
   );
+});
+
+describe('getTotalDeathsByStage', () => {
+  beforeEach(async () => {
+    const challengeIds = (
+      await sql<{ id: number }[]>`
+        INSERT INTO challenges ${sql([
+          {
+            uuid: '11111111-1111-1111-1111-111111111111',
+            type: ChallengeType.TFA,
+            status: ChallengeStatus.WIPED,
+            stage: Stage.TFA_OCELLUS,
+            scale: 5,
+          },
+          {
+            uuid: '22222222-2222-2222-2222-222222222222',
+            type: ChallengeType.TFA,
+            status: ChallengeStatus.WIPED,
+            stage: Stage.TFA_BORK,
+            scale: 7,
+          },
+        ])}
+        RETURNING id
+      `
+    ).map((c) => c.id);
+
+    await sql`
+      INSERT INTO tfa_challenge_stats ${sql([
+        {
+          challenge_id: challengeIds[0],
+          route: 4,
+          guardian_deaths: 0,
+          ezekiel_deaths: 2,
+          bork_deaths: null,
+          moia_deaths: 1,
+          dreadnoth_deaths: null,
+          dagonhai_deaths: null,
+          xarth_deaths: 0,
+          ocellus_deaths: 5,
+        },
+        {
+          challenge_id: challengeIds[1],
+          route: 1,
+          guardian_deaths: 2,
+          ezekiel_deaths: null,
+          bork_deaths: 7,
+          moia_deaths: null,
+          dreadnoth_deaths: null,
+          dagonhai_deaths: null,
+          xarth_deaths: null,
+          ocellus_deaths: null,
+        },
+      ])}
+    `;
+  });
+
+  afterEach(async () => {
+    await sql`DELETE FROM challenges`;
+  });
+
+  it('adds up the deaths on each tfa boss across raids', async () => {
+    expect(
+      await getTotalDeathsByStage(stagesForChallenge(ChallengeType.TFA)),
+    ).toEqual({
+      [Stage.TFA_GUARDIAN]: 2,
+      [Stage.TFA_EZEKIEL]: 2,
+      [Stage.TFA_BORK]: 7,
+      [Stage.TFA_MOIA]: 1,
+      [Stage.TFA_DREADNOTH]: 0,
+      [Stage.TFA_DAGONHAI]: 0,
+      [Stage.TFA_XARTH]: 0,
+      [Stage.TFA_OCELLUS]: 5,
+    });
+  });
+});
+
+describe('getTfaReachedByStage', () => {
+  beforeEach(async () => {
+    const challengeIds = (
+      await sql<{ id: number }[]>`
+        INSERT INTO challenges ${sql([
+          {
+            uuid: '11111111-1111-1111-1111-111111111111',
+            type: ChallengeType.TFA,
+            status: ChallengeStatus.WIPED,
+            stage: Stage.TFA_OCELLUS,
+            scale: 5,
+          },
+          {
+            uuid: '22222222-2222-2222-2222-222222222222',
+            type: ChallengeType.TFA,
+            status: ChallengeStatus.WIPED,
+            stage: Stage.TFA_BORK,
+            scale: 7,
+          },
+        ])}
+        RETURNING id
+      `
+    ).map((c) => c.id);
+
+    await sql`
+      INSERT INTO tfa_challenge_stats ${sql([
+        {
+          challenge_id: challengeIds[0],
+          route: 4,
+          guardian_deaths: 0,
+          ezekiel_deaths: 2,
+          bork_deaths: null,
+          moia_deaths: 1,
+          dreadnoth_deaths: null,
+          dagonhai_deaths: null,
+          xarth_deaths: 0,
+          ocellus_deaths: 5,
+        },
+        {
+          challenge_id: challengeIds[1],
+          route: 1,
+          guardian_deaths: 2,
+          ezekiel_deaths: null,
+          bork_deaths: 7,
+          moia_deaths: null,
+          dreadnoth_deaths: null,
+          dagonhai_deaths: null,
+          xarth_deaths: null,
+          ocellus_deaths: null,
+        },
+      ])}
+    `;
+  });
+
+  afterEach(async () => {
+    await sql`DELETE FROM challenges`;
+  });
+
+  it('counts the raids that fought each tfa boss', async () => {
+    expect(await getTfaReachedByStage()).toEqual({
+      [Stage.TFA_GUARDIAN]: 2,
+      [Stage.TFA_EZEKIEL]: 1,
+      [Stage.TFA_BORK]: 1,
+      [Stage.TFA_MOIA]: 1,
+      [Stage.TFA_DREADNOTH]: 0,
+      [Stage.TFA_DAGONHAI]: 0,
+      [Stage.TFA_XARTH]: 1,
+      [Stage.TFA_OCELLUS]: 1,
+    });
+  });
 });
