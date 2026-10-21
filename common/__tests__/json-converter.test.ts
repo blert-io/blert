@@ -1339,4 +1339,85 @@ describe('round-trip conversion', () => {
     const resultJson = serverMessageToJson(proto);
     expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);
   });
+
+  it('preserves unknown hitpoints through JSON -> Proto -> JSON', () => {
+    const originalJson: ServerMessageJson = {
+      type: ServerMessage.Type.RECORDING_CONFIG,
+      recordingConfig: {
+        version: 3,
+        challenges: [
+          {
+            challenge: Challenge.TFA,
+            scope: {
+              objects: [],
+              npcDefinitions: [
+                {
+                  ids: [16652],
+                  hitpoints: [null, null, 4350, 5610, 6870, 8130, 9390],
+                },
+                {
+                  ids: [16678],
+                  hitpoints: [null, null, null, 44, 44, null, 44],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const proto = jsonToServerMessage(originalJson);
+    const [first, second] = proto
+      .getRecordingConfig()!
+      .getChallengesList()[0]
+      .getScope()!
+      .getNpcDefinitionsList();
+    expect(first.getHitpointsList()).toEqual([
+      0, 0, 4350, 5610, 6870, 8130, 9390,
+    ]);
+    expect(second.getHitpointsList()).toEqual([0, 0, 0, 44, 44, 0, 44]);
+
+    const resultJson = serverMessageToJson(proto);
+    expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);
+  });
+
+  it('converts a scope without objects to one with no objects', () => {
+    const originalJson: ServerMessageJson = {
+      type: ServerMessage.Type.RECORDING_CONFIG,
+      recordingConfig: {
+        version: 3,
+        challenges: [
+          {
+            challenge: Challenge.TFA,
+            scope: {
+              npcDefinitions: [{ ids: [16653] }],
+            },
+          },
+        ],
+      },
+    };
+
+    const proto = jsonToServerMessage(originalJson);
+    expect(
+      proto
+        .getRecordingConfig()!
+        .getChallengesList()[0]
+        .getScope()!
+        .getObjectsList(),
+    ).toEqual([]);
+
+    const resultJson = serverMessageToJson(proto);
+    expect(resultJson.recordingConfig).toEqual({
+      version: 3,
+      challenges: [
+        {
+          challenge: Challenge.TFA,
+          scope: {
+            objects: [],
+            npcDefinitions: [{ ids: [16653], hitpoints: [] }],
+          },
+        },
+      ],
+    });
+  });
 });

@@ -156,13 +156,13 @@ export const hitpointsVarbitSchema = z.object({
 export const npcDefinitionSchema = z.object({
   ids: z.array(uint32Schema),
   mode: enumMemberSchema(ChallengeMode).optional(),
-  hitpoints: z.array(uint32Schema).optional(),
+  hitpoints: z.array(uint32Schema.nullable()).optional(),
   hitpointsVarbit: hitpointsVarbitSchema.optional(),
 });
 
 // RecordingConfig.Scope
 export const scopeSchema = z.object({
-  objects: z.array(objectCaptureSchema),
+  objects: z.array(objectCaptureSchema).optional(),
   npcDefinitions: z.array(npcDefinitionSchema).optional(),
 });
 
