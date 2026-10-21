@@ -203,6 +203,74 @@ describe('RemoteChallengeManager', () => {
     });
   });
 
+  describe('completeChallenge', () => {
+    test('posts both reported times', async () => {
+      fetchMock.mockResolvedValueOnce(makeResponse(200));
+
+      await manager.completeChallenge(
+        makeClient().client,
+        'challenge-a',
+        { challenge: 2109, overall: 2485 },
+        false,
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('http://challenge-server/challenges/challenge-a/finish');
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+        userId: 435,
+        clientId: 286,
+        sessionToken: 'session-token',
+        times: { challenge: 2109, overall: 2485 },
+        soft: false,
+      });
+    });
+
+    test('posts an overall time without a challenge time', async () => {
+      fetchMock.mockResolvedValueOnce(makeResponse(200));
+
+      await manager.completeChallenge(
+        makeClient().client,
+        'challenge-a',
+        { challenge: -1, overall: 2485 },
+        false,
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('http://challenge-server/challenges/challenge-a/finish');
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+        userId: 435,
+        clientId: 286,
+        sessionToken: 'session-token',
+        times: { challenge: null, overall: 2485 },
+        soft: false,
+      });
+    });
+
+    test('omits times when neither is reported', async () => {
+      fetchMock.mockResolvedValueOnce(makeResponse(200));
+
+      await manager.completeChallenge(
+        makeClient().client,
+        'challenge-a',
+        { challenge: -1, overall: -1 },
+        false,
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('http://challenge-server/challenges/challenge-a/finish');
+      expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+        userId: 435,
+        clientId: 286,
+        sessionToken: 'session-token',
+        times: null,
+        soft: false,
+      });
+    });
+  });
+
   describe('challenge finish notifications', () => {
     beforeEach(async () => {
       // The manager defers its pubsub subscription, so run pending timers to

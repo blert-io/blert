@@ -42,6 +42,33 @@ pub(super) fn is_valid_p3_webs_push_destination(point: Point) -> bool {
     point.distance(VERZIK_P3_WEBS_CENTER_TILE) == 4
 }
 
+pub(super) fn crosses_tfa_arena_boundary(stage: Stage, last: Point, current: Point) -> bool {
+    let arena = match stage {
+        Stage::TfaGuardian => Rect {
+            point: Point(4113, 5569),
+            width: 29,
+            height: 44,
+        },
+        Stage::TfaEzekiel => Rect::square(Point(4059, 5531), 9),
+        Stage::TfaBork => Rect {
+            point: Point(4184, 5591),
+            width: 15,
+            height: 17,
+        },
+        Stage::TfaMoia => Rect::square(Point(4059, 5659), 9),
+        Stage::TfaDreadnoth => Rect::square(Point(4184, 5656), 15),
+        Stage::TfaDagonhai => Rect {
+            point: Point(4055, 5590),
+            width: 20,
+            height: 19,
+        },
+        Stage::TfaXarth => Rect::square(Point(4183, 5527), 17),
+        Stage::TfaOcellus => Rect::square(Point(4115, 5661), 26),
+        _ => return false,
+    };
+    arena.contains(last) != arena.contains(current)
+}
+
 static MAIDEN_DEATH_AREAS: [Rect; 2] = [
     Rect {
         point: Point(3166, 4433),

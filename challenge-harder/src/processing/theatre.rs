@@ -2635,7 +2635,7 @@ mod tests {
 
         let mut info = challenge_info(Stage::TobVerzik, ChallengeStatus::Completed);
         info.reported_times = Some(ReportedTimes {
-            challenge: 2109,
+            challenge: Some(2109),
             overall: Some(2485),
         });
         let mut processor = TheatreProcessor::new(TheatreConfig::default(), info, None).unwrap();

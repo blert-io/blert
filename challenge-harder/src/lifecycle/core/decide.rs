@@ -1028,7 +1028,7 @@ mod tests {
     #[test]
     fn finish_after_final_stage_completes() {
         let times = ReportedTimes {
-            challenge: 1_437,
+            challenge: Some(1_437),
             overall: Some(1_500),
         };
         let state = ChallengeState {

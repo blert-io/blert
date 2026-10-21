@@ -355,11 +355,11 @@ export enum SplitType {
   TFA_GUARDIAN = 410,
   TFA_EZEKIEL = 420,
   TFA_BORK = 430,
-  TFA_NECROMANCER = 440,
+  TFA_MOIA = 440,
   TFA_DREADNOTH = 450,
-  TFA_XARTH = 460,
-  TFA_DAGONHAI = 470,
-  TFA_FINAL = 480,
+  TFA_DAGONHAI = 460,
+  TFA_XARTH = 470,
+  TFA_OCELLUS = 480,
 
   TFA_ROW_1_START = TFA_GUARDIAN,
   TFA_ROW_2_START = 402,
@@ -598,22 +598,22 @@ export function splitName(
       return full ? 'Ezekiel room time' : 'Ezekiel';
     case SplitType.TFA_BORK:
       return full ? 'Bork room time' : 'Bork';
-    case SplitType.TFA_NECROMANCER:
-      return full ? 'Necromancer room time' : 'Necromancer';
+    case SplitType.TFA_MOIA:
+      return full ? 'Moia room time' : 'Moia';
     case SplitType.TFA_DREADNOTH:
       return full ? 'Dreadnoth room time' : 'Dreadnoth';
+    case SplitType.TFA_DAGONHAI:
+      return full ? "The Dagon'hai room time" : "Dagon'hai";
     case SplitType.TFA_XARTH:
       return full ? 'Xarth room time' : 'Xarth';
-    case SplitType.TFA_DAGONHAI:
-      return full ? "Dagon'hai Trio room time" : "Dagon'hai";
-    case SplitType.TFA_FINAL:
-      return full ? 'Final Boss room time' : 'Final Boss';
+    case SplitType.TFA_OCELLUS:
+      return full ? 'Ocellus room time' : 'Ocellus';
     case SplitType.TFA_ROW_2_START:
       return full ? 'Row 2 entry time' : 'Row 2 entry';
     case SplitType.TFA_ROW_3_START:
       return full ? 'Row 3 entry time' : 'Row 3 entry';
     case SplitType.TFA_FINAL_START:
-      return full ? 'Final Boss entry time' : 'Final Boss entry';
+      return full ? 'Ocellus entry time' : 'Ocellus entry';
 
     case SplitType.COLOSSEUM_CHALLENGE:
       return full ? 'Colosseum challenge time' : 'Challenge time';
@@ -793,7 +793,7 @@ export function splitToStage(split: SplitType): Stage {
   );
   if (
     split >= SplitType.TFA_GUARDIAN &&
-    tfaBoss <= Stage.TFA_FINAL - Stage.TFA_GUARDIAN
+    tfaBoss <= Stage.TFA_OCELLUS - Stage.TFA_GUARDIAN
   ) {
     return Stage.TFA_GUARDIAN + tfaBoss;
   }
@@ -843,11 +843,11 @@ export const RELEVANT_PB_SPLITS: SplitType[] = [
   SplitType.TFA_GUARDIAN,
   SplitType.TFA_EZEKIEL,
   SplitType.TFA_BORK,
-  SplitType.TFA_NECROMANCER,
+  SplitType.TFA_MOIA,
   SplitType.TFA_DREADNOTH,
-  SplitType.TFA_XARTH,
   SplitType.TFA_DAGONHAI,
-  SplitType.TFA_FINAL,
+  SplitType.TFA_XARTH,
+  SplitType.TFA_OCELLUS,
 
   SplitType.COLOSSEUM_CHALLENGE,
   SplitType.COLOSSEUM_OVERALL,
