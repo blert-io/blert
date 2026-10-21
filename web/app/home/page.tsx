@@ -1,87 +1,298 @@
+import { ChallengeType, SplitType } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
-import { RELEASE_TIME as TFA_RELEASE_TIME } from '@/(challenges)/raids/tfa/release';
-import { getSignedInUserId } from '@/actions/users';
+import { findBestSplitTimes, RankedSplit } from '@/actions/challenge';
+import { getSession } from '@/auth';
 import { ButtonLink } from '@/components/button';
 import Card from '@/components/card';
-import { ActivityFeed, GuidesCard, HomeCards } from './home-cards';
+import Carousel from '@/components/carousel';
+import { scaleNameAndColor } from '@/utils/challenge';
+import logger from '@/utils/log';
+import { ticksToFormattedSeconds } from '@/utils/tick';
+import { challengeUrl, playerUrl } from '@/utils/url';
+import { ActivityFeed, CommunityCard, HomeCards } from './home-cards';
 
 import styles from './style.module.scss';
 
+const TFA_FEATURED_SCALES = [8, 7, 6, 5, 4, 3];
+
+type ScaleTopTimes = {
+  scale: number;
+  splits: RankedSplit[];
+};
+
+/** Returns the TFA scales with recorded times, or `null` if loading fails. */
+async function loadTfaTopTimes(): Promise<ScaleTopTimes[] | null> {
+  try {
+    const boards = await Promise.all(
+      TFA_FEATURED_SCALES.map(async (scale) => {
+        const splits = await findBestSplitTimes(
+          [SplitType.TFA_CHALLENGE],
+          scale,
+          3,
+          undefined,
+          0,
+        );
+        return { scale, splits: splits[SplitType.TFA_CHALLENGE] ?? [] };
+      }),
+    );
+    return boards.filter((board) => board.splits.length > 0);
+  } catch (e) {
+    logger.error('home_tfa_top_times_failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
+const MEDAL_CLASSES = [styles.gold, styles.silver, styles.bronze];
+
+function TfaTopTimes({ boards }: { boards: ScaleTopTimes[] }) {
+  return (
+    <div className={styles.heroTimes}>
+      {boards.length > 0 ? (
+        <Carousel
+          autoCycle
+          loop
+          showArrows={false}
+          label="Fastest Fractured Archive runs by scale"
+        >
+          {boards.map(({ scale, splits }) => (
+            <div key={scale} className={styles.heroBoard}>
+              <div className={styles.heroBoardLabel}>
+                <span className={styles.heroBoardScale}>
+                  {scaleNameAndColor(scale)[0]}
+                </span>
+                <span>Fastest completions</span>
+              </div>
+              {splits.map((split, i) => (
+                <Link
+                  key={split.uuid}
+                  href={challengeUrl(ChallengeType.TFA, split.uuid)}
+                  className={styles.heroTime}
+                >
+                  <i className={`fas fa-medal ${MEDAL_CLASSES[i]}`} />
+                  <span className={styles.heroTimeText}>
+                    <span className={styles.heroTimeValue}>
+                      {ticksToFormattedSeconds(split.ticks)}
+                    </span>
+                    <span className={styles.heroParty}>
+                      {split.party.map((p) => p.username).join(', ')}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ))}
+        </Carousel>
+      ) : (
+        <div className={styles.heroTimesEmpty}>
+          <i className="fas fa-trophy" />
+          No completions recorded yet. Record a run to set the first time!
+        </div>
+      )}
+    </div>
+  );
+}
+
+const SETUP_STEPS = [
+  {
+    title: 'Install Blert in RuneLite',
+    description: 'Search for “Blert” in the Plugin Hub.',
+  },
+  {
+    title: 'Create an account',
+    description: 'Any username, no need to match in-game.',
+  },
+  {
+    title: 'Generate an API key',
+    description: 'In settings. No Discord needed.',
+  },
+  {
+    title: 'Add the key to the plugin',
+    description: 'Paste it in, then raid as normal.',
+  },
+];
+
+function GettingStarted() {
+  return (
+    <>
+      <div className={styles.startIntro}>
+        <h2 id="start-heading">Track your PvM progress</h2>
+        <p>
+          Blert records your raids and challenges through RuneLite and turns
+          every run into splits, stats and replays.
+        </p>
+      </div>
+      <ol className={styles.setupSteps}>
+        {SETUP_STEPS.map((step, i) => (
+          <li key={step.title}>
+            <span className={styles.stepNumber} aria-hidden="true">
+              {i + 1}
+            </span>
+            <div className={styles.stepText}>
+              <strong>{step.title}</strong>
+              <span>{step.description}</span>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className={styles.startActions}>
+        <ButtonLink href="/register" fluid>
+          Create Account <i className="fas fa-arrow-right" />
+        </ButtonLink>
+        <ButtonLink href="/guides/blert/getting-started" simple fluid>
+          <i className="fas fa-book" /> Setup Guide
+        </ButtonLink>
+      </div>
+    </>
+  );
+}
+
+type QuickLinkProps = {
+  href: string;
+  icon: string;
+  label: string;
+};
+
+const ACCOUNT_LINKS: QuickLinkProps[] = [
+  { href: '/settings/api-keys', icon: 'fas fa-key', label: 'API keys' },
+  { href: '/settings', icon: 'fas fa-gear', label: 'Account settings' },
+  {
+    href: '/guides/blert/getting-started',
+    icon: 'fas fa-book',
+    label: 'Setup guide',
+  },
+];
+
+function QuickLink({ href, icon, label }: QuickLinkProps) {
+  return (
+    <Link href={href} className={styles.quickLink}>
+      <i className={icon} />
+      <span>{label}</span>
+      <i className="fas fa-chevron-right" />
+    </Link>
+  );
+}
+
+function WelcomeBack({ username }: { username: string | null }) {
+  return (
+    <>
+      <div className={styles.startIntro}>
+        <h2 id="start-heading">Welcome back</h2>
+        <p>
+          Your recorded runs, personal bests and sessions are waiting on your
+          dashboard.
+        </p>
+      </div>
+      <ButtonLink href="/" fluid>
+        See Your Dashboard <i className="fas fa-arrow-right" />
+      </ButtonLink>
+      <nav className={styles.quickLinks} aria-label="Account">
+        {username !== null && (
+          <QuickLink
+            href={playerUrl(username)}
+            icon="fas fa-id-card"
+            label="Your profile"
+          />
+        )}
+        {ACCOUNT_LINKS.map((link) => (
+          <QuickLink key={link.href} {...link} />
+        ))}
+      </nav>
+    </>
+  );
+}
+
 export default async function Home() {
-  const isLoggedIn = (await getSignedInUserId()) !== null;
-  const tfaReleased = Date.now() >= TFA_RELEASE_TIME;
+  const [session, tfaTopTimes] = await Promise.all([
+    getSession(),
+    loadTfaTopTimes(),
+  ]);
 
   return (
     <div className={styles.home}>
       <div className={styles.homeInner}>
-        <Link href="/raids/tfa" className={styles.tfaBanner}>
-          <Image
-            src="/images/tfa.webp"
-            alt="The Fractured Archive"
-            width={72}
-            height={55}
-          />
-          <div className={styles.tfaBannerText}>
-            {tfaReleased ? (
-              <>
-                <strong>The Fractured Archive is out.</strong>
-                <span>Blert recording support is in progress.</span>
-              </>
-            ) : (
-              <>
-                <strong>
-                  The Fractured Archive releases Tuesday, October 20.
-                </strong>
-                <span>
-                  Blert recording support will arrive some time after release.
-                </span>
-              </>
-            )}
-          </div>
-          <i className="fas fa-arrow-right" />
-        </Link>
+        <div className={styles.featured}>
+          <section
+            className={styles.hero}
+            data-challenge="tfa"
+            aria-labelledby="hero-heading"
+          >
+            <div className={styles.heroBody}>
+              <Image
+                className={styles.heroArt}
+                src="/images/tfa.webp"
+                alt="The Fractured Archive"
+                width={270}
+                height={208}
+                priority
+              />
+              <div className={styles.heroText}>
+                <span className={styles.newPill}>New raid</span>
+                <h1 id="hero-heading">
+                  Record your runs through <span>The Fractured Archive</span>
+                </h1>
+                <p>
+                  Blert now supports TFA. Every run you record is saved with
+                  boss times, actions and deaths, and a tick-by-tick replay, so
+                  your team can see exactly what happened.
+                </p>
+                <div className={styles.heroActions}>
+                  <ButtonLink href="/raids/tfa">
+                    Explore TFA <i className="fas fa-arrow-right" />
+                  </ButtonLink>
+                  <ButtonLink href="/leaderboards/tfa" simple>
+                    <i className="fas fa-trophy" /> Leaderboards
+                  </ButtonLink>
+                </div>
+              </div>
+            </div>
+            {tfaTopTimes !== null && <TfaTopTimes boards={tfaTopTimes} />}
+          </section>
 
-        <div className={styles.registerCta}>
-          <div className={styles.ctaContent}>
-            <h1>Track Your PvM Progress</h1>
-            <p>
-              Join hundreds of players using Blert to analyze and improve their
-              Old School RuneScape PvM abilities.
-            </p>
-          </div>
-          <div className={styles.ctaButtons}>
-            {isLoggedIn ? (
-              <ButtonLink href="/" className={styles.primaryButton}>
-                See Your Dashboard <i className="fas fa-arrow-right" />
-              </ButtonLink>
+          <aside className={styles.startPanel} aria-labelledby="start-heading">
+            {session === null ? (
+              <GettingStarted />
             ) : (
-              <ButtonLink href="/register" className={styles.primaryButton}>
-                Create Account <i className="fas fa-arrow-right" />
-              </ButtonLink>
+              <WelcomeBack
+                username={session.connectedPlayers[0]?.username ?? null}
+              />
             )}
-            <ButtonLink
-              href="https://runelite.net/plugin-hub/show/blert"
-              className={styles.secondaryButton}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              Get Plugin <i className="fas fa-external-link-alt" />
-            </ButtonLink>
-          </div>
+          </aside>
         </div>
 
         <HomeCards />
 
-        <ActivityFeed />
-
-        <GuidesCard />
+        <div className={styles.communityGrid}>
+          <ActivityFeed limit={6} />
+          <CommunityCard />
+        </div>
 
         <Card
           header={{ title: 'Status Updates' }}
           className={styles.statusPanel}
         >
+          <div className={styles.statusCard}>
+            <h3 className={styles.statusHeading}>
+              The Fractured Archive is now recorded
+            </h3>
+            <span className={styles.statusTimestamp}>
+              Last updated: Oct 21, 2026 21:00 UTC
+            </span>
+            <ul className={styles.statusList}>
+              <li>
+                Blert now records TFA runs with boss times and full replays.
+              </li>
+              <li>
+                Recent runs are on the <Link href="/raids/tfa">raid page</Link>,
+                and the fastest times are on the{' '}
+                <Link href="/leaderboards/tfa">leaderboards</Link>.
+              </li>
+            </ul>
+          </div>
+
           <div className={styles.statusCard}>
             <h3 className={styles.statusHeading}>API keys without Discord</h3>
             <span className={styles.statusTimestamp}>
@@ -96,37 +307,6 @@ export default async function Home() {
               <li>
                 Linking Discord is still available and recommended for bot
                 integration and account support, but it&apos;s optional.
-              </li>
-            </ul>
-          </div>
-
-          <div className={styles.statusCard}>
-            <h3 className={styles.statusHeading}>🎉 Blert is Live!</h3>
-            <span className={styles.statusTimestamp}>
-              Last updated: Jan 14, 2026 05:00 UTC
-            </span>
-            <ul className={styles.statusList}>
-              <li>
-                Blert is now available on the{' '}
-                <a
-                  href="https://runelite.net/plugin-hub/show/blert"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  RuneLite Plugin Hub
-                </a>
-                ! Search for &quot;Blert&quot; in the Plugin Hub to install.
-              </li>
-              <li>
-                Join our{' '}
-                <a
-                  href="https://discord.gg/c5Hgv3NnYe"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  Discord server
-                </a>{' '}
-                to get an API key and start tracking your raids.
               </li>
             </ul>
           </div>

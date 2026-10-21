@@ -1,0 +1,47 @@
+@use '@/mixins.scss' as *;
+
+// Matches the height and border of `Input` fields.
+.selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--blert-divider-color);
+  border-radius: 5px;
+  background: none;
+  color: var(--blert-font-color-primary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+
+  &:hover,
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(var(--blert-purple-base), 0.9);
+  }
+
+  i {
+    color: var(--blert-font-color-secondary);
+    font-size: 12px;
+  }
+
+  :global([data-theme='aero']) & {
+    @include aeroField;
+  }
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
