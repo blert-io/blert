@@ -209,6 +209,22 @@ const COLUMN_GROUPS: ColumnGroup[] = [
     ],
   },
   {
+    label: 'TFA',
+    columns: [
+      Column.TFA_GUARDIAN,
+      Column.TFA_EZEKIEL,
+      Column.TFA_BORK,
+      Column.TFA_ROW_2_ENTRY,
+      Column.TFA_MOIA,
+      Column.TFA_DREADNOTH,
+      Column.TFA_ROW_3_ENTRY,
+      Column.TFA_DAGONHAI,
+      Column.TFA_XARTH,
+      Column.TFA_FINAL_ENTRY,
+      Column.TFA_OCELLUS,
+    ],
+  },
+  {
     label: 'Inferno',
     columns: [
       Column.INFERNO_WAVE_9,
@@ -828,6 +844,59 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     'Delve 8 entry',
     SplitType.MOKHAIOTL_DELVE_8_START,
     130,
+  ),
+  [Column.TFA_GUARDIAN]: splitColumn(
+    'Guardian',
+    SplitType.TFA_GUARDIAN,
+    100,
+    'Guardian Time',
+  ),
+  [Column.TFA_EZEKIEL]: splitColumn(
+    'Ezekiel',
+    SplitType.TFA_EZEKIEL,
+    100,
+    'Ezekiel Time',
+  ),
+  [Column.TFA_BORK]: splitColumn('Bork', SplitType.TFA_BORK, 100, 'Bork Time'),
+  [Column.TFA_ROW_2_ENTRY]: splitColumn(
+    'Row 2 entry',
+    SplitType.TFA_ROW_2_START,
+    120,
+  ),
+  [Column.TFA_MOIA]: splitColumn('Moia', SplitType.TFA_MOIA, 100, 'Moia Time'),
+  [Column.TFA_DREADNOTH]: splitColumn(
+    'Dreadnoth',
+    SplitType.TFA_DREADNOTH,
+    110,
+    'Dreadnoth Time',
+  ),
+  [Column.TFA_ROW_3_ENTRY]: splitColumn(
+    'Row 3 entry',
+    SplitType.TFA_ROW_3_START,
+    120,
+  ),
+  [Column.TFA_DAGONHAI]: splitColumn(
+    "Dagon'hai",
+    SplitType.TFA_DAGONHAI,
+    110,
+    "Dagon'hai Time",
+  ),
+  [Column.TFA_XARTH]: splitColumn(
+    'Xarth',
+    SplitType.TFA_XARTH,
+    100,
+    'Xarth Time',
+  ),
+  [Column.TFA_FINAL_ENTRY]: splitColumn(
+    'Ocellus entry',
+    SplitType.TFA_FINAL_START,
+    130,
+  ),
+  [Column.TFA_OCELLUS]: splitColumn(
+    'Ocellus',
+    SplitType.TFA_OCELLUS,
+    100,
+    'Ocellus Time',
   ),
 };
 

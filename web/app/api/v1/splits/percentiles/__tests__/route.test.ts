@@ -56,7 +56,7 @@ describe('GET /api/v1/splits/percentiles', () => {
     expect(mockedGetSplitPercentiles).not.toHaveBeenCalled();
   });
 
-  it.each(['0', '6', 'abc'])('rejects scale %s', async (scale) => {
+  it.each(['0', '9', 'abc'])('rejects scale %s', async (scale) => {
     const response = await GET(
       apiRequest('/api/v1/splits/percentiles', { types: '152', scale }),
     );

@@ -27,6 +27,7 @@ import {
   SpawnedNpc,
   SplitType,
   Stage,
+  TFA_ROWS,
   TfaChallengeStats,
   TfaRaid,
   TfaStage,
@@ -588,6 +589,10 @@ export type MokhaiotlQuery = {
   avgDeepDelveTicks?: Comparator<number>;
 };
 
+export type TfaQuery = {
+  route?: Stage[];
+};
+
 export type SpawnQuery = {
   stage: Comparator<Stage> | null;
   values: number[];
@@ -609,6 +614,7 @@ export type ChallengeQuery = {
   partyMatch?: 'all' | 'any';
   splits?: Map<SplitType, Comparator<number>>;
   tob?: TobQuery;
+  tfa?: TfaQuery;
   colosseum?: ColosseumQuery;
   mokhaiotl?: MokhaiotlQuery;
   spawns?: SpawnQuery[];
@@ -856,6 +862,50 @@ function applyMokhaiotlFilters(
   }
 }
 
+function applyTfaFilters(
+  tfa: TfaQuery,
+  baseTable: postgres.Helper<string>,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+) {
+  if (tfa.route === undefined || tfa.route.length === 0) {
+    return;
+  }
+
+  conditions.push(
+    comparatorToSql(baseTable, 'type', ['==', ChallengeType.TFA]),
+    comparatorToSql(baseTable, 'stage', ['>=', Math.max(...tfa.route)]),
+  );
+
+  const choices: [number, number][] = [];
+  for (const boss of tfa.route) {
+    const row = TFA_ROWS.findIndex((stages) => stages.includes(boss));
+    if (TFA_ROWS[row].length === 2) {
+      choices.push([row - 1, TFA_ROWS[row].indexOf(boss)]);
+    }
+  }
+  if (choices.length === 0) {
+    return;
+  }
+
+  const doorRows = TFA_ROWS.filter((stages) => stages.length === 2).length;
+  const routes: number[] = [];
+  for (let route = 0; route < 1 << doorRows; route++) {
+    if (choices.every(([bit, side]) => ((route >> bit) & 1) === side)) {
+      routes.push(route);
+    }
+  }
+
+  joins.push({
+    table: sql`tfa_challenge_stats`,
+    on: sql`${baseTable}.id = tfa_challenge_stats.challenge_id`,
+    tableName: 'tfa_challenge_stats',
+  });
+  conditions.push(
+    comparatorToSql(sql('tfa_challenge_stats'), 'route', ['in', routes]),
+  );
+}
+
 function applyColosseumFilters(
   colosseum: ColosseumQuery,
   baseTable: postgres.Helper<string>,
@@ -1043,6 +1093,10 @@ function applyFilters(
 
   if (query.tob !== undefined) {
     applyTobFilters(query.tob, sqlChallenges, joins, conditions);
+  }
+
+  if (query.tfa !== undefined) {
+    applyTfaFilters(query.tfa, sqlChallenges, joins, conditions);
   }
 
   if (query.colosseum !== undefined) {

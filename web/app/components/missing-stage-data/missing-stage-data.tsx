@@ -1,6 +1,6 @@
 import { Stage, stageName } from '@blert/common';
 
-import styles from './missing-stage-data.module.scss';
+import styles from './style.module.scss';
 
 type MissingStageDataProps = {
   stage: Stage;

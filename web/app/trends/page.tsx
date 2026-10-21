@@ -69,6 +69,7 @@ export default function TrendsPage() {
           challenge={ChallengeType.TOB}
           analysisLinks={TOB_ANALYSIS_LINKS}
         />
+        <ChallengeStats challenge={ChallengeType.TFA} />
         <ChallengeStats
           challenge={ChallengeType.COLOSSEUM}
           analysisLinks={COLOSSEUM_ANALYSIS_LINKS}

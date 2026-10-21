@@ -42,6 +42,9 @@ export function modeName(
   if (type === ChallengeType.MOKHAIOTL) {
     return short ? 'MOK' : 'Mokhaiotl';
   }
+  if (type === ChallengeType.TFA) {
+    return short ? 'TFA' : 'Fractured Archive';
+  }
 
   switch (difficulty) {
     case ChallengeMode.TOB_REGULAR:
@@ -99,6 +102,9 @@ const SCALE_NAME_AND_COLOR: [string, string][] = [
   ['Trio', 'var(--blert-scale-3)'],
   ['4s', 'var(--blert-scale-4)'],
   ['5s', 'var(--blert-scale-5)'],
+  ['6s', 'var(--blert-scale-6)'],
+  ['7s', 'var(--blert-scale-7)'],
+  ['8s', 'var(--blert-scale-8)'],
 ];
 
 export function scaleNameAndColor(scale: number): [string, string] {
@@ -186,6 +192,31 @@ export function relevantSplitsForStage(
         SplitType.TOB_VERZIK_REDS,
         SplitType.TOB_VERZIK_P2,
       ];
+      break;
+
+    case Stage.TFA_GUARDIAN:
+      splits = [SplitType.TFA_GUARDIAN];
+      break;
+    case Stage.TFA_EZEKIEL:
+      splits = [SplitType.TFA_EZEKIEL];
+      break;
+    case Stage.TFA_BORK:
+      splits = [SplitType.TFA_BORK];
+      break;
+    case Stage.TFA_MOIA:
+      splits = [SplitType.TFA_MOIA];
+      break;
+    case Stage.TFA_DREADNOTH:
+      splits = [SplitType.TFA_DREADNOTH];
+      break;
+    case Stage.TFA_DAGONHAI:
+      splits = [SplitType.TFA_DAGONHAI];
+      break;
+    case Stage.TFA_XARTH:
+      splits = [SplitType.TFA_XARTH];
+      break;
+    case Stage.TFA_OCELLUS:
+      splits = [SplitType.TFA_OCELLUS];
       break;
 
     case Stage.INFERNO_WAVE_9:

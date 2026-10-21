@@ -22,6 +22,8 @@ export type NpcDefinition = {
   mode: ChallengeMode;
   /** Maximum tiles moved per tick. */
   maxSpeed: number;
+  /** Whether the NPC has anything to draw. */
+  renderable: boolean;
 };
 
 function parseMode(name: string): ChallengeMode {
@@ -43,6 +45,7 @@ const NPC_DEFINITIONS: ReadonlyMap<number, NpcDefinition> = new Map(
       size: definition.size,
       mode: parseMode(definition.mode),
       maxSpeed: definition.maxSpeed,
+      renderable: definition.renderable ?? true,
     },
   ]),
 );

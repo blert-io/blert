@@ -123,6 +123,47 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
       break;
     }
 
+    case 'tfa': {
+      challengeType = ChallengeType.TFA;
+      if (options?.length !== 1) {
+        redirect('/leaderboards/tfa/8');
+      }
+
+      scale = parseInt(options[0]);
+      if (Number.isNaN(scale) || scale < 1 || scale > 8) {
+        redirect('/leaderboards/tfa/8');
+      }
+
+      headerScales = (
+        <div className={styles.scales}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Link
+              className={linkClass(scale === i + 1)}
+              href={`/leaderboards/tfa/${i + 1}`}
+              key={i}
+            >
+              {scaleNameAndColor(i + 1)[0]}
+            </Link>
+          ))}
+        </div>
+      );
+
+      splits = [
+        SplitType.TFA_CHALLENGE,
+        SplitType.TFA_OVERALL,
+        SplitType.TFA_GUARDIAN,
+        SplitType.TFA_EZEKIEL,
+        SplitType.TFA_BORK,
+        SplitType.TFA_MOIA,
+        SplitType.TFA_DREADNOTH,
+        SplitType.TFA_DAGONHAI,
+        SplitType.TFA_XARTH,
+        SplitType.TFA_OCELLUS,
+      ];
+      numHighlightedSplits = 2;
+      break;
+    }
+
     case 'inferno': {
       challengeType = ChallengeType.INFERNO;
       splits = [
@@ -224,6 +265,19 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
               style={{ objectFit: 'contain' }}
             />
             Theatre of Blood
+          </Link>
+          <Link
+            className={linkClass(challengeType === ChallengeType.TFA)}
+            href={`/leaderboards/tfa/8`}
+          >
+            <Image
+              src={challengeLogo(ChallengeType.TFA)}
+              alt="Fractured Archive"
+              width={24}
+              height={24}
+              style={{ objectFit: 'contain' }}
+            />
+            Fractured Archive
           </Link>
           <Link
             className={linkClass(challengeType === ChallengeType.INFERNO)}
@@ -363,6 +417,21 @@ export async function generateMetadata(
         const scaleStr = scaleNameAndColor(scale)[0];
         title = `${scaleStr} ${modeStr} Theatre of Blood Leaderboards`;
         description = `Track the fastest ${modeStr} Mode Theatre of Blood ${scaleStr} raid times. Compare room splits, view party compositions, and analyze strategies from top teams.`;
+      }
+      break;
+    }
+
+    case 'tfa': {
+      imageUrl = 'https://blert.io/images/tfa.webp';
+
+      if (options?.length !== 1) {
+        title = 'Fractured Archive Leaderboards';
+        description =
+          'View the fastest Fractured Archive raid times on Blert, showing boss splits, raid parties, and analytics for all team sizes.';
+      } else {
+        const scaleStr = scaleNameAndColor(parseInt(options[0]))[0];
+        title = `${scaleStr} Fractured Archive Leaderboards`;
+        description = `Track the fastest Fractured Archive ${scaleStr} raid times. Compare boss splits, view parties, and analyze strategies from top teams.`;
       }
       break;
     }

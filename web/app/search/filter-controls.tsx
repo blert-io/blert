@@ -1,19 +1,29 @@
 'use client';
 
-import { ChallengeMode, ChallengeType } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeType,
+  Stage,
+  stageName,
+  TFA_ROWS,
+} from '@blert/common';
 
 import Checkbox from '@/components/checkbox';
 import DatePicker from '@/components/date-picker';
 import PlayerSearch from '@/components/player-search';
+import RadioInput from '@/components/radio-input';
 import TagList from '@/components/tag-list';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
+import { scaleNameAndColor } from '@/utils/challenge';
+import { stagePath } from '@/utils/url';
 
 import styles from './filter-controls.module.scss';
 
 const DATE_INPUT_WIDTH = 132;
-const MAX_PARTY_SIZE = 5;
+const MAX_PARTY_SIZE = 8;
 
 const NO_MODE_CHALLENGE_TYPES = new Set<ChallengeType>([
+  ChallengeType.TFA,
   ChallengeType.COLOSSEUM,
   ChallengeType.INFERNO,
   ChallengeType.MOKHAIOTL,
@@ -314,6 +324,7 @@ export function TypeFilter({
           tobRegularChecked,
         )}
         {tobModeCheckbox(ChallengeMode.TOB_HARD, 'ToB Hard', tobHardChecked)}
+        {noModeCheckbox(ChallengeType.TFA, 'TFA')}
         {noModeCheckbox(ChallengeType.INFERNO, 'Inferno')}
         {noModeCheckbox(ChallengeType.COLOSSEUM, 'Colosseum')}
         {noModeCheckbox(ChallengeType.MOKHAIOTL, 'Mokhaiotl')}
@@ -335,8 +346,8 @@ export function ScaleFilter({
   onChange,
   disabled = false,
 }: ScaleFilterProps) {
-  const hasTeamChallenges =
-    type.length === 0 || type.includes(ChallengeType.TOB);
+  const hasTfa = type.length === 0 || type.includes(ChallengeType.TFA);
+  const hasTeamChallenges = hasTfa || type.includes(ChallengeType.TOB);
 
   function toggle(value: number) {
     if (scale.includes(value)) {
@@ -346,15 +357,28 @@ export function ScaleFilter({
     }
   }
 
-  function checkbox(value: number, label: string, teamOnly: boolean = false) {
+  function restriction(value: number): string | null {
+    if (value > 5) {
+      return hasTfa ? null : 'Only available for TFA';
+    }
+    if (value > 1) {
+      return hasTeamChallenges
+        ? null
+        : 'Only available for team challenge types';
+    }
+    return null;
+  }
+
+  function checkbox(value: number) {
     const checked = scale.includes(value);
-    const isDisabled = teamOnly && !hasTeamChallenges && !checked;
+    const restrictionMessage = restriction(value);
+    const isDisabled = restrictionMessage !== null && !checked;
     const checkboxEl = (
       <Checkbox
         checked={checked}
         disabled={disabled || isDisabled}
         onChange={() => toggle(value)}
-        label={label}
+        label={scaleNameAndColor(value)[0]}
         simple
       />
     );
@@ -364,7 +388,7 @@ export function ScaleFilter({
     return (
       <div
         data-tooltip-id={GLOBAL_TOOLTIP_ID}
-        data-tooltip-content="Only available for team challenge types"
+        data-tooltip-content={restrictionMessage}
       >
         {checkboxEl}
       </div>
@@ -374,11 +398,14 @@ export function ScaleFilter({
   return (
     <FilterField label="Scale">
       <div className={styles.checkboxList}>
-        {checkbox(1, 'Solo')}
-        {checkbox(2, 'Duo', true)}
-        {checkbox(3, 'Trio', true)}
-        {checkbox(4, '4s', true)}
-        {checkbox(5, '5s', true)}
+        {checkbox(1)}
+        {checkbox(2)}
+        {checkbox(3)}
+        {checkbox(4)}
+        {checkbox(5)}
+        {checkbox(6)}
+        {checkbox(7)}
+        {checkbox(8)}
       </div>
     </FilterField>
   );
@@ -423,6 +450,67 @@ export function StatusFilter<T extends number>({
             simple
           />
         ))}
+      </div>
+    </FilterField>
+  );
+}
+
+type TfaRouteFilterProps = {
+  route: Stage[];
+  onChange: (route: Stage[]) => void;
+  disabled?: boolean;
+};
+
+export function TfaRouteFilter({
+  route,
+  onChange,
+  disabled = false,
+}: TfaRouteFilterProps) {
+  const doorRows = TFA_ROWS.filter((stages) => stages.length === 2);
+
+  function choose(row: Stage[], boss: Stage | null) {
+    const rest = route.filter((stage) => !row.includes(stage));
+    onChange(boss === null ? rest : [...rest, boss]);
+  }
+
+  return (
+    <FilterField
+      label="TFA route"
+      onRemove={route.length > 0 && !disabled ? () => onChange([]) : undefined}
+    >
+      <div className={styles.routeRows}>
+        {doorRows.map((row, i) => {
+          const chosen = row.find((stage) => route.includes(stage)) ?? null;
+          return (
+            <RadioInput.Group
+              key={i}
+              compact
+              joined
+              name={`tfa-route-${i + 1}`}
+              onChange={(value) =>
+                choose(row, value === 0 ? null : (value as Stage))
+              }
+            >
+              <RadioInput.Option
+                checked={chosen === null}
+                disabled={disabled}
+                id={`tfa-route-${i + 1}-any`}
+                label="Any"
+                value={0}
+              />
+              {row.map((stage) => (
+                <RadioInput.Option
+                  key={stage}
+                  checked={chosen === stage}
+                  disabled={disabled}
+                  id={`tfa-route-${stagePath(stage)}`}
+                  label={stageName(stage)}
+                  value={stage}
+                />
+              ))}
+            </RadioInput.Group>
+          );
+        })}
       </div>
     </FilterField>
   );

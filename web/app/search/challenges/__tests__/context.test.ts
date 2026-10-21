@@ -155,6 +155,37 @@ describe('challenges filter URL round-trip', () => {
     expect(params['mok.avgDeepDelveTicks']).toBeUndefined();
   });
 
+  it('preserves a full TFA route', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      tfa: {
+        route: [
+          Stage.TFA_OCELLUS,
+          Stage.TFA_BORK,
+          Stage.TFA_GUARDIAN,
+          Stage.TFA_XARTH,
+          Stage.TFA_DREADNOTH,
+        ],
+      },
+    };
+    expect(filtersToUrlParams(filters)['tfa.route']).toEqual([
+      'guardian',
+      'bork',
+      'dreadnoth',
+      'xarth',
+      'ocellus',
+    ]);
+    expect(roundTrip(filters).tfa).toEqual({
+      route: [
+        Stage.TFA_GUARDIAN,
+        Stage.TFA_BORK,
+        Stage.TFA_DREADNOTH,
+        Stage.TFA_XARTH,
+        Stage.TFA_OCELLUS,
+      ],
+    });
+  });
+
   it('preserves options', () => {
     const filters: SearchFilters = {
       ...defaultSearchFilters(),
@@ -250,6 +281,14 @@ describe('countActiveFilters', () => {
       },
     };
     expect(countActiveFilters(filters)).toBe(3);
+  });
+
+  it('counts a TFA route as one filter', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      tfa: { route: [Stage.TFA_BORK, Stage.TFA_MOIA, Stage.TFA_XARTH] },
+    };
+    expect(countActiveFilters(filters)).toBe(2);
   });
 
   it('counts passthrough parameters', () => {

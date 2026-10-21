@@ -7,6 +7,8 @@ import {
   InfernoChallenge,
   MokhaiotlChallenge,
   Stage,
+  stageName,
+  TfaRaid,
   TobRaid,
 } from '@blert/common';
 import Link from 'next/link';
@@ -15,7 +17,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { ChallengeContext, useLiveChallenge } from '@/challenge-context';
 import { useDisplay } from '@/display';
-import { challengeUrl } from '@/utils/url';
+import { challengeUrl, stagePath } from '@/utils/url';
 import { useSetting } from '@/utils/user-settings';
 
 import MaidenIcon from '@/svg/maiden.svg';
@@ -24,6 +26,15 @@ import NylocasIcon from '@/svg/nyloking.svg';
 import SotetsegIcon from '@/svg/sotetseg.svg';
 import XarpusIcon from '@/svg/xarpus.svg';
 import VerzikIcon from '@/svg/verzik.svg';
+import GuardianIcon from '@/svg/guardian.svg';
+import EzekielIcon from '@/svg/ezekiel.svg';
+import BorkIcon from '@/svg/bork.svg';
+import MoiaIcon from '@/svg/moia.svg';
+import DreadnothIcon from '@/svg/dreadnoth.svg';
+import DagonhaiIcon from '@/svg/dagonhai.svg';
+import XarthIcon from '@/svg/xarth.svg';
+import OcellusIcon from '@/svg/ocellus.svg';
+import HuhIcon from '@/svg/huh.svg';
 
 import styles from './style.module.scss';
 
@@ -84,6 +95,57 @@ const TOB_NAV_ITEMS: NavItem[] = [
     icon: <VerzikIcon height={24} width={24} />,
   },
 ];
+
+const TFA_ROWS: Stage[][] = [
+  [Stage.TFA_EZEKIEL, Stage.TFA_BORK],
+  [Stage.TFA_MOIA, Stage.TFA_DREADNOTH],
+  [Stage.TFA_DAGONHAI, Stage.TFA_XARTH],
+];
+
+const TFA_ICONS: Partial<Record<Stage, React.ReactNode>> = {
+  [Stage.TFA_GUARDIAN]: <GuardianIcon height={24} width={24} />,
+  [Stage.TFA_EZEKIEL]: <EzekielIcon height={24} width={24} />,
+  [Stage.TFA_BORK]: <BorkIcon height={24} width={24} />,
+  [Stage.TFA_MOIA]: <MoiaIcon height={24} width={24} />,
+  [Stage.TFA_DREADNOTH]: <DreadnothIcon height={24} width={24} />,
+  [Stage.TFA_DAGONHAI]: <DagonhaiIcon height={24} width={24} />,
+  [Stage.TFA_XARTH]: <XarthIcon height={24} width={24} />,
+  [Stage.TFA_OCELLUS]: <OcellusIcon height={24} width={24} />,
+};
+
+function tfaNavItems(isStageAccessible: (stage: Stage) => boolean): NavItem[] {
+  const bossItem = (stage: Stage): NavItem => ({
+    path: stagePath(stage),
+    label: stageName(stage),
+    stage,
+    icon: TFA_ICONS[stage],
+  });
+
+  const rows = TFA_ROWS.map((row, i) => {
+    const reached = row.find(isStageAccessible);
+    if (reached === undefined) {
+      return {
+        path: stagePath(row[0]),
+        label: `Row ${i + 1}`,
+        stage: row[0],
+        icon: <HuhIcon height={24} width={24} />,
+      };
+    }
+    return bossItem(reached);
+  });
+
+  return [
+    {
+      path: 'overview',
+      label: 'Overview',
+      stage: Stage.UNKNOWN,
+      icon: <i className="fa-solid fa-list" />,
+    },
+    bossItem(Stage.TFA_GUARDIAN),
+    ...rows,
+    bossItem(Stage.TFA_OCELLUS),
+  ];
+}
 
 const COLOSSEUM_NAV_ITEMS: NavItem[] = [
   {
@@ -980,23 +1042,6 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
     return null;
   }
 
-  let navItems: NavItem[] = [];
-
-  switch (challenge.type) {
-    case ChallengeType.TOB:
-      navItems = TOB_NAV_ITEMS;
-      break;
-    case ChallengeType.COLOSSEUM:
-      navItems = COLOSSEUM_NAV_ITEMS;
-      break;
-    case ChallengeType.INFERNO:
-      navItems = INFERNO_NAV_ITEMS;
-      break;
-    case ChallengeType.MOKHAIOTL:
-      navItems = MOKHAIOTL_NAV_ITEMS;
-      break;
-  }
-
   const isStageAccessible = (stage: Stage): boolean => {
     if (stage === Stage.UNKNOWN) {
       return true;
@@ -1032,6 +1077,10 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
             return false;
         }
       }
+      case ChallengeType.TFA:
+        return (challenge as TfaRaid).tfa.bosses.some(
+          (boss) => boss.stage === stage,
+        );
       case ChallengeType.COLOSSEUM: {
         const waves = (challenge as ColosseumChallenge).colosseum.waves;
         const offset = stage - Stage.COLOSSEUM_WAVE_1;
@@ -1051,6 +1100,26 @@ export default function ChallengeNav({ challengeId }: ChallengeNavProps) {
 
     return false;
   };
+
+  let navItems: NavItem[] = [];
+
+  switch (challenge.type) {
+    case ChallengeType.TOB:
+      navItems = TOB_NAV_ITEMS;
+      break;
+    case ChallengeType.TFA:
+      navItems = tfaNavItems(isStageAccessible);
+      break;
+    case ChallengeType.COLOSSEUM:
+      navItems = COLOSSEUM_NAV_ITEMS;
+      break;
+    case ChallengeType.INFERNO:
+      navItems = INFERNO_NAV_ITEMS;
+      break;
+    case ChallengeType.MOKHAIOTL:
+      navItems = MOKHAIOTL_NAV_ITEMS;
+      break;
+  }
 
   return (
     <nav className={styles.nav} data-blert-disable-sidebar="true">

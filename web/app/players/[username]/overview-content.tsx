@@ -54,12 +54,21 @@ type PbEntry = {
   time: number | null;
 };
 
+function emptyPbs(scales: number): PbEntry[] {
+  return Array.from({ length: scales }, (_, i) => ({
+    title: scaleNameAndColor(i + 1)[0],
+    raidId: null,
+    time: null,
+  }));
+}
+
 type PbTableProps = {
   title: string;
+  challengeType: ChallengeType;
   pbs: PbEntry[];
 };
 
-function PbTable({ title, pbs }: PbTableProps) {
+function PbTable({ title, challengeType, pbs }: PbTableProps) {
   const pbOrNone = (pb: number | null) =>
     pb === null ? '--:--.-' : ticksToFormattedSeconds(pb);
 
@@ -71,7 +80,7 @@ function PbTable({ title, pbs }: PbTableProps) {
           (pb) =>
             (pb.raidId !== null && (
               <Link
-                href={challengeUrl(ChallengeType.TOB, pb.raidId)}
+                href={challengeUrl(challengeType, pb.raidId)}
                 key={pb.title}
                 className={styles.pb}
               >
@@ -88,18 +97,6 @@ function PbTable({ title, pbs }: PbTableProps) {
       </div>
     </div>
   );
-}
-
-function scaleName(scale: number) {
-  return scale === 1
-    ? 'Solo'
-    : scale === 2
-      ? 'Duo'
-      : scale === 3
-        ? 'Trio'
-        : scale === 4
-          ? '4s'
-          : '5s';
 }
 
 type PlayerOverviewContentProps = {
@@ -465,20 +462,9 @@ export default function PlayerOverviewContent({
     return () => clearInterval(interval);
   }, [fetchActivityData, fetchChallengeStats]);
 
-  const regPbs: PbEntry[] = [
-    { title: scaleName(1), raidId: null, time: null },
-    { title: scaleName(2), raidId: null, time: null },
-    { title: scaleName(3), raidId: null, time: null },
-    { title: scaleName(4), raidId: null, time: null },
-    { title: scaleName(5), raidId: null, time: null },
-  ];
-  const hmtPbs: PbEntry[] = [
-    { title: scaleName(1), raidId: null, time: null },
-    { title: scaleName(2), raidId: null, time: null },
-    { title: scaleName(3), raidId: null, time: null },
-    { title: scaleName(4), raidId: null, time: null },
-    { title: scaleName(5), raidId: null, time: null },
-  ];
+  const regPbs = emptyPbs(5);
+  const hmtPbs = emptyPbs(5);
+  const tfaPbs = emptyPbs(8);
 
   for (const pb of personalBests) {
     if (pb.type === SplitType.TOB_REG_CHALLENGE) {
@@ -487,6 +473,9 @@ export default function PlayerOverviewContent({
     } else if (pb.type === SplitType.TOB_HM_CHALLENGE) {
       hmtPbs[pb.scale - 1].time = pb.ticks;
       hmtPbs[pb.scale - 1].raidId = pb.cid;
+    } else if (pb.type === SplitType.TFA_CHALLENGE) {
+      tfaPbs[pb.scale - 1].time = pb.ticks;
+      tfaPbs[pb.scale - 1].raidId = pb.cid;
     }
   }
 
@@ -519,8 +508,21 @@ export default function PlayerOverviewContent({
         }}
       >
         <div className={styles.pbTables}>
-          <PbTable title="ToB Regular" pbs={regPbs} />
-          <PbTable title="ToB Hard Mode" pbs={hmtPbs} />
+          <PbTable
+            title="ToB Regular"
+            challengeType={ChallengeType.TOB}
+            pbs={regPbs}
+          />
+          <PbTable
+            title="ToB Hard Mode"
+            challengeType={ChallengeType.TOB}
+            pbs={hmtPbs}
+          />
+          <PbTable
+            title="Fractured Archive"
+            challengeType={ChallengeType.TFA}
+            pbs={tfaPbs}
+          />
         </div>
       </Card>
 

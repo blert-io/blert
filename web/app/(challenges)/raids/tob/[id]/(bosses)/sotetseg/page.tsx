@@ -13,6 +13,7 @@ import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import Loading from '@/components/loading';
 import { CustomEntity, MapDefinition } from '@/components/map-renderer';
+import MissingStageData from '@/components/missing-stage-data';
 import { useDisplay } from '@/display';
 import {
   EnhancedRoomNpc,
@@ -25,7 +26,6 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
 import MazeTileEntity from './maze-tile';
-import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';

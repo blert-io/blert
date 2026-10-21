@@ -26,8 +26,8 @@ export const GET = withApiRoute(
       throw new InvalidQueryError('Missing required parameters: types, scale');
     }
 
-    if (scale < 1 || scale > 5) {
-      throw new InvalidQueryError('scale must be between 1 and 5');
+    if (scale < 1 || scale > 8) {
+      throw new InvalidQueryError('scale must be between 1 and 8');
     }
 
     let percentiles = DEFAULT_PERCENTILES;

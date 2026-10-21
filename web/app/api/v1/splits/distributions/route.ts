@@ -34,7 +34,7 @@ export const GET = withApiRoute(
       );
     }
 
-    if (scale < 1 || scale > 5) {
+    if (scale < 1 || scale > 8) {
       return Response.json({ error: 'Invalid scale' }, { status: 400 });
     }
 

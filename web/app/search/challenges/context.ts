@@ -3,7 +3,8 @@ import { ChallengeStatus, ChallengeType, Stage } from '@blert/common';
 import { ExtraChallengeFields, SortableFields } from '@/actions/challenge';
 import { SortQuery } from '@/actions/query';
 import { Comparator } from '@/components/tick-input';
-import { NextSearchParams, UrlParam, UrlParams } from '@/utils/url';
+import { tfaBossFromToken } from '@/utils/tfa';
+import { NextSearchParams, stagePath, UrlParam, UrlParams } from '@/utils/url';
 
 import {
   SharedFilters,
@@ -68,6 +69,10 @@ export type TobFilters = {
 export type MokhaiotlFilters = {
   maxCompletedDelve: [Comparator, number] | null;
   avgDeepDelveTicks: [Comparator, number] | null;
+};
+
+export type TfaFilters = {
+  route: Stage[];
 };
 
 function parseTobParam(tob: TobFilters, key: string, value: string): void {
@@ -135,6 +140,10 @@ export function hasMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): boolean {
   return countMokhaiotlFilters(mokhaiotl) > 0;
 }
 
+export function hasTfaFilters(tfa: TfaFilters): boolean {
+  return tfa.route.length > 0;
+}
+
 function countTobFilters(tob: TobFilters): number {
   let count = tob.bloatDowns.size;
   if (tob.bloatDownCount !== null) {
@@ -173,6 +182,12 @@ function countMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): number {
   return count;
 }
 
+export function emptyTfaFilters(): TfaFilters {
+  return {
+    route: [],
+  };
+}
+
 export function countActiveFilters(filters: SearchFilters): number {
   let count = countSharedFilters(filters);
   if (filters.status.length > 0) {
@@ -184,6 +199,9 @@ export function countActiveFilters(filters: SearchFilters): number {
   count += filters.splits.size;
   count += countTobFilters(filters.tob);
   count += countMokhaiotlFilters(filters.mokhaiotl);
+  if (hasTfaFilters(filters.tfa)) {
+    count++;
+  }
   if (filters.accurateSplits) {
     count++;
   }
@@ -200,6 +218,7 @@ export type SearchFilters = SharedFilters & {
   splits: Map<number, [Comparator, number]>;
   tob: TobFilters;
   mokhaiotl: MokhaiotlFilters;
+  tfa: TfaFilters;
   accurateSplits: boolean;
   fullRecordings: boolean;
   /** Params that are forwarded directly without being interpreted. */
@@ -216,6 +235,7 @@ export function defaultSearchFilters(): SearchFilters {
     splits: new Map(),
     tob: emptyTobFilters(),
     mokhaiotl: emptyMokhaiotlFilters(),
+    tfa: emptyTfaFilters(),
     accurateSplits: true,
     fullRecordings: false,
     passthrough: { spawns: [] },
@@ -334,6 +354,12 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     }
   }
 
+  if (hasTfaFilters(filters.tfa)) {
+    params['tfa.route'] = filters.tfa.route
+      .toSorted((a, b) => a - b)
+      .map((stage) => stagePath(stage));
+  }
+
   return params;
 }
 
@@ -407,6 +433,14 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
       case 'spawn':
         context.filters.passthrough.spawns = Array.isArray(v) ? v : [value];
         break;
+
+      case 'tfa.route': {
+        const route = value.split(',').map(tfaBossFromToken);
+        if (route.every((stage) => stage !== null)) {
+          context.filters.tfa.route = route;
+        }
+        break;
+      }
 
       case 'options': {
         const options = value.split(',');

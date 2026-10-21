@@ -31,6 +31,7 @@ import {
   ObjectEntity,
   Terrain,
 } from '@/components/map-renderer';
+import MissingStageData from '@/components/missing-stage-data';
 import { useDisplay } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
@@ -44,7 +45,6 @@ import { getItemImageUrl } from '@/utils/item';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
-import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';

@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 
 import {
+  getTfaReachedByStage,
   getTotalDeathsByStage,
   GroupedAggregationResult,
 } from '@/actions/challenge';
@@ -105,7 +106,7 @@ export default function ChallengeStats({
           fetch(`/api/v1/challenges/stats?type=${challenge}&group=stage,status`)
             .then((res) => res.json())
             .then(
-              (
+              async (
                 res: GroupedAggregationResult<
                   { '*': { type: 'count' } },
                   ['stage', 'status']
@@ -127,25 +128,32 @@ export default function ChallengeStats({
                   attemptsByStage[stage] = total;
                 }
 
-                const sortedStages = Object.keys(attemptsByStage)
-                  .map(Number)
-                  .sort((a, b) => a - b);
+                let reachedByStage: Record<number, number> = {};
+                if (challenge === ChallengeType.TFA) {
+                  reachedByStage = await getTfaReachedByStage();
+                } else {
+                  const sortedStages = Object.keys(attemptsByStage)
+                    .map(Number)
+                    .sort((a, b) => a - b);
 
-                const reachedByStage: Record<number, number> = {};
-                let reached = 0;
-                for (let i = sortedStages.length - 1; i >= 0; i--) {
-                  reached += attemptsByStage[sortedStages[i]];
-                  reachedByStage[sortedStages[i]] = reached;
+                  let reached = 0;
+                  for (let i = sortedStages.length - 1; i >= 0; i--) {
+                    reached += attemptsByStage[sortedStages[i]];
+                    reachedByStage[sortedStages[i]] = reached;
+                  }
                 }
 
                 const stats: Record<
                   number,
                   { wipes: number; reached: number }
                 > = {};
-                for (const stage of sortedStages) {
+                for (const [stageKey, reached] of Object.entries(
+                  reachedByStage,
+                )) {
+                  const stage = Number(stageKey);
                   stats[stage] = {
                     wipes: wipesByStage[stage] ?? 0,
-                    reached: reachedByStage[stage],
+                    reached,
                   };
                 }
                 setWipeStatsByStage(stats);

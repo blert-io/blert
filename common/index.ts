@@ -174,6 +174,7 @@ export {
   isTfaStage,
   isToaStage,
   isTobStage,
+  TFA_ROWS,
 } from './challenge';
 
 export {
