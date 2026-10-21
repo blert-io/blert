@@ -36,6 +36,7 @@ import {
   Terrain,
 } from '@/components/map-renderer';
 import Loading from '@/components/loading';
+import MissingStageData from '@/components/missing-stage-data';
 import { DisplayContext } from '@/display';
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import {
@@ -50,7 +51,6 @@ import { coordsEqual, inRect } from '@/utils/coords';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
-import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';

@@ -4,6 +4,7 @@ import {
   SplitType,
   Stage,
   stageName,
+  stagesForChallenge,
 } from '@blert/common';
 import {
   Dispatch,
@@ -30,6 +31,7 @@ import {
   PartyFilter,
   ScaleFilter,
   StatusFilter,
+  TfaRouteFilter,
   TypeFilter,
 } from '../filter-controls';
 
@@ -38,6 +40,7 @@ import {
   SearchFilters,
   defaultSearchFilters,
   hasMokhaiotlFilters,
+  hasTfaFilters,
   hasTobFilters,
 } from './context';
 
@@ -78,6 +81,13 @@ const STAGE_MENU_ITEMS: MenuItem[] = [
       { label: 'Xarpus', value: Stage.TOB_XARPUS },
       { label: 'Verzik', value: Stage.TOB_VERZIK },
     ],
+  },
+  {
+    label: 'TFA',
+    subMenu: stagesForChallenge(ChallengeType.TFA).map((stage) => ({
+      label: stageName(stage),
+      value: stage,
+    })),
   },
   {
     label: 'Inferno',
@@ -161,6 +171,10 @@ export default function Filters({
   if (hasTobFilters(context.filters.tob)) {
     allowedTypes.push(ChallengeType.TOB);
     restrictions.push('ToB-only');
+  }
+  if (hasTfaFilters(context.filters.tfa)) {
+    allowedTypes.push(ChallengeType.TFA);
+    restrictions.push('TFA-only');
   }
   if (hasMokhaiotlFilters(context.filters.mokhaiotl)) {
     allowedTypes.push(ChallengeType.MOKHAIOTL);
@@ -295,6 +309,15 @@ export default function Filters({
           />
         </div>
       </FilterField>
+
+      {(context.filters.type.includes(ChallengeType.TFA) ||
+        hasTfaFilters(context.filters.tfa)) && (
+        <TfaRouteFilter
+          route={context.filters.tfa.route}
+          onChange={(route) => updateFilters({ tfa: { route } })}
+          disabled={loading}
+        />
+      )}
 
       <DateRangeFilter
         startDate={context.filters.startDate}
@@ -723,6 +746,83 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
         ],
       },
       {
+        label: 'TFA',
+        subMenu: [
+          {
+            label: 'Challenge time',
+            value: s('TFA challenge time', SplitType.TFA_CHALLENGE).id,
+          },
+          {
+            label: 'Overall time',
+            value: s('TFA overall time', SplitType.TFA_OVERALL).id,
+          },
+          {
+            label: 'Guardian time',
+            value: s('Guardian time', SplitType.TFA_GUARDIAN).id,
+          },
+          {
+            label: 'Row 1',
+            subMenu: [
+              {
+                label: 'Ezekiel time',
+                value: s('Ezekiel time', SplitType.TFA_EZEKIEL).id,
+              },
+              {
+                label: 'Bork time',
+                value: s('Bork time', SplitType.TFA_BORK).id,
+              },
+            ],
+          },
+          {
+            label: 'Row 2',
+            subMenu: [
+              {
+                label: 'Row entry',
+                value: s('Row 2 entry', SplitType.TFA_ROW_2_START).id,
+              },
+              {
+                label: 'Moia time',
+                value: s('Moia time', SplitType.TFA_MOIA).id,
+              },
+              {
+                label: 'Dreadnoth time',
+                value: s('Dreadnoth time', SplitType.TFA_DREADNOTH).id,
+              },
+            ],
+          },
+          {
+            label: 'Row 3',
+            subMenu: [
+              {
+                label: 'Row entry',
+                value: s('Row 3 entry', SplitType.TFA_ROW_3_START).id,
+              },
+              {
+                label: "Dagon'hai time",
+                value: s("Dagon'hai time", SplitType.TFA_DAGONHAI).id,
+              },
+              {
+                label: 'Xarth time',
+                value: s('Xarth time', SplitType.TFA_XARTH).id,
+              },
+            ],
+          },
+          {
+            label: 'Ocellus',
+            subMenu: [
+              {
+                label: 'Room entry',
+                value: s('Ocellus entry', SplitType.TFA_FINAL_START).id,
+              },
+              {
+                label: 'Room time',
+                value: s('Ocellus room', SplitType.TFA_OCELLUS).id,
+              },
+            ],
+          },
+        ],
+      },
+      {
         label: 'Inferno',
         subMenu: [
           {
@@ -1028,6 +1128,7 @@ function cloneFiltersForCustomEdit(filters: SearchFilters): SearchFilters {
       bloatDowns: new Map(filters.tob.bloatDowns),
     },
     mokhaiotl: { ...filters.mokhaiotl },
+    tfa: { route: [...filters.tfa.route] },
   };
 }
 

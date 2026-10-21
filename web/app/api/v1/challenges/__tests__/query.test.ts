@@ -206,6 +206,42 @@ describe('parseChallengeQuery', () => {
     });
   });
 
+  it('parses tfa routes', () => {
+    const base = { splits: new Map(), customConditions: [] };
+    expect(
+      parseChallengeQuery({
+        'tfa.route': 'guardian,bork,dreadnoth,xarth,ocellus',
+      }),
+    ).toEqual({
+      ...base,
+      tfa: {
+        route: [
+          Stage.TFA_GUARDIAN,
+          Stage.TFA_BORK,
+          Stage.TFA_DREADNOTH,
+          Stage.TFA_XARTH,
+          Stage.TFA_OCELLUS,
+        ],
+      },
+    });
+    expect(parseChallengeQuery({ 'tfa.route': 'moia' })).toEqual({
+      ...base,
+      tfa: { route: [Stage.TFA_MOIA] },
+    });
+    expect(
+      parseChallengeQuery({
+        'tfa.route': `${Stage.TFA_EZEKIEL},${Stage.TFA_DAGONHAI}`,
+      }),
+    ).toEqual({
+      ...base,
+      tfa: { route: [Stage.TFA_EZEKIEL, Stage.TFA_DAGONHAI] },
+    });
+    expect(parseChallengeQuery({ 'tfa.route': 'guardian,ocellus' })).toEqual({
+      ...base,
+      tfa: { route: [Stage.TFA_GUARDIAN, Stage.TFA_OCELLUS] },
+    });
+  });
+
   it('parses a custom query', () => {
     expect(parseChallengeQuery({ q: btoa('challengeTicks > 100') })).toEqual({
       splits: new Map(),
@@ -280,6 +316,12 @@ describe('parseChallengeQuery', () => {
     { 'colo.handicap': `bees,${Handicap.BEES_2}` },
     { 'colo.handicap': '1..3' },
     { 'colo.handicap': '>=2' },
+    { 'tfa.route': 'ezekiel,bork' },
+    { 'tfa.route': 'xarth,xarth' },
+    { 'tfa.route': 'verzik' },
+    { 'tfa.route': `${Stage.TOB_VERZIK}` },
+    { 'tfa.route': '!bork' },
+    { 'tfa.route': 'bork..xarth' },
     { type: `${ChallengeType.TOB}`, spawn: 'npc:shaman@10.11' },
     {
       type: `${ChallengeType.TOB},${ChallengeType.INFERNO}`,

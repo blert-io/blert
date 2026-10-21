@@ -48,6 +48,7 @@
 .splitSection {
   flex-direction: column;
   padding: 16px;
+  container-type: inline-size;
 }
 
 .splitHeader {
@@ -107,6 +108,18 @@
   &.soloLayout {
     grid-template-columns: repeat(auto-fit, minmax(160px, 300px));
     justify-content: start;
+  }
+
+  &.eightScales {
+    grid-template-columns: repeat(2, 1fr);
+
+    @container (min-width: 600px) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    @container (min-width: 1080px) {
+      grid-template-columns: repeat(8, 1fr);
+    }
   }
 }
 

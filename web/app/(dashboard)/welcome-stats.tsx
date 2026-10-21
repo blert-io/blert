@@ -34,6 +34,10 @@ function formatChallengeName(
     return challengeName(type);
   }
 
+  if (type === ChallengeType.TFA) {
+    return `TFA ${scaleName}`;
+  }
+
   if (mode === ChallengeMode.TOB_REGULAR) {
     return `ToB ${scaleName}`;
   }

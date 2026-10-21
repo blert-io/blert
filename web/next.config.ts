@@ -60,6 +60,11 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: '/raids/tfa/:id',
+        destination: '/raids/tfa/:id/overview',
+        permanent: true,
+      },
+      {
         source: '/challenges/mokhaiotl/:id',
         destination: '/challenges/mokhaiotl/:id/overview',
         permanent: true,

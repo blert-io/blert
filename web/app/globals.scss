@@ -64,11 +64,17 @@
   --blert-scale-3-base: 255, 187, 40;
   --blert-scale-4-base: 255, 128, 66;
   --blert-scale-5-base: 136, 132, 216;
+  --blert-scale-6-base: 162, 98, 57;
+  --blert-scale-7-base: 122, 218, 248;
+  --blert-scale-8-base: 188, 40, 164;
   --blert-scale-1: rgb(var(--blert-scale-1-base));
   --blert-scale-2: rgb(var(--blert-scale-2-base));
   --blert-scale-3: rgb(var(--blert-scale-3-base));
   --blert-scale-4: rgb(var(--blert-scale-4-base));
   --blert-scale-5: rgb(var(--blert-scale-5-base));
+  --blert-scale-6: rgb(var(--blert-scale-6-base));
+  --blert-scale-7: rgb(var(--blert-scale-7-base));
+  --blert-scale-8: rgb(var(--blert-scale-8-base));
 
   // Material overrides.
   --blert-radius: 5px;
@@ -511,6 +517,18 @@ button {
 
 [data-scale='5'] {
   --challenge-color: var(--blert-scale-5);
+}
+
+[data-scale='6'] {
+  --challenge-color: var(--blert-scale-6);
+}
+
+[data-scale='7'] {
+  --challenge-color: var(--blert-scale-7);
+}
+
+[data-scale='8'] {
+  --challenge-color: var(--blert-scale-8);
 }
 
 // Stage identity colors.

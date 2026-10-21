@@ -1354,6 +1354,14 @@ export function isTfaStage(stage: Stage): stage is TfaStage {
   return stage >= Stage.TFA_GUARDIAN && stage <= Stage.TFA_OCELLUS;
 }
 
+export const TFA_ROWS: Stage[][] = [
+  [Stage.TFA_GUARDIAN],
+  [Stage.TFA_EZEKIEL, Stage.TFA_BORK],
+  [Stage.TFA_MOIA, Stage.TFA_DREADNOTH],
+  [Stage.TFA_DAGONHAI, Stage.TFA_XARTH],
+  [Stage.TFA_OCELLUS],
+];
+
 export type ColosseumStage =
   | Stage.COLOSSEUM_WAVE_1
   | Stage.COLOSSEUM_WAVE_2

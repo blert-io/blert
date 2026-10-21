@@ -105,6 +105,12 @@
   gap: 0.125rem;
 }
 
+.routeRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .partyInput {
   display: flex;
   flex-direction: column;

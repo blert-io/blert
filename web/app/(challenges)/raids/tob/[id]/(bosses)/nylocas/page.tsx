@@ -57,6 +57,7 @@ import {
   osrsToThreePosition,
   Terrain,
 } from '@/components/map-renderer';
+import MissingStageData from '@/components/missing-stage-data';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { useDisplay } from '@/display';
 import {
@@ -73,7 +74,6 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import NyloDimSettings, { DimThreshold } from './dim-settings';
 import BarrierEntity from '../barrier';
-import MissingStageData from '../missing-stage-data';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';

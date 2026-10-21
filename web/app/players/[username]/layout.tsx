@@ -14,24 +14,12 @@ import {
 } from '@/actions/challenge';
 import { isFollowing } from '@/actions/feed';
 import { getSession } from '@/auth';
+import { scaleNameAndColor } from '@/utils/challenge';
 import { withIndefiniteArticle } from '@/utils/copy';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import FollowButton from './follow-button';
 import RecentChallengeCard, { RecentChallenge } from './recent-challenge-card';
-
-function scaleName(scale: number) {
-  return scale === 1
-    ? 'Solo'
-    : scale === 2
-      ? 'Duo'
-      : scale === 3
-        ? 'Trio'
-        : scale === 4
-          ? '4s'
-          : '5s';
-}
-
 import { PlayerProvider } from './player-context';
 import Navigation from './navigation';
 
@@ -242,7 +230,7 @@ export async function generateMetadata(
     `out of ${totalRaids} raid${totalRaids === 1 ? '' : 's'}, ` +
     `with ${withIndefiniteArticle(`${completionRate}% success rate`)}. ` +
     (bestTobTime !== null
-      ? `Best time: ${ticksToFormattedSeconds(bestTobTime)} (${scaleName(bestTobScale!)}). `
+      ? `Best time: ${ticksToFormattedSeconds(bestTobTime)} (${scaleNameAndColor(bestTobScale!)[0]}). `
       : '') +
     `${stats.deathsTotal} total deaths.`;
 

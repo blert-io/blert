@@ -14,7 +14,7 @@ function isSplitTier(value: string): value is SplitTier {
   return VALID_TIERS.includes(value);
 }
 
-const MAX_PLAYERS = 5;
+const MAX_PLAYERS = 8;
 
 export const GET = withApiRoute(
   { route: '/api/v1/splits/distributions/query' },
@@ -47,7 +47,7 @@ export const GET = withApiRoute(
       );
     }
 
-    if (scale < 1 || scale > 5) {
+    if (scale < 1 || scale > MAX_PLAYERS) {
       return Response.json({ error: 'Invalid scale' }, { status: 400 });
     }
 

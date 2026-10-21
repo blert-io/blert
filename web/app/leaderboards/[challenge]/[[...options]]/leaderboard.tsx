@@ -221,6 +221,12 @@ export default function Leaderboard({
   return (
     <Card header={{ title }} className={styles.boardCard}>
       <div className={styles.board}>
+        {ranks.length === 0 && (
+          <div className={styles.emptyState}>
+            <i className="fas fa-trophy" />
+            <p>No times recorded yet</p>
+          </div>
+        )}
         {ranks.map((rank, i) => (
           <div key={i} className={styles.entry}>
             <Link

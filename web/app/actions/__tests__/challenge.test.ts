@@ -1165,6 +1165,129 @@ describe('challenges', () => {
       });
     });
 
+    describe('tfa route filters', () => {
+      const BORK_MOIA_XARTH = 'a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1';
+      const EZEKIEL = 'a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2';
+      const EZEKIEL_DREADNOTH = 'a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3';
+      const NO_ROUTE = 'a4a4a4a4-a4a4-a4a4-a4a4-a4a4a4a4a4a4';
+
+      beforeEach(async () => {
+        const raids: [string, ChallengeStatus, Stage, number | null][] = [
+          [BORK_MOIA_XARTH, ChallengeStatus.COMPLETED, Stage.TFA_OCELLUS, 5],
+          [EZEKIEL, ChallengeStatus.WIPED, Stage.TFA_EZEKIEL, 0],
+          [EZEKIEL_DREADNOTH, ChallengeStatus.WIPED, Stage.TFA_DAGONHAI, 2],
+          [NO_ROUTE, ChallengeStatus.WIPED, Stage.TFA_OCELLUS, null],
+        ];
+
+        const rows = await sql`
+          INSERT INTO challenges ${sql(
+            raids.map(([uuid, status, stage], i) => ({
+              session_id: sessionId,
+              uuid,
+              type: ChallengeType.TFA,
+              status,
+              stage,
+              start_time: new Date(`2024-01-01T${14 + i}:00:00Z`),
+              scale: 4,
+            })),
+            [
+              'session_id',
+              'uuid',
+              'type',
+              'status',
+              'stage',
+              'start_time',
+              'scale',
+            ],
+          )} RETURNING id
+        `;
+
+        await sql`
+          INSERT INTO tfa_challenge_stats ${sql(
+            raids.map(([, , , route], i) => ({
+              challenge_id: rows[i].id,
+              route,
+            })),
+            ['challenge_id', 'route'],
+          )}
+        `;
+
+        await sql`
+          INSERT INTO challenges ${sql({
+            session_id: sessionId,
+            uuid: 'a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5',
+            type: ChallengeType.COLOSSEUM,
+            status: ChallengeStatus.WIPED,
+            stage: Stage.COLOSSEUM_WAVE_12,
+            start_time: new Date('2024-01-01T18:00:00Z'),
+            scale: 1,
+          })}
+        `;
+      });
+
+      it('matches the left boss only in raids that reached its row', async () => {
+        const [challenges] = await findChallenges(10, {
+          tfa: { route: [Stage.TFA_MOIA] },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([BORK_MOIA_XARTH]);
+      });
+
+      it('matches the right boss by its route bit', async () => {
+        const [challenges] = await findChallenges(10, {
+          tfa: { route: [Stage.TFA_EZEKIEL, Stage.TFA_DREADNOTH] },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([EZEKIEL_DREADNOTH]);
+      });
+
+      it('matches a full route, and never matches a raid without a route', async () => {
+        const [challenges] = await findChallenges(10, {
+          tfa: {
+            route: [
+              Stage.TFA_GUARDIAN,
+              Stage.TFA_BORK,
+              Stage.TFA_MOIA,
+              Stage.TFA_XARTH,
+              Stage.TFA_OCELLUS,
+            ],
+          },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([BORK_MOIA_XARTH]);
+      });
+
+      it('matches every raid that reached Ocellus when only Ocellus is listed', async () => {
+        const [challenges] = await findChallenges(10, {
+          tfa: { route: [Stage.TFA_OCELLUS] },
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([
+          BORK_MOIA_XARTH,
+          NO_ROUTE,
+        ]);
+      });
+
+      it('drops raids that wiped before Ocellus when Ocellus is listed', async () => {
+        const [withoutOcellus] = await findChallenges(10, {
+          tfa: { route: [Stage.TFA_EZEKIEL] },
+        });
+        expect(withoutOcellus.map((c) => c.uuid).sort()).toEqual([
+          EZEKIEL,
+          EZEKIEL_DREADNOTH,
+        ]);
+
+        const [withOcellus] = await findChallenges(10, {
+          tfa: { route: [Stage.TFA_EZEKIEL, Stage.TFA_OCELLUS] },
+        });
+        expect(withOcellus).toEqual([]);
+      });
+
+      it('still applies an explicit stage filter', async () => {
+        const [challenges] = await findChallenges(10, {
+          stage: ['==', Stage.TFA_EZEKIEL],
+          tfa: { route: [Stage.TFA_EZEKIEL] },
+        });
+        expect(challenges.map((c) => c.uuid)).toEqual([EZEKIEL]);
+      });
+    });
+
     describe('sort by tob:xarpusHealing', () => {
       beforeEach(async () => {
         await sql`

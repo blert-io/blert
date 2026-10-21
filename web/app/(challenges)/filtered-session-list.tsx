@@ -6,6 +6,7 @@ import { useState } from 'react';
 import Card from '@/components/card';
 import RadioInput from '@/components/radio-input';
 import { ClientSessionHistory } from '@/components/session-history';
+import { scaleNameAndColor } from '@/utils/challenge';
 
 import styles from './filtered-session-list.module.scss';
 
@@ -18,6 +19,7 @@ export default function FilteredSessionList({ type }: { type: ChallengeType }) {
     type === ChallengeType.INFERNO ||
     type === ChallengeType.MOKHAIOTL;
   const hasMode = type === ChallengeType.TOB;
+  const maxScale = type === ChallengeType.TFA ? 8 : 5;
 
   return (
     <Card
@@ -46,36 +48,15 @@ export default function FilteredSessionList({ type }: { type: ChallengeType }) {
                 label="Any"
                 value={0}
               />
-              <RadioInput.Option
-                checked={scale === 1}
-                id="scale-1"
-                label="Solo"
-                value={1}
-              />
-              <RadioInput.Option
-                checked={scale === 2}
-                id="scale-2"
-                label="Duo"
-                value={2}
-              />
-              <RadioInput.Option
-                checked={scale === 3}
-                id="scale-3"
-                label="Trio"
-                value={3}
-              />
-              <RadioInput.Option
-                checked={scale === 4}
-                id="scale-4"
-                label="4s"
-                value={4}
-              />
-              <RadioInput.Option
-                checked={scale === 5}
-                id="scale-5"
-                label="5s"
-                value={5}
-              />
+              {Array.from({ length: maxScale }, (_, i) => i + 1).map((s) => (
+                <RadioInput.Option
+                  key={s}
+                  checked={scale === s}
+                  id={`scale-${s}`}
+                  label={scaleNameAndColor(s)[0]}
+                  value={s}
+                />
+              ))}
             </RadioInput.Group>
           </div>
         )}

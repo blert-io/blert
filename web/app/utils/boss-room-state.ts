@@ -12,8 +12,10 @@ import {
   SkillLevel,
   SplitType,
   Stage,
+  TfaRaid,
   TobRaid,
   TobRooms,
+  getNpcDefinition,
 } from '@blert/common';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -28,6 +30,7 @@ import {
 
 import { ChallengeContext, useLiveChallenge } from '@/challenge-context';
 import { AnyEntity, NpcEntity, PlayerEntity } from '@/components/map-renderer';
+import { relevantSplitsForStage } from '@/utils/challenge';
 import { useLiveStageState } from '@/utils/live-stage-state';
 import { clamp } from '@/utils/math';
 
@@ -262,6 +265,15 @@ export function getStageInfo(
     return {
       ticks: challenge.splits[split!] ?? -1,
       npcs: raid.tobRooms[room]?.npcs ?? {},
+    };
+  }
+
+  if (challenge.type === ChallengeType.TFA) {
+    const raid = challenge as TfaRaid;
+    const [split] = relevantSplitsForStage(stage);
+    return {
+      ticks: challenge.splits[split] ?? -1,
+      npcs: raid.tfa.bosses.find((boss) => boss.stage === stage)?.npcs ?? {},
     };
   }
 
@@ -543,7 +555,7 @@ function buildEntitiesForTick(
 
   for (const [roomId, npc] of npcState) {
     const ns = npc.stateByTick[tick];
-    if (!ns) {
+    if (!ns || getNpcDefinition(ns.id)?.renderable === false) {
       continue;
     }
 
@@ -650,7 +662,10 @@ export function usePreloads(npcState: RoomNpcMap, skip = false): string[] {
     const urls = new Set<string>();
     for (const [, npc] of npcState) {
       for (const state of npc.stateByTick) {
-        if (state !== null) {
+        if (
+          state !== null &&
+          getNpcDefinition(state.id)?.renderable !== false
+        ) {
           urls.add(npcImageUrl(state.id));
         }
       }

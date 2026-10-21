@@ -83,13 +83,23 @@ describe('toggleNoModeType', () => {
     expect(result.mode).toEqual([]);
   });
 
-  it('keeps NO_MODE when another no-mode type remains', () => {
+  it('keeps NO_MODE set if another no-mode type exists', () => {
     const result = toggleNoModeType(
       [ChallengeType.INFERNO, ChallengeType.COLOSSEUM],
       [ChallengeMode.NO_MODE],
       ChallengeType.INFERNO,
     );
     expect(result.type).toEqual([ChallengeType.COLOSSEUM]);
+    expect(result.mode).toEqual([ChallengeMode.NO_MODE]);
+  });
+
+  it('keeps NO_MODE set if TFA exists', () => {
+    const result = toggleNoModeType(
+      [ChallengeType.TFA, ChallengeType.INFERNO],
+      [ChallengeMode.NO_MODE],
+      ChallengeType.INFERNO,
+    );
+    expect(result.type).toEqual([ChallengeType.TFA]);
     expect(result.mode).toEqual([ChallengeMode.NO_MODE]);
   });
 

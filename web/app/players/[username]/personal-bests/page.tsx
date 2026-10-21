@@ -16,6 +16,7 @@ import { PersonalBest } from '@/actions/challenge';
 import RadioInput from '@/components/radio-input';
 import { DisplayContext } from '@/display';
 import { challengeLogo } from '@/logo';
+import { scaleNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl, queryString } from '@/utils/url';
 
@@ -30,7 +31,7 @@ import SotetsegIcon from '@/svg/sotetseg.svg';
 import XarpusIcon from '@/svg/xarpus.svg';
 import VerzikIcon from '@/svg/verzik.svg';
 
-type Scale = 1 | 2 | 3 | 4 | 5;
+type Scale = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 type SplitMetadata = {
   type: SplitType;
@@ -111,6 +112,71 @@ const TOB_SPLIT_TYPES: SplitMetadata[] = [
     name: 'Verzik',
     description: 'Best Verzik room completion time',
     icon: <VerzikIcon width={28} height={28} />,
+  },
+];
+
+const TFA_SPLIT_TYPES: SplitMetadata[] = [
+  {
+    type: SplitType.TFA_CHALLENGE,
+    name: 'Challenge Time',
+    description: 'Best challenge completion time',
+    icon: 'fas fa-flag-checkered',
+    fullWidth: true,
+  },
+  {
+    type: SplitType.TFA_OVERALL,
+    name: 'Overall Time',
+    description: 'Best overall (real time) raid completion time',
+    icon: 'fas fa-clock',
+    fullWidth: true,
+  },
+  {
+    type: SplitType.TFA_GUARDIAN,
+    name: 'Guardian',
+    description: 'Best Guardian room completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_EZEKIEL,
+    name: 'Ezekiel',
+    description: 'Best Ezekiel room completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_BORK,
+    name: 'Bork',
+    description: 'Best Bork room completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_MOIA,
+    name: 'Moia',
+    description: 'Best Moia room completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_DREADNOTH,
+    name: 'Dreadnoth',
+    description: 'Best Dreadnoth room completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_DAGONHAI,
+    name: "Dagon'hai",
+    description: "Best Dagon'hai room completion time",
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_XARTH,
+    name: 'Xarth',
+    description: 'Best Xarth room completion time',
+    icon: 'fas fa-stopwatch',
+  },
+  {
+    type: SplitType.TFA_OCELLUS,
+    name: 'Ocellus',
+    description: 'Best Ocellus room completion time',
+    icon: 'fas fa-stopwatch',
   },
 ];
 
@@ -337,18 +403,7 @@ const MOKHAIOTL_SPLIT_TYPES: SplitMetadata[] = [
 ];
 
 const TOB_SCALES = [1, 2, 3, 4, 5] as Scale[];
-
-function scaleName(scale: Scale): string {
-  return scale === 1
-    ? 'Solo'
-    : scale === 2
-      ? 'Duo'
-      : scale === 3
-        ? 'Trio'
-        : scale === 4
-          ? '4-man'
-          : '5-man';
-}
+const TFA_SCALES = [1, 2, 3, 4, 5, 6, 7, 8] as Scale[];
 
 function typeParamToSelection(
   typeParam: string | null,
@@ -358,6 +413,8 @@ function typeParamToSelection(
       return [ChallengeType.TOB, ChallengeMode.TOB_REGULAR];
     case 'hmt':
       return [ChallengeType.TOB, ChallengeMode.TOB_HARD];
+    case 'tfa':
+      return [ChallengeType.TFA, ChallengeMode.NO_MODE];
     case 'inf':
       return [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
     case 'colo':
@@ -395,7 +452,7 @@ function PersonalBestCard({
   if (pb === null) {
     return (
       <div className={styles.pbCard}>
-        <div className={styles.pbScale}>{scaleName(scale)}</div>
+        <div className={styles.pbScale}>{scaleNameAndColor(scale)[0]}</div>
         <div className={styles.pbTime}>--:--.-</div>
         <div className={styles.pbDate}>No completion</div>
       </div>
@@ -407,7 +464,7 @@ function PersonalBestCard({
       href={challengeUrl(type, pb.cid)}
       className={`${styles.pbCard} ${styles.hasTime}`}
     >
-      <div className={styles.pbScale}>{scaleName(scale)}</div>
+      <div className={styles.pbScale}>{scaleNameAndColor(scale)[0]}</div>
       <div className={styles.pbTime}>{ticksToFormattedSeconds(pb.ticks)}</div>
       <div className={styles.pbDate}>
         {pb.date?.toLocaleDateString() ?? 'Unknown date'}
@@ -505,7 +562,9 @@ function SplitTypeSection({
           <p>{type.description}</p>
         </div>
       </div>
-      <div className={styles.pbGrid}>
+      <div
+        className={`${styles.pbGrid} ${scales.length === 8 ? styles.eightScales : ''}`}
+      >
         {scales.map((scale) => (
           <PersonalBestCard
             key={scale}
@@ -599,6 +658,10 @@ export default function PlayerPersonalBests() {
       splitTypes = TOB_SPLIT_TYPES;
       scales = TOB_SCALES;
       break;
+    case ChallengeType.TFA:
+      splitTypes = TFA_SPLIT_TYPES;
+      scales = TFA_SCALES;
+      break;
     case ChallengeType.INFERNO:
       splitTypes = INFERNO_SPLIT_TYPES;
       break;
@@ -628,6 +691,9 @@ export default function PlayerPersonalBests() {
                   break;
                 case 'hmt':
                   newSelection = [ChallengeType.TOB, ChallengeMode.TOB_HARD];
+                  break;
+                case 'tfa':
+                  newSelection = [ChallengeType.TFA, ChallengeMode.NO_MODE];
                   break;
                 case 'inf':
                   newSelection = [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
@@ -696,6 +762,25 @@ export default function PlayerPersonalBests() {
                     />
                   )}
                   {display.isCompact() ? 'HMT' : 'ToB Hard Mode'}
+                </span>
+              }
+            />
+            <RadioInput.Option
+              checked={type === ChallengeType.TFA}
+              id="personal-bests-challenge-tfa"
+              value="tfa"
+              label={
+                <span className={styles.pbOption}>
+                  {!display.isCompact() && (
+                    <Image
+                      src={challengeLogo(ChallengeType.TFA)}
+                      alt={challengeName(ChallengeType.TFA)}
+                      width={24}
+                      height={24}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  )}
+                  {display.isCompact() ? 'TFA' : 'Fractured Archive'}
                 </span>
               }
             />
