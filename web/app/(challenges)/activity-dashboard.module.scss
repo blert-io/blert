@@ -428,32 +428,6 @@
   }
 }
 
-.loadingPlaceholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  color: var(--blert-font-color-secondary);
-  background: linear-gradient(
-    135deg,
-    rgba(var(--blert-panel-background-color-base), 0.3) 0%,
-    rgba(var(--blert-surface-dark-base), 0.1) 100%
-  );
-  border: 2px dashed rgba(var(--blert-font-color-secondary-base), 0.3);
-  border-radius: 8px;
-  padding: 2rem;
-
-  i {
-    font-size: 1.5rem;
-    color: var(--blert-purple);
-  }
-
-  span {
-    font-size: 0.9rem;
-  }
-}
-
 .emptyPlaceholder {
   display: flex;
   flex-direction: column;
