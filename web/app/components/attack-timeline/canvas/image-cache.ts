@@ -78,6 +78,7 @@ export class ImageCache {
     urls.add('/images/combat/spec.png');
     urls.add('/images/combat/dark-demonbane.webp');
     urls.add('/images/combat/ice-rush.png');
+    urls.add('/images/combat/smash.webp');
     urls.add('/images/combat/skull.webp');
     urls.add('/images/combat/punch.webp');
     urls.add('/images/combat/kick.webp');

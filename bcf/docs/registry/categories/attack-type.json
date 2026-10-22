@@ -1,6 +1,6 @@
 {
   "category": "attackType",
-  "updatedAt": "2026-01-30",
+  "updatedAt": "2026-10-22",
   "items": [
     {
       "id": "UNKNOWN",
@@ -199,6 +199,22 @@
       "summary": "Dragon claws spec",
       "introduced": "2026-01-30",
       "details": "A special attack with Dragon claws.",
+      "tags": ["melee", "spec"]
+    },
+    {
+      "id": "CRIMSON_KISTEN_AUTO",
+      "status": "active",
+      "summary": "Crimson kisten auto",
+      "introduced": "2026-10-22",
+      "details": "An auto attack with the Crimson kisten.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "CRIMSON_KISTEN_SPEC",
+      "status": "active",
+      "summary": "Crimson kisten spec",
+      "introduced": "2026-10-22",
+      "details": "A special attack with the Crimson kisten.",
       "tags": ["melee", "spec"]
     },
     {
@@ -530,6 +546,22 @@
       "tags": ["melee"]
     },
     {
+      "id": "OBLIGATOR_SMASH",
+      "status": "active",
+      "summary": "Obligator smash",
+      "introduced": "2026-10-22",
+      "details": "A smash attack with the Obligator.",
+      "tags": ["melee"]
+    },
+    {
+      "id": "OBLIGATOR_THRUST",
+      "status": "active",
+      "summary": "Obligator thrust",
+      "introduced": "2026-10-22",
+      "details": "A thrust attack with the Obligator.",
+      "tags": ["melee"]
+    },
+    {
       "id": "PUNCH",
       "status": "active",
       "summary": "Punch",
@@ -656,6 +688,14 @@
       "introduced": "2026-01-30",
       "details": "An attack with the Soulreaper axe.",
       "tags": ["melee"]
+    },
+    {
+      "id": "SOULREAPER_AXE_SPEC",
+      "status": "active",
+      "summary": "Soulreaper axe spec",
+      "introduced": "2026-10-22",
+      "details": "A special attack with the Soulreaper axe.",
+      "tags": ["melee", "spec"]
     },
     {
       "id": "STAFF_OF_LIGHT_BARRAGE",
