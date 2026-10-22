@@ -192,7 +192,16 @@ impl Pipeline {
                     challenge::update_stage(&run.txn, stage)
                 })
                 .await?;
-                Ok((ProcessingPayload::None, None))
+                let Some(mut processor) =
+                    processor_for(self.config, &run.request.challenge, run.txn.custom_data())?
+                else {
+                    return Ok((ProcessingPayload::None, None));
+                };
+                time(&mut run.timings.processor, || {
+                    processor.on_stage_started(&run.txn, stage)
+                })
+                .await?;
+                Ok((ProcessingPayload::None, processor.custom_data()))
             }
             Trigger::Mode { mode, .. } => {
                 time(&mut run.timings.writes, || {

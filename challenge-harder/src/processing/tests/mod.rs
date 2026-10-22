@@ -12,6 +12,7 @@ use crate::lifecycle::core::types::{ClientStageStream, Stage, Uuid};
 use crate::merging::MergeCapture;
 use crate::repository::DataRepository;
 
+mod archive;
 mod colosseum;
 mod effects;
 mod finish;
