@@ -485,6 +485,13 @@ async fn reported_overall_time_without_challenge_time_keeps_the_recorded_ticks()
             boss(Stage::TfaXarth),
             boss(Stage::TfaOcellus),
         ],
+        "startedStages": [
+            Stage::TfaGuardian as i32,
+            Stage::TfaEzekiel as i32,
+            Stage::TfaMoia as i32,
+            Stage::TfaXarth as i32,
+            Stage::TfaOcellus as i32,
+        ],
         "inaccurateRoom": false,
     });
     let txn = db

@@ -23,20 +23,24 @@ use crate::proto::{ChallengeData, challenge_data};
 #[serde(rename_all = "camelCase")]
 struct CustomData {
     bosses: Vec<BossData>,
+    #[serde(default)]
+    started_stages: Vec<Stage>,
     inaccurate_room: bool,
 }
 
 impl CustomData {
-    fn route(&self) -> i16 {
-        self.bosses.iter().fold(0, |route, boss| {
-            match TFA_ROWS
-                .iter()
-                .position(|row| row.get(1) == Some(&boss.stage))
-            {
-                Some(row) => route | (1 << (row - 1)),
-                None => route,
-            }
-        })
+    fn route(&self) -> Option<i16> {
+        let started = |stage: &Stage| self.started_stages.contains(stage);
+        let furthest = TFA_ROWS.iter().rposition(|row| row.iter().any(started))?;
+        TFA_ROWS[..=furthest]
+            .iter()
+            .enumerate()
+            .try_fold(0, |route, (index, row)| match row {
+                [_] => Some(route),
+                [_, right] if started(right) => Some(route | (1 << (index - 1))),
+                [left, _] if started(left) => Some(route),
+                _ => None,
+            })
     }
 }
 
@@ -124,10 +128,19 @@ impl ArchiveProcessor {
     ) -> Result<ArchiveProcessor, ProcessingError> {
         let data = match custom_data {
             Some(value) => {
-                serde_json::from_value(value.clone()).map_err(|error| ProcessingError {
-                    retriable: false,
-                    message: format!("custom data deserialization failed: {error}"),
-                })?
+                let mut data: CustomData =
+                    serde_json::from_value(value.clone()).map_err(|error| ProcessingError {
+                        retriable: false,
+                        message: format!("custom data deserialization failed: {error}"),
+                    })?;
+                // TODO(frolv): Remove once challenges created before started stages were stored have finished.
+                if data.started_stages.is_empty() {
+                    data.started_stages = data.bosses.iter().map(|boss| boss.stage).collect();
+                    if !data.started_stages.contains(&challenge.stage) {
+                        data.started_stages.push(challenge.stage);
+                    }
+                }
+                data
             }
             None => CustomData::default(),
         };
@@ -147,9 +160,24 @@ impl ChallengeProcessor for ArchiveProcessor {
     }
 
     async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error> {
+        self.data.started_stages.push(self.challenge.stage);
         txn.execute(
-            "INSERT INTO tfa_challenge_stats (challenge_id) VALUES ($1)",
-            &[&txn.challenge_id()],
+            "INSERT INTO tfa_challenge_stats (challenge_id, route) VALUES ($1, $2)",
+            &[&txn.challenge_id(), &self.data.route()],
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn on_stage_started(
+        &mut self,
+        txn: &db::Transaction,
+        stage: Stage,
+    ) -> Result<(), db::Error> {
+        self.data.started_stages.push(stage);
+        txn.execute(
+            "UPDATE tfa_challenge_stats SET route = $1 WHERE challenge_id = $2",
+            &[&self.data.route(), &txn.challenge_id()],
         )
         .await?;
         Ok(())
@@ -204,15 +232,12 @@ impl ChallengeProcessor for ArchiveProcessor {
         }
 
         let deaths = i32::try_from(ctx.deaths().len()).expect("max 8 deaths");
-        let route = self
-            .has_fully_recorded_up_to(stage)
-            .then(|| self.data.route());
         txn.execute(
             &format!(
                 "UPDATE tfa_challenge_stats SET {} = $1, route = $2 WHERE challenge_id = $3",
                 deaths_column(stage),
             ),
-            &[&deaths, &route, &txn.challenge_id()],
+            &[&deaths, &self.data.route(), &txn.challenge_id()],
         )
         .await?;
 

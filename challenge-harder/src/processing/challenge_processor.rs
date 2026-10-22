@@ -310,6 +310,15 @@ pub trait ChallengeProcessor: Send {
     /// Invoked when the challenge's database records are created.
     async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error>;
 
+    /// Invoked when the challenge starts a new stage.
+    async fn on_stage_started(
+        &mut self,
+        _txn: &db::Transaction,
+        _stage: Stage,
+    ) -> Result<(), db::Error> {
+        Ok(())
+    }
+
     /// Invoked after a stage's events have been processed, returning how the
     /// stage updates the challenge tick count.
     async fn on_stage_finished(
