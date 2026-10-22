@@ -29,13 +29,13 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^26.6.5",
     "jest": "^30.5.2",
-    "ts-jest": "^29.4.14",
+    "ts-jest": "^29.4.15",
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1149.0",
+    "@aws-sdk/client-s3": "^3.1152.0",
     "postgres": "^3.4.9",
-    "zod": "^4.6.6"
+    "zod": "^4.6.7"
   },
   "overrides": {
     "@smithy/core": "3.20.0"
