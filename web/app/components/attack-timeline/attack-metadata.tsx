@@ -210,6 +210,22 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MELEE,
     verb: 'clawed',
   },
+  [PlayerAttack.CRIMSON_KISTEN_AUTO]: {
+    tagColor: TagColor.RED,
+    letter: 'ck',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+    verb: 'flailed',
+  },
+  [PlayerAttack.CRIMSON_KISTEN_SPEC]: {
+    tagColor: TagColor.RED,
+    letter: 'CK',
+    ranged: false,
+    special: true,
+    style: CombatStyle.MELEE,
+    verb: 'kisten specced',
+  },
   [PlayerAttack.DARK_DEMONBANE]: {
     tagColor: TagColor.BLUE,
     letter: 'DEM',
@@ -522,6 +538,22 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MELEE,
     verb: 'hallied',
   },
+  [PlayerAttack.OBLIGATOR_SMASH]: {
+    tagColor: TagColor.RED,
+    letter: 'os',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+    verb: 'smashed',
+  },
+  [PlayerAttack.OBLIGATOR_THRUST]: {
+    tagColor: TagColor.RED,
+    letter: 'OT',
+    ranged: false,
+    special: false,
+    style: CombatStyle.MELEE,
+    verb: 'thrust at',
+  },
   [PlayerAttack.PUNCH]: {
     tagColor: undefined,
     letter: 'p',
@@ -636,11 +668,19 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
   },
   [PlayerAttack.SOULREAPER_AXE]: {
     tagColor: TagColor.RED,
-    letter: 'AXE',
+    letter: 'axe',
     ranged: false,
     special: false,
     style: CombatStyle.MELEE,
     verb: 'hacked at',
+  },
+  [PlayerAttack.SOULREAPER_AXE_SPEC]: {
+    tagColor: TagColor.RED,
+    letter: 'AXE',
+    ranged: false,
+    special: true,
+    style: CombatStyle.MELEE,
+    verb: 'beheaded',
   },
   [PlayerAttack.STAFF_OF_LIGHT_BARRAGE]: {
     tagColor: TagColor.BLUE,
@@ -1339,6 +1379,8 @@ export function getAttackBadgeUrl(attack: BCFAttackAction): string | undefined {
       return '/images/combat/dark-demonbane.webp';
     case PlayerAttack.ICE_RUSH:
       return '/images/combat/ice-rush.png';
+    case PlayerAttack.OBLIGATOR_SMASH:
+      return '/images/combat/smash.webp';
   }
 
   const isSpec =
