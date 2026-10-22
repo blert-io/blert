@@ -1,4 +1,5 @@
 import {
+  challengeForStage,
   ChallengeMode,
   challengeName,
   ChallengeStatus,
@@ -84,6 +85,36 @@ function valuesInRange(
     default:
       return inRange(comparator[1]);
   }
+}
+
+function challengeForStageComparator(
+  comparator: Comparator<Stage>,
+): ChallengeType | null {
+  let bounds: Stage[];
+  switch (comparator[0]) {
+    case '<':
+    case '<=':
+    case '>':
+    case '>=':
+      bounds = [comparator[1]];
+      break;
+    case 'range':
+      bounds = comparator[1];
+      break;
+    default:
+      return null;
+  }
+
+  const challenge = challengeForStage(bounds[0]);
+  if (challenge === null) {
+    throw new InvalidQueryError(
+      `stage: ${bounds[0]} does not belong to a challenge`,
+    );
+  }
+  if (bounds.some((bound) => challengeForStage(bound) !== challenge)) {
+    throw new InvalidQueryError('stage: Range spans more than one challenge');
+  }
+  return challenge;
 }
 
 /**
@@ -214,6 +245,20 @@ export function parseChallengeQuery(
     0,
   );
   query.stage = enumComparatorParam(Stage, searchParams, 'stage');
+  if (query.stage !== undefined) {
+    const challenge = challengeForStageComparator(query.stage);
+    if (challenge !== null) {
+      if (
+        query.type !== undefined &&
+        !comparatorMatches(query.type, challenge)
+      ) {
+        throw new InvalidQueryError(
+          `stage: ${challengeName(challenge)} stage contradicts "type" param`,
+        );
+      }
+      query.type = ['==', challenge];
+    }
+  }
 
   const spawn = searchParams.spawn;
   if (spawn !== undefined) {

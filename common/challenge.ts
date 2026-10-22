@@ -1279,6 +1279,15 @@ export function stagesForChallenge(challenge: ChallengeType): Stage[] {
   return STAGES_BY_CHALLENGE[challenge];
 }
 
+export function challengeForStage(stage: Stage): ChallengeType | null {
+  for (const [challenge, stages] of Object.entries(STAGES_BY_CHALLENGE)) {
+    if (stages.includes(stage)) {
+      return Number(challenge);
+    }
+  }
+  return null;
+}
+
 export type TobStage =
   | Stage.TOB_MAIDEN
   | Stage.TOB_BLOAT

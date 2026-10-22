@@ -283,6 +283,24 @@ describe('parseChallengeQuery', () => {
     ).toEqual(['==', ChallengeType.COLOSSEUM]);
   });
 
+  it('narrows the challenge type to the challenge of an ordered stage filter', () => {
+    expect(parseChallengeQuery({ stage: `>=${Stage.TFA_MOIA}` })).toEqual({
+      splits: new Map(),
+      customConditions: [],
+      type: ['==', ChallengeType.TFA],
+      stage: ['>=', Stage.TFA_MOIA],
+    });
+    expect(
+      parseChallengeQuery({
+        type: `${ChallengeType.TOB},${ChallengeType.TFA}`,
+        stage: `${Stage.TFA_EZEKIEL}..${Stage.TFA_OCELLUS}`,
+      })?.type,
+    ).toEqual(['==', ChallengeType.TFA]);
+    expect(
+      parseChallengeQuery({ stage: `!${Stage.TFA_MOIA}` })?.type,
+    ).toBeUndefined();
+  });
+
   it.each<NextSearchParams>([
     { party: ['WWWWWWWWWWQQ', 'WWWWWWWWWWQQ'] },
     { scale: 'x' },
@@ -322,6 +340,9 @@ describe('parseChallengeQuery', () => {
     { 'tfa.route': `${Stage.TOB_VERZIK}` },
     { 'tfa.route': '!bork' },
     { 'tfa.route': 'bork..xarth' },
+    { type: `${ChallengeType.TOB}`, stage: `>=${Stage.TFA_MOIA}` },
+    { stage: `${Stage.TOB_MAIDEN}..${Stage.TFA_MOIA}` },
+    { stage: `>=${Stage.UNKNOWN}` },
     { type: `${ChallengeType.TOB}`, spawn: 'npc:shaman@10.11' },
     {
       type: `${ChallengeType.TOB},${ChallengeType.INFERNO}`,

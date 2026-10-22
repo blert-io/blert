@@ -147,7 +147,10 @@ function BossCard({ raid, stage, state, splits }: BossCardProps) {
     </div>
   );
 
-  const note = STATE_NOTES[state];
+  const note =
+    state === 'next' && ROWS[rowOf(stage)].length === 1
+      ? 'Up next'
+      : STATE_NOTES[state];
   if (note !== undefined) {
     return (
       <div className={className}>
