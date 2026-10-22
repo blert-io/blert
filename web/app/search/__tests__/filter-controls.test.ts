@@ -1,6 +1,10 @@
 import { ChallengeMode, ChallengeType } from '@blert/common';
 
-import { toggleNoModeType, toggleTobMode } from '../filter-controls';
+import {
+  isAllowedTypeSelection,
+  toggleNoModeType,
+  toggleTobMode,
+} from '../filter-controls';
 
 describe('toggleTobMode', () => {
   it('adds the target mode and TOB type when neither is present', () => {
@@ -111,5 +115,35 @@ describe('toggleNoModeType', () => {
     );
     expect(result.type).toEqual([ChallengeType.TOB]);
     expect(result.mode).toEqual([ChallengeMode.TOB_REGULAR]);
+  });
+});
+
+describe('isAllowedTypeSelection', () => {
+  it('allows any selection when no types are restricted', () => {
+    expect(isAllowedTypeSelection([ChallengeType.INFERNO], undefined)).toBe(
+      true,
+    );
+  });
+
+  it('allows an empty selection', () => {
+    expect(isAllowedTypeSelection([], [ChallengeType.COLOSSEUM])).toBe(true);
+  });
+
+  it('allows a selection that keeps an allowed type', () => {
+    expect(
+      isAllowedTypeSelection(
+        [ChallengeType.COLOSSEUM, ChallengeType.INFERNO],
+        [ChallengeType.COLOSSEUM],
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a selection of only restricted types', () => {
+    expect(
+      isAllowedTypeSelection(
+        [ChallengeType.INFERNO],
+        [ChallengeType.COLOSSEUM],
+      ),
+    ).toBe(false);
   });
 });

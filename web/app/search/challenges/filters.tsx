@@ -1,4 +1,5 @@
 import {
+  challengeForStage,
   ChallengeStatus,
   ChallengeType,
   SplitType,
@@ -70,73 +71,88 @@ export function resetChallengeFilters(prev: SearchContext): SearchContext {
   };
 }
 
-const STAGE_MENU_ITEMS: MenuItem[] = [
-  {
-    label: 'ToB',
-    subMenu: [
-      { label: 'Maiden', value: Stage.TOB_MAIDEN },
-      { label: 'Bloat', value: Stage.TOB_BLOAT },
-      { label: 'Nylocas', value: Stage.TOB_NYLOCAS },
-      { label: 'Sotetseg', value: Stage.TOB_SOTETSEG },
-      { label: 'Xarpus', value: Stage.TOB_XARPUS },
-      { label: 'Verzik', value: Stage.TOB_VERZIK },
-    ],
-  },
-  {
-    label: 'TFA',
-    subMenu: stagesForChallenge(ChallengeType.TFA).map((stage) => ({
-      label: stageName(stage),
-      value: stage,
-    })),
-  },
-  {
-    label: 'Inferno',
-    subMenu: [
-      { label: 'Wave 9', value: Stage.INFERNO_WAVE_9 },
-      { label: 'Wave 18', value: Stage.INFERNO_WAVE_18 },
-      { label: 'Wave 25', value: Stage.INFERNO_WAVE_25 },
-      { label: 'Wave 35', value: Stage.INFERNO_WAVE_35 },
-      { label: 'Wave 42', value: Stage.INFERNO_WAVE_42 },
-      { label: 'Wave 50', value: Stage.INFERNO_WAVE_50 },
-      { label: 'Wave 57', value: Stage.INFERNO_WAVE_57 },
-      { label: 'Wave 60', value: Stage.INFERNO_WAVE_60 },
-      { label: 'Wave 63', value: Stage.INFERNO_WAVE_63 },
-      { label: 'Wave 66', value: Stage.INFERNO_WAVE_66 },
-      { label: 'Wave 67', value: Stage.INFERNO_WAVE_67 },
-      { label: 'Wave 68', value: Stage.INFERNO_WAVE_68 },
-      { label: 'Wave 69', value: Stage.INFERNO_WAVE_69 },
-    ],
-  },
-  {
-    label: 'Colosseum',
-    subMenu: [
-      { label: 'Wave 1', value: Stage.COLOSSEUM_WAVE_1 },
-      { label: 'Wave 2', value: Stage.COLOSSEUM_WAVE_2 },
-      { label: 'Wave 3', value: Stage.COLOSSEUM_WAVE_3 },
-      { label: 'Wave 4', value: Stage.COLOSSEUM_WAVE_4 },
-      { label: 'Wave 5', value: Stage.COLOSSEUM_WAVE_5 },
-      { label: 'Wave 6', value: Stage.COLOSSEUM_WAVE_6 },
-      { label: 'Wave 7', value: Stage.COLOSSEUM_WAVE_7 },
-      { label: 'Wave 8', value: Stage.COLOSSEUM_WAVE_8 },
-      { label: 'Wave 9', value: Stage.COLOSSEUM_WAVE_9 },
-      { label: 'Wave 10', value: Stage.COLOSSEUM_WAVE_10 },
-      { label: 'Wave 11', value: Stage.COLOSSEUM_WAVE_11 },
-      { label: 'Sol Heredit', value: Stage.COLOSSEUM_WAVE_12 },
-    ],
-  },
-  {
-    label: 'Mokhaiotl',
-    subMenu: [
-      { label: 'Delve 1', value: Stage.MOKHAIOTL_DELVE_1 },
-      { label: 'Delve 2', value: Stage.MOKHAIOTL_DELVE_2 },
-      { label: 'Delve 3', value: Stage.MOKHAIOTL_DELVE_3 },
-      { label: 'Delve 4', value: Stage.MOKHAIOTL_DELVE_4 },
-      { label: 'Delve 5', value: Stage.MOKHAIOTL_DELVE_5 },
-      { label: 'Delve 6', value: Stage.MOKHAIOTL_DELVE_6 },
-      { label: 'Delve 7', value: Stage.MOKHAIOTL_DELVE_7 },
-      { label: 'Delve 8', value: Stage.MOKHAIOTL_DELVE_8 },
-    ],
-  },
+const STAGE_MENU_ITEMS: [ChallengeType, MenuItem][] = [
+  [
+    ChallengeType.TOB,
+    {
+      label: 'ToB',
+      subMenu: [
+        { label: 'Maiden', value: Stage.TOB_MAIDEN },
+        { label: 'Bloat', value: Stage.TOB_BLOAT },
+        { label: 'Nylocas', value: Stage.TOB_NYLOCAS },
+        { label: 'Sotetseg', value: Stage.TOB_SOTETSEG },
+        { label: 'Xarpus', value: Stage.TOB_XARPUS },
+        { label: 'Verzik', value: Stage.TOB_VERZIK },
+      ],
+    },
+  ],
+  [
+    ChallengeType.TFA,
+    {
+      label: 'TFA',
+      subMenu: stagesForChallenge(ChallengeType.TFA).map((stage) => ({
+        label: stageName(stage),
+        value: stage,
+      })),
+    },
+  ],
+  [
+    ChallengeType.INFERNO,
+    {
+      label: 'Inferno',
+      subMenu: [
+        { label: 'Wave 9', value: Stage.INFERNO_WAVE_9 },
+        { label: 'Wave 18', value: Stage.INFERNO_WAVE_18 },
+        { label: 'Wave 25', value: Stage.INFERNO_WAVE_25 },
+        { label: 'Wave 35', value: Stage.INFERNO_WAVE_35 },
+        { label: 'Wave 42', value: Stage.INFERNO_WAVE_42 },
+        { label: 'Wave 50', value: Stage.INFERNO_WAVE_50 },
+        { label: 'Wave 57', value: Stage.INFERNO_WAVE_57 },
+        { label: 'Wave 60', value: Stage.INFERNO_WAVE_60 },
+        { label: 'Wave 63', value: Stage.INFERNO_WAVE_63 },
+        { label: 'Wave 66', value: Stage.INFERNO_WAVE_66 },
+        { label: 'Wave 67', value: Stage.INFERNO_WAVE_67 },
+        { label: 'Wave 68', value: Stage.INFERNO_WAVE_68 },
+        { label: 'Wave 69', value: Stage.INFERNO_WAVE_69 },
+      ],
+    },
+  ],
+  [
+    ChallengeType.COLOSSEUM,
+    {
+      label: 'Colosseum',
+      subMenu: [
+        { label: 'Wave 1', value: Stage.COLOSSEUM_WAVE_1 },
+        { label: 'Wave 2', value: Stage.COLOSSEUM_WAVE_2 },
+        { label: 'Wave 3', value: Stage.COLOSSEUM_WAVE_3 },
+        { label: 'Wave 4', value: Stage.COLOSSEUM_WAVE_4 },
+        { label: 'Wave 5', value: Stage.COLOSSEUM_WAVE_5 },
+        { label: 'Wave 6', value: Stage.COLOSSEUM_WAVE_6 },
+        { label: 'Wave 7', value: Stage.COLOSSEUM_WAVE_7 },
+        { label: 'Wave 8', value: Stage.COLOSSEUM_WAVE_8 },
+        { label: 'Wave 9', value: Stage.COLOSSEUM_WAVE_9 },
+        { label: 'Wave 10', value: Stage.COLOSSEUM_WAVE_10 },
+        { label: 'Wave 11', value: Stage.COLOSSEUM_WAVE_11 },
+        { label: 'Sol Heredit', value: Stage.COLOSSEUM_WAVE_12 },
+      ],
+    },
+  ],
+  [
+    ChallengeType.MOKHAIOTL,
+    {
+      label: 'Mokhaiotl',
+      subMenu: [
+        { label: 'Delve 1', value: Stage.MOKHAIOTL_DELVE_1 },
+        { label: 'Delve 2', value: Stage.MOKHAIOTL_DELVE_2 },
+        { label: 'Delve 3', value: Stage.MOKHAIOTL_DELVE_3 },
+        { label: 'Delve 4', value: Stage.MOKHAIOTL_DELVE_4 },
+        { label: 'Delve 5', value: Stage.MOKHAIOTL_DELVE_5 },
+        { label: 'Delve 6', value: Stage.MOKHAIOTL_DELVE_6 },
+        { label: 'Delve 7', value: Stage.MOKHAIOTL_DELVE_7 },
+        { label: 'Delve 8', value: Stage.MOKHAIOTL_DELVE_8 },
+      ],
+    },
+  ],
 ];
 
 const STAGE_OPERATORS = [
@@ -180,10 +196,21 @@ export default function Filters({
     allowedTypes.push(ChallengeType.MOKHAIOTL);
     restrictions.push('Mokhaiotl-only');
   }
+  const stageChallenge =
+    selectedStage !== null ? challengeForStage(selectedStage) : null;
+  if (stageChallenge !== null) {
+    allowedTypes.push(stageChallenge);
+    restrictions.push('stage');
+  }
   const restrictionMessage =
     restrictions.length > 0
       ? `Clear ${oxford(restrictions)} filters to change challenge type`
       : undefined;
+
+  const stageMenuItems = STAGE_MENU_ITEMS.filter(
+    ([type]) =>
+      context.filters.type.length === 0 || context.filters.type.includes(type),
+  ).map(([, item]) => item);
 
   return (
     <div className={styles.filters}>
@@ -253,7 +280,17 @@ export default function Filters({
         disabled={loading}
       />
 
-      <FilterField label="Stage">
+      <FilterField
+        label="Stage"
+        onRemove={
+          selectedStage !== null && !loading
+            ? () => {
+                setStageOperator(Comparator.EQUAL);
+                updateFilters({ stage: null });
+              }
+            : undefined
+        }
+      >
         <div className={styles.stageFilter}>
           <button
             id="stage-operator-select"
@@ -272,7 +309,7 @@ export default function Filters({
             disabled={loading}
           >
             {selectedStage
-              ? STAGE_MENU_ITEMS.flatMap((m) => m.subMenu!).find(
+              ? STAGE_MENU_ITEMS.flatMap(([, m]) => m.subMenu!).find(
                   (item) => item.value === selectedStage,
                 )?.label
               : 'Select stage'}
@@ -303,7 +340,7 @@ export default function Filters({
               updateFilters({ stage: [stageOperator, stage] });
             }}
             open={stageMenuOpen}
-            items={STAGE_MENU_ITEMS}
+            items={stageMenuItems}
             targetId="stage-select"
             width={DATE_INPUT_WIDTH}
           />

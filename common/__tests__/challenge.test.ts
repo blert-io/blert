@@ -1,4 +1,5 @@
 import {
+  challengeForStage,
   ChallengeType,
   isColosseumStage,
   isCoxStage,
@@ -13,7 +14,7 @@ import {
 
 describe('Stage classification', () => {
   const allStages = Object.values(Stage).filter(
-    (stage) => stage !== Stage.UNKNOWN,
+    (stage) => typeof stage === 'number' && stage !== Stage.UNKNOWN,
   ) as Stage[];
 
   it('classifies colosseum stages correctly', () => {
@@ -95,5 +96,24 @@ describe('Stage classification', () => {
         expect(tobStages.has(stage)).toBe(false);
       }
     }
+  });
+
+  it('returns the challenge each stage belongs to', () => {
+    const predicates: [ChallengeType, (stage: Stage) => boolean][] = [
+      [ChallengeType.COLOSSEUM, isColosseumStage],
+      [ChallengeType.COX, isCoxStage],
+      [ChallengeType.INFERNO, isInfernoStage],
+      [ChallengeType.MOKHAIOTL, isMokhaiotlStage],
+      [ChallengeType.TFA, isTfaStage],
+      [ChallengeType.TOA, isToaStage],
+      [ChallengeType.TOB, isTobStage],
+    ];
+    const stages = [Stage.UNKNOWN, ...allStages];
+    expect(stages.map((stage) => [stage, challengeForStage(stage)])).toEqual(
+      stages.map((stage) => [
+        stage,
+        predicates.find(([, isStage]) => isStage(stage))?.[0] ?? null,
+      ]),
+    );
   });
 });

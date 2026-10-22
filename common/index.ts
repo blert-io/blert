@@ -129,6 +129,7 @@ export {
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
+  challengeForStage,
   challengeName,
   EquipmentSlot,
   equipmentSlotName,

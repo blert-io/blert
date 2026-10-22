@@ -243,6 +243,17 @@ export function toggleNoModeType(
   };
 }
 
+export function isAllowedTypeSelection(
+  type: ChallengeType[],
+  allowedTypes: ChallengeType[] | undefined,
+): boolean {
+  return (
+    allowedTypes === undefined ||
+    type.length === 0 ||
+    type.some((t) => allowedTypes.includes(t))
+  );
+}
+
 export function TypeFilter({
   type,
   mode,
@@ -282,32 +293,33 @@ export function TypeFilter({
     label: string,
     checked: boolean,
   ) {
+    const next = toggleTobMode(type, mode, target);
+    const isDisabled =
+      (tobDisabled && !checked) ||
+      (checked && !isAllowedTypeSelection(next.type, allowedTypes));
     return maybeWrapDisabled(
       <Checkbox
         checked={checked}
-        disabled={disabled || (tobDisabled && !checked)}
-        onChange={() => {
-          const next = toggleTobMode(type, mode, target);
-          onChange(next.type, next.mode);
-        }}
+        disabled={disabled || isDisabled}
+        onChange={() => onChange(next.type, next.mode)}
         label={label}
         simple
       />,
-      tobDisabled && !checked,
+      isDisabled,
     );
   }
 
   function noModeCheckbox(target: ChallengeType, label: string) {
     const checked = type.includes(target);
-    const isDisabled = isRestricted(target) && !checked;
+    const next = toggleNoModeType(type, mode, target);
+    const isDisabled =
+      (isRestricted(target) && !checked) ||
+      (checked && !isAllowedTypeSelection(next.type, allowedTypes));
     return maybeWrapDisabled(
       <Checkbox
         checked={checked}
         disabled={disabled || isDisabled}
-        onChange={() => {
-          const next = toggleNoModeType(type, mode, target);
-          onChange(next.type, next.mode);
-        }}
+        onChange={() => onChange(next.type, next.mode)}
         label={label}
         simple
       />,
