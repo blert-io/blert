@@ -39,6 +39,9 @@ pub enum Prayer {
     Piety = 26,
     Rigour = 27,
     Augury = 28,
+    Deadeye = 29,
+    MysticVigour = 30,
+    Zeal = 31,
 }
 
 impl Prayer {

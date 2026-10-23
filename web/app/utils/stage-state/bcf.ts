@@ -306,8 +306,8 @@ function buildTick(
 ): BCFTick | null {
   const cells: BCFCell[] = [];
 
-  for (const [playerName, states] of playerState) {
-    const state = states[tick];
+  for (const [playerName, player] of playerState) {
+    const state = player.stateByTick[tick];
     if (state === null) {
       continue;
     }

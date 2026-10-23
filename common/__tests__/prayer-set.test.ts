@@ -386,14 +386,11 @@ describe('PrayerSet', () => {
     it('should handle edge case prayers', () => {
       const original = PrayerSet.fromPrayers(PrayerBook.NORMAL, [
         Prayer.THICK_SKIN, // First prayer (0)
-        Prayer.AUGURY, // Last defined prayer (28)
+        Prayer.ZEAL, // Last defined prayer (31)
       ]);
       const raw = original.getRaw();
       const reconstructed = PrayerSet.fromRaw(raw);
-      expect(reconstructed.prayers()).toEqual([
-        Prayer.THICK_SKIN,
-        Prayer.AUGURY,
-      ]);
+      expect(reconstructed.prayers()).toEqual([Prayer.THICK_SKIN, Prayer.ZEAL]);
     });
   });
 

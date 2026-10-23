@@ -90,6 +90,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MELEE,
     verb: 'arclight specced',
   },
+  [PlayerAttack.ASCENSION_CROSSBOWS]: {
+    tagColor: TagColor.GREEN,
+    letter: 'ASC',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+    verb: 'shot',
+  },
   [PlayerAttack.ATLATL_AUTO]: {
     tagColor: TagColor.GREEN,
     letter: 'atl',

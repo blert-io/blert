@@ -69,9 +69,14 @@ export type EnhancedVerzikCrab = EnhancedRoomNpc & {
   verzikCrab: VerzikCrabProperties;
 };
 
+export type StagePlayer = {
+  stateByTick: Nullable<PlayerState>[];
+  hasZeal: boolean;
+};
+
 export type EventTickMap = Record<number, Event[]>;
 export type EventTypeMap = Record<string, Event[]>;
-export type PlayerStateMap = Map<string, Nullable<PlayerState>[]>;
+export type PlayerStateMap = Map<string, StagePlayer>;
 export type RoomNpcMap = Map<number, EnhancedRoomNpc>;
 
 export type EventState = {

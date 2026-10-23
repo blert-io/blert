@@ -27,7 +27,7 @@ export function computeIdleTickCounts(
 ): Map<string, IdleTickCount> {
   const counts = new Map<string, IdleTickCount>();
 
-  for (const [player, states] of playerState) {
+  for (const [player, { stateByTick: states }] of playerState) {
     let firstAttackTick = Infinity;
     let lastAttackTick = Infinity;
     for (let tick = 0; tick < states.length; tick++) {

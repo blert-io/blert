@@ -251,7 +251,7 @@ export default function BloatPage() {
   const customStates = useMemo(() => {
     const entries: CustomStateEntry[] = [];
 
-    playerState.forEach((states, playerName) => {
+    playerState.forEach(({ stateByTick: states }, playerName) => {
       states.forEach((state, tick) => {
         if (state?.attack === undefined) {
           return;
@@ -343,14 +343,6 @@ export default function BloatPage() {
     return <MissingStageData stage={Stage.TOB_BLOAT} />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const downStats = downInfo.map((down, i) => ({
     title: `Down ${i + 1}`,
     content: (
@@ -424,7 +416,9 @@ export default function BloatPage() {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

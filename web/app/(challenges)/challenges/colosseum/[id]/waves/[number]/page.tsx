@@ -330,9 +330,6 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   }
 
   const username = challenge.party[0].username;
-  const playerTickState = {
-    [username]: playerState.get(username)?.at(currentTick) ?? null,
-  };
 
   const timelineSplits: { tick: number; splitName: string }[] = [];
   if (waveNumber < 12) {
@@ -442,7 +439,9 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={[username]}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

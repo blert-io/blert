@@ -268,7 +268,7 @@ export default function VerzikPage() {
     // Find who next equips the Dawnbringer starting from a given tick.
     const findNextEquipper = (fromTick: number): string | null => {
       for (let t = fromTick; t <= p1End; t++) {
-        for (const [username, playerStates] of playerState) {
+        for (const [username, { stateByTick: playerStates }] of playerState) {
           if (
             playerStates[t]?.equipment[EquipmentSlot.WEAPON]?.id ===
             DAWNBRINGER_ID
@@ -425,14 +425,6 @@ export default function VerzikPage() {
     return <MissingStageData stage={Stage.TOB_VERZIK} />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const sections = [];
 
   if (
@@ -556,7 +548,9 @@ export default function VerzikPage() {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

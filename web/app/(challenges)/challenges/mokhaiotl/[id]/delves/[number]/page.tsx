@@ -382,14 +382,6 @@ export default function DelvePage({ params }: DelvePageProps) {
     return <Loading />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const sections: BossFightOverviewSection[] = [];
   const idleTickCount = idleTickCounts.get(challenge.party[0].username);
   if (idleTickCount !== undefined) {
@@ -436,7 +428,9 @@ export default function DelvePage({ params }: DelvePageProps) {
         />
 
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

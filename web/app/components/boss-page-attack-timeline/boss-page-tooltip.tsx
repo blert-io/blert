@@ -133,7 +133,12 @@ function PlayerTooltipContent({
     return null;
   }
 
-  const state = playerState.get(username)?.[tick];
+  const player = playerState.get(username);
+  if (player === undefined) {
+    return null;
+  }
+
+  const state = player.stateByTick[tick];
   if (!state) {
     return null;
   }
@@ -349,6 +354,7 @@ function PlayerTooltipContent({
               combatOnly
               prayerSet={state.player.prayerSet}
               source={DataSource.PRIMARY}
+              hasZeal={player.hasZeal}
             />
           </TooltipSection>
         </React.Fragment>,
