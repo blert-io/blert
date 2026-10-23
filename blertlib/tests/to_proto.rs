@@ -85,7 +85,7 @@ impl Fixture {
                     Client {
                         plugin_version: plugin_version.parse().expect("plugin version parses"),
                         config_version: record.recording_config_version.map_or(
-                            ConfigVersion::NONE,
+                            ConfigVersion::LATEST,
                             |version| {
                                 ConfigVersion::parse(version).expect("config version is supported")
                             },

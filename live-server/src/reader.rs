@@ -1037,9 +1037,8 @@ impl ChallengeReader {
                     attempt = self.stage_attempt,
                     tick = warning.tick.0,
                     kind = ?warning.kind,
-                    field = warning.field,
-                    error = ?warning.error,
-                    "builder warned on event field",
+                    reason = ?warning.reason,
+                    "builder warned on event",
                 );
             }
 

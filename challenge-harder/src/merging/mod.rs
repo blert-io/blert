@@ -1281,7 +1281,7 @@ mod tests {
             client_id: ClientId(client_id),
             events: Bytes::from(
                 ChallengeEvents {
-                    events: [Tick(0), Tick(5), Tick(10)]
+                    events: [Tick(0), Tick(6), Tick(12)]
                         .into_iter()
                         .flat_map(|tick| {
                             [
@@ -1430,7 +1430,7 @@ mod tests {
                                     discarded_source: Source::Client(ClientId(2)),
                                 },
                                 report::QualityFlag::AttackTypeMismatch {
-                                    tick: Tick(5),
+                                    tick: Tick(6),
                                     player,
                                     kept_type: PlayerAttack::Scythe as i32,
                                     discarded_type: PlayerAttack::BgsSpec as i32,
@@ -1438,7 +1438,7 @@ mod tests {
                                     discarded_source: Source::Client(ClientId(2)),
                                 },
                                 report::QualityFlag::AttackTypeMismatch {
-                                    tick: Tick(10),
+                                    tick: Tick(12),
                                     player,
                                     kept_type: PlayerAttack::Scythe as i32,
                                     discarded_type: PlayerAttack::BgsSpec as i32,

@@ -188,6 +188,20 @@ async fn wave_test() {
         .execute("DELETE FROM players WHERE id = $1", &[&player_id])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Returns the challenge and player IDs.

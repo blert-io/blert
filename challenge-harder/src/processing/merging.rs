@@ -33,6 +33,7 @@ pub enum CaptureReason {
     MergeRejection,
     LowConfidence,
     EventsBeyondReportedTicks,
+    AttacksOnCooldown,
     UnmergedClients,
     QualityFlags,
     TimelineOffset,
@@ -52,6 +53,7 @@ impl CaptureReason {
             Self::MergeRejection => "merge_rejection",
             Self::LowConfidence => "low_confidence",
             Self::EventsBeyondReportedTicks => "events_beyond_reported_ticks",
+            Self::AttacksOnCooldown => "attacks_on_cooldown",
             Self::UnmergedClients => "unmerged_clients",
             Self::QualityFlags => "quality_flags",
             Self::TimelineOffset => "timeline_offset",
@@ -72,6 +74,7 @@ pub struct CaptureRates {
     pub merge_rejection: f64,
     pub low_confidence: f64,
     pub events_beyond_reported_ticks: f64,
+    pub attacks_on_cooldown: f64,
     pub unmerged_clients: f64,
     pub quality_flags: f64,
     pub timeline_offset: f64,
@@ -91,6 +94,7 @@ impl Default for CaptureRates {
             merge_rejection: 1.0,
             low_confidence: 0.5,
             events_beyond_reported_ticks: 0.25,
+            attacks_on_cooldown: 1.0,
             unmerged_clients: 0.25,
             quality_flags: 0.25,
             timeline_offset: 0.05,
@@ -112,6 +116,7 @@ impl CaptureRates {
             CaptureReason::MergeRejection => self.merge_rejection,
             CaptureReason::LowConfidence => self.low_confidence,
             CaptureReason::EventsBeyondReportedTicks => self.events_beyond_reported_ticks,
+            CaptureReason::AttacksOnCooldown => self.attacks_on_cooldown,
             CaptureReason::UnmergedClients => self.unmerged_clients,
             CaptureReason::QualityFlags => self.quality_flags,
             CaptureReason::TimelineOffset => self.timeline_offset,
@@ -177,6 +182,9 @@ pub fn capture_reasons(
                 }
                 ClientAnomaly::EventsBeyondReportedTicks => {
                     reasons.insert(CaptureReason::EventsBeyondReportedTicks);
+                }
+                ClientAnomaly::AttacksOnCooldown => {
+                    reasons.insert(CaptureReason::AttacksOnCooldown);
                 }
                 ClientAnomaly::MissingStageMetadata => {}
             }
@@ -246,7 +254,7 @@ pub struct StreamCapturer {
 }
 
 impl StreamCapturer {
-    const MAX_CAPTURES_PER_HOUR: u32 = 25;
+    const MAX_CAPTURES_PER_HOUR: u32 = 50;
     const WINDOW: Duration = Duration::from_hours(1);
 
     pub fn new(repository: DataRepository, development: bool, rates: CaptureRates) -> Self {

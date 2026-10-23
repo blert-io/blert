@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use blert::proto::Event;
 use blert::{
     ConfigVersion, DataSource, FieldError, InvalidVersion, PartyIndex, PluginVersion, RawActor,
-    Recording, RecordingBuilder, RejectionReason, Tick,
+    Recording, RecordingBuilder, RejectionReason, Tick, WarningReason,
 };
 use prost::Message;
 
@@ -27,6 +27,7 @@ pub(super) enum Anomaly {
     EventsBeyondReportedTicks,
     /// The client recorded players outside the challenge party.
     UnknownPlayer,
+    AttacksOnCooldown,
 }
 
 #[derive(Debug)]
@@ -372,9 +373,19 @@ impl<'a> StreamParser<'a> {
                 }
             }
         }
+        let mut on_cooldown = 0;
+        let mut first_on_cooldown = None;
         for warning in builder.warnings() {
-            if let FieldError::UnknownActor(RawActor::Player(name)) = &warning.error {
-                *unknown_players.entry(name).or_default() += 1;
+            match &warning.reason {
+                WarningReason::InvalidField {
+                    error: FieldError::UnknownActor(RawActor::Player(name)),
+                    ..
+                } => *unknown_players.entry(name).or_default() += 1,
+                WarningReason::OnCooldown => {
+                    on_cooldown += 1;
+                    first_on_cooldown.get_or_insert(warning.tick);
+                }
+                WarningReason::InvalidField { .. } => {}
             }
         }
 
@@ -385,6 +396,16 @@ impl<'a> StreamParser<'a> {
                 reported_ticks = %info.last_recorded_tick,
                 dropped_event_count = beyond_last_tick,
                 "client_events_beyond_reported_ticks",
+            );
+        }
+
+        if let Some(first_tick) = first_on_cooldown {
+            self.anomalies.push(Anomaly::AttacksOnCooldown);
+            tracing::warn!(
+                client_id = %self.client_id,
+                dropped_attack_count = on_cooldown,
+                first_tick = first_tick.0,
+                "client_attacks_on_cooldown",
             );
         }
 
@@ -1052,5 +1073,67 @@ mod tests {
             })
             .collect();
         assert_eq!(targets, vec![None, None]);
+    }
+
+    #[test]
+    fn attacks_on_cooldown_are_dropped_and_flagged() {
+        let message = ChallengeEvents {
+            events: vec![
+                fixtures::PlayerUpdateEvent::new(Tick(4), Stage::TobMaiden, "1Ogp", (0, 0)).build(),
+                fixtures::player_attack_event(fixtures::PlayerAttackEvent {
+                    tick: Tick(4),
+                    stage: Stage::TobMaiden,
+                    coords: (0, 0),
+                    name: "1Ogp",
+                    party_index: None,
+                    attack: blert::PlayerAttack::TwistedBow,
+                    weapon_id: 0,
+                    distance_to_target: 7,
+                    target: None,
+                }),
+                fixtures::PlayerUpdateEvent::new(Tick(6), Stage::TobMaiden, "1Ogp", (0, 0)).build(),
+                fixtures::player_attack_event(fixtures::PlayerAttackEvent {
+                    tick: Tick(6),
+                    stage: Stage::TobMaiden,
+                    coords: (0, 0),
+                    name: "1Ogp",
+                    party_index: None,
+                    attack: blert::PlayerAttack::TwistedBow,
+                    weapon_id: 0,
+                    distance_to_target: 7,
+                    target: None,
+                }),
+            ],
+            ..Default::default()
+        };
+        let challenge = test_challenge(Stage::TobMaiden);
+        let (mut clients, bad_data_clients) = from_stage_stream(
+            &challenge,
+            Stage::TobMaiden,
+            &[
+                metadata(1),
+                ClientStageStream::Events {
+                    client_id: ClientId(1),
+                    events: Bytes::from(message.encode_to_vec()),
+                },
+                end(1, StageStatus::Completed, 8),
+            ],
+        );
+        assert!(bad_data_clients.is_empty());
+        assert_eq!(clients.len(), 1);
+        let client = clients.remove(0);
+        assert!(matches!(client.anomalies[..], [Anomaly::AttacksOnCooldown]));
+        let attack_ticks: Vec<_> = client
+            .recording
+            .states()
+            .filter(|(_, state)| {
+                state
+                    .events
+                    .iter()
+                    .any(|event| matches!(event.kind, EventKind::PlayerAttack(_)))
+            })
+            .map(|(tick, _)| tick)
+            .collect();
+        assert_eq!(attack_ticks, vec![Tick(4)]);
     }
 }

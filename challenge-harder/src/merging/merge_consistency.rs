@@ -240,9 +240,9 @@ fn check_stream_events(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIss
 }
 
 fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIssue>) {
-    // Most recent attacks by player. The plugin's `isOffCooldownOn` gate means
-    // a single client's stream never contains attacks that violate cooldown in
-    // its own tick space; any violation in the merged stream is therefore a
+    // Most recent attacks by player. Ingestion drops attacks made on cooldown,
+    // so a single client's stream never contains attacks that violate cooldown
+    // in its own tick space; any violation in the merged stream is therefore a
     // merger artifact.
     let mut last_attack: BTreeMap<PartyIndex, PlayerAttackOccurrence> = BTreeMap::new();
 
@@ -356,7 +356,7 @@ fn check_exclusive_event_types(timeline: &Timeline, issues: &mut Vec<MergeConsis
 #[cfg(test)]
 mod tests {
     use blert::proto::Event;
-    use blert::{ChallengeMode, Rsn, item};
+    use blert::{ChallengeMode, ClientId, Item, PlayerAttacked, Rsn, item};
 
     use super::*;
     use crate::merging::fixtures::{self, NpcEvent};
@@ -572,7 +572,8 @@ mod tests {
 
     #[test]
     fn cooldown_flags_an_attack_while_on_cooldown() {
-        let timeline = fixtures::timeline(
+        let mut recording = fixtures::recording(
+            ClientId(1),
             Stage::TobMaiden,
             ChallengeMode::TobRegular,
             &PARTY,
@@ -591,19 +592,26 @@ mod tests {
                     target: None,
                 }),
                 fixtures::PlayerUpdateEvent::new(Tick(3), Stage::TobMaiden, "1Ogp", (0, 0)).build(),
-                fixtures::player_attack_event(fixtures::PlayerAttackEvent {
-                    tick: Tick(3),
-                    stage: Stage::TobMaiden,
-                    coords: (0, 0),
-                    name: "1Ogp",
-                    party_index: None,
-                    attack: PlayerAttack::Scythe,
-                    weapon_id: item::id::SCYTHE_OF_VITUR,
-                    distance_to_target: 1,
-                    target: None,
-                }),
             ],
         );
+        let player = recording.party_index(&PARTY[0]).unwrap();
+        recording
+            .get_state_mut(Tick(3))
+            .expect("tick is recorded")
+            .events
+            .push(blert::Event::recorded(
+                ClientId(2),
+                EventKind::PlayerAttack(PlayerAttacked {
+                    player,
+                    attack: PlayerAttack::Scythe,
+                    weapon: Some(Item {
+                        id: item::id::SCYTHE_OF_VITUR,
+                        quantity: 1,
+                    }),
+                    target: None,
+                }),
+            ));
+        let timeline = recording.finalize();
         assert_eq!(
             check(&timeline),
             Err(vec![MergeConsistencyIssue::WeaponCooldownViolation {

@@ -252,13 +252,30 @@ impl NpcState {
     /// on this NPC.
     #[must_use]
     pub fn attack_checks_cooldown(&self, attack: PlayerAttack) -> bool {
-        let charging = matches!(
-            self.properties,
-            Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true }))
-        );
-        !(npc::is_mokhaiotl_larva(self.id)
-            || self.id == npc::id::VOLATILE_EARTH
-            || (charging && attack.style() == Some(CombatStyle::Melee)))
+        match self.id {
+            id if npc::is_mokhaiotl_larva(id) => false,
+            npc::id::VOLATILE_EARTH => false,
+            npc::id::XARTH_CORPSE => !matches!(
+                attack,
+                PlayerAttack::UnknownBarrage
+                    | PlayerAttack::KodaiBarrage
+                    | PlayerAttack::NmStaffBarrage
+                    | PlayerAttack::SangBarrage
+                    | PlayerAttack::SceptreBarrage
+                    | PlayerAttack::ShadowBarrage
+                    | PlayerAttack::SotdBarrage
+                    | PlayerAttack::StaffOfLightBarrage
+                    | PlayerAttack::ToxicStaffBarrage
+                    | PlayerAttack::ToxicTridentBarrage
+                    | PlayerAttack::TridentBarrage
+            ),
+            _ => match self.properties {
+                Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true })) => {
+                    attack.style() != Some(CombatStyle::Melee)
+                }
+                _ => true,
+            },
+        }
     }
 }
 
@@ -488,6 +505,19 @@ mod tests {
         };
         assert!(regular_doom.attack_applies_cooldown(PlayerAttack::NoxiousHalberd));
         assert!(regular_doom.attack_checks_cooldown(PlayerAttack::NoxiousHalberd));
+
+        let corpse = NpcState {
+            source: Source::Client(ClientId(2)),
+            id: npc::id::XARTH_CORPSE,
+            position: Rect::square(Point(4199, 5534), 1),
+            hitpoints: SkillLevel::from_raw(4_063_294),
+            prayers: PrayerSet::from_raw(0),
+            properties: None,
+        };
+        assert!(corpse.attack_applies_cooldown(PlayerAttack::SceptreBarrage));
+        assert!(!corpse.attack_checks_cooldown(PlayerAttack::SceptreBarrage));
+        assert!(corpse.attack_applies_cooldown(PlayerAttack::Blowpipe));
+        assert!(corpse.attack_checks_cooldown(PlayerAttack::Blowpipe));
     }
 
     #[test]
