@@ -524,8 +524,8 @@ function buildEntitiesForTick(
 ): AnyEntity[] {
   const entitiesForTick: AnyEntity[] = [];
 
-  for (const [playerName, state] of playerState) {
-    const ps = state?.at(tick);
+  for (const [playerName, player] of playerState) {
+    const ps = player.stateByTick.at(tick);
     if (!ps) {
       continue;
     }
@@ -535,7 +535,7 @@ function buildEntitiesForTick(
     let nextPosition: Coords | undefined = undefined;
     let nextHitpoints: SkillLevel | undefined = undefined;
     if (tick < totalTicks - 1) {
-      const nextState = state?.at(tick + 1);
+      const nextState = player.stateByTick.at(tick + 1);
       if (nextState) {
         nextPosition = { x: nextState.xCoord, y: nextState.yCoord };
         nextHitpoints = nextState.skills[Skill.HITPOINTS];

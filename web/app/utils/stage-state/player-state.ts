@@ -3,6 +3,8 @@ import {
   EquipmentSlot,
   Event,
   EventType,
+  Prayer,
+  PrayerSet,
   Skill,
   SkillLevel,
   VerzikDawnEvent,
@@ -263,16 +265,19 @@ export class PlayerStateBuilder {
     const fromTick = this.processedTicks;
 
     for (const partyMember of party) {
-      let stateArray = this.map.get(partyMember);
+      let player = this.map.get(partyMember);
       let cursor = this.cursors.get(partyMember);
 
-      if (stateArray === undefined) {
-        stateArray = Array<Nullable<PlayerState>>(totalTicks).fill(null);
-        this.map.set(partyMember, stateArray);
-      } else if (stateArray.length < totalTicks) {
-        const oldLength = stateArray.length;
-        stateArray.length = totalTicks;
-        stateArray.fill(null, oldLength);
+      if (player === undefined) {
+        player = {
+          stateByTick: Array<Nullable<PlayerState>>(totalTicks).fill(null),
+          hasZeal: false,
+        };
+        this.map.set(partyMember, player);
+      } else if (player.stateByTick.length < totalTicks) {
+        const oldLength = player.stateByTick.length;
+        player.stateByTick.length = totalTicks;
+        player.stateByTick.fill(null, oldLength);
       }
 
       if (cursor === undefined) {
@@ -284,13 +289,25 @@ export class PlayerStateBuilder {
         processPlayerTick(
           partyMember,
           tick,
-          stateArray,
+          player.stateByTick,
           cursor,
           eventsByTick[tick],
         );
+        const state = player.stateByTick[tick];
+        if (
+          state !== null &&
+          PrayerSet.fromRaw(state.player.prayerSet).has(Prayer.ZEAL)
+        ) {
+          player.hasZeal = true;
+        }
       }
 
-      postprocessPlayerState(partyMember, stateArray, eventsByType, fromTick);
+      postprocessPlayerState(
+        partyMember,
+        player.stateByTick,
+        eventsByType,
+        fromTick,
+      );
     }
 
     this.processedTicks = totalTicks;

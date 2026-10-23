@@ -489,14 +489,6 @@ export default function NylocasPage() {
     return <MissingStageData stage={Stage.TOB_NYLOCAS} />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const stalls = waveStallEvents.map((e) => e.nyloWave);
 
   const sections = [];
@@ -761,7 +753,9 @@ export default function NylocasPage() {
           }
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

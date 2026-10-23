@@ -85,14 +85,6 @@ export default function GuardianPage() {
     return <MissingStageData stage={Stage.TFA_GUARDIAN} />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   return (
     <>
       <div className={bossStyles.overview}>
@@ -126,7 +118,9 @@ export default function GuardianPage() {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

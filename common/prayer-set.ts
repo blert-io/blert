@@ -45,6 +45,9 @@ export enum Prayer {
   PIETY = 26,
   RIGOUR = 27,
   AUGURY = 28,
+  DEADEYE = 29,
+  MYSTIC_VIGOUR = 30,
+  ZEAL = 31,
 }
 
 /** Book-agnostic maximum prayer index. */

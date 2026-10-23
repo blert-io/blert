@@ -268,6 +268,7 @@ impl NpcState {
                     | PlayerAttack::ToxicStaffBarrage
                     | PlayerAttack::ToxicTridentBarrage
                     | PlayerAttack::TridentBarrage
+                    | PlayerAttack::IceRush
             ),
             _ => match self.properties {
                 Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true })) => {

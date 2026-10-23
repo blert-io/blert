@@ -8,13 +8,19 @@ import EquipmentViewer from '@/components/equipment-viewer';
 import KeyPrayers from '@/components/key-prayers';
 import PlayerSkill from '@/components/player-skill';
 import { useDisplay } from '@/display';
-import { PlayerEquipment, PlayerState } from '@/utils/boss-room-state';
+import {
+  PlayerEquipment,
+  PlayerState,
+  PlayerStateMap,
+} from '@/utils/boss-room-state';
 import { BoostType, maxBoostedLevel } from '@/utils/combat';
 
 import styles from './style.module.scss';
 
 type BossPagePartyProps = {
-  playerTickState: Record<string, PlayerState | null>;
+  party: string[];
+  playerState: PlayerStateMap;
+  currentTick: number;
   selectedActor: SelectedActor | null;
   setSelectedActor: (actor: SelectedActor | null) => void;
 };
@@ -81,6 +87,7 @@ function skillsEqual(
 type PlayerPanelProps = {
   username: string;
   state: PlayerState | null;
+  hasZeal: boolean;
   selected: boolean;
   onToggle: (username: string) => void;
 };
@@ -89,6 +96,7 @@ const PlayerPanel = memo(
   function PlayerPanel({
     username,
     state,
+    hasZeal,
     selected,
     onToggle,
   }: PlayerPanelProps) {
@@ -109,6 +117,7 @@ const PlayerPanel = memo(
             prayerSet={state?.player.prayerSet ?? 0}
             size={26}
             source={state?.player.source}
+            hasZeal={hasZeal}
           />
         </div>
         <div className={styles.equipment}>
@@ -190,7 +199,11 @@ const PlayerPanel = memo(
     );
   },
   (prev, next) => {
-    if (prev.username !== next.username || prev.selected !== next.selected) {
+    if (
+      prev.username !== next.username ||
+      prev.selected !== next.selected ||
+      prev.hasZeal !== next.hasZeal
+    ) {
       return false;
     }
     if (prev.state === next.state) {
@@ -209,7 +222,9 @@ const PlayerPanel = memo(
 );
 
 export default function BossPageParty({
-  playerTickState,
+  party: usernames,
+  playerState,
+  currentTick,
   selectedActor,
   setSelectedActor,
 }: BossPagePartyProps) {
@@ -224,15 +239,19 @@ export default function BossPageParty({
     );
   };
 
-  const party = Object.entries(playerTickState).map(([username, state]) => (
-    <PlayerPanel
-      key={username}
-      username={username}
-      state={state}
-      selected={isSelectedPlayer(username)}
-      onToggle={toggleSelectedPlayer}
-    />
-  ));
+  const party = usernames.map((username) => {
+    const player = playerState.get(username);
+    return (
+      <PlayerPanel
+        key={username}
+        username={username}
+        state={player?.stateByTick.at(currentTick) ?? null}
+        hasZeal={player?.hasZeal ?? false}
+        selected={isSelectedPlayer(username)}
+        onToggle={toggleSelectedPlayer}
+      />
+    );
+  });
 
   return (
     <Card className={styles.bossPageParty} header={{ title: 'Party' }}>

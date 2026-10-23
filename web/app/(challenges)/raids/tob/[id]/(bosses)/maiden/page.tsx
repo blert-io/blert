@@ -383,14 +383,6 @@ export default function Maiden() {
     return <MissingStageData stage={Stage.TOB_MAIDEN} />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const controlsSplits = [];
   if (maidenData !== null) {
     const offset = maidenData.offset ?? maidenData.ticksLost;
@@ -448,7 +440,9 @@ export default function Maiden() {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

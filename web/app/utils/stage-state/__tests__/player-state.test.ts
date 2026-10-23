@@ -6,6 +6,9 @@ import {
   PlayerAttackEvent,
   PlayerDeathEvent,
   PlayerUpdateEvent,
+  Prayer,
+  PrayerBook,
+  PrayerSet,
   Skill,
   SkillLevel,
 } from '@blert/common';
@@ -76,7 +79,7 @@ describe('computePlayerState', () => {
 
   it('creates null-filled arrays when no events exist', () => {
     const result = computePlayerState(['Alice'], 5, {}, {});
-    const state = result.get('Alice')!;
+    const state = result.get('Alice')!.stateByTick;
     expect(state).toHaveLength(5);
     expect(state.every((s) => s === null)).toBe(true);
   });
@@ -85,7 +88,7 @@ describe('computePlayerState', () => {
     const events = [playerUpdate(1, 'Alice'), playerUpdate(3, 'Alice')];
     const [byTick, byType] = buildEventMaps(events);
     const result = computePlayerState(['Alice'], 5, byTick, byType);
-    const state = result.get('Alice')!;
+    const state = result.get('Alice')!.stateByTick;
 
     expect(state[0]).toBeNull();
     expect(state[1]).not.toBeNull();
@@ -103,7 +106,7 @@ describe('computePlayerState', () => {
     ];
     const [byTick, byType] = buildEventMaps(events);
     const result = computePlayerState(['Alice'], 5, byTick, byType);
-    const state = result.get('Alice')!;
+    const state = result.get('Alice')!.stateByTick;
 
     expect(state[0]!.isDead).toBe(false);
     expect(state[2]!.isDead).toBe(true);
@@ -120,7 +123,7 @@ describe('computePlayerState', () => {
     ];
     const [byTick, byType] = buildEventMaps(events);
     const result = computePlayerState(['Alice'], 2, byTick, byType);
-    const state = result.get('Alice')!;
+    const state = result.get('Alice')!.stateByTick;
 
     expect(state[0]!.skills[Skill.HITPOINTS]?.getCurrent()).toBe(99);
     expect(state[0]!.skills[Skill.HITPOINTS]?.getBase()).toBe(99);
@@ -148,7 +151,7 @@ describe('computePlayerState', () => {
     const [byTick, byType] = buildEventMaps(events);
     const state = computePlayerState(['Alice'], 5, byTick, byType).get(
       'Alice',
-    )!;
+    )!.stateByTick;
 
     expect(occupiedSlots(state[0]!.equipment)).toEqual([
       EquipmentSlot.WEAPON,
@@ -178,13 +181,19 @@ describe('computePlayerState', () => {
     const events = [
       playerUpdate(0, 'Alice'),
       playerUpdate(0, 'Bob'),
-      playerUpdate(1, 'Alice'),
+      playerUpdate(1, 'Alice', {
+        prayerSet: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
+          Prayer.ZEAL,
+        ]).getRaw(),
+      }),
     ];
     const [byTick, byType] = buildEventMaps(events);
     const result = computePlayerState(['Alice', 'Bob'], 3, byTick, byType);
 
-    expect(result.get('Alice')![1]).not.toBeNull();
-    expect(result.get('Bob')![1]).toBeNull();
+    expect(result.get('Alice')!.stateByTick[1]).not.toBeNull();
+    expect(result.get('Bob')!.stateByTick[1]).toBeNull();
+    expect(result.get('Alice')!.hasZeal).toBe(true);
+    expect(result.get('Bob')!.hasZeal).toBe(false);
   });
 });
 
@@ -195,7 +204,11 @@ describe('PlayerStateBuilder', () => {
       playerUpdate(1, 'Bob'),
       playerAttack(1, 'Alice'),
       playerUpdate(2, 'Alice'),
-      playerUpdate(3, 'Bob'),
+      playerUpdate(3, 'Bob', {
+        prayerSet: PrayerSet.fromPrayers(PrayerBook.NORMAL, [
+          Prayer.ZEAL,
+        ]).getRaw(),
+      }),
       playerDeath(4, 'Alice'),
       playerUpdate(4, 'Alice'),
     ];
@@ -210,9 +223,13 @@ describe('PlayerStateBuilder', () => {
     builder.extend(party, 4, byTick, byType);
     builder.extend(party, totalTicks, byTick, byType);
 
+    expect(full.get('Alice')!.hasZeal).toBe(false);
+    expect(full.get('Bob')!.hasZeal).toBe(true);
+
     for (const name of party) {
-      const fullState = full.get(name)!;
-      const incState = builder.state.get(name)!;
+      expect(builder.state.get(name)!.hasZeal).toBe(full.get(name)!.hasZeal);
+      const fullState = full.get(name)!.stateByTick;
+      const incState = builder.state.get(name)!.stateByTick;
       expect(incState).toHaveLength(fullState.length);
 
       for (let tick = 0; tick < totalTicks; tick++) {
@@ -242,7 +259,7 @@ describe('PlayerStateBuilder', () => {
     builder.extend(['Alice'], 2, byTick, byType);
     builder.extend(['Alice'], 4, byTick, byType);
 
-    const state = builder.state.get('Alice')!;
+    const state = builder.state.get('Alice')!.stateByTick;
     expect(state[1]!.isDead).toBe(true);
     expect(state[1]!.diedThisTick).toBe(true);
     expect(state[2]).toBeNull();
@@ -270,7 +287,7 @@ describe('PlayerStateBuilder', () => {
     builder.clear();
     builder.extend(['Alice'], 2, byTick, byType);
 
-    const state = builder.state.get('Alice')!;
+    const state = builder.state.get('Alice')!.stateByTick;
     expect(state).toHaveLength(2);
     expect(state[0]).not.toBeNull();
     expect(state[1]).not.toBeNull();

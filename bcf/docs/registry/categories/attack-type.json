@@ -1,6 +1,6 @@
 {
   "category": "attackType",
-  "updatedAt": "2026-10-22",
+  "updatedAt": "2026-10-23",
   "items": [
     {
       "id": "UNKNOWN",
@@ -80,6 +80,14 @@
       "introduced": "2026-01-30",
       "details": "A special attack with Arclight.",
       "tags": ["melee", "spec"]
+    },
+    {
+      "id": "ASCENSION_CROSSBOWS",
+      "status": "active",
+      "summary": "Ascension crossbows",
+      "introduced": "2026-10-23",
+      "details": "An attack with the Ascension crossbows.",
+      "tags": ["ranged"]
     },
     {
       "id": "ATLATL_AUTO",

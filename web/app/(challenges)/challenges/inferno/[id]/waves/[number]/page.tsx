@@ -232,9 +232,6 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
   }
 
   const username = challenge.party[0].username;
-  const playerTickState = {
-    [username]: playerState.get(username)?.at(currentTick) ?? null,
-  };
 
   const overviewSections = [...sections];
   const idleTickCount = idleTickCounts.get(username);
@@ -293,7 +290,9 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={[username]}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

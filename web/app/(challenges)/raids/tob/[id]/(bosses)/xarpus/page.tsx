@@ -252,14 +252,6 @@ export default function XarpusPage() {
     }
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const sections = [];
 
   if (
@@ -383,7 +375,9 @@ export default function XarpusPage() {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

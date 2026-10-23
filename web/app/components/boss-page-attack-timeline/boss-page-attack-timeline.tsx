@@ -355,7 +355,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
         return null;
       }
 
-      const playerState = props.playerState.get(actorName)?.[tick];
+      const playerState = props.playerState.get(actorName)?.stateByTick[tick];
       if (!playerState) {
         return null;
       }

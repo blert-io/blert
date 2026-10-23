@@ -7,17 +7,12 @@
 
   .prayer {
     margin: 2px 0;
-    opacity: 0.3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
 
-    &.active {
-      opacity: 1;
-      border-radius: 50%;
-      background-color: #b5a16d88;
-    }
+    .background,
     .wrapper {
+      grid-area: 1 / 1;
       position: relative;
     }
   }

@@ -267,14 +267,6 @@ export default function SotetsegPage() {
     return <MissingStageData stage={Stage.TOB_SOTETSEG} />;
   }
 
-  const playerTickState = challenge.party.reduce(
-    (acc, { username }) => ({
-      ...acc,
-      [username]: playerState.get(username)?.at(currentTick) ?? null,
-    }),
-    {},
-  );
-
   const mazeSections = [];
 
   if (soteData?.maze1Pivots) {
@@ -373,7 +365,9 @@ export default function SotetsegPage() {
           advanceTick={advanceTick}
         />
         <BossPageParty
-          playerTickState={playerTickState}
+          party={challenge.party.map((player) => player.username)}
+          playerState={playerState}
+          currentTick={currentTick}
           selectedActor={selectedActor}
           setSelectedActor={setSelectedActor}
         />

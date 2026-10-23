@@ -655,6 +655,7 @@ export enum PlayerAttack {
   AGS_SPEC = PlayerAttackProto.AGS_SPEC,
   ARCLIGHT_AUTO = PlayerAttackProto.ARCLIGHT_AUTO,
   ARCLIGHT_SPEC = PlayerAttackProto.ARCLIGHT_SPEC,
+  ASCENSION_CROSSBOWS = PlayerAttackProto.ASCENSION_CROSSBOWS,
   ATLATL_AUTO = PlayerAttackProto.ATLATL_AUTO,
   ATLATL_SPEC = PlayerAttackProto.ATLATL_SPEC,
   BGS_SPEC = PlayerAttackProto.BGS_SPEC,
