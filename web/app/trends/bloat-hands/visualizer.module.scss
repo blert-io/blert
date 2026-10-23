@@ -37,7 +37,6 @@ $COMPACT_TILE_SIZE: 18px;
   }
 
   .coordinateLabels {
-    .topLabels,
     .bottomLabels {
       display: flex;
       align-items: center;
@@ -143,7 +142,6 @@ $COMPACT_TILE_SIZE: 18px;
       z-index: 5;
     }
 
-    .handCount,
     .displayValue {
       font-size: 8px;
       font-weight: 600;
@@ -334,10 +332,6 @@ $COMPACT_TILE_SIZE: 18px;
     .tile {
       width: $COMPACT_TILE_SIZE;
       height: $COMPACT_TILE_SIZE;
-
-      .handCount {
-        font-size: 7px;
-      }
     }
 
     .coordinateLabels {
