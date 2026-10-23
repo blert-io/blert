@@ -16,6 +16,21 @@ async fn insert_challenge(db: &db::Postgres, uuid: Uuid) {
         .expect("fixture challenge insert");
 }
 
+async fn delete_challenge(db: &db::Postgres, uuid: Uuid) {
+    let client = db.checkout().await.expect("client");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+}
+
 /// Returns the outbox rows for a challenge, as `(kind, key, subject)`.
 async fn events_for(db: &db::Postgres, uuid: Uuid) -> Vec<(i16, String, serde_json::Value)> {
     let client = db.checkout().await.expect("client");
@@ -60,6 +75,8 @@ async fn finish_writes_a_finish_event() {
             serde_json::json!({ "uuid": uuid.to_string() }),
         )]
     );
+
+    delete_challenge(&db, uuid).await;
 }
 
 #[tokio::test]
@@ -115,4 +132,6 @@ async fn each_stage_finish_writes_a_stage_event() {
             "attempt": null,
         })
     );
+
+    delete_challenge(&db, uuid).await;
 }

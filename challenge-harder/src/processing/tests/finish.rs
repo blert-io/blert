@@ -423,6 +423,13 @@ async fn reported_time_mismatch_corrects_the_challenge_ticks() {
         )
         .await
         .expect("cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("cleanup");
 }
 
 #[tokio::test]
@@ -604,6 +611,13 @@ async fn reported_overall_time_without_challenge_time_keeps_the_recorded_ticks()
         .execute(
             "DELETE FROM challenge_sessions WHERE uuid = $1",
             &[&info.session_uuid],
+        )
+        .await
+        .expect("cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
         )
         .await
         .expect("cleanup");

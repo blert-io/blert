@@ -1093,21 +1093,25 @@ fn builder_ingest_objects_warns_on_inconsistent_deltas() {
             BuildWarning {
                 tick: Tick(84),
                 kind: proto::event::Type::Objects,
-                field: "objects.updates.removed",
-                error: FieldError::UnknownObject {
-                    r#type: proto::event::object_update::Type::Game,
-                    id: 32984,
-                    coords: proto::Coords { x: 3168, y: 4442 },
+                reason: WarningReason::InvalidField {
+                    field: "objects.updates.removed",
+                    error: FieldError::UnknownObject {
+                        r#type: proto::event::object_update::Type::Game,
+                        id: 32984,
+                        coords: proto::Coords { x: 3168, y: 4442 },
+                    },
                 },
             },
             BuildWarning {
                 tick: Tick(150),
                 kind: proto::event::Type::Objects,
-                field: "objects.updates.added",
-                error: FieldError::DuplicateObject {
-                    r#type: proto::event::object_update::Type::Game,
-                    id: 32984,
-                    coords: proto::Coords { x: 3168, y: 4443 },
+                reason: WarningReason::InvalidField {
+                    field: "objects.updates.added",
+                    error: FieldError::DuplicateObject {
+                        r#type: proto::event::object_update::Type::Game,
+                        id: 32984,
+                        coords: proto::Coords { x: 3168, y: 4443 },
+                    },
                 },
             },
         ]
@@ -1385,7 +1389,7 @@ fn builder_ingest_verzik_yellows() {
 fn builder_ingest_mokhaiotl_shockwave() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
-        PluginVersion::new(0, 10, 0),
+        PluginVersion::new(0, 9, 24),
         ConfigVersion::LATEST,
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
@@ -1700,7 +1704,7 @@ fn builder_ingest_colosseum_reentry_pools() {
 fn builder_ingest_mokhaiotl_objects() {
     let mut builder = RecordingBuilder::new(
         ClientId(8),
-        PluginVersion::new(0, 10, 0),
+        PluginVersion::new(0, 9, 24),
         ConfigVersion::LATEST,
         Stage::MokhaiotlDelve8plus,
         ChallengeMode::NoMode,
@@ -2507,6 +2511,129 @@ fn builder_ingest_attack_style_same_tick() {
 }
 
 #[test]
+fn builder_ingest_drops_attack_on_cooldown_from_a_later_batch() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(31),
+        PluginVersion::new(0, 10, 2),
+        ConfigVersion::LATEST,
+        Stage::MokhaiotlDelve4,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("1Ogp").unwrap()],
+        None,
+    );
+
+    let mut player = proto::Event {
+        tick: 22,
+        stage: Stage::MokhaiotlDelve4 as i32,
+        x_coord: 3421,
+        y_coord: 6441,
+        ..Default::default()
+    };
+    player.set_type(proto::event::Type::PlayerUpdate);
+    player.player = Some(proto::event::Player {
+        name: "1Ogp".to_string(),
+        hitpoints: Some(6_488_163),
+        prayer: Some(6_488_163),
+        attack: Some(7_733_347),
+        strength: Some(7_733_347),
+        defence: Some(7_733_347),
+        ranged: Some(7_340_131),
+        magic: Some(7_340_131),
+        active_prayers: Some(0),
+        data_source: proto::event::player::DataSource::Primary as i32,
+        snapshot: true,
+        ..Default::default()
+    });
+    let mut doom = proto::Event {
+        tick: 22,
+        stage: Stage::MokhaiotlDelve4 as i32,
+        x_coord: 3421,
+        y_coord: 6435,
+        ..Default::default()
+    };
+    doom.set_type(proto::event::Type::NpcUpdate);
+    doom.npc = Some(proto::event::Npc {
+        id: 14707,
+        room_id: 47491,
+        hitpoints: 29_557_336,
+        active_prayers: 0,
+        r#type: Some(proto::event::npc::Type::Basic(())),
+        ..Default::default()
+    });
+    let mut bow = proto::Event {
+        tick: 22,
+        stage: Stage::MokhaiotlDelve4 as i32,
+        x_coord: 3421,
+        y_coord: 6441,
+        ..Default::default()
+    };
+    bow.set_type(proto::event::Type::PlayerAttack);
+    bow.player = Some(proto::event::Player {
+        name: "1Ogp".to_string(),
+        ..Default::default()
+    });
+    bow.player_attack = Some(proto::event::Attack {
+        r#type: proto::PlayerAttack::TwistedBow as i32,
+        weapon: Some(proto::event::player::EquippedItem {
+            slot: proto::event::player::EquipmentSlot::Weapon as i32,
+            id: item::id::TWISTED_BOW,
+            quantity: 1,
+        }),
+        target: Some(proto::event::Npc {
+            id: 14707,
+            room_id: 47491,
+            r#type: Some(proto::event::npc::Type::Basic(())),
+            ..Default::default()
+        }),
+        distance_to_target: 6,
+    });
+    let attack = Event::recorded(
+        ClientId(31),
+        EventKind::PlayerAttack(PlayerAttacked {
+            player: PartyIndex::from_usize(0),
+            attack: PlayerAttack::TwistedBow,
+            weapon: Some(Item {
+                id: item::id::TWISTED_BOW,
+                quantity: 1,
+            }),
+            target: Some(Actor::Npc(RoomId(47491))),
+        }),
+    );
+
+    builder.ingest([player.clone(), doom.clone(), bow.clone()]);
+    assert_eq!(
+        builder
+            .recording()
+            .unwrap()
+            .get_state(Tick(22))
+            .unwrap()
+            .events,
+        vec![attack.clone()]
+    );
+    assert_eq!(builder.warnings().count(), 0);
+
+    player.tick = 20;
+    doom.tick = 20;
+    bow.tick = 20;
+    assert_eq!(
+        builder.ingest([player, doom, bow]).from_tick,
+        Some(Tick(20))
+    );
+    let recording = builder.recording().unwrap();
+    assert_eq!(recording.get_state(Tick(20)).unwrap().events, [attack]);
+    assert_eq!(recording.get_state(Tick(22)).unwrap().events, []);
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(
+        builder.warnings().cloned().collect::<Vec<_>>(),
+        [BuildWarning {
+            tick: Tick(22),
+            kind: proto::event::Type::PlayerAttack,
+            reason: WarningReason::OnCooldown,
+        }]
+    );
+}
+
+#[test]
 fn builder_ingest_attack_reference() {
     let mut builder = RecordingBuilder::new(
         ClientId(2),
@@ -2752,8 +2879,10 @@ fn builder_ingest_attack_reference() {
         [BuildWarning {
             tick: Tick(216),
             kind: proto::event::Type::TobVerzikBounce,
-            field: "verzik_bounce.bounced_player",
-            error: FieldError::UnknownActor(RawActor::Player("255 Nylo".to_string())),
+            reason: WarningReason::InvalidField {
+                field: "verzik_bounce.bounced_player",
+                error: FieldError::UnknownActor(RawActor::Player("255 Nylo".to_string())),
+            },
         }]
     );
 }

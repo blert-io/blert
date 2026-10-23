@@ -10,7 +10,7 @@ use crate::objects::{ObjectKind, TickObjects};
 use crate::tick::Tick;
 use crate::{Point, Stage, npc, proto};
 
-use super::{TickState, Timeline};
+use super::{TickState, Timeline, off_cooldown_tick};
 
 /// Encodes every tick of `timeline` from `start` to proto events.
 pub(super) fn encode_from(timeline: &Timeline, start: Tick) -> impl Iterator<Item = proto::Event> {
@@ -58,7 +58,12 @@ impl<'a> Encoder<'a> {
             if self.dead_players.contains(&index) {
                 continue;
             }
-            if let Some(off_cooldown) = off_cooldown_tick(tick, state, index) {
+            if let Some(off_cooldown) = state.events.iter().find_map(|event| match &event.kind {
+                EventKind::PlayerAttack(attack) if attack.player == index => {
+                    off_cooldown_tick(tick, state, attack)
+                }
+                _ => None,
+            }) {
                 self.off_cooldown_ticks[index.as_usize()] = off_cooldown;
             }
             if encode_events {
@@ -767,24 +772,6 @@ impl StageContext {
             Self::None => {}
         }
     }
-}
-
-fn off_cooldown_tick(tick: Tick, state: &TickState, player: PartyIndex) -> Option<Tick> {
-    state.events.iter().find_map(|event| {
-        let EventKind::PlayerAttack(attack) = &event.kind else {
-            return None;
-        };
-        if attack.player != player {
-            return None;
-        }
-        if let Some(Actor::Npc(room_id)) = attack.target
-            && let Some(target) = state.npcs.get(&room_id)
-            && !target.attack_applies_cooldown(attack.attack)
-        {
-            return None;
-        }
-        Some(tick + attack.attack.cooldown())
-    })
 }
 
 fn encode_equipment_deltas(

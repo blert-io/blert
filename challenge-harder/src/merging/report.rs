@@ -658,6 +658,7 @@ pub enum ClientAnomaly {
     InvalidTickCount,
     EventsBeyondReportedTicks,
     UnknownPlayer,
+    AttacksOnCooldown,
 }
 
 impl ClientAnomaly {
@@ -667,6 +668,7 @@ impl ClientAnomaly {
             Self::InvalidTickCount => "INVALID_TICK_COUNT",
             Self::EventsBeyondReportedTicks => "EVENTS_BEYOND_REPORTED_TICKS",
             Self::UnknownPlayer => "UNKNOWN_PLAYER",
+            Self::AttacksOnCooldown => "ATTACKS_ON_COOLDOWN",
         }
     }
 }
@@ -678,6 +680,7 @@ impl From<&Anomaly> for ClientAnomaly {
             Anomaly::InvalidTickCount => Self::InvalidTickCount,
             Anomaly::EventsBeyondReportedTicks => Self::EventsBeyondReportedTicks,
             Anomaly::UnknownPlayer => Self::UnknownPlayer,
+            Anomaly::AttacksOnCooldown => Self::AttacksOnCooldown,
         }
     }
 }

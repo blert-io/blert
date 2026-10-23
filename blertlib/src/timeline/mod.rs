@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::actor::{Actor, NpcState, PartyIndex, Players, RoomId, Rsn};
-use crate::event::{Event, Maze};
+use crate::event::{Event, Maze, PlayerAttacked};
 use crate::objects::TickObjects;
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, Point, Stage, proto};
@@ -19,7 +19,7 @@ use interpret::{RawNpc, RawObjects};
 
 pub use builder::{
     BuildMismatch, BuildRejection, BuildWarning, FieldError, Modified, RawActor, RecordingBuilder,
-    RejectionReason,
+    RejectionReason, WarningReason,
 };
 pub use config::{ConfigVersion, InvalidVersion};
 pub use recording::Recording;
@@ -220,6 +220,16 @@ impl Timeline {
     pub fn to_proto_from(&self, start: Tick) -> impl Iterator<Item = proto::Event> {
         encode::encode_from(self, start)
     }
+}
+
+fn off_cooldown_tick(tick: Tick, state: &TickState, attack: &PlayerAttacked) -> Option<Tick> {
+    if let Some(Actor::Npc(room_id)) = attack.target
+        && let Some(target) = state.npcs.get(&room_id)
+        && !target.attack_applies_cooldown(attack.attack)
+    {
+        return None;
+    }
+    Some(tick + attack.attack.cooldown())
 }
 
 #[cfg(test)]

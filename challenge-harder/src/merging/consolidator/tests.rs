@@ -1580,7 +1580,7 @@ fn inserts_a_player_attack_only_the_target_recorded() {
 
 #[test]
 fn fills_a_missing_player_attack_target_from_the_other_client() {
-    // Tick 0: only the target saw who was attacked. Tick 1: only the base did.
+    // Tick 0: only the target saw who was attacked. Tick 5: only the base did.
     let stage = Stage::TobMaiden;
     let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
@@ -1594,7 +1594,7 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
             .into_iter()
             .enumerate()
             .flat_map(|(i, target)| {
-                let tick = Tick::from_usize(i);
+                let tick = Tick::from_usize(i * 5);
                 [
                     PlayerUpdateEvent::new(tick, stage, "WWWWWWWWWWQQ", (0, 0)).build(),
                     fixtures::player_attack_event(PlayerAttackEvent {
@@ -1611,7 +1611,7 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
                 ]
             })
             .collect();
-        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(5), events)
     };
     let base = recording(BASE_CLIENT_ID, [None, Some(maiden.clone())]);
     let target = recording(TARGET_CLIENT_ID, [Some(maiden), None]);
@@ -1624,7 +1624,7 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     let player = result.recording.party_index(&party[0]).unwrap();
-    for tick in [Tick(0), Tick(1)] {
+    for tick in [Tick(0), Tick(5)] {
         assert_eq!(
             result
                 .recording
@@ -1657,7 +1657,7 @@ fn fills_a_missing_player_attack_target_from_the_other_client() {
 #[test]
 fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
     // Tick 0: the clients disagree on who was attacked.
-    // Tick 1: they disagree on the attack.
+    // Tick 5: they disagree on the attack.
     let stage = Stage::TobMaiden;
     let party = vec![Rsn::try_from("WWWWWWWWWWQQ").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
@@ -1676,7 +1676,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
             .into_iter()
             .enumerate()
             .flat_map(|(i, (attack, target))| {
-                let tick = Tick::from_usize(i);
+                let tick = Tick::from_usize(i * 5);
                 [
                     PlayerUpdateEvent::new(tick, stage, "WWWWWWWWWWQQ", (0, 0)).build(),
                     fixtures::player_attack_event(PlayerAttackEvent {
@@ -1693,7 +1693,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
                 ]
             })
             .collect();
-        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(1), events)
+        fixtures::recording(client_id, stage, challenge.mode, &party, Tick(5), events)
     };
     let base = recording(
         BASE_CLIENT_ID,
@@ -1715,7 +1715,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
     let player = result.recording.party_index(&party[0]).unwrap();
-    for tick in [Tick(0), Tick(1)] {
+    for tick in [Tick(0), Tick(5)] {
         assert_eq!(
             result
                 .recording
@@ -1749,7 +1749,7 @@ fn keeps_the_base_player_attack_in_a_conflict_and_flags() {
                 },
             },
             QualityFlag::Disagreement {
-                tick: Tick(1),
+                tick: Tick(5),
                 kept_source: Source::Client(BASE_CLIENT_ID),
                 discarded_source: Source::Client(TARGET_CLIENT_ID),
                 subject: Disagreement::PlayerAttackKind {

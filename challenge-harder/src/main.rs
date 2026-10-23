@@ -179,14 +179,18 @@ async fn configure_challenge_processor(
         .await
         .expect("failed to open the data repository");
 
+    let development = std::env::var("BLERT_ENVIRONMENT").is_ok_and(|env| env == "development");
+
     let price_resolver = Arc::new(price::PriceResolver::new(Some(PRICE_FETCH_TIMEOUT)));
-    let p = Arc::clone(&price_resolver);
-    tokio::spawn(async move {
-        match p.refresh().await {
-            Ok(()) => tracing::info!("prices_initialized"),
-            Err(error) => tracing::warn!(error = %error, "price_initialization_failed"),
-        }
-    });
+    if !development {
+        let p = Arc::clone(&price_resolver);
+        tokio::spawn(async move {
+            match p.refresh().await {
+                Ok(()) => tracing::info!("prices_initialized"),
+                Err(error) => tracing::warn!(error = %error, "price_initialization_failed"),
+            }
+        });
+    }
 
     let processor_config = processing::ProcessorConfig {
         theatre: processing::TheatreConfig {
@@ -209,7 +213,6 @@ async fn configure_challenge_processor(
         let capture_repository = repository::DataRepository::from_uri(&uri)
             .await
             .expect("failed to open the capture repository");
-        let development = std::env::var("BLERT_ENVIRONMENT").is_ok_and(|env| env == "development");
         pipeline = pipeline.with_capturer(processing::StreamCapturer::new(
             capture_repository,
             development,

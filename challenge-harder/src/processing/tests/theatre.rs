@@ -217,6 +217,20 @@ async fn maiden_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Checks every row the Maiden test writes, returning its stored custom data.
@@ -509,6 +523,20 @@ async fn bloat_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Checks every row the Bloat room writes, returning its stored custom data.
@@ -856,6 +884,20 @@ async fn nylocas_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Checks every row the Nylocas room writes, returning its stored custom data.
@@ -1183,6 +1225,20 @@ async fn sotetseg_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Checks every row the Sotetseg room writes, returning its stored custom data.
@@ -1466,6 +1522,20 @@ async fn xarpus_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Checks every row the Xarpus room writes, returning its stored custom data.
@@ -1783,6 +1853,20 @@ async fn verzik_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 /// Checks every row the Verzik room writes, returning its stored custom data.
@@ -2088,6 +2172,20 @@ async fn bloat_merge_low_confidence_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 const BLOAT_MERGE_UNMERGED_CLIENT_UUID: &str = "fcf5ffa4-507f-48f2-bb44-619d26162c37";
@@ -2239,6 +2337,20 @@ async fn bloat_merge_unmerged_client_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 const NYLOCAS_MERGE_CONSISTENCY_REJECTION_UUID: &str = "622c5e9b-615f-40e3-9e89-7a42682cb6ca";
@@ -2390,6 +2502,20 @@ async fn nylocas_merge_consistency_rejection_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }
 
 const VERZIK_MERGE_CLEAN_UUID: &str = "fdcce6f1-5d7f-4c18-8463-4743aa08ca63";
@@ -2539,4 +2665,18 @@ async fn verzik_merge_clean_test() {
         .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
         .await
         .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }

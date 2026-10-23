@@ -61,14 +61,22 @@ pub enum RejectionReason {
     BeyondLastTick,
 }
 
-/// A `Warning` describes an issue with a field of an event. The event is still
-/// processed, but the offending data is ignored.
+/// A `Warning` describes an issue with an event that the recording can absorb.
+/// Either the offending field is ignored, or the event is dropped.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildWarning {
     pub tick: Tick,
     pub kind: proto::event::Type,
-    pub field: &'static str,
-    pub error: FieldError,
+    pub reason: WarningReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WarningReason {
+    InvalidField {
+        field: &'static str,
+        error: FieldError,
+    },
+    OnCooldown,
 }
 
 /// The reason why a field's value could not be represented.
@@ -338,6 +346,7 @@ impl RecordingBuilder {
         self.events.append(&mut pending);
         if let Some(tick) = interpret::interpret(
             &mut recording,
+            &mut self.warnings,
             self.client_id,
             self.plugin_version,
             self.config_version,
@@ -349,6 +358,7 @@ impl RecordingBuilder {
         let mut interpretation = recording.clone();
         interpret::interpret(
             &mut interpretation,
+            &mut BTreeMap::new(),
             self.client_id,
             self.plugin_version,
             self.config_version,
@@ -795,8 +805,7 @@ impl<'a> TickBuilder<'a> {
                         self.warnings.entry(tick).or_default().push(BuildWarning {
                             tick,
                             kind,
-                            field,
-                            error,
+                            reason: WarningReason::InvalidField { field, error },
                         });
                     }
                     EventOutcome::Rejected(reason) => {
@@ -839,11 +848,13 @@ impl<'a> TickBuilder<'a> {
                 self.warnings.entry(tick).or_default().push(BuildWarning {
                     tick,
                     kind: Type::Objects,
-                    field: "objects.updates.removed",
-                    error: FieldError::UnknownObject {
-                        r#type,
-                        id,
-                        coords: proto::Coords::from(point),
+                    reason: WarningReason::InvalidField {
+                        field: "objects.updates.removed",
+                        error: FieldError::UnknownObject {
+                            r#type,
+                            id,
+                            coords: proto::Coords::from(point),
+                        },
                     },
                 });
             }
@@ -851,11 +862,13 @@ impl<'a> TickBuilder<'a> {
                 self.warnings.entry(tick).or_default().push(BuildWarning {
                     tick,
                     kind: Type::Objects,
-                    field: "objects.updates.added",
-                    error: FieldError::DuplicateObject {
-                        r#type,
-                        id,
-                        coords: proto::Coords::from(point),
+                    reason: WarningReason::InvalidField {
+                        field: "objects.updates.added",
+                        error: FieldError::DuplicateObject {
+                            r#type,
+                            id,
+                            coords: proto::Coords::from(point),
+                        },
                     },
                 });
             }
