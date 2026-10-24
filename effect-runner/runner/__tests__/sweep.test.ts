@@ -7,13 +7,9 @@ import {
   jest,
 } from '@jest/globals';
 
-import { EffectEventKind } from '../../effects';
-import { EffectStore, Subscription } from '../store';
+import { EffectStore } from '../store';
 import { Sweeper } from '../sweep';
 
-const SUBSCRIPTIONS: Subscription[] = [
-  { kind: EffectEventKind.CHALLENGE_FINISHED, handler: 'feed' },
-];
 const INTERVAL_MS = 60 * 60 * 1000;
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -36,7 +32,6 @@ describe('Sweeper', () => {
     const store = makeStore();
     const sweeper = new Sweeper(
       store as unknown as EffectStore,
-      SUBSCRIPTIONS,
       INTERVAL_MS,
       RETENTION_MS,
     );
@@ -45,7 +40,7 @@ describe('Sweeper', () => {
     await sweeper.stop();
 
     expect(store.sweepEvents.mock.calls).toEqual([
-      [SUBSCRIPTIONS, new Date('2026-09-12T12:00:00Z')],
+      [new Date('2026-09-12T12:00:00Z')],
     ]);
   });
 
@@ -53,7 +48,6 @@ describe('Sweeper', () => {
     const store = makeStore();
     const sweeper = new Sweeper(
       store as unknown as EffectStore,
-      SUBSCRIPTIONS,
       INTERVAL_MS,
       RETENTION_MS,
     );
@@ -64,9 +58,9 @@ describe('Sweeper', () => {
     await sweeper.stop();
 
     expect(store.sweepEvents.mock.calls).toEqual([
-      [SUBSCRIPTIONS, new Date('2026-09-12T12:00:00Z')],
-      [SUBSCRIPTIONS, new Date('2026-09-12T13:00:00Z')],
-      [SUBSCRIPTIONS, new Date('2026-09-12T14:00:00Z')],
+      [new Date('2026-09-12T12:00:00Z')],
+      [new Date('2026-09-12T13:00:00Z')],
+      [new Date('2026-09-12T14:00:00Z')],
     ]);
   });
 
@@ -75,7 +69,6 @@ describe('Sweeper', () => {
     store.sweepEvents.mockRejectedValueOnce(new Error('connection closed'));
     const sweeper = new Sweeper(
       store as unknown as EffectStore,
-      SUBSCRIPTIONS,
       INTERVAL_MS,
       RETENTION_MS,
     );
@@ -91,7 +84,6 @@ describe('Sweeper', () => {
     const store = makeStore();
     const sweeper = new Sweeper(
       store as unknown as EffectStore,
-      SUBSCRIPTIONS,
       INTERVAL_MS,
       RETENTION_MS,
     );

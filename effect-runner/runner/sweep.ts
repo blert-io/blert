@@ -1,33 +1,28 @@
 import logger from '../log';
 import { observeSweep } from '../metrics';
 import { IntervalTask } from '../task';
-import { EffectStore, Subscription } from './store';
+import { EffectStore } from './store';
 
 const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Periodically deletes fully delivered events from the store. */
+/** Periodically deletes completed events from the store. */
 export class Sweeper {
   private readonly store: EffectStore;
-  private readonly subscriptions: Subscription[];
   private readonly retentionMs: number;
   private readonly task: IntervalTask;
 
   /**
    * @param store Store to sweep.
-   * @param subscriptions Subscriptions whose outstanding work protects an
-   *   event from deletion.
    * @param intervalMs Delay between sweeps.
-   * @param retentionMs Age at which a finished event is deleted.
+   * @param retentionMs Age at which a completed event is deleted.
    */
   public constructor(
     store: EffectStore,
-    subscriptions: Subscription[],
     intervalMs: number = SWEEP_INTERVAL_MS,
     retentionMs: number = RETENTION_MS,
   ) {
     this.store = store;
-    this.subscriptions = subscriptions;
     this.retentionMs = retentionMs;
     this.task = new IntervalTask(() => this.sweep(), { intervalMs });
   }
@@ -47,7 +42,7 @@ export class Sweeper {
     const cutoff = new Date(Date.now() - this.retentionMs);
 
     try {
-      const deleted = await this.store.sweepEvents(this.subscriptions, cutoff);
+      const deleted = await this.store.sweepEvents(cutoff);
       observeSweep(deleted);
       logger.info('effect_sweep', { deleted, cutoff: cutoff.toISOString() });
     } catch (e) {

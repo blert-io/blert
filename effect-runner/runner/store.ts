@@ -129,7 +129,8 @@ export class EffectStore {
         SELECT ${handlersWithOutstandingWork(this.sql, subscriptions, true)}
           AS handlers
       ) work
-      WHERE work.handlers IS NOT NULL
+      WHERE e.completed_at IS NULL
+        AND work.handlers IS NOT NULL
       ORDER BY e.id
       LIMIT ${BATCH_LIMIT}
     `;
@@ -154,35 +155,46 @@ export class EffectStore {
     const rows = await this.sql<{ createdAt: Date | null }[]>`
       SELECT MIN(e.created_at) AS "createdAt"
       FROM effect_events e
-      WHERE ${handlersWithOutstandingWork(this.sql, subscriptions, false)}
-        IS NOT NULL
+      WHERE e.completed_at IS NULL
+        AND ${handlersWithOutstandingWork(this.sql, subscriptions, false)}
+          IS NOT NULL
     `;
 
     return rows[0]?.createdAt ?? null;
   }
 
   /**
-   * Deletes events created before `cutoff` which have no outstanding work for
-   * any of the given subscriptions. Events which have failed deliveries are
-   * also kept for inspection.
+   * Marks events with no outstanding work for any of the given subscriptions
+   * as completed.
    *
    * @param subscriptions The event subscriptions to consider.
+   */
+  public async completeEvents(subscriptions: Subscription[]): Promise<void> {
+    if (subscriptions.length === 0) {
+      return;
+    }
+
+    await this.sql`
+      UPDATE effect_events e
+      SET completed_at = NOW()
+      WHERE e.completed_at IS NULL
+        AND ${handlersWithOutstandingWork(this.sql, subscriptions, false)}
+          IS NULL
+    `;
+  }
+
+  /**
+   * Deletes completed events created before `cutoff`. Events which have failed
+   * deliveries are kept for inspection.
+   *
    * @param cutoff Timestamp before which to delete.
    * @returns The number of events deleted.
    */
-  public async sweepEvents(
-    subscriptions: Subscription[],
-    cutoff: Date,
-  ): Promise<number> {
-    if (subscriptions.length === 0) {
-      return 0;
-    }
-
+  public async sweepEvents(cutoff: Date): Promise<number> {
     const result = await this.sql`
       DELETE FROM effect_events e
       WHERE e.created_at < ${cutoff}
-        AND ${handlersWithOutstandingWork(this.sql, subscriptions, false)}
-          IS NULL
+        AND e.completed_at IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM effect_deliveries d
           WHERE d.event_id = e.id AND d.status = 'failed'

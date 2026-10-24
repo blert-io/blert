@@ -56,6 +56,7 @@ export class Poller {
 
     const events = await this.store.pollReadyEvents(this.subscriptions);
     await this.dispatcher.dispatchBatch(events);
+    await this.store.completeEvents(this.subscriptions);
 
     const oldest = await this.store.oldestOutstanding(this.subscriptions);
     setOldestOutstandingEventAge(

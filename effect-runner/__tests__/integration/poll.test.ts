@@ -148,6 +148,15 @@ describe('Poller', () => {
       );
       expect(await store.pollReadyEvents(subscriptions)).toEqual([]);
       expect(await store.oldestOutstanding(subscriptions)).toBeNull();
+
+      const events = await sql<{ id: bigint; completedAt: Date | null }[]>`
+        SELECT id, completed_at AS "completedAt" FROM effect_events ORDER BY id
+      `;
+      expect(events).toEqual([
+        { id: first, completedAt: expect.any(Date) },
+        { id: second, completedAt: expect.any(Date) },
+        { id: third, completedAt: expect.any(Date) },
+      ]);
     }));
 
   it('redelivers an immediate retry on its next tick', () =>
