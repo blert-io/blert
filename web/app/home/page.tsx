@@ -103,11 +103,11 @@ const SETUP_STEPS = [
   },
   {
     title: 'Create an account',
-    description: 'Any username, no need to match in-game.',
+    description: 'Any username, no need to match your RSN.',
   },
   {
     title: 'Generate an API key',
-    description: 'In settings. No Discord needed.',
+    description: 'From your settings page.',
   },
   {
     title: 'Add the key to the plugin',
@@ -121,8 +121,8 @@ function GettingStarted() {
       <div className={styles.startIntro}>
         <h2 id="start-heading">Track your PvM progress</h2>
         <p>
-          Blert records your raids and challenges through RuneLite and turns
-          every run into splits, stats and replays.
+          Blert records your raids and challenges through a RuneLite plugin and
+          turns every run into splits, stats, and replays.
         </p>
       </div>
       <ol className={styles.setupSteps}>
@@ -182,12 +182,11 @@ function WelcomeBack({ username }: { username: string | null }) {
       <div className={styles.startIntro}>
         <h2 id="start-heading">Welcome back</h2>
         <p>
-          Your recorded runs, personal bests and sessions are waiting on your
-          dashboard.
+          Check out your friends&apos; sessions and personal bests in your feed.
         </p>
       </div>
       <ButtonLink href="/" fluid>
-        See Your Dashboard <i className="fas fa-arrow-right" />
+        See Your Feed <i className="fas fa-arrow-right" />
       </ButtonLink>
       <nav className={styles.quickLinks} aria-label="Account">
         {username !== null && (
