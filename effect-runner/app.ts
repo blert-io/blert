@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     subscriptions,
     config.pollIntervalMs,
   );
-  const sweeper = new Sweeper(store, subscriptions);
+  const sweeper = new Sweeper(store);
   await sweeper.start();
 
   poller.start();

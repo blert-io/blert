@@ -48,6 +48,15 @@ async function insertDelivery(
   `;
 }
 
+async function markCompleted(
+  eventId: bigint,
+  completedAt: Date,
+): Promise<void> {
+  await sql`
+    UPDATE effect_events SET completed_at = ${completedAt} WHERE id = ${eventId}
+  `;
+}
+
 type StoredDelivery = {
   status: DeliveryStatus;
   attemptsRemaining: number;
@@ -180,10 +189,13 @@ describe('pollReadyEvents', () => {
     expect(work.map(({ event }) => event.id)).not.toContain(before);
   });
 
-  it('excludes events whose deliveries are all finished', async () => {
+  it('excludes completed events and those whose deliveries are all finished', async () => {
     await store.registerSubscriptions([SUBSCRIPTION]);
     const id = await insertChallengeEvent();
     await insertDelivery(id, HANDLER, 'delivered');
+    // Completed while the handler was disabled.
+    const completed = await insertChallengeEvent();
+    await markCompleted(completed, new Date());
 
     const work = await store.pollReadyEvents([SUBSCRIPTION]);
     expect(work).toEqual([]);
@@ -466,13 +478,17 @@ describe('oldestOutstanding', () => {
     expect(await store.oldestOutstanding([SUBSCRIPTION])).toEqual(oldest);
   });
 
-  it('ignores finished events and events before registration', async () => {
+  it('ignores finished events, completed events and events before registration', async () => {
     await registerHandler();
     await insertChallengeEvent(new Date('2025-12-01T00:00:00Z'));
     const finished = await insertChallengeEvent(
       new Date('2026-02-01T00:00:00Z'),
     );
     await insertDelivery(finished, HANDLER, 'delivered');
+    // Completed while the handler was disabled.
+    const completedAt = new Date('2026-02-15T00:00:00Z');
+    const completed = await insertChallengeEvent(completedAt);
+    await markCompleted(completed, completedAt);
     const outstanding = new Date('2026-03-01T00:00:00Z');
     await insertChallengeEvent(outstanding);
 
@@ -480,11 +496,8 @@ describe('oldestOutstanding', () => {
   });
 });
 
-describe('sweepEvents', () => {
+describe('completeEvents', () => {
   const REGISTERED_AT = new Date('2026-08-15T00:00:00Z');
-  const CUTOFF = new Date('2026-09-08T00:00:00Z');
-  const BEFORE_CUTOFF = new Date('2026-09-05T00:00:00Z');
-  const AFTER_CUTOFF = new Date('2026-09-14T00:00:00Z');
   const FAR_FUTURE = new Date('2038-01-19T03:14:08Z');
 
   async function registerHandler(): Promise<void> {
@@ -492,86 +505,91 @@ describe('sweepEvents', () => {
     await sql`UPDATE effect_handlers SET registered_at = ${REGISTERED_AT}`;
   }
 
-  async function remainingEvents(): Promise<bigint[]> {
-    const rows = await sql<{ id: bigint }[]>`
-      SELECT id FROM effect_events ORDER BY id
-    `;
-    return rows.map((row) => row.id);
-  }
-
-  it('deletes a finished event', async () => {
-    await registerHandler();
-    const id = await insertChallengeEvent(BEFORE_CUTOFF);
-    await insertDelivery(id, HANDLER, 'delivered');
-
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(1);
-    expect(await remainingEvents()).toEqual([]);
-    expect(await sql`SELECT 1 FROM effect_deliveries`).toHaveLength(0);
-  });
-
-  it('keeps an event newer than the cutoff', async () => {
-    await registerHandler();
-    const id = await insertChallengeEvent(AFTER_CUTOFF);
-    await insertDelivery(id, HANDLER, 'delivered');
-
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
-    expect(await remainingEvents()).toEqual([id]);
-  });
-
-  it('keeps an event with a pending delivery', async () => {
-    await registerHandler();
-    const id = await insertChallengeEvent(BEFORE_CUTOFF);
-    await insertDelivery(id, HANDLER, 'pending', FAR_FUTURE);
-
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
-    expect(await remainingEvents()).toEqual([id]);
-  });
-
-  it('keeps an event a subscribed handler has not yet planned', async () => {
-    await registerHandler();
-    const id = await insertChallengeEvent(BEFORE_CUTOFF);
-
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
-    expect(await remainingEvents()).toEqual([id]);
-  });
-
-  it('keeps an event with a failed delivery', async () => {
-    await registerHandler();
-    const id = await insertChallengeEvent(BEFORE_CUTOFF);
-    await insertDelivery(id, HANDLER, 'failed');
-
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(0);
-    expect(await remainingEvents()).toEqual([id]);
-  });
-
-  it("deletes an unplanned event predating the handler's registration", async () => {
-    await registerHandler();
-    await insertChallengeEvent(new Date('2026-08-01T00:00:00Z'));
-
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(1);
-    expect(await remainingEvents()).toEqual([]);
-  });
-
-  it('does not consider subscriptions beyond those provided', async () => {
+  it('completes events without outstanding work', async () => {
     // A handler that previously existed and did work but was removed.
     await store.registerSubscriptions([
       { kind: EffectEventKind.CHALLENGE_FINISHED, handler: 'retired-handler' },
     ]);
     await registerHandler();
-    const id = await insertChallengeEvent(BEFORE_CUTOFF);
-    await insertDelivery(id, HANDLER, 'delivered');
-    await insertDelivery(id, 'retired-handler', 'pending');
 
-    expect(await store.sweepEvents([SUBSCRIPTION], CUTOFF)).toBe(1);
-    expect(await remainingEvents()).toEqual([]);
+    const earlierCompletion = new Date('2026-08-21T00:00:00Z');
+    const earlier = await insertChallengeEvent(
+      new Date('2026-08-20T00:00:00Z'),
+    );
+    await insertDelivery(earlier, HANDLER, 'delivered');
+    await markCompleted(earlier, earlierCompletion);
+    const delivered = await insertChallengeEvent();
+    await insertDelivery(delivered, HANDLER, 'delivered');
+    const failed = await insertChallengeEvent();
+    await insertDelivery(failed, HANDLER, 'failed');
+    const waiting = await insertChallengeEvent();
+    await insertDelivery(waiting, HANDLER, 'pending', FAR_FUTURE);
+    const unplanned = await insertChallengeEvent();
+    const preregistration = await insertChallengeEvent(
+      new Date('2026-08-01T00:00:00Z'),
+    );
+    const unsubscribed = await insertStageEvent();
+    const retired = await insertChallengeEvent();
+    await insertDelivery(retired, HANDLER, 'delivered');
+    await insertDelivery(retired, 'retired-handler', 'pending');
+
+    await store.completeEvents([SUBSCRIPTION]);
+
+    const completions = await sql<{ id: bigint; completedAt: Date | null }[]>`
+      SELECT id, completed_at AS "completedAt" FROM effect_events ORDER BY id
+    `;
+    expect(completions).toEqual([
+      { id: earlier, completedAt: earlierCompletion },
+      { id: delivered, completedAt: expect.any(Date) },
+      { id: failed, completedAt: expect.any(Date) },
+      { id: waiting, completedAt: null },
+      { id: unplanned, completedAt: null },
+      { id: preregistration, completedAt: expect.any(Date) },
+      { id: unsubscribed, completedAt: expect.any(Date) },
+      { id: retired, completedAt: expect.any(Date) },
+    ]);
   });
 
   it('does nothing when called without subscriptions', async () => {
     await registerHandler();
-    const id = await insertChallengeEvent(BEFORE_CUTOFF);
+    const id = await insertChallengeEvent();
     await insertDelivery(id, HANDLER, 'delivered');
 
-    expect(await store.sweepEvents([], CUTOFF)).toBe(0);
-    expect(await remainingEvents()).toEqual([id]);
+    await store.completeEvents([]);
+
+    const completions = await sql<{ id: bigint; completedAt: Date | null }[]>`
+      SELECT id, completed_at AS "completedAt" FROM effect_events ORDER BY id
+    `;
+    expect(completions).toEqual([{ id, completedAt: null }]);
+  });
+});
+
+describe('sweepEvents', () => {
+  const CUTOFF = new Date('2026-09-08T00:00:00Z');
+  const BEFORE_CUTOFF = new Date('2026-09-05T00:00:00Z');
+  const AFTER_CUTOFF = new Date('2026-09-14T00:00:00Z');
+
+  it('deletes completed events before the cutoff without failures', async () => {
+    const swept = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(swept, HANDLER, 'delivered');
+    await markCompleted(swept, BEFORE_CUTOFF);
+    const recent = await insertChallengeEvent(AFTER_CUTOFF);
+    await insertDelivery(recent, HANDLER, 'delivered');
+    await markCompleted(recent, AFTER_CUTOFF);
+    const incomplete = await insertChallengeEvent(BEFORE_CUTOFF);
+    const failed = await insertChallengeEvent(BEFORE_CUTOFF);
+    await insertDelivery(failed, HANDLER, 'failed');
+    await markCompleted(failed, BEFORE_CUTOFF);
+
+    expect(await store.sweepEvents(CUTOFF)).toBe(1);
+
+    const events = await sql<{ id: bigint }[]>`
+      SELECT id FROM effect_events ORDER BY id
+    `;
+    expect(events.map((row) => row.id)).toEqual([recent, incomplete, failed]);
+    const deliveries = await sql<{ eventId: bigint }[]>`
+      SELECT event_id AS "eventId" FROM effect_deliveries ORDER BY event_id
+    `;
+    expect(deliveries.map((row) => row.eventId)).toEqual([recent, failed]);
   });
 });
