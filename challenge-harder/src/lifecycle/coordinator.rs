@@ -587,14 +587,18 @@ impl Coordinator {
                     _ = shutdown.changed() => return,
                 }
 
-                {
+                loop {
+                    if *shutdown.borrow() {
+                        return;
+                    }
                     let _exclusive = starts.write().await;
                     let running: Vec<Uuid> = {
                         let registry = registry.lock().expect("coordinator lock poisoned");
                         registry.challenges.iter().copied().collect()
                     };
-                    match store.claim_unowned(Self::SCAN_BATCH_SIZE, &running).await {
+                    let claimed = match store.claim_unowned(Self::SCAN_BATCH_SIZE, &running).await {
                         Ok(claims) => {
+                            let claimed = claims.len();
                             for claim in claims {
                                 tracing::info!(uuid = %claim.uuid(), "challenge_claimed");
                                 spawn_challenge(
@@ -607,8 +611,15 @@ impl Coordinator {
                                     shutdown.clone(),
                                 );
                             }
+                            claimed
                         }
-                        Err(error) => tracing::warn!(%error, "claim_scan_failed"),
+                        Err(error) => {
+                            tracing::warn!(%error, "claim_scan_failed");
+                            break;
+                        }
+                    };
+                    if claimed < Self::SCAN_BATCH_SIZE {
+                        break;
                     }
                 }
 
@@ -781,6 +792,39 @@ mod tests {
                 .expect("coordinator lock poisoned")
                 .challenges
                 .contains(&unowned_uuid),
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn scan_claims_more_than_one_batch_in_a_tick() {
+        let collector = Collector::default();
+        let (_tx, rx) = watch::channel(false);
+        let coordinator =
+            Coordinator::with_stores(Arc::new(collector.clone()), Arc::new(collector.clone()), rx);
+
+        let mut unowned = HashSet::new();
+        for user in 1..=Coordinator::SCAN_BATCH_SIZE + 1 {
+            let user = u32::try_from(user).unwrap();
+            let mut create = create_command_for(user);
+            create.request.party = vec![Rsn::try_from(format!("Player {user}")).unwrap()];
+            let Start::Created { claim, .. } =
+                collector.start(create).await.expect("start should succeed")
+            else {
+                panic!("expected a creation");
+            };
+            unowned.insert(claim.uuid());
+        }
+
+        coordinator.start_scan(Duration::from_secs(60));
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        assert_eq!(
+            coordinator
+                .registry
+                .lock()
+                .expect("coordinator lock poisoned")
+                .challenges,
+            unowned,
         );
     }
 
