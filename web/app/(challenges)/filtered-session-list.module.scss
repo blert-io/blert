@@ -53,20 +53,4 @@
       }
     }
   }
-
-  .statuses {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    width: 100%;
-
-    .checkbox {
-      margin: 0 2px;
-
-      @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-        margin-top: 5px;
-        width: 46%;
-      }
-    }
-  }
 }
