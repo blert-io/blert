@@ -233,3 +233,8 @@ pub fn is_mokhaiotl_larva(npc_id: u32) -> bool {
             | id::GIANT_DEMONIC_MAGIC_LARVA
     )
 }
+
+#[must_use]
+pub fn is_ocellus(npc_id: u32) -> bool {
+    matches!(npc_id, id::OCELLUS_P1 | id::OCELLUS_P2 | id::OCELLUS_P3)
+}

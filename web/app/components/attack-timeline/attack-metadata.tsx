@@ -162,6 +162,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MELEE,
     verb: 'clawed',
   },
+  [PlayerAttack.CAMPHOR_BLOWPIPE]: {
+    tagColor: TagColor.GREEN,
+    letter: 'CBP',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+    verb: 'piped',
+  },
   [PlayerAttack.CHALLY_SPEC]: {
     tagColor: TagColor.YELLOW,
     letter: 'CH',
@@ -490,6 +498,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MELEE,
     verb: 'bashed',
   },
+  [PlayerAttack.IRONWOOD_BLOWPIPE]: {
+    tagColor: TagColor.GREEN,
+    letter: 'IBP',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+    verb: 'piped',
+  },
   [PlayerAttack.KARILS_CROSSBOW]: {
     tagColor: TagColor.GREEN,
     letter: 'KC',
@@ -577,6 +593,22 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     special: false,
     style: CombatStyle.MELEE,
     verb: 'stabbed',
+  },
+  [PlayerAttack.ROSEWOOD_BLOWPIPE]: {
+    tagColor: TagColor.GREEN,
+    letter: 'rbp',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+    verb: 'piped',
+  },
+  [PlayerAttack.ROSEWOOD_BLOWPIPE_SPEC]: {
+    tagColor: TagColor.GREEN,
+    letter: 'RBP',
+    ranged: true,
+    special: true,
+    style: CombatStyle.RANGED,
+    verb: 'pipe specced',
   },
   [PlayerAttack.SAELDOR]: {
     tagColor: TagColor.RED,
@@ -818,6 +850,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.RANGED,
     verb: 'bowed',
   },
+  [PlayerAttack.UNDEAD_GRASP]: {
+    tagColor: TagColor.BLUE,
+    letter: 'UG',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'grasped',
+  },
   [PlayerAttack.VENATOR_BOW]: {
     tagColor: TagColor.GREEN,
     letter: 'VB',
@@ -913,6 +953,30 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     special: false,
     style: CombatStyle.MELEE,
     verb: 'hacked at',
+  },
+  [PlayerAttack.ZORYAS_TOME_AUTO]: {
+    tagColor: TagColor.BLUE,
+    letter: 'zt',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'tomed',
+  },
+  [PlayerAttack.ZORYAS_TOME_BUFFED]: {
+    tagColor: TagColor.BLUE,
+    letter: 'ztb',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'tomed',
+  },
+  [PlayerAttack.ZORYAS_TOME_SPEC]: {
+    tagColor: TagColor.BLUE,
+    letter: 'ZT',
+    ranged: true,
+    special: true,
+    style: CombatStyle.MAGIC,
+    verb: 'tome specced',
   },
   [PlayerAttack.UNKNOWN_BARRAGE]: {
     tagColor: undefined,
@@ -1389,6 +1453,10 @@ export function getAttackBadgeUrl(attack: BCFAttackAction): string | undefined {
       return '/images/combat/ice-rush.png';
     case PlayerAttack.OBLIGATOR_SMASH:
       return '/images/combat/smash.webp';
+    case PlayerAttack.UNDEAD_GRASP:
+      return '/images/combat/undead-grasp.webp';
+    case PlayerAttack.ZORYAS_TOME_BUFFED:
+      return '/images/combat/zoryas-tome-buffed.webp';
   }
 
   const isSpec =

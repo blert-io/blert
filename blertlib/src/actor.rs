@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize, Serializer};
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item};
 use crate::prayer::PrayerSet;
 use crate::skill::SkillLevel;
-use crate::{AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, VerzikPhase, npc, proto};
+use crate::timeline::OcellusProperties;
+use crate::{
+    AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, Tick, VerzikPhase, npc, proto,
+};
 
 pub use crate::proto::event::npc::maiden_crab::{
     Position as MaidenCrabPosition, Spawn as MaidenCrabSpawn,
@@ -269,6 +272,7 @@ impl NpcState {
                     | PlayerAttack::ToxicTridentBarrage
                     | PlayerAttack::TridentBarrage
                     | PlayerAttack::IceRush
+                    | PlayerAttack::UndeadGrasp
             ),
             _ => match self.properties {
                 Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true })) => {
@@ -286,9 +290,17 @@ pub enum NpcProperties {
     Nylo(Nylo),
     VerzikCrab(VerzikCrab),
     Mokhaiotl(Mokhaiotl),
+    Ocellus(OcellusProperties),
 }
 
 impl NpcProperties {
+    pub fn remap_ticks(&mut self, remap: impl FnMut(Tick) -> Tick) {
+        match self {
+            Self::Ocellus(ocellus) => ocellus.remap_ticks(remap),
+            Self::MaidenCrab(_) | Self::Nylo(_) | Self::VerzikCrab(_) | Self::Mokhaiotl(_) => {}
+        }
+    }
+
     #[must_use]
     pub fn to_proto(&self) -> Option<proto::event::npc::Type> {
         let npc_type = match self {
@@ -324,7 +336,7 @@ impl NpcProperties {
                     spawn: crab.spawn as i32,
                 })
             }
-            Self::Mokhaiotl(_) => return None,
+            Self::Mokhaiotl(_) | Self::Ocellus(_) => return None,
         };
         Some(npc_type)
     }
@@ -517,6 +529,8 @@ mod tests {
         };
         assert!(corpse.attack_applies_cooldown(PlayerAttack::SceptreBarrage));
         assert!(!corpse.attack_checks_cooldown(PlayerAttack::SceptreBarrage));
+        assert!(corpse.attack_applies_cooldown(PlayerAttack::UndeadGrasp));
+        assert!(!corpse.attack_checks_cooldown(PlayerAttack::UndeadGrasp));
         assert!(corpse.attack_applies_cooldown(PlayerAttack::Blowpipe));
         assert!(corpse.attack_checks_cooldown(PlayerAttack::Blowpipe));
     }

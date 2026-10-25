@@ -1,6 +1,6 @@
 {
   "category": "attackType",
-  "updatedAt": "2026-10-23",
+  "updatedAt": "2026-10-25",
   "items": [
     {
       "id": "UNKNOWN",
@@ -152,6 +152,14 @@
       "introduced": "2026-01-30",
       "details": "A special attack with Burning claws.",
       "tags": ["melee", "spec"]
+    },
+    {
+      "id": "CAMPHOR_BLOWPIPE",
+      "status": "active",
+      "summary": "Camphor blowpipe",
+      "introduced": "2026-10-25",
+      "details": "An attack with the Camphor blowpipe.",
+      "tags": ["ranged"]
     },
     {
       "id": "CHALLY_SPEC",
@@ -498,6 +506,14 @@
       "tags": ["melee"]
     },
     {
+      "id": "IRONWOOD_BLOWPIPE",
+      "status": "active",
+      "summary": "Ironwood blowpipe",
+      "introduced": "2026-10-25",
+      "details": "An attack with the Ironwood blowpipe.",
+      "tags": ["ranged"]
+    },
+    {
       "id": "KARILS_CROSSBOW",
       "status": "active",
       "summary": "Karil's crossbow",
@@ -584,6 +600,22 @@
       "introduced": "2026-01-30",
       "details": "An attack with the Ghrazi rapier.",
       "tags": ["melee"]
+    },
+    {
+      "id": "ROSEWOOD_BLOWPIPE",
+      "status": "active",
+      "summary": "Rosewood blowpipe auto",
+      "introduced": "2026-10-25",
+      "details": "An auto attack with the Rosewood blowpipe.",
+      "tags": ["ranged"]
+    },
+    {
+      "id": "ROSEWOOD_BLOWPIPE_SPEC",
+      "status": "active",
+      "summary": "Rosewood blowpipe spec",
+      "introduced": "2026-10-25",
+      "details": "A special attack with the Rosewood blowpipe.",
+      "tags": ["ranged", "spec"]
     },
     {
       "id": "SAELDOR",
@@ -834,6 +866,14 @@
       "tags": ["ranged"]
     },
     {
+      "id": "UNDEAD_GRASP",
+      "status": "active",
+      "summary": "Undead grasp",
+      "introduced": "2026-10-25",
+      "details": "An attack with the Undead Grasp spell.",
+      "tags": ["magic"]
+    },
+    {
       "id": "VENATOR_BOW",
       "status": "active",
       "summary": "Venator bow",
@@ -928,6 +968,30 @@
       "introduced": "2026-01-30",
       "details": "An attack with the Zombie axe.",
       "tags": ["melee"]
+    },
+    {
+      "id": "ZORYAS_TOME_AUTO",
+      "status": "active",
+      "summary": "Zorya's tome auto",
+      "introduced": "2026-10-25",
+      "details": "An auto attack with Zorya's tome.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "ZORYAS_TOME_BUFFED",
+      "status": "active",
+      "summary": "Zorya's tome buffed auto",
+      "introduced": "2026-10-25",
+      "details": "A buffed auto attack with Zorya's tome following a successful special attack.",
+      "tags": ["magic"]
+    },
+    {
+      "id": "ZORYAS_TOME_SPEC",
+      "status": "active",
+      "summary": "Zorya's tome spec",
+      "introduced": "2026-10-25",
+      "details": "A special attack with Zorya's tome.",
+      "tags": ["magic", "spec"]
     }
   ]
 }

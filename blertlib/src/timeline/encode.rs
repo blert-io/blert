@@ -10,7 +10,7 @@ use crate::objects::{ObjectKind, TickObjects};
 use crate::tick::Tick;
 use crate::{Point, Stage, npc, proto};
 
-use super::{TickState, Timeline, off_cooldown_tick};
+use super::{PlayerCooldowns, TickState, Timeline};
 
 /// Encodes every tick of `timeline` from `start` to proto events.
 pub(super) fn encode_from(timeline: &Timeline, start: Tick) -> impl Iterator<Item = proto::Event> {
@@ -22,7 +22,7 @@ struct Encoder<'a> {
     next: Tick,
     pending: std::vec::IntoIter<proto::Event>,
     players: Vec<Option<&'a PlayerState>>,
-    off_cooldown_ticks: Vec<Tick>,
+    cooldowns: PlayerCooldowns,
     npcs: HashMap<RoomId, &'a NpcState>,
     dead_players: HashSet<PartyIndex>,
     stage: StageContext,
@@ -35,7 +35,7 @@ impl<'a> Encoder<'a> {
             next: start,
             pending: Vec::new().into_iter(),
             players: vec![None; timeline.party.len()],
-            off_cooldown_ticks: vec![Tick(0); timeline.party.len()],
+            cooldowns: PlayerCooldowns::new(timeline.party.len()),
             npcs: HashMap::new(),
             dead_players: HashSet::new(),
             stage: StageContext::new(timeline.stage),
@@ -58,13 +58,12 @@ impl<'a> Encoder<'a> {
             if self.dead_players.contains(&index) {
                 continue;
             }
-            if let Some(off_cooldown) = state.events.iter().find_map(|event| match &event.kind {
-                EventKind::PlayerAttack(attack) if attack.player == index => {
-                    off_cooldown_tick(tick, state, attack)
-                }
+            if let Some(attack) = state.events.iter().find_map(|event| match &event.kind {
+                EventKind::PlayerAttack(attack) if attack.player == index => Some(attack),
                 _ => None,
             }) {
-                self.off_cooldown_ticks[index.as_usize()] = off_cooldown;
+                self.cooldowns
+                    .track_attack(index, tick, state, attack.attack, attack.target);
             }
             if encode_events {
                 events.push(self.player_update_event(tick, index, player));
@@ -137,7 +136,7 @@ impl<'a> Encoder<'a> {
         );
         event.player = Some(proto::event::Player {
             name: self.timeline.party[index.as_usize()].to_string(),
-            off_cooldown_tick: self.off_cooldown_ticks[index.as_usize()].0,
+            off_cooldown_tick: self.cooldowns.off_cooldown_tick(index).0,
             hitpoints: stats.map(|stats| stats.hitpoints.to_raw()),
             prayer: stats.map(|stats| stats.prayer.to_raw()),
             attack: stats.map(|stats| stats.attack.to_raw()),
