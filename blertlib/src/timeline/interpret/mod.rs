@@ -4,6 +4,8 @@ mod bloat;
 mod colosseum;
 mod maiden;
 mod mokhaiotl;
+mod ocellus;
+mod player_attack;
 mod sotetseg;
 mod verzik;
 
@@ -13,17 +15,18 @@ use bloat::BloatInterpreter;
 use colosseum::ColosseumInterpreter;
 use maiden::MaidenInterpreter;
 use mokhaiotl::MokhaiotlInterpreter;
+use ocellus::OcellusInterpreter;
+use player_attack::PlayerAttackInterpreter;
 use sotetseg::SotetsegInterpreter;
 use verzik::VerzikInterpreter;
 
+pub(crate) use ocellus::OcellusProperties;
+
 use crate::proto::event::object_update;
 use crate::{
-    Actor, BuildMismatch, BuildWarning, ClientId, ConfigVersion, Event, EventKind, NpcDeath,
-    ObjectKind, PartyIndex, PluginVersion, Point, RawActor, Recording, RoomId, Stage, Tick,
-    TickState, WarningReason, npc, proto,
+    BuildMismatch, BuildWarning, ClientId, ConfigVersion, Event, EventKind, NpcDeath, ObjectKind,
+    PluginVersion, Point, RawActor, Recording, RoomId, Stage, Tick, TickState, npc, proto,
 };
-
-use super::off_cooldown_tick;
 
 const GENERIC_DEATHS: [(PluginVersion, &[u32]); 1] = [(
     bloat::MIN_SUPPORTED_VERSION,
@@ -108,9 +111,12 @@ pub(super) fn interpret(
         stage if (Stage::MokhaiotlDelve1..=Stage::MokhaiotlDelve8plus).contains(&stage) => {
             MokhaiotlInterpreter::new(&ctx).interpret(recording)
         }
+        Stage::TfaOcellus => {
+            OcellusInterpreter::new(recording).and_then(|ocellus| ocellus.interpret(recording))
+        }
         _ => None,
     };
-    let cooldowns = CooldownInterpreter::new(warnings).interpret(recording);
+    let cooldowns = PlayerAttackInterpreter::new(warnings).interpret(recording);
     deaths.into_iter().chain(stage).chain(cooldowns).min()
 }
 
@@ -185,73 +191,6 @@ impl Interpreter for NpcDeathInterpreter<'_> {
         }
 
         changed
-    }
-}
-
-struct CooldownInterpreter<'a> {
-    warnings: &'a mut BTreeMap<Tick, Vec<BuildWarning>>,
-    attacks_to_drop: Vec<(Tick, PartyIndex)>,
-}
-
-impl<'a> CooldownInterpreter<'a> {
-    fn new(warnings: &'a mut BTreeMap<Tick, Vec<BuildWarning>>) -> Self {
-        Self {
-            warnings,
-            attacks_to_drop: Vec::new(),
-        }
-    }
-}
-
-impl Interpreter for CooldownInterpreter<'_> {
-    fn decide(&mut self, recording: &Recording) {
-        let mut off_cooldown_on = BTreeMap::new();
-        for (tick, state) in recording.states() {
-            for event in &state.events {
-                let EventKind::PlayerAttack(attack) = &event.kind else {
-                    continue;
-                };
-                let checks_cooldown = match attack.target {
-                    Some(Actor::Npc(room_id)) => state
-                        .npcs
-                        .get(&room_id)
-                        .is_none_or(|target| target.attack_checks_cooldown(attack.attack)),
-                    _ => true,
-                };
-                if checks_cooldown
-                    && off_cooldown_on
-                        .get(&attack.player)
-                        .is_some_and(|&off_cooldown| tick < off_cooldown)
-                {
-                    self.attacks_to_drop.push((tick, attack.player));
-                } else if let Some(until) = off_cooldown_tick(tick, state, attack) {
-                    off_cooldown_on.insert(attack.player, until);
-                }
-            }
-        }
-    }
-
-    fn apply(self, recording: &mut Recording) -> Option<Tick> {
-        for attacks in self.attacks_to_drop.chunk_by(|a, b| a.0 == b.0) {
-            let (tick, _) = attacks[0];
-            if let Some(state) = recording.get_state_mut(tick) {
-                state.events.retain(|event| {
-                    !matches!(
-                        &event.kind,
-                        EventKind::PlayerAttack(attack)
-                            if attacks.iter().any(|&(_, player)| player == attack.player)
-                    )
-                });
-            }
-            self.warnings
-                .entry(tick)
-                .or_default()
-                .extend(attacks.iter().map(|_| BuildWarning {
-                    tick,
-                    kind: proto::event::Type::PlayerAttack,
-                    reason: WarningReason::OnCooldown,
-                }));
-        }
-        None
     }
 }
 
@@ -412,8 +351,8 @@ fn event_values(event: &Event) -> Option<(proto::event::Type, Vec<String>)> {
 mod tests {
     use super::*;
     use crate::{
-        ChallengeMode, Item, Mokhaiotl, NpcProperties, NpcState, PlayerAttack, PlayerAttacked,
-        Players, PrayerBook, PrayerSet, Rect, Rsn, SkillLevel, Source, TickObjects, item,
+        ChallengeMode, NpcState, Players, PrayerBook, PrayerSet, Rect, Rsn, SkillLevel, Source,
+        TickObjects,
     };
 
     #[test]
@@ -499,124 +438,6 @@ mod tests {
                 .flat_map(|(tick, state)| state.events.iter().map(move |event| (tick, event)))
                 .collect::<Vec<_>>(),
             []
-        );
-    }
-
-    #[test]
-    fn cooldown_interpreter_drops_attacks_made_on_cooldown() {
-        let doom = RoomId(47491);
-        let larva = RoomId(47520);
-        let state = |charging: bool, attack: PlayerAttack, weapon: u32, target: RoomId| TickState {
-            players: Players::empty(1),
-            npcs: BTreeMap::from([
-                (
-                    doom,
-                    NpcState {
-                        source: Source::Client(ClientId(31)),
-                        id: npc::id::MOKHAIOTL,
-                        position: Rect::square(Point(3421, 6435), 5),
-                        hitpoints: SkillLevel::from_raw(29_557_336),
-                        prayers: PrayerSet::empty(PrayerBook::Normal),
-                        properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging })),
-                    },
-                ),
-                (
-                    larva,
-                    NpcState {
-                        source: Source::Client(ClientId(31)),
-                        id: npc::id::DEMONIC_LARVA,
-                        position: Rect::square(Point(3418, 6438), 1),
-                        hitpoints: SkillLevel::from_raw(131_074),
-                        prayers: PrayerSet::empty(PrayerBook::Normal),
-                        properties: None,
-                    },
-                ),
-            ]),
-            objects: TickObjects::default(),
-            raw_objects: RawObjects::default(),
-            raw_npcs: BTreeMap::new(),
-            events: vec![Event::recorded(
-                ClientId(31),
-                EventKind::PlayerAttack(PlayerAttacked {
-                    player: PartyIndex::from_usize(0),
-                    attack,
-                    weapon: Some(Item {
-                        id: weapon,
-                        quantity: 1,
-                    }),
-                    target: Some(Actor::Npc(target)),
-                }),
-            )],
-        };
-
-        let mut recording = Recording::vacant(
-            Stage::MokhaiotlDelve4,
-            ChallengeMode::NoMode,
-            vec![Rsn::try_from("1Ogp").unwrap()],
-            Tick(28),
-        );
-        let bow = (PlayerAttack::TwistedBow, item::id::TWISTED_BOW);
-        let blowpipe = (PlayerAttack::Blowpipe, item::id::TOXIC_BLOWPIPE);
-        let emberlight = (PlayerAttack::EmberlightAuto, item::id::EMBERLIGHT);
-        let halberd = (PlayerAttack::NoxiousHalberd, item::id::NOXIOUS_HALBERD);
-        for (tick, charging, (attack, weapon), target) in [
-            (20, false, bow, doom),
-            (22, false, bow, doom),
-            (23, false, blowpipe, larva),
-            (25, false, emberlight, larva),
-            (26, false, bow, doom),
-            (27, true, halberd, doom),
-            (28, true, bow, doom),
-        ] {
-            recording.set_state(Tick(tick), state(charging, attack, weapon, target));
-        }
-
-        let mut warnings = BTreeMap::new();
-        assert_eq!(
-            CooldownInterpreter::new(&mut warnings).interpret(&mut recording),
-            None
-        );
-        assert_eq!(
-            recording
-                .states()
-                .flat_map(|(tick, state)| {
-                    state
-                        .events
-                        .iter()
-                        .filter_map(move |event| match &event.kind {
-                            EventKind::PlayerAttack(attack) => Some((tick, attack.attack)),
-                            _ => None,
-                        })
-                })
-                .collect::<Vec<_>>(),
-            [
-                (Tick(20), PlayerAttack::TwistedBow),
-                (Tick(23), PlayerAttack::Blowpipe),
-                (Tick(25), PlayerAttack::EmberlightAuto),
-                (Tick(26), PlayerAttack::TwistedBow),
-                (Tick(27), PlayerAttack::NoxiousHalberd),
-            ]
-        );
-        assert_eq!(
-            warnings,
-            BTreeMap::from([
-                (
-                    Tick(22),
-                    vec![BuildWarning {
-                        tick: Tick(22),
-                        kind: proto::event::Type::PlayerAttack,
-                        reason: WarningReason::OnCooldown,
-                    }]
-                ),
-                (
-                    Tick(28),
-                    vec![BuildWarning {
-                        tick: Tick(28),
-                        kind: proto::event::Type::PlayerAttack,
-                        reason: WarningReason::OnCooldown,
-                    }]
-                ),
-            ])
         );
     }
 }

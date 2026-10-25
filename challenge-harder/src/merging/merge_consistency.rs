@@ -3,7 +3,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use blert::proto::event;
-use blert::{Actor, EventKind, PartyIndex, PlayerAttack, RoomId, Stage, Tick, Ticks, Timeline};
+use blert::{
+    Actor, EventKind, PartyIndex, PlayerAttack, PlayerCooldowns, RoomId, Stage, Tick, Ticks,
+    Timeline,
+};
 
 use crate::lifecycle::core::types::StageExt;
 
@@ -245,27 +248,30 @@ fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistency
     // in its own tick space; any violation in the merged stream is therefore a
     // merger artifact.
     let mut last_attack: BTreeMap<PartyIndex, PlayerAttackOccurrence> = BTreeMap::new();
+    let mut cooldowns = PlayerCooldowns::new(timeline.party().len());
 
-    // TODO(frolv): Move cooldown computation to blertlib.
     for (tick, event) in timeline.events() {
         let EventKind::PlayerAttack(attack) = &event.kind else {
+            continue;
+        };
+        let Some(state) = timeline.get_state(tick) else {
             continue;
         };
         let current = PlayerAttackOccurrence {
             tick,
             kind: attack.attack,
         };
-        if let Some(previous) = last_attack.get(&attack.player) {
-            let cooldown = previous.kind.cooldown();
-            if tick - previous.tick < cooldown {
-                issues.push(MergeConsistencyIssue::WeaponCooldownViolation {
-                    player: attack.player,
-                    previous: *previous,
-                    current,
-                    cooldown,
-                });
-            }
+        if !cooldowns.can_attack(attack.player, tick, state, attack.attack, attack.target)
+            && let Some(&previous) = last_attack.get(&attack.player)
+        {
+            issues.push(MergeConsistencyIssue::WeaponCooldownViolation {
+                player: attack.player,
+                previous,
+                current,
+                cooldown: previous.kind.cooldown(),
+            });
         }
+        cooldowns.track_attack(attack.player, tick, state, attack.attack, attack.target);
         last_attack.insert(attack.player, current);
     }
 }

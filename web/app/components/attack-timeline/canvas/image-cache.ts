@@ -79,6 +79,8 @@ export class ImageCache {
     urls.add('/images/combat/dark-demonbane.webp');
     urls.add('/images/combat/ice-rush.png');
     urls.add('/images/combat/smash.webp');
+    urls.add('/images/combat/undead-grasp.webp');
+    urls.add('/images/combat/zoryas-tome-buffed.webp');
     urls.add('/images/combat/skull.webp');
     urls.add('/images/combat/punch.webp');
     urls.add('/images/combat/kick.webp');

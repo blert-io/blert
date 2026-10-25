@@ -150,6 +150,11 @@ impl Recording {
             for event in &mut state.events {
                 event.kind.remap_ticks(|tick| tick + offset);
             }
+            for npc in state.npcs.values_mut() {
+                if let Some(properties) = &mut npc.properties {
+                    properties.remap_ticks(|tick| tick + offset);
+                }
+            }
         }
     }
 

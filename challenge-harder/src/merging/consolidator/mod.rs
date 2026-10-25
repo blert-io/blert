@@ -6,9 +6,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use blert::proto::event;
 use blert::{
-    Actor, DataSource, Event, EventKind, NpcAttack, NpcAttacked, PartyIndex, PlayerAttack,
-    PlayerAttacked, PlayerCast, PlayerSpell, Point, Recording, RoomId, Source, Tick, TickState,
-    Ticks, npc,
+    Actor, DataSource, Event, EventKind, NpcAttack, NpcAttacked, NpcState, PartyIndex,
+    PlayerAttack, PlayerAttacked, PlayerCast, PlayerSpell, Point, Recording, RoomId, Source, Tick,
+    TickState, Ticks, npc,
 };
 
 use super::event::{
@@ -371,7 +371,7 @@ struct StreamCandidate<'a> {
 /// State that is visible in `other` but not in `state` is added. If state
 /// exists in both, data source priority is used to determine which view to
 /// keep.
-fn merge_from(state: &mut TickState, other: &TickState) {
+fn merge_from(state: &mut TickState, other: &TickState, remap_npc: impl Fn(&mut NpcState)) {
     for (index, other_player) in other.players.iter() {
         match &mut state.players[index] {
             Some(player) => {
@@ -386,14 +386,19 @@ fn merge_from(state: &mut TickState, other: &TickState) {
     }
 
     for (&room_id, other_npc) in &other.npcs {
+        let remapped = || {
+            let mut npc = other_npc.clone();
+            remap_npc(&mut npc);
+            npc
+        };
         match state.npcs.entry(room_id) {
             Entry::Vacant(entry) => {
-                entry.insert(other_npc.clone());
+                entry.insert(remapped());
             }
             Entry::Occupied(mut entry) => {
                 if entry.get().source == Source::Synthetic && other_npc.source != Source::Synthetic
                 {
-                    entry.insert(other_npc.clone());
+                    entry.insert(remapped());
                 }
             }
         }
@@ -555,6 +560,9 @@ impl<'a, 't> Consolidator<'a, 't> {
         for event in &mut cloned.events {
             self.remap_ticks(side, event, client_tick, merged_tick);
         }
+        for npc in cloned.npcs.values_mut() {
+            self.remap_npc_ticks(side, npc, client_tick, merged_tick);
+        }
         merged.set_state(merged_tick, cloned);
     }
 
@@ -587,7 +595,9 @@ impl<'a, 't> Consolidator<'a, 't> {
                     let state = merged
                         .get_state_mut(tick)
                         .expect("recording initialized with base ticks");
-                    merge_from(state, target_state);
+                    merge_from(state, target_state, |npc| {
+                        self.remap_npc_ticks(Side::Target, npc, target_tick, tick);
+                    });
                     self.merge_player_attacks(tick, state, target_state);
                     self.merge_player_spells(tick, state, target_state);
                     self.merge_npc_attacks(tick, state, target_state);
@@ -698,6 +708,44 @@ impl<'a, 't> Consolidator<'a, 't> {
                     source_tick: tick,
                     resolved_tick: resolved,
                 });
+            resolved
+        });
+    }
+
+    fn remap_npc_ticks(
+        &self,
+        side: Side,
+        npc: &mut NpcState,
+        source_tick: Tick,
+        merged_tick: Tick,
+    ) {
+        let mapping = match side {
+            Side::Base => &self.mappings.base,
+            Side::Target => &self.mappings.target,
+        };
+        let npc_id = npc.id;
+        let Some(properties) = &mut npc.properties else {
+            return;
+        };
+
+        properties.remap_ticks(|tick| {
+            if let Some(mapped) = mapping.to_merged(tick) {
+                return mapped;
+            }
+
+            let resolved = if merged_tick >= source_tick {
+                tick + (merged_tick - source_tick)
+            } else {
+                tick - (source_tick - merged_tick)
+            };
+            tracing::warn!(
+                npc_id,
+                %source_tick,
+                cross_tick_ref = %tick,
+                %merged_tick,
+                %resolved,
+                "unmapped_npc_property_tick"
+            );
             resolved
         });
     }
