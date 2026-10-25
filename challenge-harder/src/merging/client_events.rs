@@ -334,7 +334,7 @@ impl<'a> StreamParser<'a> {
             return ConfigVersion::LATEST;
         };
         ConfigVersion::parse(version).unwrap_or_else(|InvalidVersion(version)| {
-            tracing::error!(
+            tracing::warn!(
                 client_id = %self.client_id,
                 version,
                 "client_unsupported_recording_config_version",
