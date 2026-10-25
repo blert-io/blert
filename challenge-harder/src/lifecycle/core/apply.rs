@@ -383,7 +383,11 @@ mod tests {
         LifecycleEvent::ClientStageReported {
             client_id: CLIENT,
             attempt: None,
-            update: StageProgress { stage, status },
+            update: StageProgress {
+                stage,
+                status,
+                overall_ticks: None,
+            },
         }
     }
 
@@ -963,6 +967,7 @@ mod tests {
                     update: StageProgress {
                         stage: Stage::ToaBaba,
                         status: StageStatus::Wiped,
+                        overall_ticks: None,
                     },
                 },
             ),
@@ -981,6 +986,7 @@ mod tests {
                     update: StageProgress {
                         stage: Stage::ToaBaba,
                         status: StageStatus::Wiped,
+                        overall_ticks: None,
                     },
                 },
             ),
@@ -1629,6 +1635,7 @@ mod tests {
                     update: StageProgress {
                         stage: Stage::TobBloat,
                         status: StageStatus::Wiped,
+                        overall_ticks: None,
                     },
                 },
             ),

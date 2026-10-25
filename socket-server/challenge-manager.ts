@@ -24,6 +24,8 @@ type StageUpdate = {
     count: number;
     precise: boolean;
   } | null;
+  overallTicks:
+    { server: { count: number; precise: boolean } } | { local: number } | null;
 };
 
 export type ChallengeUpdate = {

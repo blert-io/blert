@@ -461,7 +461,11 @@ mod tests {
             client_id,
             session_token: "tok".into(),
             mode: Some(ChallengeMode::TobRegular),
-            stage: Some(StageProgress { stage, status }),
+            stage: Some(StageProgress {
+                stage,
+                status,
+                overall_ticks: None,
+            }),
             party: None,
         })
     }
@@ -470,7 +474,11 @@ mod tests {
         LifecycleEvent::ClientStageReported {
             client_id,
             attempt: None,
-            update: StageProgress { stage, status },
+            update: StageProgress {
+                stage,
+                status,
+                overall_ticks: None,
+            },
         }
     }
 
@@ -773,7 +781,11 @@ mod tests {
             client_id,
             session_token: "tok".into(),
             mode: None,
-            stage: Some(StageProgress { stage, status }),
+            stage: Some(StageProgress {
+                stage,
+                status,
+                overall_ticks: None,
+            }),
             party: None,
         })
     }
@@ -787,7 +799,11 @@ mod tests {
         LifecycleEvent::ClientStageReported {
             client_id,
             attempt: Some(attempt),
-            update: StageProgress { stage, status },
+            update: StageProgress {
+                stage,
+                status,
+                overall_ticks: None,
+            },
         }
     }
 
@@ -1352,6 +1368,7 @@ mod tests {
             stage: Some(StageProgress {
                 stage: Stage::TobMaiden,
                 status: StageStatus::Started,
+                overall_ticks: None,
             }),
             party: None,
         });
@@ -1413,6 +1430,7 @@ mod tests {
             stage: Some(StageProgress {
                 stage: Stage::TobXarpus,
                 status: StageStatus::Started,
+                overall_ticks: None,
             }),
             party: Some(vec![Rsn::try_from("1Ogp").unwrap()]),
         });

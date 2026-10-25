@@ -41,6 +41,31 @@ import {
 
 type Proto<E> = E[keyof E];
 
+function overallTicksFromProto(stageUpdate: ChallengeUpdateProto.StageUpdate) {
+  const overall = stageUpdate.getOverallTicks();
+  if (overall === undefined) {
+    return null;
+  }
+
+  const valueCase = overall.getValueCase();
+  switch (valueCase) {
+    case ChallengeUpdateProto.StageUpdate.OverallTicks.ValueCase.SERVER: {
+      const server = overall.getServer()!;
+      return {
+        server: { count: server.getTicks(), precise: server.getPrecise() },
+      };
+    }
+    case ChallengeUpdateProto.StageUpdate.OverallTicks.ValueCase.LOCAL:
+      return { local: overall.getLocal() };
+    case ChallengeUpdateProto.StageUpdate.OverallTicks.ValueCase.VALUE_NOT_SET:
+      return null;
+    default: {
+      const _exhaustive: never = valueCase;
+      return _exhaustive;
+    }
+  }
+}
+
 export default class MessageHandler {
   private challengeManager: ChallengeManager;
   private playerManager: PlayerManager;
@@ -504,6 +529,7 @@ export default class MessageHandler {
               precise: stageUpdate.getGameTicksPrecise(),
             }
           : null,
+        overallTicks: overallTicksFromProto(stageUpdate),
       };
     }
 

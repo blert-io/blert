@@ -255,6 +255,7 @@ pub struct StageUpdate {
     pub accurate: bool,
     pub recorded_ticks: u32,
     pub server_ticks: Option<ServerTicks>,
+    pub overall_ticks: Option<OverallTicks>,
 }
 
 /// A client's report of the server's tick count for a stage.
@@ -262,6 +263,13 @@ pub struct StageUpdate {
 pub struct ServerTicks {
     pub count: u32,
     pub precise: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OverallTicks {
+    Server(ServerTicks),
+    Local(u32),
 }
 
 /// A single record in a stage's recorded event stream.

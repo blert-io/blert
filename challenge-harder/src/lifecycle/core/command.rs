@@ -6,15 +6,19 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::deadline::Deadline;
 use super::types::{
-    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingPayload,
-    RecordingType, ReportedTimes, SessionToken, Stage, StageStatus, UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, OverallTicks, ProcessingError,
+    ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage, StageStatus, UserId,
+    Uuid,
 };
 
 /// A client's stage progress report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StageProgress {
     pub stage: Stage,
     pub status: StageStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overall_ticks: Option<OverallTicks>,
 }
 
 /// State of a client within a challenge.
@@ -152,6 +156,7 @@ pub struct Envelope {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lifecycle::core::types::ServerTicks;
 
     #[test]
     fn update_matches_wire_shape() {
@@ -163,6 +168,7 @@ mod tests {
             stage: Some(StageProgress {
                 stage: Stage::TobMaiden,
                 status: StageStatus::Completed,
+                overall_ticks: None,
             }),
             party: None,
         };
@@ -172,5 +178,45 @@ mod tests {
             r#"{"userId":7,"clientId":3,"sessionToken":"tok","mode":11,"stage":{"stage":10,"status":2}}"#
         );
         assert_eq!(serde_json::from_str::<Update>(&json).unwrap(), update);
+
+        let server = StageProgress {
+            stage: Stage::TfaGuardian,
+            status: StageStatus::Started,
+            overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                count: 412,
+                precise: true,
+            })),
+        };
+        let json = serde_json::to_string(&server).unwrap();
+        assert_eq!(
+            json,
+            r#"{"stage":60,"status":1,"overallTicks":{"server":{"count":412,"precise":true}}}"#
+        );
+        assert_eq!(
+            serde_json::from_str::<StageProgress>(&json).unwrap(),
+            server
+        );
+
+        let local = StageProgress {
+            stage: Stage::InfernoWave2,
+            status: StageStatus::Started,
+            overall_ticks: Some(OverallTicks::Local(132)),
+        };
+        let json = serde_json::to_string(&local).unwrap();
+        assert_eq!(
+            json,
+            r#"{"stage":201,"status":1,"overallTicks":{"local":132}}"#
+        );
+        assert_eq!(serde_json::from_str::<StageProgress>(&json).unwrap(), local);
+
+        assert_eq!(
+            serde_json::from_str::<StageProgress>(r#"{"stage":10,"status":2,"overallTicks":null}"#)
+                .unwrap(),
+            StageProgress {
+                stage: Stage::TobMaiden,
+                status: StageStatus::Completed,
+                overall_ticks: None,
+            },
+        );
     }
 }
