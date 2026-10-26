@@ -851,6 +851,7 @@ fn maiden_wipe() -> Update {
         stage: Some(StageProgress {
             stage: Stage::TobMaiden,
             status: StageStatus::Wiped,
+            overall_ticks: None,
         }),
         party: None,
     }

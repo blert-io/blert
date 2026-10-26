@@ -43,7 +43,11 @@ pub fn tob_start() -> Action {
 pub fn report(stage: Stage, status: StageStatus) -> Action {
     Action::Update {
         mode: None,
-        stage: Some(StageProgress { stage, status }),
+        stage: Some(StageProgress {
+            stage,
+            status,
+            overall_ticks: None,
+        }),
         party: None,
     }
 }
@@ -73,7 +77,11 @@ pub fn reported(client: u32, stage: Stage, status: StageStatus) -> LifecycleEven
     LifecycleEvent::ClientStageReported {
         client_id: client_id(client),
         attempt: None,
-        update: StageProgress { stage, status },
+        update: StageProgress {
+            stage,
+            status,
+            overall_ticks: None,
+        },
     }
 }
 
@@ -86,7 +94,11 @@ pub fn reported_attempt(
     LifecycleEvent::ClientStageReported {
         client_id: client_id(client),
         attempt: Some(attempt),
-        update: StageProgress { stage, status },
+        update: StageProgress {
+            stage,
+            status,
+            overall_ticks: None,
+        },
     }
 }
 

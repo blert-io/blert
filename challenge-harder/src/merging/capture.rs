@@ -480,6 +480,7 @@ mod tests {
                             count: 145,
                             precise: true,
                         }),
+                        overall_ticks: None,
                     },
                 },
             ],

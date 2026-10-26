@@ -1,6 +1,7 @@
 import { Challenge, ChallengeMode, Event } from '../generated/event_pb';
 import {
   AttackDefinition,
+  ChallengeUpdate,
   ServerMessage,
 } from '../generated/server_message_pb';
 import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
@@ -693,6 +694,7 @@ describe('jsonToServerMessage', () => {
             recordedTicks: 100,
             gameServerTicks: 100,
             gameTicksPrecise: true,
+            overallTicks: { server: { ticks: 2350, precise: false } },
           },
         },
       };
@@ -704,6 +706,42 @@ describe('jsonToServerMessage', () => {
       expect(update?.getPartyList()).toEqual(['Player1', 'Player2', 'Player3']);
       expect(update?.getStageUpdate()?.getStage()).toBe(11);
       expect(update?.getStageUpdate()?.getAccurate()).toBe(true);
+      const overall = update?.getStageUpdate()?.getOverallTicks();
+      expect(overall?.getValueCase()).toBe(
+        ChallengeUpdate.StageUpdate.OverallTicks.ValueCase.SERVER,
+      );
+      expect(overall?.getServer()?.toObject()).toEqual({
+        ticks: 2350,
+        precise: false,
+      });
+    });
+
+    it('converts challenge update with local overall ticks', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.CHALLENGE_UPDATE,
+        challengeUpdate: {
+          mode: 0,
+          stageUpdate: {
+            stage: 201,
+            status: 1,
+            accurate: true,
+            recordedTicks: 0,
+            gameTicksPrecise: false,
+            overallTicks: { local: 132 },
+          },
+        },
+      };
+
+      const proto = jsonToServerMessage(json);
+      const overall = proto
+        .getChallengeUpdate()
+        ?.getStageUpdate()
+        ?.getOverallTicks();
+
+      expect(overall?.getValueCase()).toBe(
+        ChallengeUpdate.StageUpdate.OverallTicks.ValueCase.LOCAL,
+      );
+      expect(overall?.getLocal()).toBe(132);
     });
 
     it('converts recording info', () => {

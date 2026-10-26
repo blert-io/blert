@@ -1,6 +1,7 @@
 //! Integration tests against the Redis instance at `BLERT_TEST_REDIS_URI`,
 //! skipped when it is unset. The database it names must be dedicated to
 //! tests, as it is flushed once per run.
+#![allow(clippy::too_many_lines)]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -14,8 +15,8 @@ use crate::lifecycle::core::command::{CreateRequest, Finish, Update};
 use crate::lifecycle::core::event::{Cause, LifecycleEvent};
 use crate::lifecycle::core::state::{ChallengePhase, LastCompleted, PhaseState};
 use crate::lifecycle::core::types::{
-    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, RecordingType,
-    ServerTicks, Stage, StageStatus, StageUpdate, Timestamp, UserId,
+    ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, OverallTicks,
+    RecordingType, ServerTicks, Stage, StageStatus, StageUpdate, Timestamp, UserId,
 };
 
 /// Returns a unique client ID on every call. Tests share a Redis instance and
@@ -2469,7 +2470,7 @@ fn stream_records_parse_from_typescript_encoding() {
         ("clientId", b"380"),
         (
             "update",
-            br#"{"stage":52,"status":2,"accurate":true,"recordedTicks":105,"serverTicks":{"count":105,"precise":true}}"#,
+            br#"{"stage":52,"status":2,"accurate":true,"recordedTicks":105,"serverTicks":{"count":105,"precise":true},"overallTicks":{"server":{"count":2350,"precise":false}}}"#,
         ),
     ]))
     .unwrap();
@@ -2486,6 +2487,10 @@ fn stream_records_parse_from_typescript_encoding() {
                     count: 105,
                     precise: true,
                 }),
+                overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                    count: 2350,
+                    precise: false,
+                })),
             },
         },
     );
@@ -2509,6 +2514,7 @@ fn stream_records_parse_from_typescript_encoding() {
                 accurate: false,
                 recorded_ticks: 0,
                 server_ticks: None,
+                overall_ticks: None,
             },
         },
     );
@@ -2595,6 +2601,7 @@ async fn stage_streams_read_in_order_skipping_invalid_records() {
                         count: 46,
                         precise: true,
                     }),
+                    overall_ticks: None,
                 },
             },
         ],

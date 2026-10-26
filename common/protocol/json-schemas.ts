@@ -122,6 +122,17 @@ export const challengeEndRequestSchema = z.object({
   soft: z.boolean().optional(),
 });
 
+// ChallengeUpdate.StageUpdate.OverallTicks
+export const overallTicksSchema = z.union([
+  z.object({
+    server: z.object({
+      ticks: uint32Schema,
+      precise: z.boolean(),
+    }),
+  }),
+  z.object({ local: uint32Schema }),
+]);
+
 // ChallengeUpdate.StageUpdate
 export const stageUpdateSchema = z.object({
   stage: enumValueSchema,
@@ -130,6 +141,7 @@ export const stageUpdateSchema = z.object({
   recordedTicks: z.number().int().nonnegative(),
   gameServerTicks: z.number().int().optional(),
   gameTicksPrecise: z.boolean(),
+  overallTicks: overallTicksSchema.optional(),
 });
 
 // ChallengeUpdate

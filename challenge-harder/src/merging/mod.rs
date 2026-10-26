@@ -727,6 +727,7 @@ mod tests {
                         count: last_tick.0,
                         precise: true,
                     }),
+                    overall_ticks: None,
                 },
             },
         ];
@@ -786,6 +787,7 @@ mod tests {
                         count: 90,
                         precise: true,
                     }),
+                    overall_ticks: None,
                 },
             },
             metadata(2),
@@ -804,6 +806,7 @@ mod tests {
                         count: 95,
                         precise: true,
                     }),
+                    overall_ticks: None,
                 },
             },
         ];
@@ -830,6 +833,7 @@ mod tests {
                     accurate: false,
                     recorded_ticks,
                     server_ticks: None,
+                    overall_ticks: None,
                 },
             };
         let payload = ChallengeEvents {
@@ -897,6 +901,7 @@ mod tests {
                     accurate: false,
                     recorded_ticks: 90,
                     server_ticks: None,
+                    overall_ticks: None,
                 },
             },
             ClientStageStream::End {
@@ -910,6 +915,7 @@ mod tests {
                         count: 0,
                         precise: true,
                     }),
+                    overall_ticks: None,
                 },
             },
         ];
@@ -979,6 +985,7 @@ mod tests {
                     count: 0,
                     precise: true,
                 }),
+                overall_ticks: None,
             },
         }];
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
@@ -1031,6 +1038,7 @@ mod tests {
                     count: 90,
                     precise: true,
                 }),
+                overall_ticks: None,
             },
         };
         let metadata = |client_id: u32| ClientStageStream::Metadata {
@@ -1161,6 +1169,7 @@ mod tests {
                     count: 90,
                     precise: true,
                 }),
+                overall_ticks: None,
             },
         };
         let metadata = |client_id: u32| ClientStageStream::Metadata {
@@ -1322,6 +1331,7 @@ mod tests {
                     count: 90,
                     precise: true,
                 }),
+                overall_ticks: None,
             },
         };
         let metadata = |client_id: u32| ClientStageStream::Metadata {
@@ -1490,6 +1500,7 @@ mod tests {
                         count: 8,
                         precise: true,
                     }),
+                    overall_ticks: None,
                 },
             },
         ];

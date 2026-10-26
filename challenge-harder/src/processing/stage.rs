@@ -427,6 +427,7 @@ mod tests {
                     count: ticks,
                     precise: true,
                 }),
+                overall_ticks: None,
             },
         }
     }

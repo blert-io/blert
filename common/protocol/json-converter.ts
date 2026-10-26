@@ -215,6 +215,19 @@ function serverMessageJsonToProto(json: ServerMessageJson): ServerMessage {
       stage.setGameTicksPrecise(
         json.challengeUpdate.stageUpdate.gameTicksPrecise,
       );
+      const overallTicks = json.challengeUpdate.stageUpdate.overallTicks;
+      if (overallTicks !== undefined) {
+        const overall = new ChallengeUpdate.StageUpdate.OverallTicks();
+        if ('server' in overallTicks) {
+          const server = new ChallengeUpdate.StageUpdate.OverallTicks.Server();
+          server.setTicks(overallTicks.server.ticks);
+          server.setPrecise(overallTicks.server.precise);
+          overall.setServer(server);
+        } else {
+          overall.setLocal(overallTicks.local);
+        }
+        stage.setOverallTicks(overall);
+      }
       update.setStageUpdate(stage);
     }
     msg.setChallengeUpdate(update);

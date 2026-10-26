@@ -507,6 +507,7 @@ mod tests {
                     count: ticks,
                     precise: true,
                 }),
+                overall_ticks: None,
             },
         }
     }
@@ -712,6 +713,7 @@ mod tests {
                             count: 40_000,
                             precise: true,
                         }),
+                        overall_ticks: None,
                     },
                 },
             ],
@@ -744,6 +746,7 @@ mod tests {
                             count: 0,
                             precise: true,
                         }),
+                        overall_ticks: None,
                     },
                 },
             ],
