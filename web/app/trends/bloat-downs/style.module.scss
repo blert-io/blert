@@ -173,17 +173,6 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-.emptyState {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem;
-  color: var(--blert-font-color-secondary);
-  font-size: 0.95rem;
-  background: var(--blert-surface-dark);
-  border-radius: 6px;
-}
-
 @keyframes pulse {
   0%,
   100% {
