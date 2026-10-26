@@ -446,7 +446,7 @@ export default class MessageHandler {
     } catch (e: any) {
       recordRemoteOperation('start', 'error');
       logger.error('challenge_start_failed', {
-        error: e instanceof Error ? e : new Error(String(e)),
+        error: e instanceof Error ? e.message : String(e),
       });
       recordStartResult('error');
       client.sendMessage(response);
@@ -550,7 +550,7 @@ export default class MessageHandler {
       recordChallengeUpdate('error');
       logger.error('challenge_update_failed', {
         challengeUuid: challengeId,
-        error: e instanceof Error ? e : new Error(String(e)),
+        error: e instanceof Error ? e.message : String(e),
       });
     }
   }
@@ -807,7 +807,7 @@ export default class MessageHandler {
             operation: 'set_account_hash',
             playerId,
             accountHash: clientAccountHash.toString(),
-            error: e instanceof Error ? e : new Error(String(e)),
+            error: e instanceof Error ? e.message : String(e),
           });
         }
       }
