@@ -3659,6 +3659,142 @@ fn extract_npc_state_update_last_seen_tick() {
 }
 
 #[test]
+fn extract_npc_state_generic_update() {
+    let recording = Recording::vacant(
+        Stage::TfaOcellus,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("1Ogp").unwrap()],
+        Tick(116),
+    );
+    let last_seen_actors = HashMap::new();
+
+    let mut update = proto::Event {
+        tick: 116,
+        stage: Stage::TfaOcellus as i32,
+        x_coord: 4126,
+        y_coord: 5672,
+        ..Default::default()
+    };
+    update.set_type(proto::event::Type::NpcUpdate);
+    update.npc = Some(proto::event::Npc {
+        id: 16674,
+        room_id: 45406,
+        hitpoints: 65_535,
+        active_prayers: 0,
+        size: 3,
+        animation: Some(14810),
+        target: Some(proto::event::npc::Target {
+            target: Some(proto::event::npc::target::Target::Player(
+                "1Ogp".to_string(),
+            )),
+        }),
+        spot_anims: vec![1908],
+        overheads: vec![28_835_840],
+        r#type: Some(proto::event::npc::Type::Basic(())),
+    });
+    assert_eq!(
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
+        Ok((
+            RoomId(45406),
+            NpcState {
+                source: Source::Client(ClientId(3)),
+                id: 16674,
+                position: Rect::square(Point(4126, 5672), 3),
+                hitpoints: SkillLevel::from_raw(65_535),
+                prayers: PrayerSet::from_raw(262_144),
+                properties: None,
+            },
+            RawNpc {
+                animation: Some(14810),
+                target: Some(RawActor::Player("1Ogp".to_string())),
+                spot_anims: vec![1908],
+                overheads: vec![Overhead {
+                    archive: 440,
+                    sprite: 0,
+                }],
+            },
+        ))
+    );
+
+    let npc = update.npc.as_mut().unwrap();
+    npc.active_prayers = 262_144;
+    npc.overheads = Vec::new();
+    assert_eq!(
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
+        Ok((
+            RoomId(45406),
+            NpcState {
+                source: Source::Client(ClientId(3)),
+                id: 16674,
+                position: Rect::square(Point(4126, 5672), 3),
+                hitpoints: SkillLevel::from_raw(65_535),
+                prayers: PrayerSet::from_raw(262_144),
+                properties: None,
+            },
+            RawNpc {
+                animation: Some(14810),
+                target: Some(RawActor::Player("1Ogp".to_string())),
+                spot_anims: vec![1908],
+                overheads: Vec::new(),
+            },
+        ))
+    );
+
+    let mut soul_split = proto::Event {
+        tick: 720,
+        stage: Stage::TfaOcellus as i32,
+        x_coord: 4132,
+        y_coord: 5666,
+        ..Default::default()
+    };
+    soul_split.set_type(proto::event::Type::NpcUpdate);
+    soul_split.npc = Some(proto::event::Npc {
+        id: 16677,
+        room_id: 45406,
+        hitpoints: 65_535,
+        active_prayers: 0,
+        size: 3,
+        animation: Some(14844),
+        target: None,
+        spot_anims: vec![4330],
+        overheads: vec![28_835_851],
+        r#type: Some(proto::event::npc::Type::Basic(())),
+    });
+    assert_eq!(
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &soul_split),
+        Ok((
+            RoomId(45406),
+            NpcState {
+                source: Source::Client(ClientId(3)),
+                id: 16677,
+                position: Rect::square(Point(4132, 5666), 3),
+                hitpoints: SkillLevel::from_raw(65_535),
+                prayers: PrayerSet::from_raw((1 << 50) | (1 << 1)),
+                properties: None,
+            },
+            RawNpc {
+                animation: Some(14844),
+                target: None,
+                spot_anims: vec![4330],
+                overheads: vec![Overhead {
+                    archive: 440,
+                    sprite: 11,
+                }],
+            },
+        ))
+    );
+
+    soul_split.npc.as_mut().unwrap().overheads = vec![28_835_840, 28_835_851];
+    assert_eq!(
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &soul_split),
+        Err(RejectionReason::InvalidField {
+            field: "npc.overheads",
+            error: FieldError::OutOfDomain("[28835840, 28835851]".to_string()),
+        })
+    );
+}
+
+#[test]
 fn check_unique_event_rejects_second_player_attack() {
     let events = [Event::recorded(
         ClientId(11),

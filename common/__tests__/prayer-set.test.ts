@@ -1,4 +1,4 @@
-import { Prayer, PrayerBook, PrayerSet } from '../prayer-set';
+import { AncientCurse, Prayer, PrayerBook, PrayerSet } from '../prayer-set';
 
 describe('PrayerSet', () => {
   describe('empty', () => {
@@ -31,6 +31,11 @@ describe('PrayerSet', () => {
       const bookBits = PrayerBook.NORMAL << 50;
       const prayerSet = PrayerSet.fromRaw(bookBits);
       expect(prayerSet.getBook()).toBe(PrayerBook.NORMAL);
+    });
+
+    it('decodes ancient curses from a recorded raw value', () => {
+      const prayerSet = PrayerSet.fromRaw(1125899906842626);
+      expect(prayerSet.getBook()).toBe(PrayerBook.CURSES);
     });
   });
 
@@ -94,6 +99,26 @@ describe('PrayerSet', () => {
       const prayerSet = PrayerSet.empty(PrayerBook.NORMAL);
       expect(prayerSet.has(Prayer.PIETY)).toBe(false);
       expect(prayerSet.has(Prayer.THICK_SKIN)).toBe(false);
+    });
+
+    it('returns false for a prayer that shares its bit with an active curse', () => {
+      const prayerSet = PrayerSet.fromRaw(1125899906842626);
+      expect(prayerSet.has(Prayer.BURST_OF_STRENGTH)).toBe(false);
+    });
+  });
+
+  describe('hasCurse', () => {
+    it('returns true only for the active curse', () => {
+      const prayerSet = PrayerSet.fromRaw(1125899906842626);
+      expect(prayerSet.hasCurse(AncientCurse.SOUL_SPLIT)).toBe(true);
+      expect(prayerSet.hasCurse(AncientCurse.DEFLECT_MELEE)).toBe(false);
+    });
+
+    it('returns false for a curse that shares its bit with an active prayer', () => {
+      const prayerSet = PrayerSet.fromPrayers(PrayerBook.NORMAL, [
+        Prayer.BURST_OF_STRENGTH,
+      ]);
+      expect(prayerSet.hasCurse(AncientCurse.SOUL_SPLIT)).toBe(false);
     });
   });
 
@@ -366,6 +391,11 @@ describe('PrayerSet', () => {
       ]);
       const overheads = prayerSet.overheads();
       expect(overheads.getBook()).toBe(PrayerBook.NORMAL);
+    });
+
+    it('keeps an active curse and its book', () => {
+      const prayerSet = PrayerSet.fromRaw(1125899906842626);
+      expect(prayerSet.overheads().getRaw()).toBe(1125899906842626);
     });
   });
 

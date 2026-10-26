@@ -64,7 +64,9 @@ pushed.
 | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | 0.9.24 and earlier | none                                                                    | none                                                                                              |
 | 0.10.0             | `objects`, OBJECTS events                                               | none; object events are sent both bespoke and raw                                                 |
-| next release       | `npcDefinitions`, NPC_UPDATE `size`, `animation`, `target`, `spotAnims` | Bloat's NPC_SPAWN and NPC_DEATH, BLOAT_DOWN, BLOAT_UP, BLOAT_HANDS_SPLAT, TOB_BLOAT_STOMP attacks |
+| 0.10.1             | `npcDefinitions`, NPC_UPDATE `size`, `animation`, `target`, `spotAnims` | Bloat's NPC_SPAWN and NPC_DEATH, BLOAT_DOWN, BLOAT_UP, BLOAT_HANDS_SPLAT, TOB_BLOAT_STOMP attacks |
+| 0.10.4             | none                                                                    | MOKHAIOTL_OBJECTS, MOKHAIOTL_SHOCKWAVE                                                            |
+| next release       | NPC_UPDATE `overheads`                                                  | none                                                                                              |
 
 Add a row for every release that adds config fields or event fields, or removes
 bespoke events.

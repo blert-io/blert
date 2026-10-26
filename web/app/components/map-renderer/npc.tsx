@@ -1,6 +1,12 @@
 'use client';
 
-import { Coords, Prayer, PrayerSet } from '@blert/common';
+import {
+  AncientCurse,
+  Coords,
+  Prayer,
+  PrayerBook,
+  PrayerSet,
+} from '@blert/common';
 import { Billboard, Plane, Text, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef, useMemo, useEffect, useState } from 'react';
@@ -227,6 +233,8 @@ function PrayerSprite({ prayers }: { prayers: PrayerSet }) {
         u_textureResolution: {
           value: new THREE.Vector2(image.width, image.height),
         },
+        u_outlineColor: { value: new THREE.Vector4(0, 0, 0, 0) },
+        u_outlineThickness: { value: 0.0 },
         u_isDimmed: { value: false },
         u_dimOpacity: { value: 0.5 },
       },
@@ -248,23 +256,48 @@ function PrayerSprite({ prayers }: { prayers: PrayerSet }) {
   );
 }
 
+const CURSE_SPRITES: [AncientCurse, string][] = [
+  [AncientCurse.WRATH, 'wrath'],
+  [AncientCurse.SOUL_SPLIT, 'soul-split'],
+  [AncientCurse.DEFLECT_MELEE, 'deflect-melee'],
+  [AncientCurse.DEFLECT_RANGED, 'deflect-ranged'],
+  [AncientCurse.DEFLECT_MAGIC, 'deflect-magic'],
+];
+
 function overheadPrayerSprite(prayers: PrayerSet): string {
-  const parts = [];
-  if (prayers.has(Prayer.PROTECT_FROM_MISSILES)) {
-    parts.push('ranged');
-  }
-  if (prayers.has(Prayer.PROTECT_FROM_MAGIC)) {
-    parts.push('magic');
-  }
-  if (prayers.has(Prayer.PROTECT_FROM_MELEE)) {
-    parts.push('melee');
+  const book = prayers.getBook();
+  switch (book) {
+    case PrayerBook.NORMAL: {
+      const parts = [];
+      if (prayers.has(Prayer.PROTECT_FROM_MISSILES)) {
+        parts.push('ranged');
+      }
+      if (prayers.has(Prayer.PROTECT_FROM_MAGIC)) {
+        parts.push('magic');
+      }
+      if (prayers.has(Prayer.PROTECT_FROM_MELEE)) {
+        parts.push('melee');
+      }
+
+      if (parts.length === 0) {
+        return '/images/huh.png';
+      }
+
+      return `/images/prayers/overhead-${parts.join('-')}.png`;
+    }
+
+    case PrayerBook.CURSES: {
+      const curses = CURSE_SPRITES.filter(([curse]) => prayers.hasCurse(curse));
+      if (curses.length !== 1) {
+        return '/images/huh.png';
+      }
+
+      return `/images/prayers/overhead-${curses[0][1]}.png`;
+    }
   }
 
-  if (parts.length === 0) {
-    return '/images/huh.png';
-  }
-
-  return `/images/prayers/overhead-${parts.join('-')}.png`;
+  const _exhaustive: never = book;
+  return '/images/huh.png';
 }
 
 export default function Npc({

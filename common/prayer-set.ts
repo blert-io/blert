@@ -9,6 +9,7 @@ export type RawPrayerSet = number;
  */
 export enum PrayerBook {
   NORMAL = 0,
+  CURSES = 1,
 }
 
 /**
@@ -50,6 +51,17 @@ export enum Prayer {
   ZEAL = 31,
 }
 
+/**
+ * Ancient curses used only by NPCs as overheads.
+ */
+export enum AncientCurse {
+  WRATH = 0,
+  SOUL_SPLIT = 1,
+  DEFLECT_MELEE = 2,
+  DEFLECT_RANGED = 3,
+  DEFLECT_MAGIC = 4,
+}
+
 /** Book-agnostic maximum prayer index. */
 const MAX_ALLOWED_PRAYER = 49 as Prayer;
 
@@ -66,6 +78,17 @@ export class PrayerSet {
       Prayer.REDEMPTION,
       Prayer.SMITE,
     ]).getRaw(),
+  );
+
+  private static readonly CURSE_OVERHEADS_MASK: bigint = [
+    AncientCurse.WRATH,
+    AncientCurse.SOUL_SPLIT,
+    AncientCurse.DEFLECT_MELEE,
+    AncientCurse.DEFLECT_RANGED,
+    AncientCurse.DEFLECT_MAGIC,
+  ].reduce(
+    (acc, curse) => acc | (BigInt(1) << BigInt(curse)),
+    BigInt(PrayerSet.empty(PrayerBook.CURSES).getRaw()),
   );
 
   /**
@@ -125,8 +148,25 @@ export class PrayerSet {
    * @returns True if the prayer is active, false otherwise.
    */
   public has(prayer: Prayer): boolean {
+    if (this.getBook() !== PrayerBook.NORMAL) {
+      return false;
+    }
     const prayerBit = BigInt(1) << BigInt(prayer);
     return (this.value & prayerBit) !== BigInt(0);
+  }
+
+  /**
+   * Checks if a specific curse is active in this set.
+   *
+   * @param curse The curse to check.
+   * @returns True if the curse is active, false otherwise.
+   */
+  public hasCurse(curse: AncientCurse): boolean {
+    if (this.getBook() !== PrayerBook.CURSES) {
+      return false;
+    }
+    const curseBit = BigInt(1) << BigInt(curse);
+    return (this.value & curseBit) !== BigInt(0);
   }
 
   /**
@@ -196,11 +236,14 @@ export class PrayerSet {
    * this one.
    */
   public overheads(): PrayerSet {
-    switch (this.getBook()) {
+    const book = this.getBook();
+    switch (book) {
       case PrayerBook.NORMAL:
         return new PrayerSet(this.value & PrayerSet.NORMAL_OVERHEADS_MASK);
-      default:
-        return PrayerSet.empty(this.getBook());
+      case PrayerBook.CURSES:
+        return new PrayerSet(this.value & PrayerSet.CURSE_OVERHEADS_MASK);
     }
+    const _exhaustive: never = book;
+    return PrayerSet.empty(book);
   }
 }

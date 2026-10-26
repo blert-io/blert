@@ -565,7 +565,8 @@ fn score_attacks<A: PartialEq + Copy>(
 mod tests {
     use blert::proto::{Event, event};
     use blert::{
-        ChallengeMode, Item, ItemDelta, Prayer, PrayerBook, PrayerSet, Rsn, Slot, Stage, Tick, item,
+        ChallengeMode, Item, ItemDelta, Prayer, PrayerBook, PrayerSet, Rsn, Slot, Stage,
+        StandardPrayer, Tick, item,
     };
 
     use super::*;
@@ -1449,11 +1450,11 @@ mod tests {
     #[test]
     fn matching_overhead_prayers_score_positively_and_others_are_ignored() {
         let mut base_prayers = PrayerSet::empty(PrayerBook::Normal);
-        base_prayers.add(Prayer::ProtectFromMagic);
-        base_prayers.add(Prayer::Rigour);
+        base_prayers.add(Prayer::Standard(StandardPrayer::ProtectFromMagic));
+        base_prayers.add(Prayer::Standard(StandardPrayer::Rigour));
         let mut target_prayers = PrayerSet::empty(PrayerBook::Normal);
-        target_prayers.add(Prayer::ProtectFromMagic);
-        target_prayers.add(Prayer::Piety);
+        target_prayers.add(Prayer::Standard(StandardPrayer::ProtectFromMagic));
+        target_prayers.add(Prayer::Standard(StandardPrayer::Piety));
 
         let base = tick_state(
             Tick(1),
@@ -1482,9 +1483,9 @@ mod tests {
     #[test]
     fn differing_overhead_prayers_score_negatively() {
         let mut base_prayers = PrayerSet::empty(PrayerBook::Normal);
-        base_prayers.add(Prayer::ProtectFromMagic);
+        base_prayers.add(Prayer::Standard(StandardPrayer::ProtectFromMagic));
         let mut target_prayers = PrayerSet::empty(PrayerBook::Normal);
-        target_prayers.add(Prayer::ProtectFromMissiles);
+        target_prayers.add(Prayer::Standard(StandardPrayer::ProtectFromMissiles));
 
         let base = tick_state(
             Tick(1),
@@ -1513,9 +1514,9 @@ mod tests {
     #[test]
     fn empty_overheads_are_ignored() {
         let mut base_prayers = PrayerSet::empty(PrayerBook::Normal);
-        base_prayers.add(Prayer::Rigour);
+        base_prayers.add(Prayer::Standard(StandardPrayer::Rigour));
         let mut target_prayers = PrayerSet::empty(PrayerBook::Normal);
-        target_prayers.add(Prayer::Piety);
+        target_prayers.add(Prayer::Standard(StandardPrayer::Piety));
 
         let base = tick_state(
             Tick(1),

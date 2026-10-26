@@ -26,7 +26,7 @@ pub use actor::{
 pub use event::*;
 pub use item::{EquipmentSlot, Item, ItemDelta, Slot};
 pub use objects::{ObjectKind, TickObjects};
-pub use prayer::{Prayer, PrayerBook, PrayerSet};
+pub use prayer::{AncientCurse, Prayer, PrayerBook, PrayerSet, StandardPrayer};
 pub use skill::SkillLevel;
 pub use tick::{Tick, Ticks};
 pub use timeline::{

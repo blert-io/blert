@@ -185,7 +185,7 @@ export {
   type RawItemDelta,
 } from './item-delta';
 
-export { Prayer, PrayerBook, PrayerSet } from './prayer-set';
+export { AncientCurse, Prayer, PrayerBook, PrayerSet } from './prayer-set';
 export type { RawPrayerSet } from './prayer-set';
 
 export {

@@ -310,6 +310,7 @@ export const npcSchema = z.object({
   animation: uint32Schema.optional(),
   target: npcTargetSchema.optional(),
   spotAnims: z.array(uint32Schema).optional(),
+  overheads: z.array(uint32Schema).optional(),
   basic: z.object({}).optional(),
   maidenCrab: maidenCrabSchema.optional(),
   nylo: nyloSchema.optional(),
