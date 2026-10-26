@@ -22,10 +22,13 @@ use verzik::VerzikInterpreter;
 
 pub(crate) use ocellus::OcellusProperties;
 
+use crate::event::{Event, EventKind, NpcDeath};
+use crate::objects::ObjectKind;
 use crate::proto::event::object_update;
+use crate::timeline::{BuildMismatch, BuildWarning, ConfigVersion, RawActor, Recording, TickState};
 use crate::{
-    BuildMismatch, BuildWarning, ClientId, ConfigVersion, Event, EventKind, NpcDeath, ObjectKind,
-    PluginVersion, Point, RawActor, Recording, RoomId, Stage, Tick, TickState, npc, proto,
+    AncientCurse, ClientId, PluginVersion, Point, Prayer, RoomId, Stage, StandardPrayer, Tick, npc,
+    proto,
 };
 
 const GENERIC_DEATHS: [(PluginVersion, &[u32]); 1] = [(
@@ -36,6 +39,8 @@ const GENERIC_DEATHS: [(PluginVersion, &[u32]); 1] = [(
         npc::id::BLOAT_HARD,
     ],
 )];
+
+const HEADICONS_PRAYER: u16 = 440;
 
 struct InterpretContext {
     client_id: ClientId,
@@ -254,6 +259,56 @@ pub(crate) struct RawNpc {
     pub(super) animation: Option<u32>,
     pub(super) target: Option<RawActor>,
     pub(super) spot_anims: Vec<u32>,
+    pub(super) overheads: Vec<Overhead>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Overhead {
+    pub(super) archive: u16,
+    pub(super) sprite: u16,
+}
+
+impl Overhead {
+    pub(crate) fn from_raw(raw: u32) -> Self {
+        Self {
+            archive: (raw >> 16) as u16,
+            sprite: (raw & 0xffff) as u16,
+        }
+    }
+
+    pub(crate) fn to_prayers(self) -> &'static [Prayer] {
+        if self.archive != HEADICONS_PRAYER {
+            return &[];
+        }
+        match self.sprite {
+            0 => &[Prayer::Standard(StandardPrayer::ProtectFromMelee)],
+            1 => &[Prayer::Standard(StandardPrayer::ProtectFromMissiles)],
+            2 => &[Prayer::Standard(StandardPrayer::ProtectFromMagic)],
+            6 => &[
+                Prayer::Standard(StandardPrayer::ProtectFromMissiles),
+                Prayer::Standard(StandardPrayer::ProtectFromMagic),
+            ],
+            7 => &[
+                Prayer::Standard(StandardPrayer::ProtectFromMissiles),
+                Prayer::Standard(StandardPrayer::ProtectFromMelee),
+            ],
+            8 => &[
+                Prayer::Standard(StandardPrayer::ProtectFromMagic),
+                Prayer::Standard(StandardPrayer::ProtectFromMelee),
+            ],
+            9 => &[
+                Prayer::Standard(StandardPrayer::ProtectFromMissiles),
+                Prayer::Standard(StandardPrayer::ProtectFromMagic),
+                Prayer::Standard(StandardPrayer::ProtectFromMelee),
+            ],
+            10 => &[Prayer::Curse(AncientCurse::Wrath)],
+            11 => &[Prayer::Curse(AncientCurse::SoulSplit)],
+            15 => &[Prayer::Curse(AncientCurse::DeflectMelee)],
+            16 => &[Prayer::Curse(AncientCurse::DeflectRanged)],
+            17 => &[Prayer::Curse(AncientCurse::DeflectMagic)],
+            _ => &[],
+        }
+    }
 }
 
 /// Returns each tick where `interpretation` differs from the bespoke events

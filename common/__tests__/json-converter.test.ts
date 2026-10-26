@@ -209,6 +209,7 @@ describe('jsonToServerMessage', () => {
               animation: 13,
               target: { player: '1Ogp' },
               spotAnims: [19, 23],
+              overheads: [28835840],
               basic: {},
             },
           },
@@ -246,6 +247,7 @@ describe('jsonToServerMessage', () => {
       );
       expect(first?.getTarget()?.getPlayer()).toBe('1Ogp');
       expect(first?.getSpotAnimsList()).toEqual([19, 23]);
+      expect(first?.getOverheadsList()).toEqual([28835840]);
 
       expect(second?.getId()).toBe(7);
       expect(second?.getRoomId()).toBe(9);
@@ -257,6 +259,7 @@ describe('jsonToServerMessage', () => {
       );
       expect(second?.getTarget()?.getNpcRoomId()).toBe(8);
       expect(second?.getSpotAnimsList()).toEqual([]);
+      expect(second?.getOverheadsList()).toEqual([]);
     });
 
     it('converts an NPC_SPAWN event with nylo data', () => {

@@ -665,6 +665,9 @@ function npcJsonToProto(json: z.infer<typeof npcSchema>): Event.Npc {
   if (json.spotAnims !== undefined) {
     npc.setSpotAnimsList(json.spotAnims);
   }
+  if (json.overheads !== undefined) {
+    npc.setOverheadsList(json.overheads);
+  }
 
   if (json.maidenCrab !== undefined) {
     const crab = new Event.Npc.MaidenCrab();

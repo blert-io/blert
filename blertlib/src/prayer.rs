@@ -4,12 +4,14 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrayerBook {
     Normal = 0,
+    // Ancient curses as used by several NPCs.
+    Curses = 1,
 }
 
 /// Prayers of the standard (and only) prayer book.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u64)]
-pub enum Prayer {
+pub enum StandardPrayer {
     ThickSkin = 0,
     BurstOfStrength = 1,
     ClarityOfThought = 2,
@@ -44,9 +46,52 @@ pub enum Prayer {
     Zeal = 31,
 }
 
-impl Prayer {
+impl StandardPrayer {
     const fn bit(self) -> u64 {
         1 << self as u64
+    }
+}
+
+/// Ancient curses used only by NPCs as overheads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u64)]
+pub enum AncientCurse {
+    Wrath = 0,
+    SoulSplit = 1,
+    DeflectMelee = 2,
+    DeflectRanged = 3,
+    DeflectMagic = 4,
+}
+
+impl AncientCurse {
+    const fn bit(self) -> u64 {
+        1 << self as u64
+    }
+}
+
+/// A prayer used by actors in the game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Prayer {
+    Standard(StandardPrayer),
+    Curse(AncientCurse),
+}
+
+impl Prayer {
+    /// Returns the prayer book to which this prayer belongs.
+    #[must_use]
+    pub const fn book(self) -> PrayerBook {
+        match self {
+            Prayer::Standard(_) => PrayerBook::Normal,
+            Prayer::Curse(_) => PrayerBook::Curses,
+        }
+    }
+
+    /// Returns the bit for this prayer in a prayer set.
+    const fn bit(self) -> u64 {
+        match self {
+            Prayer::Standard(prayer) => prayer.bit(),
+            Prayer::Curse(curse) => curse.bit(),
+        }
     }
 }
 
@@ -59,12 +104,18 @@ impl PrayerSet {
     const BOOK_MASK: u64 = 0b111;
     const BOOK_BITS: u64 = Self::BOOK_MASK << Self::BOOK_SHIFT;
 
-    const NORMAL_OVERHEADS: u64 = Prayer::ProtectFromMagic.bit()
-        | Prayer::ProtectFromMissiles.bit()
-        | Prayer::ProtectFromMelee.bit()
-        | Prayer::Retribution.bit()
-        | Prayer::Redemption.bit()
-        | Prayer::Smite.bit();
+    const NORMAL_OVERHEADS: u64 = StandardPrayer::ProtectFromMagic.bit()
+        | StandardPrayer::ProtectFromMissiles.bit()
+        | StandardPrayer::ProtectFromMelee.bit()
+        | StandardPrayer::Retribution.bit()
+        | StandardPrayer::Redemption.bit()
+        | StandardPrayer::Smite.bit();
+
+    const CURSE_OVERHEADS: u64 = AncientCurse::Wrath.bit()
+        | AncientCurse::SoulSplit.bit()
+        | AncientCurse::DeflectMelee.bit()
+        | AncientCurse::DeflectRanged.bit()
+        | AncientCurse::DeflectMagic.bit();
 
     /// Creates a set without active prayers.
     #[must_use]
@@ -91,8 +142,12 @@ impl PrayerSet {
     }
 
     /// Sets a prayer active.
-    pub const fn add(&mut self, prayer: Prayer) {
+    pub const fn add(&mut self, prayer: Prayer) -> bool {
+        if (self.0 & Self::BOOK_BITS) >> Self::BOOK_SHIFT != prayer.book() as u64 {
+            return false;
+        }
         self.0 |= prayer.bit();
+        true
     }
 
     /// Returns the set of overhead prayers active in this set.
@@ -101,6 +156,8 @@ impl PrayerSet {
         let book = self.0 & Self::BOOK_BITS;
         if book >> Self::BOOK_SHIFT == PrayerBook::Normal as u64 {
             PrayerSet(self.0 & (Self::NORMAL_OVERHEADS | Self::BOOK_BITS))
+        } else if book >> Self::BOOK_SHIFT == PrayerBook::Curses as u64 {
+            PrayerSet(self.0 & (Self::CURSE_OVERHEADS | Self::BOOK_BITS))
         } else {
             PrayerSet(book)
         }
@@ -119,22 +176,37 @@ mod tests {
 
     #[test]
     fn prayer_set_round_trips_to_raw_value() {
-        let raw = Prayer::ProtectFromMissiles.bit() | Prayer::Piety.bit();
+        let raw = StandardPrayer::ProtectFromMissiles.bit() | StandardPrayer::Piety.bit();
         assert_eq!(PrayerSet::from_raw(raw).to_raw(), raw);
         assert!(!PrayerSet::from_raw(raw).is_empty());
     }
 
     #[test]
     fn overheads_returns_subset_of_prayers() {
-        let set = PrayerSet::from_raw(Prayer::ProtectFromMissiles.bit() | Prayer::Piety.bit());
+        let set = PrayerSet::from_raw(
+            StandardPrayer::ProtectFromMissiles.bit() | StandardPrayer::Piety.bit(),
+        );
         assert_eq!(
             set.overheads(),
-            PrayerSet::from_raw(Prayer::ProtectFromMissiles.bit())
+            PrayerSet::from_raw(StandardPrayer::ProtectFromMissiles.bit())
         );
         assert!(
-            PrayerSet::from_raw(Prayer::Piety.bit())
+            PrayerSet::from_raw(StandardPrayer::Piety.bit())
                 .overheads()
                 .is_empty()
         );
+
+        let mut curses = PrayerSet::empty(PrayerBook::Curses);
+        curses.add(Prayer::Curse(AncientCurse::SoulSplit));
+        assert_eq!(curses.overheads(), curses);
+    }
+
+    #[test]
+    fn add_rejects_prayer_from_another_book() {
+        let mut set = PrayerSet::empty(PrayerBook::Curses);
+        assert!(!set.add(Prayer::Standard(StandardPrayer::ProtectFromMelee)));
+        assert_eq!(set, PrayerSet::empty(PrayerBook::Curses));
+        assert!(set.add(Prayer::Curse(AncientCurse::SoulSplit)));
+        assert_eq!(set.to_raw(), (1 << 50) | (1 << 1));
     }
 }

@@ -12,7 +12,7 @@ use crate::event::{
 };
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item, ItemDelta};
 use crate::objects::{ObjectKind, TickObjects};
-use crate::prayer::PrayerSet;
+use crate::prayer::{PrayerBook, PrayerSet};
 use crate::proto::event::{Type, object_update};
 use crate::skill::SkillLevel;
 use crate::tick::{Tick, Ticks};
@@ -21,7 +21,7 @@ use crate::{
     PluginVersion, Point, Rect, Source, Stage, npc, proto,
 };
 
-use super::interpret::{self, InterpretMode, ObjectDef, RawNpc, RawObjects};
+use super::interpret::{self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects};
 use super::{ConfigVersion, Recording, SoteMazePivots, StageData, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
@@ -1156,6 +1156,14 @@ fn extract_npc_state(
         }
     };
 
+    let overheads: Vec<Overhead> = npc
+        .overheads
+        .iter()
+        .copied()
+        .map(Overhead::from_raw)
+        .collect();
+    let prayers = extract_npc_prayers(npc, &overheads)?;
+
     Ok((
         room_id,
         NpcState {
@@ -1163,7 +1171,7 @@ fn extract_npc_state(
             id: npc_id,
             position,
             hitpoints: SkillLevel::from_raw(npc.hitpoints),
-            prayers: PrayerSet::from_raw(npc.active_prayers),
+            prayers,
             properties,
         },
         RawNpc {
@@ -1181,8 +1189,36 @@ fn extract_npc_state(
                     }
                 }),
             spot_anims: npc.spot_anims.clone(),
+            overheads,
         },
     ))
+}
+
+fn extract_npc_prayers(
+    npc: &proto::event::Npc,
+    overheads: &[Overhead],
+) -> Result<PrayerSet, RejectionReason> {
+    if overheads.is_empty() {
+        return Ok(PrayerSet::from_raw(npc.active_prayers));
+    }
+
+    let mut overhead_prayers = overheads
+        .iter()
+        .flat_map(|overhead| overhead.to_prayers())
+        .peekable();
+    let book = overhead_prayers
+        .peek()
+        .map_or(PrayerBook::Normal, |prayer| prayer.book());
+    let mut prayers = PrayerSet::empty(book);
+    for &prayer in overhead_prayers {
+        if !prayers.add(prayer) {
+            return Err(RejectionReason::InvalidField {
+                field: "npc.overheads",
+                error: FieldError::OutOfDomain(format!("{:?}", npc.overheads)),
+            });
+        }
+    }
+    Ok(prayers)
 }
 
 #[derive(Debug, PartialEq, Eq)]
