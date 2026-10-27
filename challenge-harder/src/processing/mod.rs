@@ -8,7 +8,8 @@ use blert::Ticks;
 
 use crate::lifecycle::core::state::Trigger;
 use crate::lifecycle::core::types::{
-    ChallengeType, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload, Uuid,
+    ChallengeType, OverallTicks, PlayerId, PrimaryMeleeGear, ProcessingError, ProcessingPayload,
+    Uuid,
 };
 use crate::metrics;
 use crate::price::PriceResolver;
@@ -187,9 +188,17 @@ impl Pipeline {
                 .await?;
                 Ok((ProcessingPayload::None, None))
             }
-            Trigger::StageStart { stage, .. } => {
+            Trigger::StageStart {
+                stage,
+                overall_ticks,
+                ..
+            } => {
+                let overall_ticks = match overall_ticks {
+                    Some(OverallTicks::Server(server)) => Some(Ticks(server.count)),
+                    Some(OverallTicks::Local(_)) | None => None,
+                };
                 time(&mut run.timings.writes, || {
-                    challenge::update_stage(&run.txn, stage)
+                    challenge::update_stage(&run.txn, stage, overall_ticks)
                 })
                 .await?;
                 let Some(mut processor) =

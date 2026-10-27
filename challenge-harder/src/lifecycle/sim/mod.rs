@@ -1327,7 +1327,7 @@ fn check_invariants(result: &ScenarioResult, config: &LifecycleConfig) {
                     outstanding.insert(entry.seq);
                 }
                 // Only a real stage change triggers processing.
-                LifecycleEvent::StageStarted { stage: started } => {
+                LifecycleEvent::StageStarted { stage: started, .. } => {
                     if stage != Some(*started) {
                         trigger_seqs.insert(entry.seq);
                         outstanding.insert(entry.seq);

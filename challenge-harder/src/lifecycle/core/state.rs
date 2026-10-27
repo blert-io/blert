@@ -10,8 +10,8 @@ use core::time::Duration;
 use super::event::Cause;
 use super::types::{
     ChallengeInfo, ChallengeMode, ChallengeStatus, ChallengeType, ChallengeTypeExt, ClientId,
-    JournalSeq, MsgId, ProcessingError, ProcessingPayload, RecordingType, ReportedTimes,
-    SessionToken, Stage, StageStatus, Timestamp, UserId, Uuid,
+    JournalSeq, MsgId, OverallTicks, ProcessingError, ProcessingPayload, RecordingType,
+    ReportedTimes, SessionToken, Stage, StageStatus, Timestamp, UserId, Uuid,
 };
 
 /// Progress of the challenge's current stage attempt.
@@ -125,7 +125,11 @@ pub enum Trigger {
         recording_type: RecordingType,
     },
     /// The challenge began a new stage.
-    StageStart { seq: JournalSeq, stage: Stage },
+    StageStart {
+        seq: JournalSeq,
+        stage: Stage,
+        overall_ticks: Option<OverallTicks>,
+    },
     /// The challenge's mode changed.
     Mode {
         seq: JournalSeq,
@@ -877,6 +881,7 @@ mod tests {
             Trigger::StageStart {
                 seq: JournalSeq(6),
                 stage: Stage::TobBloat,
+                overall_ticks: None,
             },
             ChallengeState::default().challenge_info(),
             Timestamp::from_millis(900),
@@ -897,6 +902,7 @@ mod tests {
                 Trigger::StageStart {
                     seq: JournalSeq(6),
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
                 Trigger::Finish {
                     seq: JournalSeq(11),

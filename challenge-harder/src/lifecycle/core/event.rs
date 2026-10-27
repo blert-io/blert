@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::command::StageProgress;
 use super::deadline::DeadlineKind;
 use super::types::{
-    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, ProcessingError, ProcessingPayload,
-    RecordingType, ReportedTimes, SessionToken, Stage, Timestamp, UserId, Uuid,
+    ChallengeMode, ChallengeType, ClientId, JournalSeq, MsgId, OverallTicks, ProcessingError,
+    ProcessingPayload, RecordingType, ReportedTimes, SessionToken, Stage, Timestamp, UserId, Uuid,
 };
 
 /// What triggered a lifecycle event.
@@ -67,6 +67,8 @@ pub enum LifecycleEvent {
     /// The challenge advanced to a new stage.
     StageStarted {
         stage: Stage,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        overall_ticks: Option<OverallTicks>,
     },
     /// A `STARTED` update for the current retriable stage began a new attempt.
     StageAttemptStarted {

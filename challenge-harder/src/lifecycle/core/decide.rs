@@ -177,6 +177,7 @@ fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
                 }
                 events.push(LifecycleEvent::StageStarted {
                     stage: progress.stage,
+                    overall_ticks: progress.overall_ticks,
                 });
                 events.push(LifecycleEvent::ClientStageReported {
                     client_id: update.client_id,
@@ -422,8 +423,8 @@ mod tests {
     use crate::lifecycle::core::event::Cause;
     use crate::lifecycle::core::state::{ClientState, Processing, ProcessingConfig, Trigger};
     use crate::lifecycle::core::types::{
-        ClientId, JournalSeq, ProcessingError, ProcessingPayload, RecordingType, ReportedTimes,
-        Timestamp, UserId, Uuid,
+        ClientId, JournalSeq, OverallTicks, ProcessingError, ProcessingPayload, RecordingType,
+        ReportedTimes, ServerTicks, Timestamp, UserId, Uuid,
     };
 
     const CLIENT_A: ClientId = ClientId(10);
@@ -558,6 +559,7 @@ mod tests {
             vec![
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobMaiden,
+                    overall_ticks: None,
                 },
                 report(CLIENT_A, Stage::TobMaiden, StageStatus::Started),
             ],
@@ -584,6 +586,7 @@ mod tests {
                 },
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
                 report(CLIENT_A, Stage::TobBloat, StageStatus::Started),
             ],
@@ -608,6 +611,7 @@ mod tests {
             vec![
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
                 report(CLIENT_A, Stage::TobBloat, StageStatus::Started),
             ],
@@ -630,8 +634,65 @@ mod tests {
             vec![
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
                 report(CLIENT_A, Stage::TobBloat, StageStatus::Started),
+            ],
+        );
+    }
+
+    #[test]
+    fn stage_started_takes_overall_ticks_from_the_start_report() {
+        let state = ChallengeState {
+            challenge_type: ChallengeType::Tfa,
+            mode: ChallengeMode::NoMode,
+            stage: Stage::TfaGuardian,
+            stage_status: StageStatus::Completed,
+            stage_state: StageState::Complete {
+                since: Timestamp::from_millis(1_000),
+            },
+            clients: [(CLIENT_A, client(Stage::TfaBork, StageStatus::Entered, None))]
+                .into_iter()
+                .collect(),
+            ..ChallengeState::default()
+        };
+        let update = Command::Update(super::Update {
+            user_id: UserId(1),
+            client_id: CLIENT_A,
+            session_token: "tok".into(),
+            mode: Some(ChallengeMode::NoMode),
+            stage: Some(StageProgress {
+                stage: Stage::TfaBork,
+                status: StageStatus::Started,
+                overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                    count: 228,
+                    precise: true,
+                })),
+            }),
+            party: None,
+        });
+        assert_eq!(
+            decide(&state, &LifecycleConfig::default(), &update),
+            vec![
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TfaBork,
+                    overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                        count: 228,
+                        precise: true,
+                    })),
+                },
+                LifecycleEvent::ClientStageReported {
+                    client_id: CLIENT_A,
+                    attempt: None,
+                    update: StageProgress {
+                        stage: Stage::TfaBork,
+                        status: StageStatus::Started,
+                        overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                            count: 228,
+                            precise: true,
+                        })),
+                    },
+                },
             ],
         );
     }

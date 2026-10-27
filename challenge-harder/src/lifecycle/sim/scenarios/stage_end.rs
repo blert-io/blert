@@ -92,6 +92,7 @@ async fn advance_inside_the_window_seals_the_outgoing_stage() {
                 cmd(6),
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ),
             entry(
