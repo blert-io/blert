@@ -4,6 +4,7 @@
 export enum MessageFormat {
   PROTOBUF = 'protobuf',
   JSON = 'json',
+  JSON_DEFLATE = 'json-deflate',
 }
 
 /**
@@ -11,16 +12,7 @@ export enum MessageFormat {
  */
 export const SUBPROTOCOL_PROTOBUF = 'blert-protobuf';
 export const SUBPROTOCOL_JSON = 'blert-json';
-
-/**
- * All supported WebSocket subprotocols.
- */
-export const SUPPORTED_SUBPROTOCOLS = [
-  SUBPROTOCOL_PROTOBUF,
-  SUBPROTOCOL_JSON,
-] as const;
-
-export type SupportedSubprotocol = (typeof SUPPORTED_SUBPROTOCOLS)[number];
+export const SUBPROTOCOL_JSON_DEFLATE = 'blert-json-deflate';
 
 /**
  * Returns the message format for a given subprotocol.
@@ -35,20 +27,8 @@ export function subprotocolToFormat(
   if (subprotocol === SUBPROTOCOL_JSON) {
     return MessageFormat.JSON;
   }
-  return MessageFormat.PROTOBUF;
-}
-
-/**
- * Returns the subprotocol string for a given message format.
- *
- * @param format Message format.
- * @returns Subprotocol string.
- */
-export function formatToSubprotocol(
-  format: MessageFormat,
-): SupportedSubprotocol {
-  if (format === MessageFormat.JSON) {
-    return SUBPROTOCOL_JSON;
+  if (subprotocol === SUBPROTOCOL_JSON_DEFLATE) {
+    return MessageFormat.JSON_DEFLATE;
   }
-  return SUBPROTOCOL_PROTOBUF;
+  return MessageFormat.PROTOBUF;
 }

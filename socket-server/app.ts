@@ -29,6 +29,7 @@ import {
 import { PlayerManager } from './players';
 import {
   SUBPROTOCOL_JSON,
+  SUBPROTOCOL_JSON_DEFLATE,
   SUBPROTOCOL_PROTOBUF,
   subprotocolToFormat,
 } from './protocol';
@@ -481,6 +482,9 @@ async function main(): Promise<void> {
     handleProtocols: (protocols) => {
       if (protocols.has(SUBPROTOCOL_PROTOBUF)) {
         return SUBPROTOCOL_PROTOBUF;
+      }
+      if (protocols.has(SUBPROTOCOL_JSON_DEFLATE)) {
+        return SUBPROTOCOL_JSON_DEFLATE;
       }
       if (protocols.has(SUBPROTOCOL_JSON)) {
         return SUBPROTOCOL_JSON;
