@@ -233,7 +233,9 @@ export type InvalidMessageType =
   | 'json_syntax'
   | 'json_schema'
   | 'json_conversion'
-  | 'unexpected_binary';
+  | 'unexpected_binary'
+  | 'inflate'
+  | 'inflated_too_large';
 
 export const recordInvalidMessage = (type: InvalidMessageType): void => {
   invalidMessages.inc({ type });

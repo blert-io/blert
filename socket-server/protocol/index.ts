@@ -1,10 +1,7 @@
 export {
-  formatToSubprotocol,
   MessageFormat,
   SUBPROTOCOL_PROTOBUF,
   SUBPROTOCOL_JSON,
+  SUBPROTOCOL_JSON_DEFLATE,
   subprotocolToFormat,
-  SUPPORTED_SUBPROTOCOLS,
 } from './types';
-
-export type { SupportedSubprotocol } from './types';

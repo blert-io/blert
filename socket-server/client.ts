@@ -1,6 +1,7 @@
 import { jsonToServerMessage, serverMessageToJson, Stage } from '@blert/common';
 import { ServerMessage } from '@blert/common/generated/server_message_pb';
 import { RawData, WebSocket } from 'ws';
+import { constants, createInflateRaw, InflateRaw } from 'zlib';
 import { z } from 'zod';
 
 import MessageHandler from './message-handler';
@@ -72,11 +73,17 @@ export type Session = {
   token: string;
 };
 
+type Frame = {
+  data: Buffer;
+  isBinary: boolean;
+};
+
 export default class Client {
   private static readonly HEARTBEAT_INTERVAL_MS = 5000;
   private static readonly HEARTBEAT_DISCONNECT_THRESHOLD = 10;
   private static readonly MESSAGE_LOOP_INTERVAL_MS = 20;
   private static readonly MESSAGE_STATS_INTERVAL_MS = 2 * 60 * 1000;
+  private static readonly MAX_INFLATED_MESSAGE_BYTES = 4 * 1024 * 1024;
 
   /** Delay after connection before sending the first GAME_STATE_REQUEST. */
   private static readonly GAME_STATE_REQUEST_INITIAL_DELAY_MS = 1000;
@@ -92,7 +99,8 @@ export default class Client {
   private socket: WebSocket;
   private messageHandler: MessageHandler;
   private activeChallenge: ActiveChallengeInfo | null;
-  private messageQueue: ServerMessage[];
+  private messageQueue: Frame[];
+  private inflater: InflateRaw | null;
   private isOpen: boolean;
 
   private closeCallbacks: (() => void)[];
@@ -127,6 +135,8 @@ export default class Client {
     this.activeChallenge = null;
     this.closeCallbacks = [];
     this.messageQueue = [];
+    this.inflater =
+      messageFormat === MessageFormat.JSON_DEFLATE ? createInflateRaw() : null;
     this.isOpen = true;
     this.processTimeout = null;
     this.heartbeatTimeout = null;
@@ -173,11 +183,7 @@ export default class Client {
       }
 
       this.stats.recordIn(this.messageFormat, message.length);
-
-      const serverMessage = this.parseMessage(message, isBinary);
-      if (serverMessage !== null) {
-        this.messageQueue.push(serverMessage);
-      }
+      this.messageQueue.push({ data: message, isBinary });
 
       const now = Date.now();
       if (now - this.lastMessageLog > Client.MESSAGE_STATS_INTERVAL_MS) {
@@ -436,7 +442,11 @@ export default class Client {
 
   public sendMessage(message: ServerMessage): void {
     if (this.isOpen) {
-      if (this.messageFormat === MessageFormat.JSON) {
+      if (this.messageFormat === MessageFormat.PROTOBUF) {
+        const serialized = message.serializeBinary();
+        this.socket.send(serialized);
+        this.stats.recordOut(this.messageFormat, serialized.length);
+      } else {
         const json = serverMessageToJson(message);
         const serialized = JSON.stringify(json);
         this.socket.send(serialized);
@@ -444,10 +454,6 @@ export default class Client {
           this.messageFormat,
           Buffer.byteLength(serialized, 'utf8'),
         );
-      } else {
-        const serialized = message.serializeBinary();
-        this.socket.send(serialized);
-        this.stats.recordOut(this.messageFormat, serialized.length);
       }
     }
   }
@@ -509,54 +515,126 @@ export default class Client {
     };
   }
 
-  private parseMessage(
-    message: Buffer,
-    isBinary: boolean,
-  ): ServerMessage | null {
+  private inflate(inflater: InflateRaw, frame: Buffer): Promise<Buffer | null> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let length = 0;
+
+      const onData = (chunk: Buffer) => {
+        length += chunk.length;
+        if (length > Client.MAX_INFLATED_MESSAGE_BYTES) {
+          resolve(null);
+          inflater.destroy();
+          return;
+        }
+        chunks.push(chunk);
+      };
+
+      inflater.on('data', onData);
+      inflater.on('error', reject);
+      inflater.write(frame);
+      inflater.flush(constants.Z_SYNC_FLUSH, (error?: Error | null) => {
+        if (error !== undefined && error !== null) {
+          reject(error);
+          return;
+        }
+        inflater.off('data', onData);
+        inflater.off('error', reject);
+        resolve(Buffer.concat(chunks, length));
+      });
+    });
+  }
+
+  private parseJson(message: Buffer): ServerMessage | null {
+    try {
+      const parsed: unknown = JSON.parse(message.toString());
+      return jsonToServerMessage(parsed);
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        recordInvalidMessage('json_syntax');
+      } else if (e instanceof z.ZodError) {
+        recordInvalidMessage('json_schema');
+      } else {
+        recordInvalidMessage('json_conversion');
+      }
+      logger.warn(
+        'client_invalid_json',
+        this.logContext({
+          error: e instanceof Error ? e : new Error(String(e)),
+        }),
+      );
+      return null;
+    }
+  }
+
+  private async parseMessage(frame: Frame): Promise<ServerMessage | null> {
     switch (this.messageFormat) {
       case MessageFormat.JSON: {
-        if (isBinary) {
+        if (frame.isBinary) {
           recordInvalidMessage('unexpected_binary');
           logger.warn(
             'client_unexpected_binary_message',
-            this.logContext({ messageLength: message.length }),
+            this.logContext({ messageLength: frame.data.length }),
           );
           return null;
         }
 
-        try {
-          const parsed: unknown = JSON.parse(message.toString());
-          return jsonToServerMessage(parsed);
-        } catch (e) {
-          if (e instanceof SyntaxError) {
-            recordInvalidMessage('json_syntax');
-          } else if (e instanceof z.ZodError) {
-            recordInvalidMessage('json_schema');
-          } else {
-            recordInvalidMessage('json_conversion');
-          }
-          logger.warn(
-            'client_invalid_json',
-            this.logContext({
-              error: e instanceof Error ? e : new Error(String(e)),
-            }),
-          );
-          return null;
-        }
+        return this.parseJson(frame.data);
       }
 
-      case MessageFormat.PROTOBUF: {
-        if (!isBinary) {
+      case MessageFormat.JSON_DEFLATE: {
+        if (!frame.isBinary) {
           recordInvalidMessage('text');
           logger.warn(
             'client_unexpected_text_message',
-            this.logContext({ messageLength: message.length }),
+            this.logContext({ messageLength: frame.data.length }),
+          );
+          return null;
+        }
+
+        let json: Buffer | null;
+        try {
+          json = await this.inflate(this.inflater!, frame.data);
+        } catch (e) {
+          recordInvalidMessage('inflate');
+          logger.warn(
+            'client_invalid_deflate',
+            this.logContext({
+              messageLength: frame.data.length,
+              error: e instanceof Error ? e : new Error(String(e)),
+            }),
+          );
+          this.isOpen = false;
+          this.close(1007);
+          return null;
+        }
+
+        if (json === null) {
+          recordInvalidMessage('inflated_too_large');
+          logger.warn(
+            'client_inflated_message_too_large',
+            this.logContext({ messageLength: frame.data.length }),
+          );
+          this.isOpen = false;
+          this.close(1009);
+          return null;
+        }
+
+        return this.parseJson(json);
+      }
+
+      case MessageFormat.PROTOBUF: {
+        if (!frame.isBinary) {
+          recordInvalidMessage('text');
+          logger.warn(
+            'client_unexpected_text_message',
+            this.logContext({ messageLength: frame.data.length }),
           );
           return null;
         }
 
         try {
-          return ServerMessage.deserializeBinary(new Uint8Array(message));
+          return ServerMessage.deserializeBinary(new Uint8Array(frame.data));
         } catch (e) {
           recordInvalidMessage('protobuf');
           logger.warn(
@@ -576,11 +654,14 @@ export default class Client {
   private async processMessageLoop(): Promise<void> {
     while (this.isOpen) {
       if (this.messageQueue.length > 0) {
-        const message = this.messageQueue.shift()!;
-        if (message.getType() === ServerMessage.Type.PONG) {
+        const message = await this.parseMessage(this.messageQueue.shift()!);
+        if (!this.isOpen) {
+          return;
+        }
+        if (message?.getType() === ServerMessage.Type.PONG) {
           this.heartbeatAcknowledged = true;
           this.missedHeartbeats = 0;
-        } else {
+        } else if (message !== null) {
           try {
             await this.withLogContext(() =>
               this.messageHandler.handleMessage(this, message),
@@ -646,6 +727,7 @@ export default class Client {
       clearTimeout(this.gameStateRequestTimeout);
       this.gameStateRequestTimeout = null;
     }
+    this.inflater?.close();
 
     this.closeCallbacks.forEach((callback) => {
       callback();
