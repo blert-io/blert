@@ -18,20 +18,6 @@ import { connectedPlayersCache } from './connected-players';
 import { sql } from './db';
 import { AuthenticationError } from './errors';
 
-/**
- * Checks if a user with the specified username exists in the database.
- * @param username The username to check.
- * @returns Promise resolving to true if the user exists, false otherwise.
- */
-export async function userExists(username: string): Promise<boolean> {
-  const result = await sql`
-    SELECT 1 FROM users
-    WHERE lower(username) = ${username.toLowerCase()}
-    LIMIT 1
-  `;
-  return result.length > 0;
-}
-
 export async function getSignedInUserId(): Promise<number | null> {
   const session = await getSession();
   if (!session?.user.id) {
