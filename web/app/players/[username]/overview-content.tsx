@@ -1,6 +1,11 @@
 'use client';
 
-import { ChallengeStatus, ChallengeType, SplitType } from '@blert/common';
+import {
+  ChallengeMode,
+  ChallengeStatus,
+  ChallengeType,
+  SplitType,
+} from '@blert/common';
 import Link from 'next/link';
 import { Cell, Legend, Pie, PieChart } from 'recharts';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -12,7 +17,11 @@ import RadioInput from '@/components/radio-input';
 import Tooltip from '@/components/tooltip';
 import Statistic from '@/components/statistic';
 import { useClientOnly } from '@/hooks/client-only';
-import { scaleNameAndColor, statusNameAndColor } from '@/utils/challenge';
+import {
+  challengeSlug,
+  scaleNameAndColor,
+  statusNameAndColor,
+} from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl, playerUrl, queryString } from '@/utils/url';
 
@@ -65,17 +74,28 @@ function emptyPbs(scales: number): PbEntry[] {
 type PbTableProps = {
   title: string;
   challengeType: ChallengeType;
+  mode: ChallengeMode;
   pbs: PbEntry[];
 };
 
-function PbTable({ title, challengeType, pbs }: PbTableProps) {
+const MAX_PB_ROWS = 5;
+
+function PbTable({ title, challengeType, mode, pbs }: PbTableProps) {
   const pbOrNone = (pb: number | null) =>
     pb === null ? '--:--.-' : ticksToFormattedSeconds(pb);
+  const columns = Math.ceil(pbs.length / MAX_PB_ROWS);
+  const rows = Math.ceil(pbs.length / columns);
 
   return (
-    <div className={styles.pbTable}>
+    <div
+      className={`${styles.pbTable} ${columns > 1 ? styles.wide : ''}`}
+      data-challenge={challengeSlug(challengeType, mode)}
+    >
       <h3>{title}</h3>
-      <div className={styles.pbs}>
+      <div
+        className={styles.pbs}
+        style={{ gridTemplateRows: `repeat(${rows}, auto)` }}
+      >
         {pbs.map(
           (pb) =>
             (pb.raidId !== null && (
@@ -84,13 +104,13 @@ function PbTable({ title, challengeType, pbs }: PbTableProps) {
                 key={pb.title}
                 className={styles.pb}
               >
-                <span className={styles.time}>{pbOrNone(pb.time)}</span>
                 <span className={styles.scale}>{pb.title}</span>
+                <span className={styles.time}>{pbOrNone(pb.time)}</span>
               </Link>
             )) || (
               <div key={pb.title} className={styles.pb}>
-                <span className={styles.time}>{pbOrNone(pb.time)}</span>
                 <span className={styles.scale}>{pb.title}</span>
+                <span className={styles.time}>{pbOrNone(pb.time)}</span>
               </div>
             ),
         )}
@@ -473,7 +493,7 @@ export default function PlayerOverviewContent({
     } else if (pb.type === SplitType.TOB_HM_CHALLENGE) {
       hmtPbs[pb.scale - 1].time = pb.ticks;
       hmtPbs[pb.scale - 1].raidId = pb.cid;
-    } else if (pb.type === SplitType.TFA_CHALLENGE) {
+    } else if (pb.type === SplitType.TFA_OVERALL) {
       tfaPbs[pb.scale - 1].time = pb.ticks;
       tfaPbs[pb.scale - 1].raidId = pb.cid;
     }
@@ -511,16 +531,19 @@ export default function PlayerOverviewContent({
           <PbTable
             title="ToB Regular"
             challengeType={ChallengeType.TOB}
+            mode={ChallengeMode.TOB_REGULAR}
             pbs={regPbs}
           />
           <PbTable
             title="ToB Hard Mode"
             challengeType={ChallengeType.TOB}
+            mode={ChallengeMode.TOB_HARD}
             pbs={hmtPbs}
           />
           <PbTable
             title="Fractured Archive"
             challengeType={ChallengeType.TFA}
+            mode={ChallengeMode.NO_MODE}
             pbs={tfaPbs}
           />
         </div>

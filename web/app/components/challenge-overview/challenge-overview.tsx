@@ -42,6 +42,7 @@ interface ChallengeOverviewProps {
   status: ChallengeStatus;
   mode: ChallengeMode;
   challengeTicks: number;
+  overallTicks: number | null;
   deaths: number;
   party: ExtendedChallengePlayer[];
   startTime: Date;
@@ -111,6 +112,7 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
     status,
     mode,
     challengeTicks,
+    overallTicks,
     deaths,
     party,
     startTime,
@@ -123,7 +125,6 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
   const [statusString, statusColor] = statusNameAndColor(status, stage);
   const modeString = modeName(type, mode);
   const iconForStatus = getIconForStatus(status, statusColor);
-  const ticks = ticksToFormattedSeconds(challengeTicks);
 
   const playerElements = party.map((player) => (
     <PlayerCard key={player.currentUsername} player={player} />
@@ -168,20 +169,26 @@ export function ChallengeOverview(props: ChallengeOverviewProps) {
               </span>
             </div>
           </div>
-          <div className={styles.statItem} data-label="Team Size">
-            <div className={styles.statLabel}>Team Size</div>
-            <div className={styles.statValue}>
-              <i className="fa-solid fa-users" />
-              <span>{party.length}</span>
-            </div>
-          </div>
-          <div className={styles.statItem} data-label="Duration">
-            <div className={styles.statLabel}>Duration</div>
+          <div className={styles.statItem} data-label="Challenge">
+            <div className={styles.statLabel}>Challenge</div>
             <div className={styles.statValue}>
               <i className="fa-solid fa-hourglass" />
-              <span className={styles.time}>{ticks}</span>
+              <span className={styles.time}>
+                {ticksToFormattedSeconds(challengeTicks)}
+              </span>
             </div>
           </div>
+          {overallTicks !== null && (
+            <div className={styles.statItem} data-label="Overall">
+              <div className={styles.statLabel}>Overall</div>
+              <div className={styles.statValue}>
+                <i className="fa-solid fa-stopwatch" />
+                <span className={styles.time}>
+                  {ticksToFormattedSeconds(overallTicks)}
+                </span>
+              </div>
+            </div>
+          )}
           <div className={styles.statItem} data-label="Deaths">
             <div className={styles.statLabel}>Deaths</div>
             <div className={styles.statValue}>

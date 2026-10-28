@@ -28,13 +28,13 @@ async function loadTfaTopTimes(): Promise<ScaleTopTimes[] | null> {
     const boards = await Promise.all(
       TFA_FEATURED_SCALES.map(async (scale) => {
         const splits = await findBestSplitTimes(
-          [SplitType.TFA_CHALLENGE],
+          [SplitType.TFA_OVERALL],
           scale,
           3,
           undefined,
           0,
         );
-        return { scale, splits: splits[SplitType.TFA_CHALLENGE] ?? [] };
+        return { scale, splits: splits[SplitType.TFA_OVERALL] ?? [] };
       }),
     );
     return boards.filter((board) => board.splits.length > 0);

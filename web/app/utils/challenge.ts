@@ -1,5 +1,6 @@
 import {
   adjustSplitForMode,
+  Challenge,
   ChallengeMode,
   ChallengeStatus,
   ChallengeType,
@@ -144,6 +145,15 @@ export function stageTerm(type: ChallengeType, plural: boolean = false) {
     return plural ? 'Delves' : 'Delve';
   }
   return plural ? 'Rooms' : 'Room';
+}
+
+export function relevantTicks(
+  challenge: Pick<Challenge, 'type' | 'challengeTicks' | 'overallTicks'>,
+): number | null {
+  if (challenge.type === ChallengeType.TFA) {
+    return challenge.overallTicks;
+  }
+  return challenge.challengeTicks;
 }
 
 export function relevantSplitsForStage(

@@ -42,6 +42,7 @@ export default function Overview() {
         status={raid.status}
         mode={raid.mode}
         challengeTicks={raid.challengeTicks}
+        overallTicks={raid.overallTicks}
         deaths={raid.totalDeaths}
         party={raid.party.map((player, index) => ({
           ...player,

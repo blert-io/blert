@@ -17,6 +17,7 @@ import { useClientOnly } from '@/hooks/client-only';
 import {
   challengeSlug,
   modeName,
+  relevantTicks,
   statusNameAndColor,
   scaleNameAndColor,
 } from '@/utils/challenge';
@@ -55,6 +56,7 @@ function ChallengeItem({
     challenge.stage,
   );
   const modeString = modeName(challenge.type, challenge.mode);
+  const ticks = relevantTicks(challenge);
 
   const getStatusIcon = (status: ChallengeStatus) => {
     switch (status) {
@@ -100,10 +102,12 @@ function ChallengeItem({
           <span>{statusString}</span>
         </div>
 
-        <div className={styles.challengeDetail}>
-          <i className="fas fa-hourglass" />
-          <span>{ticksToFormattedSeconds(challenge.challengeTicks)}</span>
-        </div>
+        {ticks !== null && (
+          <div className={styles.challengeDetail}>
+            <i className="fas fa-hourglass" />
+            <span>{ticksToFormattedSeconds(ticks)}</span>
+          </div>
+        )}
 
         <div className={styles.challengeDetail}>
           <i className="fas fa-clock" />
@@ -175,13 +179,12 @@ function SessionCard({
   if (session.challenges.length > 1) {
     fastestChallenge = session.challenges.reduce<ChallengeOverview | null>(
       (fastest, challenge) => {
-        if (challenge.status !== ChallengeStatus.COMPLETED) {
+        const ticks = relevantTicks(challenge);
+        if (challenge.status !== ChallengeStatus.COMPLETED || ticks === null) {
           return fastest;
         }
-        if (fastest === null) {
-          return challenge;
-        }
-        return challenge.challengeTicks < fastest.challengeTicks
+        const fastestTicks = fastest !== null ? relevantTicks(fastest) : null;
+        return fastestTicks === null || ticks < fastestTicks
           ? challenge
           : fastest;
       },

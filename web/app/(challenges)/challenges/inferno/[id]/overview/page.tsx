@@ -29,6 +29,7 @@ export default function Overview() {
         status={challenge.status}
         mode={challenge.mode}
         challengeTicks={challenge.challengeTicks}
+        overallTicks={challenge.overallTicks}
         deaths={challenge.totalDeaths}
         party={challenge.party.map((player) => ({
           ...player,

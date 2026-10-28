@@ -18,7 +18,11 @@ import { SessionChallenge } from '@/actions/challenge';
 import Card from '@/components/card';
 import SectionTitle from '@/components/section-title';
 import { useClientOnly } from '@/hooks/client-only';
-import { challengeTerm, statusNameAndColor } from '@/utils/challenge';
+import {
+  challengeTerm,
+  relevantTicks,
+  statusNameAndColor,
+} from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { formatDuration } from '@/utils/time';
 import { challengeUrl } from '@/utils/url';
@@ -99,6 +103,7 @@ function CustomTooltip({ active = false, payload }: CustomTooltipProps) {
     challenge.status,
     challenge.stage,
   );
+  const ticks = relevantTicks(challenge);
 
   return (
     <div className={styles.tooltip}>
@@ -118,13 +123,15 @@ function CustomTooltip({ active = false, payload }: CustomTooltipProps) {
             <span>Start:</span>
             <span>{formatTimeAxis(data.startMinutes)}</span>
           </div>
-          <div className={styles.tooltipStat}>
-            <i className="fas fa-hourglass" />
-            <span>Duration:</span>
-            <span className={styles.monospace}>
-              {ticksToFormattedSeconds(challenge.challengeTicks)}
-            </span>
-          </div>
+          {ticks !== null && (
+            <div className={styles.tooltipStat}>
+              <i className="fas fa-hourglass" />
+              <span>Duration:</span>
+              <span className={styles.monospace}>
+                {ticksToFormattedSeconds(ticks)}
+              </span>
+            </div>
+          )}
         </div>
         <div className={styles.tooltipRow}>
           <div className={styles.tooltipStat}>
