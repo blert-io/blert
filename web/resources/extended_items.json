@@ -22246,5 +22246,13 @@
   {"id":34727,"name":"Zorya's tome (uncharged)","tradeable":true,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
   {"id":34728,"name":"Zorya's tome (uncharged)","tradeable":true,"equipable":false,"stackable":true,"bankNote":true,"weight":0.0},
   {"id":34729,"name":"Alliance log","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
-  {"id":34730,"name":"Leftovers","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0}
+  {"id":34730,"name":"Leftovers","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34732,"name":"Candy onion","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34734,"name":"Sugar","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34736,"name":"Molten sugar","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34738,"name":"Old onion","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34740,"name":"Vampyre monocle","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34742,"name":"Vampyre costume top","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34744,"name":"Vampyre costume bottom","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0},
+  {"id":34746,"name":"Vampyre costume cape","tradeable":false,"equipable":false,"stackable":false,"bankNote":false,"weight":0.0}
 ]
