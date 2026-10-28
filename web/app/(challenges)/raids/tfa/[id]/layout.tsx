@@ -56,8 +56,8 @@ export async function generateMetadata(
   const [scaleName] = scaleNameAndColor(raid.scale);
 
   let title = '';
-  if (raid.challengeTicks > 0) {
-    title = `${ticksToFormattedSeconds(raid.challengeTicks)} `;
+  if (raid.overallTicks !== null) {
+    title = `${ticksToFormattedSeconds(raid.overallTicks)} `;
   }
   title += `${scaleName} TFA ${overallStatus}`;
 

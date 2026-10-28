@@ -53,6 +53,7 @@ type ExtendedChartValue<T> = ChartValue<T> & {
 type TodaysStats = {
   '*': { count: number };
   challengeTicks: { sum: number };
+  overallTicks: { sum: number };
 } | null;
 
 export type SessionStats = {
@@ -509,7 +510,7 @@ export default function ActivityDashboard({
 
       const challengeParams = {
         ...filterParams,
-        aggregate: 'challengeTicks:sum',
+        aggregate: { repeated: ['challengeTicks:sum', 'overallTicks:sum'] },
       };
 
       const challengePromise = fetchJsonOrNull<TodaysStats>(
@@ -694,7 +695,11 @@ export default function ActivityDashboard({
               name="Time Played"
               value={
                 dailyStats
-                  ? ticksToFormattedDuration(dailyStats?.challengeTicks.sum)
+                  ? ticksToFormattedDuration(
+                      challengeType === ChallengeType.TFA
+                        ? dailyStats.overallTicks.sum
+                        : dailyStats.challengeTicks.sum,
+                    )
                   : '0m'
               }
               width={STATISTIC_WIDTH}

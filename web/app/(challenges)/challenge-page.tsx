@@ -42,6 +42,7 @@ export default async function Page({
     {
       '*': { type: 'count' },
       challengeTicks: { type: 'sum' },
+      overallTicks: { type: 'sum' },
       totalDeaths: { type: 'sum' },
     },
     {},

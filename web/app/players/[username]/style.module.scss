@@ -579,63 +579,85 @@ $NAV_MARGIN: 10px;
 
   .pbTables {
     width: 100%;
-    display: flex;
-    flex-flow: row wrap;
-    justify-content: space-evenly;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     margin: 4px 0;
     gap: 12px;
 
-    :global([data-theme='aero']) & {
-      @include aeroWell;
-      border-radius: 8px;
-      padding: 12px 8px;
-    }
-
     .pbTable {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       margin: 0;
-      padding: 8px 0;
+      padding: 12px;
+      background: var(--blert-surface-dark);
+      border-radius: 6px;
+
+      :global([data-theme='aero']) & {
+        @include aeroWell;
+      }
+
+      &.wide {
+        grid-column: 1 / -1;
+      }
 
       h3 {
-        text-align: center;
-        font-weight: 500;
-        margin: 0 0 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0;
+        font-weight: 600;
+        font-size: 1em;
         color: var(--blert-font-color-primary);
-        font-size: 1.1em;
+
+        &::before {
+          content: '';
+          width: 4px;
+          height: 14px;
+          border-radius: 2px;
+          background: var(--challenge-color);
+        }
       }
 
       .pbs {
-        padding-top: 8px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 20px;
-        width: 100%;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        column-gap: 16px;
+        row-gap: 2px;
 
         a.pb:hover {
-          color: var(--blert-purple);
+          background: var(--blert-surface-light);
 
           .time {
             color: var(--blert-purple);
           }
         }
 
+        div.pb .time {
+          color: var(--blert-font-color-secondary);
+          opacity: 0.6;
+        }
+
         .pb {
           display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 0;
-          width: 110px;
-          transition: color 0.2s ease-in-out;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 6px 8px;
+          border-radius: 4px;
+          transition: background 0.2s ease-in-out;
 
           .time {
-            font-size: 24px;
-            font-weight: 700;
+            font-family: var(--font-roboto-mono), monospace;
+            font-size: 15px;
+            font-weight: 500;
             color: var(--blert-font-color-primary);
             transition: color 0.2s ease-in-out;
           }
 
           .scale {
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 500;
             color: var(--blert-font-color-secondary);
           }

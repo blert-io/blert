@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { ChallengeOverview } from '@/actions/challenge';
 import { challengeLogo } from '@/logo';
-import { scaleNameAndColor } from '@/utils/challenge';
+import { relevantTicks, scaleNameAndColor } from '@/utils/challenge';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 import { challengeUrl } from '@/utils/url';
 
@@ -78,6 +78,8 @@ export default function WelcomeStats({
   thisWeek,
 }: WelcomeStatsProps) {
   const welcome = stats.recordings > 0 ? 'Welcome back' : 'Welcome to Blert';
+  const lastChallengeTicks =
+    lastChallenge !== null ? relevantTicks(lastChallenge) : null;
 
   return (
     <div className={styles.welcomeStats}>
@@ -122,9 +124,11 @@ export default function WelcomeStats({
                     lastChallenge.mode,
                   )}
                 </span>
-                <span className={styles.challengeTime}>
-                  {ticksToFormattedSeconds(lastChallenge.challengeTicks)}
-                </span>
+                {lastChallengeTicks !== null && (
+                  <span className={styles.challengeTime}>
+                    {ticksToFormattedSeconds(lastChallengeTicks)}
+                  </span>
+                )}
               </div>
               <div className={styles.challengeBottom}>
                 <span className={styles.challengeDate}>

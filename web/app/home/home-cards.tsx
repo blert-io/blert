@@ -24,7 +24,7 @@ import ChallengeSelector from '@/components/challenge-selector';
 import RadioInput from '@/components/radio-input';
 import { challengeLogo } from '@/logo';
 import { useClientOnly } from '@/hooks/client-only';
-import { challengeSlug, challengeTerm } from '@/utils/challenge';
+import { challengeSlug, challengeTerm, relevantTicks } from '@/utils/challenge';
 import { challengePartyNames } from '@/utils/challenge-description';
 import { withIndefiniteArticle } from '@/utils/copy';
 import { ticksToFormattedSeconds } from '@/utils/tick';
@@ -78,7 +78,7 @@ const CHALLENGE_INFO: Record<SupportedChallenge, ChallengeInfo> = {
       'Follow your team as you progress through the Archive to face Ocellus.',
     hubUrl: '/raids/tfa',
     browseText: 'Browse Raids',
-    leaderboardSplit: SplitType.TFA_CHALLENGE,
+    leaderboardSplit: SplitType.TFA_OVERALL,
     leaderboardScales: [8, 7, 6, 5, 4, 3],
     leaderboardUrl: '/leaderboards/tfa',
   },
@@ -739,17 +739,17 @@ function FeedItem({ item, index }: { item: ActivityFeedItem; index: number }) {
           break;
       }
 
+      const ticks = relevantTicks(challenge);
+
       content = (
         <span>
           <strong>{challengePartyNames(challenge)}</strong> {status}
           {challenge.status === ChallengeStatus.COMPLETED ? ' ' : ' in '}
           {withIndefiniteArticle(name)}
-          {challenge.status === ChallengeStatus.COMPLETED && (
+          {challenge.status === ChallengeStatus.COMPLETED && ticks !== null && (
             <>
               {' in '}
-              <strong>
-                {ticksToFormattedSeconds(challenge.challengeTicks)}
-              </strong>
+              <strong>{ticksToFormattedSeconds(ticks)}</strong>
             </>
           )}
         </span>

@@ -53,6 +53,7 @@ import type { ChallengeRow, SessionRow } from '@blert/common/dist/db/challenge';
 import postgres from 'postgres';
 import { cache } from 'react';
 
+import { relevantTicks } from '@/utils/challenge';
 import logger from '@/utils/log';
 import { decodePlayerTile, decodeSpawn } from '@/utils/spawn-index';
 
@@ -2400,22 +2401,23 @@ export async function loadSessionWithStats(
     ),
   };
   let totalCompletionTicks = 0;
+  let completionsWithTime = 0;
 
   for (const challenge of challenges) {
     switch (challenge.status) {
-      case ChallengeStatus.COMPLETED:
+      case ChallengeStatus.COMPLETED: {
         stats.completions++;
 
-        totalCompletionTicks += challenge.challengeTicks;
-        stats.minCompletionTicks = Math.min(
-          stats.minCompletionTicks,
-          challenge.challengeTicks,
-        );
-        stats.maxCompletionTicks = Math.max(
-          stats.maxCompletionTicks,
-          challenge.challengeTicks,
-        );
+        const ticks = relevantTicks(challenge);
+        if (ticks === null) {
+          break;
+        }
+        completionsWithTime++;
+        totalCompletionTicks += ticks;
+        stats.minCompletionTicks = Math.min(stats.minCompletionTicks, ticks);
+        stats.maxCompletionTicks = Math.max(stats.maxCompletionTicks, ticks);
         break;
+      }
 
       case ChallengeStatus.WIPED:
         stats.wipes++;
@@ -2433,9 +2435,9 @@ export async function loadSessionWithStats(
     stats.completionRate = (stats.completions / stats.challenges) * 100;
   }
 
-  if (stats.completions > 0) {
+  if (completionsWithTime > 0) {
     stats.avgCompletionTicks = Math.round(
-      totalCompletionTicks / stats.completions,
+      totalCompletionTicks / completionsWithTime,
     );
   } else {
     stats.minCompletionTicks = 0;
