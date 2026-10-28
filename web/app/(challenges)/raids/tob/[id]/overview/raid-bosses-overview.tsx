@@ -1,6 +1,6 @@
 'use client';
 
-import { SplitType, Stage, TobRooms } from '@blert/common';
+import { SplitType, Stage, TobChallengeStats, TobRooms } from '@blert/common';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -17,6 +17,7 @@ interface RaidBossesOverviewProps {
   raidId: string;
   rooms: TobRooms;
   splits: Partial<Record<SplitType, number>>;
+  stats: TobChallengeStats;
 }
 
 function deathsTooltip(deaths: string[]): string {
@@ -411,13 +412,11 @@ export function RaidBossesOverview(props: RaidBossesOverviewProps) {
             </h4>
             {rooms.xarpus && (
               <div className={styles.roomBadges}>
-                {splits[SplitType.TOB_XARPUS_EXHUMES] && (
+                {props.stats.xarpusHealing !== null && (
                   <Badge
-                    iconClass="fa-solid fa-hourglass"
-                    label="Exhumes"
-                    value={ticksToFormattedSeconds(
-                      splits[SplitType.TOB_XARPUS_EXHUMES],
-                    )}
+                    iconClass="fa-solid fa-heart"
+                    label="Exhumes healing"
+                    value={props.stats.xarpusHealing}
                     href={`/raids/tob/${raidId}/xarpus?tick=${splits[SplitType.TOB_XARPUS_EXHUMES]}`}
                   />
                 )}

@@ -82,6 +82,7 @@ export default function Overview() {
           rooms={raid.tobRooms}
           raidId={raid.uuid}
           splits={raid.splits}
+          stats={raid.tobStats}
         />
       </section>
     </div>
