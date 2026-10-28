@@ -8,10 +8,12 @@
 //! 3. `persist` receives the results and writes them to the database and
 //!    blob store.
 
+use blert::Ticks;
 use blert::proto::Event;
 
 use crate::lifecycle::core::types::{
-    ClientStageStream, ProcessingError, ProcessingPayload, StageStatus,
+    ClientId, ClientStageStream, OverallTicks, ProcessingError, ProcessingPayload, ServerTicks,
+    StageStatus, StageUpdate,
 };
 use crate::lifecycle::store::StoreError;
 use crate::merging::MergeCapture;
@@ -168,7 +170,13 @@ async fn persist(
         tokio::try_join!(
             update_players(&run.txn, challenge.stage, &output.ctx, &stored.players),
             update_player_stats(&run.txn, output.ctx.players(), &stored.players),
-            update_challenge_row(&run.txn, challenge_ticks, output.ctx.deaths().len()),
+            update_challenge_row(
+                &run.txn,
+                challenge_ticks,
+                output.merged.duration(),
+                reported_overall_ticks(&capture_input.records, output.merged.status()),
+                output.ctx.deaths().len(),
+            ),
             write_merge(
                 &run.txn,
                 challenge,
@@ -358,6 +366,50 @@ fn payload_from(result: &Result<InterpretOutput, InterpretError>) -> ProcessingP
             ProcessingPayload::None
         }
     }
+}
+
+/// Determines the overall time at the end of a stage from client reports.
+fn reported_overall_ticks(records: &[ClientStageStream], status: StageStatus) -> Option<Ticks> {
+    let reported: Vec<(ClientId, ServerTicks)> = records
+        .iter()
+        .filter_map(|record| match record {
+            ClientStageStream::End {
+                client_id,
+                update:
+                    StageUpdate {
+                        status: reported_status,
+                        // Only consider tick counts from the game server.
+                        overall_ticks: Some(OverallTicks::Server(ticks)),
+                        ..
+                    },
+            } if *reported_status == status => Some((*client_id, *ticks)),
+            ClientStageStream::Metadata { .. }
+            | ClientStageStream::Events { .. }
+            | ClientStageStream::End { .. } => None,
+        })
+        .collect();
+
+    let precise = reported.iter().any(|(_, ticks)| ticks.precise);
+    let &(_, chosen) = reported
+        .iter()
+        .filter(|(_, ticks)| ticks.precise == precise)
+        .max_by_key(|(_, ticks)| ticks.count)?;
+
+    // This log will never fire as it requires many things upstream to have gone
+    // wrong already. But anyway here it is.
+    if status == StageStatus::Completed {
+        for (client_id, ticks) in &reported {
+            if ticks.precise && ticks.count != chosen.count {
+                tracing::error!(
+                    %client_id,
+                    count = ticks.count,
+                    chosen = chosen.count,
+                    "conflicting_precise_overall_ticks",
+                );
+            }
+        }
+    }
+    Some(Ticks(chosen.count))
 }
 
 #[cfg(test)]

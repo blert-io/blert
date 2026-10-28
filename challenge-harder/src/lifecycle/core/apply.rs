@@ -96,7 +96,10 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
             attempt,
             update,
         } => stage_reported(state, entry.at, client_id, attempt, update),
-        LifecycleEvent::StageStarted { stage } => {
+        LifecycleEvent::StageStarted {
+            stage,
+            overall_ticks,
+        } => {
             // Only fire on actual stage changes, not ENTERED -> STARTED.
             let stage_changed = stage != state.stage;
             state.stage = stage;
@@ -109,6 +112,7 @@ pub fn apply(state: &mut ChallengeState, entry: JournalEntry) {
                     Trigger::StageStart {
                         seq: entry.seq,
                         stage,
+                        overall_ticks,
                     },
                     info,
                     entry.at,
@@ -314,8 +318,9 @@ mod tests {
     use crate::lifecycle::core::deadline::DeadlineKind;
     use crate::lifecycle::core::state::{Processing, ProcessingConfig, ProcessingState, Trigger};
     use crate::lifecycle::core::types::{
-        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId,
-        ProcessingPayload, RecordingType, ReportedTimes, Stage, Timestamp, UserId, Uuid,
+        ChallengeMode, ChallengeStatus, ChallengeType, ClientId, JournalSeq, MsgId, OverallTicks,
+        ProcessingPayload, RecordingType, ReportedTimes, ServerTicks, Stage, Timestamp, UserId,
+        Uuid,
     };
 
     const CLIENT: ClientId = ClientId(10);
@@ -534,6 +539,7 @@ mod tests {
                 4,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ),
         );
@@ -541,6 +547,51 @@ mod tests {
         assert_eq!(state.stage_attempt, None);
         assert_eq!(state.stage_status, StageStatus::Started);
         assert_eq!(state.stage_state, StageState::InProgress);
+    }
+
+    #[test]
+    fn stage_start_trigger_takes_overall_ticks_from_stage_started() {
+        let mut state = created_state(
+            ChallengeType::Tfa,
+            ChallengeMode::NoMode,
+            Stage::TfaGuardian,
+        );
+        state.processing = Processing::new(ProcessingConfig {
+            max_attempts: 2,
+            run_timeout: Duration::from_secs(10),
+            retry_backoff: Duration::from_secs(3),
+            finish_max_attempts: 4,
+            finish_retry_backoff: Duration::from_secs(9),
+        });
+        state.stage_state = StageState::Complete {
+            since: Timestamp::from_millis(5_000),
+        };
+        apply(
+            &mut state,
+            entry(
+                9_000,
+                4,
+                LifecycleEvent::StageStarted {
+                    stage: Stage::TfaBork,
+                    overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                        count: 228,
+                        precise: true,
+                    })),
+                },
+            ),
+        );
+        let outstanding: Vec<Trigger> = state.processing.outstanding().collect();
+        assert_eq!(
+            outstanding,
+            vec![Trigger::StageStart {
+                seq: JournalSeq(0),
+                stage: Stage::TfaBork,
+                overall_ticks: Some(OverallTicks::Server(ServerTicks {
+                    count: 228,
+                    precise: true,
+                })),
+            }],
+        );
     }
 
     #[test]
@@ -568,6 +619,7 @@ mod tests {
                 2,
                 LifecycleEvent::StageStarted {
                     stage: Stage::MokhaiotlDelve8plus,
+                    overall_ticks: None,
                 },
             ),
         );
@@ -584,6 +636,7 @@ mod tests {
                 4,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ),
         );
@@ -617,6 +670,7 @@ mod tests {
                 2,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ),
         );
@@ -1447,6 +1501,7 @@ mod tests {
                 2,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobMaiden,
+                    overall_ticks: None,
                 },
             ),
         );
@@ -1472,6 +1527,7 @@ mod tests {
                 4,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ),
         );
@@ -1487,6 +1543,7 @@ mod tests {
                 Trigger::StageStart {
                     seq: JournalSeq(0),
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ],
         );
@@ -1601,6 +1658,7 @@ mod tests {
                 4,
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobBloat,
+                    overall_ticks: None,
                 },
             ),
         );

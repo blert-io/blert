@@ -292,6 +292,7 @@ async fn appends_land_under_a_held_fence() {
             1,
             LifecycleEvent::StageStarted {
                 stage: Stage::TobMaiden,
+                overall_ticks: None,
             },
         ),
     ];
@@ -299,6 +300,7 @@ async fn appends_land_under_a_held_fence() {
         2,
         LifecycleEvent::StageStarted {
             stage: Stage::TobBloat,
+            overall_ticks: None,
         },
     )];
     claim.append(&first).await.expect("append should succeed");
@@ -326,6 +328,7 @@ async fn bumped_fence_rejects_stale_epoch() {
         0,
         LifecycleEvent::StageStarted {
             stage: Stage::TobMaiden,
+            overall_ticks: None,
         },
     )];
     claim.append(&first).await.expect("append should succeed");
@@ -340,6 +343,7 @@ async fn bumped_fence_rejects_stale_epoch() {
         1,
         LifecycleEvent::StageStarted {
             stage: Stage::TobBloat,
+            overall_ticks: None,
         },
     )];
     assert_eq!(claim.append(&second).await, Err(StoreError::Fenced));
@@ -366,6 +370,7 @@ async fn expired_leases_are_claimed_and_fenced() {
         0,
         LifecycleEvent::StageStarted {
             stage: Stage::TobMaiden,
+            overall_ticks: None,
         },
     )];
     claim.append(&journal).await.expect("append should succeed");
@@ -392,6 +397,7 @@ async fn expired_leases_are_claimed_and_fenced() {
         1,
         LifecycleEvent::StageStarted {
             stage: Stage::TobBloat,
+            overall_ticks: None,
         },
     )];
     reclaimed
@@ -1011,6 +1017,7 @@ async fn missing_fence_rejects_appends() {
         0,
         LifecycleEvent::StageStarted {
             stage: Stage::TobMaiden,
+            overall_ticks: None,
         },
     )];
     assert_eq!(claim.append(&batch).await, Err(StoreError::Fenced));
@@ -2089,6 +2096,7 @@ async fn delete_removes_a_terminated_challenges_state() {
             0,
             LifecycleEvent::StageStarted {
                 stage: Stage::TobMaiden,
+                overall_ticks: None,
             },
         )])
         .await

@@ -472,6 +472,7 @@ mod tests {
             Trigger::StageStart {
                 seq: JournalSeq(2),
                 stage: Stage::TobMaiden,
+                overall_ticks: None,
             },
             Trigger::Mode {
                 seq: JournalSeq(3),

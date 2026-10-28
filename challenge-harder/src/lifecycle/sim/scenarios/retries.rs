@@ -13,7 +13,10 @@ fn mokhaiotl_start(stage: Stage) -> Action {
 }
 
 fn stage_started(stage: Stage) -> LifecycleEvent {
-    LifecycleEvent::StageStarted { stage }
+    LifecycleEvent::StageStarted {
+        stage,
+        overall_ticks: None,
+    }
 }
 
 fn deep_delve(attempt: u32) -> LifecycleEvent {

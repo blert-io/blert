@@ -34,6 +34,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 cmd(2),
                 LifecycleEvent::StageStarted {
                     stage: Stage::ColosseumWave1,
+                    overall_ticks: None,
                 },
             ),
             entry(
@@ -64,6 +65,7 @@ async fn solo_colosseum_wipe_full_trace() {
                 cmd(4),
                 LifecycleEvent::StageStarted {
                     stage: Stage::ColosseumWave2,
+                    overall_ticks: None,
                 },
             ),
             entry(

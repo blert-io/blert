@@ -19,7 +19,10 @@ fn disconnect() -> Action {
 }
 
 fn stage_started(stage: Stage) -> LifecycleEvent {
-    LifecycleEvent::StageStarted { stage }
+    LifecycleEvent::StageStarted {
+        stage,
+        overall_ticks: None,
+    }
 }
 
 fn sealed(stage: Stage, attempt: Option<u32>, forced: bool) -> LifecycleEvent {

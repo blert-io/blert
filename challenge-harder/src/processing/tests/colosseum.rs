@@ -142,6 +142,7 @@ async fn wave_test() {
             trigger: Trigger::StageStart {
                 seq: JournalSeq(3),
                 stage: Stage::ColosseumWave2,
+                overall_ticks: None,
             },
             challenge: info.clone(),
         })

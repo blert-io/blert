@@ -358,6 +358,7 @@ async fn create_exhaustion_skips_later_processing_runs() {
                 cmd(2),
                 LifecycleEvent::StageStarted {
                     stage: Stage::TobMaiden,
+                    overall_ticks: None,
                 },
             ),
             entry(
@@ -587,6 +588,7 @@ async fn queued_trigger_processes_after_the_active_run() {
             Trigger::StageStart {
                 seq: JournalSeq(11),
                 stage: Stage::TobBloat,
+                overall_ticks: None,
             },
             Trigger::Stage {
                 seq: JournalSeq(14),

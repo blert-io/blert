@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use blert::proto::{Event, event};
-use blert::{RoomId, SkillLevel, Tick, Timeline};
+use blert::{RoomId, SkillLevel, Tick, Ticks, Timeline};
 use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
@@ -340,19 +340,25 @@ pub(super) async fn set_splits_accurate(
 pub(super) async fn update_challenge_row(
     txn: &db::Transaction,
     ticks: ChallengeTicks,
+    stage_ticks: Ticks,
+    overall_ticks: Option<Ticks>,
     new_deaths: usize,
 ) -> Result<(), db::Error> {
     let (statement, ticks) = match ticks {
         ChallengeTicks::Add(ticks) => (
             "UPDATE challenges
-             SET challenge_ticks = challenge_ticks + $1, total_deaths = total_deaths + $2
-             WHERE id = $3",
+             SET challenge_ticks = challenge_ticks + $1,
+                 overall_ticks = COALESCE($3, overall_ticks + $2, overall_ticks),
+                 total_deaths = total_deaths + $4
+             WHERE id = $5",
             ticks,
         ),
         ChallengeTicks::Set(ticks) => (
             "UPDATE challenges
-             SET challenge_ticks = $1, total_deaths = total_deaths + $2
-             WHERE id = $3",
+             SET challenge_ticks = $1,
+                 overall_ticks = COALESCE($3, overall_ticks + $2, overall_ticks),
+                 total_deaths = total_deaths + $4
+             WHERE id = $5",
             ticks,
         ),
     };
@@ -360,6 +366,8 @@ pub(super) async fn update_challenge_row(
         statement,
         &[
             &ticks.0.cast_signed(),
+            &stage_ticks.0.cast_signed(),
+            &overall_ticks.map(|ticks| ticks.0.cast_signed()),
             &i32::try_from(new_deaths).expect("death count fits in an integer"),
             &txn.challenge_id(),
         ],

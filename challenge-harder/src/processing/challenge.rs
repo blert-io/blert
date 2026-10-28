@@ -134,10 +134,19 @@ pub async fn add_recorder(
 }
 
 /// Records the challenge starting a new stage.
-pub async fn update_stage(txn: &db::Transaction, stage: Stage) -> Result<(), db::Error> {
+pub async fn update_stage(
+    txn: &db::Transaction,
+    stage: Stage,
+    overall_ticks: Option<Ticks>,
+) -> Result<(), db::Error> {
     txn.execute(
-        "UPDATE challenges SET stage = $1 WHERE id = $2",
-        &[&(stage as i16), &txn.challenge_id()],
+        "UPDATE challenges SET stage = $1, overall_ticks = COALESCE($2, overall_ticks)
+         WHERE id = $3",
+        &[
+            &(stage as i16),
+            &overall_ticks.map(|ticks| ticks.0.cast_signed()),
+            &txn.challenge_id(),
+        ],
     )
     .await?;
     Ok(())
@@ -303,8 +312,8 @@ async fn finalize_challenge_row(
 ) -> Result<(), db::Error> {
     txn.execute(
         "UPDATE challenges
-         SET status = $1, challenge_ticks = $2, overall_ticks = $3, finish_time = $4,
-             full_recording = $5
+         SET status = $1, challenge_ticks = $2, overall_ticks = COALESCE($3, overall_ticks),
+             finish_time = $4, full_recording = $5
          WHERE id = $6",
         &[
             &(info.status as i16),
