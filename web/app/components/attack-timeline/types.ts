@@ -33,14 +33,6 @@ export type CustomRow = {
   tooltipRenderer?: (tick: number) => React.ReactNode | null;
 };
 
-/** Maps BCF color and intensity tokens to CSS background color variables. */
-export function getBackgroundColorVariable(
-  color: ChartColor,
-  intensity: ColorIntensity,
-): string {
-  return `var(--bcf-color-${color}-${intensity})`;
-}
-
 export type StateProvider = (
   tick: number,
   actorId: string,
