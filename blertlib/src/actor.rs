@@ -275,7 +275,7 @@ impl NpcState {
                     | PlayerAttack::UndeadGrasp
             ),
             _ => match self.properties {
-                Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true })) => {
+                Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true, .. })) => {
                     attack.style() != Some(CombatStyle::Melee)
                 }
                 _ => true,
@@ -336,7 +336,13 @@ impl NpcProperties {
                     spawn: crab.spawn as i32,
                 })
             }
-            Self::Mokhaiotl(_) | Self::Ocellus(_) => return None,
+            Self::Mokhaiotl(mokhaiotl) => {
+                proto::event::npc::Type::Mokhaiotl(proto::event::npc::Mokhaiotl {
+                    charging: mokhaiotl.charging,
+                    shield: mokhaiotl.shield.map(SkillLevel::to_raw),
+                })
+            }
+            Self::Ocellus(_) => return None,
         };
         Some(npc_type)
     }
@@ -377,6 +383,7 @@ pub struct VerzikCrab {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mokhaiotl {
     pub charging: bool,
+    pub shield: Option<SkillLevel>,
 }
 
 #[cfg(test)]
@@ -501,7 +508,10 @@ mod tests {
             position: Rect::square(Point(3549, 6435), 5),
             hitpoints: SkillLevel::from_raw(35_783_331),
             prayers: PrayerSet::from_raw(196_608),
-            properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: true })),
+            properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl {
+                charging: true,
+                shield: None,
+            })),
         };
         assert!(charging_doom.attack_applies_cooldown(PlayerAttack::NoxiousHalberd));
         assert!(!charging_doom.attack_checks_cooldown(PlayerAttack::NoxiousHalberd));
@@ -514,7 +524,10 @@ mod tests {
             position: Rect::square(Point(3549, 6435), 5),
             hitpoints: SkillLevel::from_raw(36_176_547),
             prayers: PrayerSet::from_raw(0),
-            properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging: false })),
+            properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl {
+                charging: false,
+                shield: None,
+            })),
         };
         assert!(regular_doom.attack_applies_cooldown(PlayerAttack::NoxiousHalberd));
         assert!(regular_doom.attack_checks_cooldown(PlayerAttack::NoxiousHalberd));

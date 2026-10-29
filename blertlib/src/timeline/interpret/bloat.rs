@@ -219,7 +219,7 @@ fn bloat_stomp_attack(bloat: RoomId) -> EventKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::interpret::{RawNpc, RawObjects};
+    use crate::timeline::interpret::{RawNpc, RawObjects, Vars};
     use crate::{
         ChallengeMode, ClientId, ConfigVersion, NpcState, Players, Point, PrayerBook, PrayerSet,
         Rect, Rsn, SkillLevel, Source, Stage, TickObjects,
@@ -257,6 +257,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            vars: Vars::default(),
             events: Vec::new(),
         };
 
@@ -275,6 +276,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -368,6 +370,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            vars: Vars::default(),
             events: Vec::new(),
         };
         let down = Event::recorded(
@@ -462,6 +465,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            vars: Vars::default(),
             events: Vec::new(),
         };
 
@@ -484,6 +488,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    vars: Vars::default(),
                     events: Vec::new(),
                 },
             );

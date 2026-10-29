@@ -15,7 +15,7 @@ mod finalize;
 mod interpret;
 mod recording;
 
-use interpret::{RawNpc, RawObjects};
+use interpret::{RawNpc, RawObjects, Vars};
 
 pub(crate) use interpret::OcellusProperties;
 
@@ -34,6 +34,7 @@ pub struct TickState {
     pub objects: TickObjects,
     pub(crate) raw_objects: RawObjects,
     pub(crate) raw_npcs: BTreeMap<RoomId, RawNpc>,
+    pub(crate) vars: Vars,
     pub events: Vec<Event>,
 }
 
@@ -320,6 +321,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    vars: Vars::default(),
                     events: vec![Event::recorded(ClientId(7), EventKind::BloatUp)],
                 }),
                 Some(TickState {
@@ -328,6 +330,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    vars: Vars::default(),
                     events: Vec::new(),
                 }),
                 None,
@@ -337,6 +340,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    vars: Vars::default(),
                     events: vec![Event::recorded(
                         ClientId(7),
                         EventKind::BloatDown(BloatDown {
@@ -374,6 +378,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             })
         );
@@ -385,6 +390,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(7),
                     EventKind::BloatDown(BloatDown {
@@ -456,6 +462,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -500,6 +507,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -544,6 +552,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -568,6 +577,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(344),
                     EventKind::NpcDeath(NpcDeath {
@@ -646,6 +656,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            vars: Vars::default(),
             events: Vec::new(),
         };
 

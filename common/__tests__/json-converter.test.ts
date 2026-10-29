@@ -425,6 +425,60 @@ describe('jsonToServerMessage', () => {
         ],
       });
     });
+
+    it('converts VARS events', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.VARS,
+            stage: 66,
+            tick: 1,
+            xCoord: 0,
+            yCoord: 0,
+            vars: {
+              varbits: [
+                { id: 6099, value: 0 },
+                { id: 6100, value: 1 },
+              ],
+              varps: [{ id: 1683, value: -1 }],
+            },
+          },
+          {
+            type: Event.Type.VARS,
+            stage: 66,
+            tick: 2,
+            xCoord: 0,
+            yCoord: 0,
+            vars: {
+              varbits: [
+                { id: 6099, value: 4860 },
+                { id: 6100, value: 4860 },
+              ],
+            },
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const [both, varbitsOnly] = proto.getChallengeEventsList();
+      expect(both.getType()).toBe(Event.Type.VARS);
+      expect(both.getVars()?.toObject()).toEqual({
+        varbitsList: [
+          { id: 6099, value: 0 },
+          { id: 6100, value: 1 },
+        ],
+        varpsList: [{ id: 1683, value: -1 }],
+      });
+      expect(varbitsOnly.getType()).toBe(Event.Type.VARS);
+      expect(varbitsOnly.getVars()?.toObject()).toEqual({
+        varbitsList: [
+          { id: 6099, value: 4860 },
+          { id: 6100, value: 4860 },
+        ],
+        varpsList: [],
+      });
+    });
   });
 
   describe('attack definitions', () => {
@@ -1344,6 +1398,8 @@ describe('round-trip conversion', () => {
               objects: [
                 { type: Event.ObjectUpdate.Type.GAME, ids: [57283, 57286] },
               ],
+              varbits: [6099, 6100],
+              varps: [1683],
             },
           },
         ],
@@ -1376,6 +1432,15 @@ describe('round-trip conversion', () => {
     expect(
       config.getChallengesList()[1].getScope()!.getNpcDefinitionsList(),
     ).toEqual([]);
+    expect(config.getChallengesList()[0].getScope()!.getVarbitsList()).toEqual(
+      [],
+    );
+    expect(config.getChallengesList()[1].getScope()!.getVarbitsList()).toEqual([
+      6099, 6100,
+    ]);
+    expect(config.getChallengesList()[1].getScope()!.getVarpsList()).toEqual([
+      1683,
+    ]);
 
     const resultJson = serverMessageToJson(proto);
     expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);

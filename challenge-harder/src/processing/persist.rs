@@ -679,6 +679,8 @@ fn to_queryable_event(
             let npc = event.npc.as_ref()?;
             let mut row = base();
             row.npc_id = Some(npc.id.cast_signed());
+
+            // Persisted NPC subtype field is mirrored in `RoomNpcType` in `//common/challenge.ts`.
             if let Some(kind) = RoomNpc::new(timeline, RoomId(npc.room_id)).kind {
                 match kind {
                     event::npc::Type::Basic(()) => row.subtype = Some(0),
@@ -700,6 +702,7 @@ fn to_queryable_event(
                         row.custom_short_1 = Some(crab.phase as i16);
                         row.custom_short_2 = Some(crab.spawn as i16);
                     }
+                    event::npc::Type::Mokhaiotl(_) => row.subtype = Some(15),
                 }
             }
             row

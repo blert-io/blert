@@ -6,8 +6,8 @@ use std::sync::LazyLock;
 
 use blert::golden::assert_golden;
 use blert::{
-    ChallengeMode, ClientId, ConfigVersion, Modified, Mokhaiotl, NpcProperties, PluginVersion,
-    RecordingBuilder, Rsn, Stage, Tick, TickState, Timeline, proto,
+    ChallengeMode, ClientId, ConfigVersion, Modified, PluginVersion, RecordingBuilder, Rsn, Stage,
+    Tick, Timeline, proto,
 };
 use flate2::read::GzDecoder;
 use prost::Message;
@@ -217,17 +217,6 @@ fn assert_refresh_matches_snapshot(fixture: &Fixture) {
     }
 }
 
-fn mokhaiotl_charging(state: &TickState) -> bool {
-    state
-        .npcs
-        .values()
-        .find_map(|npc| match npc.properties {
-            Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging })) => Some(charging),
-            _ => None,
-        })
-        .expect("mokhaiotl has properties")
-}
-
 #[test]
 fn tob_maiden() {
     let fixture = Fixture::load("tob_maiden");
@@ -303,43 +292,4 @@ fn mokhaiotl_delve_8() {
     let fixture = Fixture::load("mokhaiotl_delve_8");
     assert_golden_output(&fixture);
     assert_refresh_matches_snapshot(&fixture);
-
-    let (&client_id, client) = fixture
-        .clients
-        .first_key_value()
-        .expect("fixture has a client");
-    let mut builder = RecordingBuilder::new(
-        client_id,
-        client.plugin_version,
-        client.config_version,
-        fixture.stage,
-        fixture.mode,
-        fixture.party.clone(),
-        None,
-    );
-    let mut refreshed: Option<Timeline> = None;
-    for batch in &client.batches {
-        let modified = builder.ingest(batch.iter().cloned());
-        if modified == Modified::default() {
-            continue;
-        }
-        let recording = builder.recording().expect("exists after ingest");
-        match &mut refreshed {
-            Some(timeline) => timeline.refresh(recording, modified),
-            None => refreshed = Some(recording.snapshot()),
-        }
-    }
-    let refreshed = refreshed.expect("fixture has events");
-    let snapshot = builder.recording().expect("fixture has events").snapshot();
-
-    let charge = [
-        false, true, true, true, true, true, true, true, true, true, false,
-    ];
-    for timeline in [&snapshot, &refreshed] {
-        let charging: Vec<_> = Tick(12)
-            .through(Tick(22))
-            .map(|tick| mokhaiotl_charging(timeline.get_state(tick).expect("tick has state")))
-            .collect();
-        assert_eq!(charging, charge);
-    }
 }

@@ -190,6 +190,8 @@ export function protoToJsonEvent(evt: EventProto): Event {
         e.npc.nylo = npc.getNylo()!.toObject();
       } else if (npc.hasVerzikCrab()) {
         e.npc.verzikCrab = npc.getVerzikCrab()!.toObject();
+      } else if (npc.hasMokhaiotl()) {
+        e.npc.mokhaiotl = npc.getMokhaiotl()!.toObject();
       }
       break;
     }

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::actor::{
-    Actor, DataSource, MaidenCrab, NpcProperties, NpcState, Nylo, NyloSpawn, PartyIndex,
+    Actor, DataSource, MaidenCrab, Mokhaiotl, NpcProperties, NpcState, Nylo, NyloSpawn, PartyIndex,
     PlayerState, Players, RoomId, Rsn, Stats, VerzikCrab,
 };
 use crate::event::{
@@ -21,7 +21,7 @@ use crate::{
     PluginVersion, Point, Rect, Source, Stage, npc, proto,
 };
 
-use super::interpret::{self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects};
+use super::interpret::{self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects, Vars};
 use super::{ConfigVersion, Recording, SoteMazePivots, StageData, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
@@ -427,6 +427,7 @@ impl<'a> TickBuilder<'a> {
                 objects,
                 raw_objects,
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
             processed: 0,
@@ -505,6 +506,16 @@ impl<'a> TickBuilder<'a> {
 
             Type::Objects => match parse_objects(event.objects.as_ref()) {
                 Ok((snapshot, updates)) => self.apply_objects(snapshot, updates),
+                Err(reason) => {
+                    self.rejections
+                        .entry(tick)
+                        .or_default()
+                        .push(BuildRejection { tick, kind, reason });
+                }
+            },
+
+            Type::Vars => match parse_vars(event.vars.as_ref()) {
+                Ok(vars) => self.state.vars = vars,
                 Err(reason) => {
                     self.rejections
                         .entry(tick)
@@ -1152,6 +1163,12 @@ fn extract_npc_state(
             Some(NpcProperties::VerzikCrab(VerzikCrab {
                 phase: in_domain(crab.phase, "npc.verzik_crab.phase")?,
                 spawn: in_domain(crab.spawn, "npc.verzik_crab.spawn")?,
+            }))
+        }
+        Some(proto::event::npc::Type::Mokhaiotl(mokhaiotl)) => {
+            Some(NpcProperties::Mokhaiotl(Mokhaiotl {
+                charging: mokhaiotl.charging,
+                shield: mokhaiotl.shield.map(SkillLevel::from_raw),
             }))
         }
     };
@@ -1878,6 +1895,30 @@ fn parse_object_update(
         removed: parse_points("objects.updates.removed", &update.removed)?,
         added: parse_points("objects.updates.added", &update.added)?,
     })
+}
+
+fn parse_vars(vars: Option<&proto::event::Vars>) -> Result<Vars, RejectionReason> {
+    let vars = vars.required("vars")?;
+    Ok(Vars {
+        varbits: parse_var_values("vars.varbits", &vars.varbits)?,
+        varps: parse_var_values("vars.varps", &vars.varps)?,
+    })
+}
+
+fn parse_var_values(
+    field: &'static str,
+    values: &[proto::event::vars::Value],
+) -> Result<BTreeMap<u32, i32>, RejectionReason> {
+    let mut parsed = BTreeMap::new();
+    for value in values {
+        if parsed.insert(value.id, value.value).is_some() {
+            return Err(RejectionReason::InvalidField {
+                field,
+                error: FieldError::OutOfDomain(format!("{values:?}")),
+            });
+        }
+    }
+    Ok(parsed)
 }
 
 fn parse_maze(maze: &proto::event::SoteMaze) -> Result<Maze, RejectionReason> {

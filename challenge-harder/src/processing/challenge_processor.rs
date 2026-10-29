@@ -76,7 +76,9 @@ impl RoomNpc {
 impl From<&RoomNpc> for challenge_data::StageNpc {
     fn from(npc: &RoomNpc) -> challenge_data::StageNpc {
         let kind = npc.kind.map(|kind| match kind {
-            event::npc::Type::Basic(()) => challenge_data::stage_npc::Type::Basic(()),
+            event::npc::Type::Basic(()) | event::npc::Type::Mokhaiotl(_) => {
+                challenge_data::stage_npc::Type::Basic(())
+            }
             event::npc::Type::MaidenCrab(crab) => challenge_data::stage_npc::Type::MaidenCrab(crab),
             event::npc::Type::Nylo(nylo) => challenge_data::stage_npc::Type::Nylo(nylo),
             event::npc::Type::VerzikCrab(crab) => challenge_data::stage_npc::Type::VerzikCrab(crab),

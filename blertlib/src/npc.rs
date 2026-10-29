@@ -222,6 +222,14 @@ pub fn is_verzik_matomenos(npc_id: u32) -> bool {
 }
 
 #[must_use]
+pub fn is_mokhaiotl(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::MOKHAIOTL | id::MOKHAIOTL_SHIELDED | id::MOKHAIOTL_BURROWED
+    )
+}
+
+#[must_use]
 pub fn is_mokhaiotl_larva(npc_id: u32) -> bool {
     matches!(
         npc_id,

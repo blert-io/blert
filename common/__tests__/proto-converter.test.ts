@@ -233,6 +233,7 @@ describe('protoToJsonEvent', () => {
       expect(result.npc.maidenCrab).toBeUndefined();
       expect(result.npc.nylo).toBeUndefined();
       expect(result.npc.verzikCrab).toBeUndefined();
+      expect(result.npc.mokhaiotl).toBeUndefined();
     });
 
     it('converts NPC_SPAWN with maiden crab subtype', () => {
@@ -300,6 +301,26 @@ describe('protoToJsonEvent', () => {
       expect(result.npc.verzikCrab).toEqual({
         phase: EventProto.VerzikPhase.VERZIK_P2,
         spawn: EventProto.Npc.VerzikCrab.Spawn.NORTH,
+      });
+      expect(result.npc.maidenCrab).toBeUndefined();
+    });
+
+    it('converts NPC_UPDATE with mokhaiotl properties', () => {
+      const evt = makeEvent(EventType.NPC_UPDATE);
+      const npc = new EventProto.Npc();
+      npc.setId(14708);
+      npc.setRoomId(45375);
+      npc.setHitpoints(28181155);
+      const mokhaiotl = new EventProto.Npc.Mokhaiotl();
+      mokhaiotl.setShield(32768500);
+      npc.setMokhaiotl(mokhaiotl);
+      evt.setNpc(npc);
+
+      const result = protoToJsonEvent(evt) as NpcEvent;
+
+      expect(result.npc.mokhaiotl).toEqual({
+        charging: false,
+        shield: 32768500,
       });
       expect(result.npc.maidenCrab).toBeUndefined();
     });

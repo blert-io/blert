@@ -25,6 +25,7 @@ pub(crate) use ocellus::OcellusProperties;
 use crate::event::{Event, EventKind, NpcDeath};
 use crate::objects::ObjectKind;
 use crate::proto::event::object_update;
+use crate::skill::SkillLevel;
 use crate::timeline::{BuildMismatch, BuildWarning, ConfigVersion, RawActor, Recording, TickState};
 use crate::{
     AncientCurse, ClientId, PluginVersion, Point, Prayer, RoomId, Stage, StandardPrayer, Tick, npc,
@@ -114,7 +115,8 @@ pub(super) fn interpret(
     let stage = match recording.stage() {
         Stage::TobBloat => BloatInterpreter::new(&ctx).interpret(recording),
         stage if (Stage::MokhaiotlDelve1..=Stage::MokhaiotlDelve8plus).contains(&stage) => {
-            MokhaiotlInterpreter::new(&ctx).interpret(recording)
+            MokhaiotlInterpreter::new(&ctx, recording)
+                .and_then(|mokhaiotl| mokhaiotl.interpret(recording))
         }
         Stage::TfaOcellus => {
             OcellusInterpreter::new(recording).and_then(|ocellus| ocellus.interpret(recording))
@@ -250,6 +252,71 @@ impl RawObjects {
         } else {
             self.0.insert(def, points);
         }
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct Vars {
+    pub(super) varbits: BTreeMap<u32, i32>,
+    pub(super) varps: BTreeMap<u32, i32>,
+}
+
+struct HitpointsVarbits {
+    room_id: RoomId,
+    current_varbit: u32,
+    max_varbit: u32,
+    death_animation: u32,
+    start_value: Option<(Tick, SkillLevel)>,
+    death_tick: Option<Tick>,
+}
+
+impl HitpointsVarbits {
+    fn new(room_id: RoomId, current_varbit: u32, max_varbit: u32, death_animation: u32) -> Self {
+        Self {
+            room_id,
+            current_varbit,
+            max_varbit,
+            death_animation,
+            start_value: None,
+            death_tick: None,
+        }
+    }
+
+    fn decide(&mut self, tick: Tick, state: &TickState) {
+        if self.start_value.is_none() {
+            self.start_value = self
+                .read(&state.vars)
+                .filter(|hitpoints| hitpoints.current > 0)
+                .map(|hitpoints| (tick, hitpoints));
+        }
+        let dying = state
+            .raw_npcs
+            .get(&self.room_id)
+            .is_some_and(|npc| npc.animation == Some(self.death_animation));
+        if self.start_value.is_some() && self.death_tick.is_none() && dying {
+            self.death_tick = Some(tick);
+        }
+    }
+
+    fn hitpoints(&self, tick: Tick, vars: &Vars) -> Option<SkillLevel> {
+        let (start, hitpoints) = self.start_value?;
+        if tick < start {
+            return Some(hitpoints);
+        }
+        let hitpoints = self.read(vars)?;
+        if self.death_tick.is_some_and(|death| tick >= death) {
+            return Some(SkillLevel {
+                current: 0,
+                ..hitpoints
+            });
+        }
+        Some(hitpoints)
+    }
+
+    fn read(&self, vars: &Vars) -> Option<SkillLevel> {
+        let current = u16::try_from(*vars.varbits.get(&self.current_varbit)?).ok()?;
+        let base = u16::try_from(*vars.varbits.get(&self.max_varbit)?).ok()?;
+        Some(SkillLevel { current, base })
     }
 }
 
@@ -436,6 +503,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::from([(RoomId(58490), RawNpc::default())]),
+            vars: Vars::default(),
             events: Vec::new(),
         };
 
@@ -454,6 +522,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );

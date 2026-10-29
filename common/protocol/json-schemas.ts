@@ -14,6 +14,12 @@ const uint32Schema = z
   .nonnegative()
   .max(2 ** 32 - 1);
 
+const int32Schema = z
+  .number()
+  .int()
+  .min(-(2 ** 31))
+  .max(2 ** 31 - 1);
+
 function enumMemberSchema(enumObject: object) {
   const members: unknown[] = Object.values(enumObject);
   return z
@@ -176,6 +182,8 @@ export const npcDefinitionSchema = z.object({
 export const scopeSchema = z.object({
   objects: z.array(objectCaptureSchema).optional(),
   npcDefinitions: z.array(npcDefinitionSchema).optional(),
+  varbits: z.array(uint32Schema).optional(),
+  varps: z.array(uint32Schema).optional(),
 });
 
 // RecordingConfig.ChallengeScope
@@ -348,6 +356,18 @@ export const objectsSchema = z.object({
   updates: z.array(objectUpdateSchema),
 });
 
+// Event.Vars.Value
+export const varValueSchema = z.object({
+  id: uint32Schema,
+  value: int32Schema,
+});
+
+// Event.Vars
+export const varsSchema = z.object({
+  varbits: z.array(varValueSchema).optional(),
+  varps: z.array(varValueSchema).optional(),
+});
+
 // Event.NpcAttacked
 export const npcAttackSchema = z.object({
   attack: enumValueSchema,
@@ -516,6 +536,7 @@ export const eventSchema = z.object({
   npcAttack: npcAttackSchema.optional(),
   playerSpell: spellSchema.optional(),
   objects: objectsSchema.optional(),
+  vars: varsSchema.optional(),
 
   // ToB events
   maidenBloodSplats: z.array(coordsSchema).optional(),
