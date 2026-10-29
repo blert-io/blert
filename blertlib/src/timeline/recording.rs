@@ -185,11 +185,13 @@ impl Recording {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        Actor, BloatDown, ClientId, EventKind, NpcAttack, NpcAttacked, NpcState, PartyIndex,
-        Players, Point, PrayerBook, PrayerSet, Rect, RoomId, SkillLevel, Source, TickObjects,
-        VerzikBounce, XarpusPhase, timeline::interpret::RawObjects,
-    };
+    use crate::actor::{Actor, NpcState, Players, RoomId};
+    use crate::event::{BloatDown, EventKind, NpcAttacked, VerzikBounce, XarpusPhase};
+    use crate::objects::TickObjects;
+    use crate::prayer::{PrayerBook, PrayerSet};
+    use crate::skill::SkillLevel;
+    use crate::timeline::interpret::{RawObjects, Vars};
+    use crate::{ClientId, NpcAttack, Point, Rect, Source};
 
     #[test]
     fn recording_tick_access() {
@@ -215,6 +217,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -246,6 +249,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -326,6 +330,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: Vec::new(),
             },
         );
@@ -350,6 +355,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(14),
                     EventKind::XarpusPhase(XarpusPhase::XarpusP2),
@@ -400,6 +406,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(1),
                     EventKind::NpcAttack(NpcAttacked {
@@ -418,6 +425,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(1),
                     EventKind::VerzikBounce(VerzikBounce {

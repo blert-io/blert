@@ -515,11 +515,13 @@ export enum StageStatus {
   WIPED = ChallengeUpdateProto.StageUpdate.Status.WIPED,
 }
 
+// Values are subtypes persisted in the DB.
 export enum RoomNpcType {
   BASIC = 0,
   MAIDEN_CRAB = 1,
   NYLO = 2,
   VERZIK_CRAB = 3,
+  MOKHAIOTL = 15,
 }
 
 export interface RoomNpc {

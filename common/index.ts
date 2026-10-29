@@ -44,6 +44,7 @@ export type {
   MokhaiotlObjectsEvent,
   MokhaiotlOrbEvent,
   MokhaiotlOrb,
+  MokhaiotlProperties,
   NpcAttackAction,
   NpcAttackEvent,
   NpcDeathEvent,

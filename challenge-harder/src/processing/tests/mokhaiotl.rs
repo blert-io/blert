@@ -128,7 +128,7 @@ async fn delve_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 192,
+            ticks: 125,
         },
     );
 
@@ -244,7 +244,7 @@ async fn verify_stage_rows(
     assert_eq!(row.get::<_, i16>(2), 1);
     assert_eq!(row.get::<_, i16>(3), Stage::MokhaiotlDelve8 as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 192);
+    assert_eq!(row.get::<_, i32>(5), 125);
     assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
@@ -264,7 +264,7 @@ async fn verify_stage_rows(
     assert_eq!(row.get::<_, i16>(2), PrimaryMeleeGear::Unknown as i16);
     assert_eq!(row.get::<_, Vec<i16>>(3), Vec::<i16>::new());
 
-    // The stage completed delve 8 with three leaked larvae.
+    // The stage completed delve 8 with no leaked larvae.
     let row = client
         .query_one(
             "SELECT delve, larvae_leaked, max_completed_delve, avg_deep_delve_ticks
@@ -274,7 +274,7 @@ async fn verify_stage_rows(
         .await
         .expect("stats row");
     assert_eq!(row.get::<_, i32>(0), 8);
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(3));
+    assert_eq!(row.get::<_, Option<i32>>(1), Some(0));
     assert_eq!(row.get::<_, i32>(2), 8);
     assert_eq!(row.get::<_, Option<i32>>(3), None);
 
@@ -294,7 +294,7 @@ async fn verify_stage_rows(
         SplitType::MokhaiotlDelve8 as i16
     );
     assert_eq!(splits[0].get::<_, i16>(2), 1);
-    assert_eq!(splits[0].get::<_, i32>(3), 192);
+    assert_eq!(splits[0].get::<_, i32>(3), 125);
     assert!(splits[0].get::<_, bool>(4));
 
     // The player receives PBs.
@@ -336,11 +336,11 @@ async fn verify_stage_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 32),
-            (event::Type::PlayerSpell as i16, 3),
-            (event::Type::NpcSpawn as i16, 38),
-            (event::Type::NpcDeath as i16, 37),
-            (event::Type::NpcAttack as i16, 27),
+            (event::Type::PlayerAttack as i16, 33),
+            (event::Type::PlayerSpell as i16, 1),
+            (event::Type::NpcSpawn as i16, 28),
+            (event::Type::NpcDeath as i16, 8),
+            (event::Type::NpcAttack as i16, 18),
         ]),
     );
 
@@ -358,7 +358,7 @@ async fn verify_stage_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(192));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(125));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }

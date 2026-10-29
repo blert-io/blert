@@ -453,12 +453,18 @@ export interface BasicEventNpc {
   roomId: number;
 }
 
+export type MokhaiotlProperties = {
+  charging: boolean;
+  shield?: RawSkillLevel;
+};
+
 export interface EventNpc extends BasicEventNpc {
   hitpoints: RawSkillLevel;
   prayers: RawPrayerSet;
   maidenCrab?: MaidenCrabProperties;
   nylo?: NyloProperties;
   verzikCrab?: VerzikCrabProperties;
+  mokhaiotl?: MokhaiotlProperties;
 }
 
 export type Attack = {

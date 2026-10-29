@@ -381,6 +381,13 @@ export function jsonToProtoEvent(json: EventJson): Event {
     event.setObjects(objects);
   }
 
+  if (json.vars !== undefined) {
+    const vars = new Event.Vars();
+    vars.setVarbitsList((json.vars.varbits ?? []).map(varValueJsonToProto));
+    vars.setVarpsList((json.vars.varps ?? []).map(varValueJsonToProto));
+    event.setVars(vars);
+  }
+
   // ToB events
   if (json.maidenBloodSplats !== undefined) {
     event.setMaidenBloodSplatsList(
@@ -702,6 +709,16 @@ function coordsJsonToProto(json: { x: number; y: number }): Coords {
   return coords;
 }
 
+function varValueJsonToProto(json: {
+  id: number;
+  value: number;
+}): Event.Vars.Value {
+  const value = new Event.Vars.Value();
+  value.setId(json.id);
+  value.setValue(json.value);
+  return value;
+}
+
 export function attackDefinitionJsonToProto(
   json: z.infer<typeof attackDefinitionSchema>,
 ): AttackDefinition {
@@ -848,6 +865,8 @@ function scopeJsonToProto(
       return definition;
     }),
   );
+  scope.setVarbitsList(json.varbits ?? []);
+  scope.setVarpsList(json.varps ?? []);
   return scope;
 }
 
@@ -987,6 +1006,12 @@ function scopeToJson(
       }
       return json;
     });
+  }
+  if (scope.getVarbitsList().length > 0) {
+    json.varbits = scope.getVarbitsList();
+  }
+  if (scope.getVarpsList().length > 0) {
+    json.varps = scope.getVarpsList();
   }
   return json;
 }

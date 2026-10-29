@@ -1263,6 +1263,170 @@ fn builder_ingest_objects_rejects_malformed_updates() {
 }
 
 #[test]
+fn builder_ingest_vars() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(5),
+        PluginVersion::new(0, 10, 5),
+        ConfigVersion::LATEST,
+        Stage::TfaXarth,
+        ChallengeMode::NoMode,
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            Rsn::try_from("715").unwrap(),
+        ],
+        None,
+    );
+
+    let mut unset = proto::Event {
+        tick: 1,
+        stage: Stage::TfaXarth as i32,
+        ..Default::default()
+    };
+    unset.set_type(proto::event::Type::Vars);
+    unset.vars = Some(proto::event::Vars {
+        varbits: vec![
+            proto::event::vars::Value { id: 6099, value: 0 },
+            proto::event::vars::Value { id: 6100, value: 1 },
+        ],
+        varps: vec![proto::event::vars::Value {
+            id: 1683,
+            value: -1,
+        }],
+    });
+    let mut set = proto::Event {
+        tick: 2,
+        stage: Stage::TfaXarth as i32,
+        ..Default::default()
+    };
+    set.set_type(proto::event::Type::Vars);
+    set.vars = Some(proto::event::Vars {
+        varbits: vec![
+            proto::event::vars::Value {
+                id: 6099,
+                value: 4860,
+            },
+            proto::event::vars::Value {
+                id: 6100,
+                value: 4860,
+            },
+        ],
+        varps: vec![proto::event::vars::Value {
+            id: 1683,
+            value: 16684,
+        }],
+    });
+    let mut objects = proto::Event {
+        tick: 3,
+        stage: Stage::TfaXarth as i32,
+        ..Default::default()
+    };
+    objects.set_type(proto::event::Type::Objects);
+    objects.objects = Some(proto::event::Objects {
+        snapshot: true,
+        updates: vec![],
+    });
+
+    assert_eq!(
+        builder.ingest([unset, set, objects]).from_tick,
+        Some(Tick(1))
+    );
+    let recording = builder.recording().unwrap();
+    assert_eq!(
+        recording.get_state(Tick(1)).unwrap().vars,
+        Vars {
+            varbits: BTreeMap::from([(6099, 0), (6100, 1)]),
+            varps: BTreeMap::from([(1683, -1)]),
+        }
+    );
+    assert_eq!(
+        recording.get_state(Tick(2)).unwrap().vars,
+        Vars {
+            varbits: BTreeMap::from([(6099, 4860), (6100, 4860)]),
+            varps: BTreeMap::from([(1683, 16684)]),
+        }
+    );
+    assert_eq!(recording.get_state(Tick(3)).unwrap().vars, Vars::default());
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_vars_rejects_malformed_events() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(5),
+        PluginVersion::new(0, 10, 5),
+        ConfigVersion::LATEST,
+        Stage::TfaXarth,
+        ChallengeMode::NoMode,
+        vec![
+            Rsn::try_from("Sacolyn").unwrap(),
+            Rsn::try_from("1Ogp").unwrap(),
+            Rsn::try_from("WWWWWWWWWWQQ").unwrap(),
+            Rsn::try_from("715").unwrap(),
+        ],
+        None,
+    );
+
+    let mut empty = proto::Event {
+        tick: 1,
+        stage: Stage::TfaXarth as i32,
+        ..Default::default()
+    };
+    empty.set_type(proto::event::Type::Vars);
+    let mut duplicate = proto::Event {
+        tick: 2,
+        stage: Stage::TfaXarth as i32,
+        ..Default::default()
+    };
+    duplicate.set_type(proto::event::Type::Vars);
+    duplicate.vars = Some(proto::event::Vars {
+        varbits: vec![
+            proto::event::vars::Value {
+                id: 6099,
+                value: 4860,
+            },
+            proto::event::vars::Value {
+                id: 6099,
+                value: 4860,
+            },
+        ],
+        varps: vec![proto::event::vars::Value {
+            id: 1683,
+            value: 16684,
+        }],
+    });
+
+    assert_eq!(builder.ingest([empty, duplicate]).from_tick, None);
+    let recording = builder.recording().unwrap();
+    assert!(recording.get_state(Tick(1)).is_none());
+    assert!(recording.get_state(Tick(2)).is_none());
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [
+            BuildRejection {
+                tick: Tick(1),
+                kind: proto::event::Type::Vars,
+                reason: RejectionReason::MissingPayload("vars"),
+            },
+            BuildRejection {
+                tick: Tick(2),
+                kind: proto::event::Type::Vars,
+                reason: RejectionReason::InvalidField {
+                    field: "vars.varbits",
+                    error: FieldError::OutOfDomain(
+                        "[Value { id: 6099, value: 4860 }, Value { id: 6099, value: 4860 }]"
+                            .to_string()
+                    ),
+                },
+            },
+        ]
+    );
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
 fn builder_ingest_maiden_blood_splats() {
     let mut builder = RecordingBuilder::new(
         ClientId(4),
@@ -3339,6 +3503,7 @@ fn extract_player_state_update_from_last_seen_tick() {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            vars: Vars::default(),
             events: vec![],
         },
     );
@@ -3620,6 +3785,7 @@ fn extract_npc_state_update_last_seen_tick() {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            vars: Vars::default(),
             events: vec![],
         },
     );

@@ -164,7 +164,7 @@ impl Interpreter for PlayerAttackInterpreter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::interpret::{RawNpc, RawObjects};
+    use crate::timeline::interpret::{RawNpc, RawObjects, Vars};
     use crate::{
         ChallengeMode, ClientId, Event, Item, Mokhaiotl, NpcProperties, NpcState, Players, Point,
         PrayerBook, PrayerSet, Rect, RoomId, Rsn, SkillLevel, Source, Stage, TickObjects, item,
@@ -186,7 +186,10 @@ mod tests {
                         position: Rect::square(Point(3421, 6435), 5),
                         hitpoints: SkillLevel::from_raw(29_557_336),
                         prayers: PrayerSet::empty(PrayerBook::Normal),
-                        properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl { charging })),
+                        properties: Some(NpcProperties::Mokhaiotl(Mokhaiotl {
+                            charging,
+                            shield: None,
+                        })),
                     },
                 ),
                 (
@@ -204,6 +207,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            vars: Vars::default(),
             events: vec![Event::recorded(
                 ClientId(31),
                 EventKind::PlayerAttack(PlayerAttacked {
@@ -304,6 +308,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            vars: Vars::default(),
             events: vec![Event::recorded(
                 ClientId(31),
                 EventKind::PlayerAttack(PlayerAttacked {
@@ -381,6 +386,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            vars: Vars::default(),
             events: vec![Event::recorded(
                 ClientId(31),
                 EventKind::PlayerAttack(PlayerAttacked {
