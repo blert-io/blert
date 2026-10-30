@@ -89,41 +89,42 @@ export async function getRecentFeedItems(limit: number = 10) {
   return feed.slice(0, limit);
 }
 
-type ChallengePlayerRow = {
-  start_time: Date;
-  player_id: string;
-};
+const HOUR_MS = 60 * 60 * 1000;
 
+/**
+ * Counts the distinct players who started a challenge in each clock hour of
+ * the last 24 hours.
+ *
+ * @param challengeType Optional challenge type to restrict the count to.
+ * @returns 25 counts by hour, oldest first. The first and last are the partial
+ *   hours at either end of the window.
+ */
 export async function getPlayersPerHour(
-  startTime: Date,
   challengeType?: ChallengeType,
-) {
-  const players = await sql<ChallengePlayerRow[]>`
-    SELECT c.id, c.start_time, cp.player_id
+): Promise<number[]> {
+  const now = Date.now();
+  const startTime = new Date(now - 24 * HOUR_MS);
+  const firstHour = new Date(
+    Math.floor(startTime.getTime() / HOUR_MS) * HOUR_MS,
+  );
+
+  const rows = await sql<{ bucket: number; players: number }[]>`
+    SELECT
+      FLOOR(EXTRACT(EPOCH FROM c.start_time - ${firstHour}) / 3600)::int AS bucket,
+      COUNT(DISTINCT cp.player_id)::int AS players
     FROM challenges c
     JOIN challenge_players cp ON c.id = cp.challenge_id
     WHERE c.start_time >= ${startTime}
+      AND c.start_time <= ${new Date(now)}
       ${challengeType !== undefined ? sql`AND c.type = ${challengeType}` : sql``}
+    GROUP BY bucket
   `;
 
-  const byHour = Array.from({ length: 25 }, () => new Set<string>());
-
-  for (const player of players) {
-    let hour = player.start_time.getUTCHours() - startTime.getUTCHours();
-    if (hour < 0) {
-      hour += 24;
-    } else if (
-      hour === 0 &&
-      player.start_time.getUTCDate() !== startTime.getUTCDate()
-    ) {
-      // Distinguish between this hour yesterday and this hour today using a
-      // 25th hour.
-      hour = 24;
-    }
-    byHour[hour].add(player.player_id);
+  const byHour = new Array<number>(25).fill(0);
+  for (const { bucket, players } of rows) {
+    byHour[bucket] = players;
   }
-
-  return byHour.map((h) => h.size);
+  return byHour;
 }
 
 type PlayerChallengeRow = {
