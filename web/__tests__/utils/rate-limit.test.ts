@@ -132,6 +132,8 @@ describe('rate-limit utils', () => {
       expect(result.success).toBe(false);
       expect(result.remaining).toBe(0);
       expect(result.reset).toBe(Math.floor((Date.now() + 60 * 1000) / 1000));
+      const [[, [{ value: memba }]]] = pipeline.zAdd.mock.calls;
+      expect(mockClient.zRem.mock.calls).toEqual([['ratelimit:test', memba]]);
     });
 
     it('computes reset from the oldest retained request', async () => {
@@ -197,6 +199,7 @@ describe('rate-limit utils', () => {
         reset: Math.floor((Date.now() + 60 * 1000) / 1000),
       });
       expect(mockClient.multi).toHaveBeenCalledTimes(1);
+      expect(mockClient.zRem).not.toHaveBeenCalled();
       for (const key of [
         'ratelimit:test:ip:203.0.113.45',
         'ratelimit:test:subnet:203.0.113.0/24',
@@ -248,6 +251,11 @@ describe('rate-limit utils', () => {
         remaining: 0,
         reset: Math.floor((Date.now() + 60 * 1000) / 1000),
       });
+      const [[, [{ value: member }]]] = pipeline.zAdd.mock.calls;
+      expect(mockClient.zRem.mock.calls).toEqual([
+        ['ratelimit:test:ip:203.0.113.45', member],
+        ['ratelimit:test:subnet:203.0.113.0/24', member],
+      ]);
     });
 
     it('breaks remaining ties toward the later reset', async () => {
