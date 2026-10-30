@@ -58,6 +58,7 @@ export async function rateLimitAll(
 ): Promise<RateLimitResult> {
   const now = Date.now();
   const windowStart = now - windowSec * 1000;
+  const member = `${now}-${randomUUID()}`;
 
   try {
     const client = await redis();
@@ -65,7 +66,7 @@ export async function rateLimitAll(
 
     for (const { key } of entries) {
       pipeline.zRemRangeByScore(key, 0, windowStart);
-      pipeline.zAdd(key, [{ score: now, value: `${now}-${randomUUID()}` }]);
+      pipeline.zAdd(key, [{ score: now, value: member }]);
       pipeline.zCard(key);
       pipeline.zRangeWithScores(key, 0, 0);
       pipeline.expire(key, windowSec * 2);
@@ -102,8 +103,14 @@ export async function rateLimitAll(
       }
     }
 
+    const success = statuses.every((status) => status.success);
+    if (!success) {
+      // Rejected requests don't count toward any key's limit.
+      await Promise.all(entries.map(({ key }) => client.zRem(key, member)));
+    }
+
     return {
-      success: statuses.every((status) => status.success),
+      success,
       limit: binding.limit,
       remaining: binding.remaining,
       reset: binding.reset,

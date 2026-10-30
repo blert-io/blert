@@ -13,17 +13,17 @@ type RequestIpOptions = {
 };
 
 function extractForwardedIp(headers: Headers): string | null {
-  const forwardedFor = headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    const ip = forwardedFor.split(',')[0]?.trim();
-    if (ip) {
-      return ip;
-    }
-  }
-
   const realIp = headers.get('x-real-ip');
   if (realIp) {
     return realIp.trim();
+  }
+
+  const forwardedFor = headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    const ip = forwardedFor.split(',').at(-1)?.trim();
+    if (ip) {
+      return ip;
+    }
   }
 
   return null;

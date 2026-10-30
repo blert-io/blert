@@ -6,20 +6,21 @@ import {
 
 describe('headers', () => {
   describe('getRequestIp', () => {
-    it('prefers the first value in x-forwarded-for header', () => {
+    it('prefers x-real-ip over x-forwarded-for', () => {
+      const headers = new Headers({
+        'x-real-ip': '198.51.100.7',
+        'x-forwarded-for': '203.0.113.1, 10.0.0.5',
+      });
+
+      expect(getRequestIp(headers)).toBe('198.51.100.7');
+    });
+
+    it('falls back to the last x-forwarded-for value when x-real-ip is missing', () => {
       const headers = new Headers({
         'x-forwarded-for': '203.0.113.1, 10.0.0.5',
       });
 
-      expect(getRequestIp(headers)).toBe('203.0.113.1');
-    });
-
-    it('falls back to x-real-ip when x-forwarded-for is missing', () => {
-      const headers = new Headers({
-        'x-real-ip': '198.51.100.7',
-      });
-
-      expect(getRequestIp(headers)).toBe('198.51.100.7');
+      expect(getRequestIp(headers)).toBe('10.0.0.5');
     });
 
     it('returns provided remote address when no proxy headers exist', () => {
