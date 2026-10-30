@@ -13,6 +13,7 @@ import {
   Aggregation,
   aggregationKey,
   Comparator,
+  isUuid,
   Operator,
   parseAggregation,
   parseSort,
@@ -53,12 +54,16 @@ export function normalizeSortAggregation(sort: string): string {
 
 type RequestedKeyAliases = Record<string, Record<string, string>>;
 
+const MAX_AGGREGATIONS = 32;
+const MAX_FIELD_AGGREGATIONS = 8;
+
 /**
  * Parses aggregation query URL parameters into an aggregation query and an
  * alias mapping back to the requested tokens.
  *
  * @param params Raw URL parameters.
- * @returns Parsed aggregations and aliases, or `null` if any param is invalid.
+ * @returns Parsed aggregations and aliases, or `null` if any param is invalid
+ *     or the limits are exceeded.
  */
 export function parseAggregateParams(
   params: string[],
@@ -66,10 +71,15 @@ export function parseAggregateParams(
   const aggregations: AggregationQuery = { '*': { type: 'count' } };
   const aliases: RequestedKeyAliases = {};
 
+  let total = 0;
   for (const param of params) {
     const separator = param.lastIndexOf(':');
     const field = param.slice(0, separator);
     const tokens = param.slice(separator + 1).split(',');
+    total += tokens.length;
+    if (tokens.length > MAX_FIELD_AGGREGATIONS || total > MAX_AGGREGATIONS) {
+      return null;
+    }
     const parsed = tokens.map(parseAggregationParam);
     if (parsed.length === 0 || parsed.some((agg) => agg === null)) {
       return null;
@@ -343,9 +353,6 @@ export function isValidEnumValue<T extends number>(
   return Object.values(enumObject).some((member) => member === value);
 }
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Checks that every given value is a UUID.
  *
@@ -355,7 +362,7 @@ const UUID_REGEX =
  */
 export function assertValidUuid(value: string | string[], name?: string): void {
   const values = Array.isArray(value) ? value : [value];
-  const invalid = values.filter((uuid) => !UUID_REGEX.test(uuid));
+  const invalid = values.filter((uuid) => !isUuid(uuid));
   if (invalid.length > 0) {
     const bad = invalid.join(',');
     throw new InvalidQueryError(
@@ -444,6 +451,31 @@ export function expectSingle(
   }
 
   return value;
+}
+
+/**
+ * Parses a comma-separated list of strings from a search parameter, dropping
+ * empty values.
+ *
+ * @param obj The search params object.
+ * @param key The parameter key.
+ * @param maxLength The most values accepted.
+ * @returns The list of strings, or `undefined` if the parameter is not
+ *   present.
+ * @throws InvalidQueryError If there are more than `maxLength` values.
+ */
+export function stringListParam(
+  obj: NextSearchParams,
+  key: string,
+  maxLength: number,
+): string[] | undefined {
+  const values = expectSingle(obj, key)
+    ?.split(',')
+    .filter((v) => v !== '');
+  if (values !== undefined && values.length > maxLength) {
+    throw new InvalidQueryError(`${key}: Expected at most ${maxLength} values`);
+  }
+  return values;
 }
 
 /**

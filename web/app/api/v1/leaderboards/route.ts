@@ -7,6 +7,8 @@ import { withApiRoute } from '@/api/handler';
 import { dateParam, enumListParam, integerParam } from '@/api/query';
 import { requestParams } from '@/utils/url';
 
+const MAX_SPLITS = 16;
+
 export const GET = withApiRoute(
   { route: '/api/v1/leaderboards' },
   async (request: NextRequest) => {
@@ -15,6 +17,11 @@ export const GET = withApiRoute(
     const splits = enumListParam(SplitType, params, 'splits');
     if (splits === undefined) {
       throw new InvalidQueryError('Missing splits');
+    }
+    if (splits.length > MAX_SPLITS) {
+      throw new InvalidQueryError(
+        `splits: Expected at most ${MAX_SPLITS} values`,
+      );
     }
     const scale = integerParam(params, 'scale', 1, 8);
     if (scale === undefined) {
@@ -25,7 +32,7 @@ export const GET = withApiRoute(
     const startTime = dateParam(params, 'from');
 
     const rankedSplits = await findBestSplitTimes(
-      splits,
+      [...new Set(splits)],
       scale,
       limit,
       startTime,

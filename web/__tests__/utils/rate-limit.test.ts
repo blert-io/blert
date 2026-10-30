@@ -2,6 +2,7 @@ import { RedisClientType } from 'redis';
 
 import redis from '@/actions/redis';
 import {
+  acquireConcurrencySlot,
   getRateLimitKey,
   getRateLimitStatus,
   RateLimitConfig,
@@ -25,6 +26,7 @@ type MockRedisClient = {
   zRemRangeByScore: jest.Mock;
   zCard: jest.Mock;
   zRangeWithScores: jest.Mock;
+  zRem: jest.Mock;
 };
 
 const mockedRedis = redis as jest.MockedFunction<typeof redis>;
@@ -46,6 +48,7 @@ function createMockClient(): MockRedisClient {
     zRemRangeByScore: jest.fn(),
     zCard: jest.fn(),
     zRangeWithScores: jest.fn(),
+    zRem: jest.fn().mockResolvedValue(1),
   };
 }
 
@@ -372,6 +375,54 @@ describe('rate-limit utils', () => {
         remaining: 10,
         reset: Math.floor((Date.now() + 60 * 1000) / 1000),
       });
+    });
+  });
+
+  describe('acquireConcurrencySlot', () => {
+    it('grants slots up to the limit, releases them, and fails open', async () => {
+      const pipeline = createMockPipeline();
+      mockClient.multi.mockReturnValue(pipeline);
+      const now = Date.now();
+      const memberOfClaim = (claim: number): string =>
+        (pipeline.zAdd.mock.calls[claim] as [string, { value: string }[]])[1][0]
+          .value;
+
+      pipeline.exec.mockResolvedValueOnce([0, 1, 2, true]);
+      const release = await acquireConcurrencySlot('concurrency:test', 2, 60);
+      expect(release).not.toBeNull();
+      const granted = memberOfClaim(0);
+      // Slots held longer than the maximum hold time are evicted first.
+      expect(pipeline.zRemRangeByScore.mock.calls).toEqual([
+        ['concurrency:test', 0, now - 60 * 1000],
+      ]);
+      expect(pipeline.zAdd.mock.calls).toEqual([
+        ['concurrency:test', [{ score: now, value: granted }]],
+      ]);
+      expect(pipeline.expire.mock.calls).toEqual([['concurrency:test', 60]]);
+      expect(mockClient.zRem.mock.calls).toEqual([]);
+
+      // Over the limit.
+      pipeline.exec.mockResolvedValueOnce([0, 1, 3, true]);
+      expect(
+        await acquireConcurrencySlot('concurrency:test', 2, 60),
+      ).toBeNull();
+      const rejected = memberOfClaim(1);
+      expect(rejected).not.toBe(granted);
+      expect(mockClient.zRem.mock.calls).toEqual([
+        ['concurrency:test', rejected],
+      ]);
+
+      release!();
+      expect(mockClient.zRem.mock.calls).toEqual([
+        ['concurrency:test', rejected],
+        ['concurrency:test', granted],
+      ]);
+
+      mockedRedis.mockRejectedValueOnce(new Error('connection refused'));
+      const fallback = await acquireConcurrencySlot('concurrency:test', 2, 60);
+      expect(fallback).not.toBeNull();
+      fallback!();
+      expect(mockClient.zRem).toHaveBeenCalledTimes(2);
     });
   });
 

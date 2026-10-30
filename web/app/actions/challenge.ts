@@ -73,6 +73,7 @@ import {
   Comparator,
   comparatorToSql,
   Condition,
+  isUuid,
   Join,
   join,
   operator,
@@ -97,6 +98,10 @@ export async function loadChallenge(
   type: ChallengeType,
   id: string,
 ): Promise<Challenge | null> {
+  if (!isUuid(id)) {
+    return null;
+  }
+
   const [rawChallenge] = await sql<[ChallengeRowWithSessionUuid?]>`
     SELECT
       challenges.*,
@@ -2192,6 +2197,10 @@ export async function getSessionStatuses(
 export async function loadSessionWithStats(
   uuid: string,
 ): Promise<SessionWithStats | null> {
+  if (!isUuid(uuid)) {
+    return null;
+  }
+
   let rawSession: SessionRow;
 
   try {
@@ -2928,6 +2937,10 @@ export async function loadEventsForStage(
   type?: EventType,
   attempt?: number,
 ): Promise<Event[] | null> {
+  if (!isUuid(challengeId)) {
+    return null;
+  }
+
   try {
     const protos = await dataRepository.loadStageEvents(
       challengeId,

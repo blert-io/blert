@@ -1712,6 +1712,8 @@ async function processHistoricSequence(
   sequenceId: string,
 ): Promise<HistoricSequenceResult> {
   const applied = await sql.begin(async (tx) => {
+    await tx`SET LOCAL statement_timeout = 0`;
+
     const [{ locked }] = await tx<[{ locked: boolean }]>`
       SELECT pg_try_advisory_xact_lock(17, hashtext(${sequenceId})) AS locked
     `;
@@ -1832,6 +1834,8 @@ export class NameChangeProcessor {
     for (let i = 0; i < this.config.batchSize; i++) {
       try {
         const txResult = await sql.begin(async (tx) => {
+          await tx`SET LOCAL statement_timeout = 0`;
+
           const [row]: [{ id: number }?] = await tx`
             SELECT id
             FROM name_changes

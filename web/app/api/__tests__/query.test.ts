@@ -10,6 +10,7 @@ import {
   parseAggregateParams,
   restoreAggregateAliases,
   spawnQueryValue,
+  stringListParam,
 } from '../query';
 
 describe('comparatorParam', () => {
@@ -234,9 +235,37 @@ describe('parseAggregateParams', () => {
     });
   });
 
-  it('returns null for an invalid token', () => {
+  it('returns null for invalid tokens or too many aggregations', () => {
     expect(parseAggregateParams(['challengeTicks:p150'])).toBeNull();
     expect(parseAggregateParams(['challengeTicks:nonsense'])).toBeNull();
+
+    const percentiles = (n: number) =>
+      Array.from({ length: n }, (_, i) => `p${i + 1}`).join(',');
+    expect(
+      parseAggregateParams([`challengeTicks:${percentiles(9)}`]),
+    ).toBeNull();
+
+    const atLimit = [
+      'challengeTicks',
+      'overallTicks',
+      'splits:1',
+      'splits:2',
+    ].map((field) => `${field}:${percentiles(8)}`);
+    expect(parseAggregateParams(atLimit)).not.toBeNull();
+    expect(parseAggregateParams([...atLimit, 'totalDeaths:avg'])).toBeNull();
+  });
+});
+
+describe('stringListParam', () => {
+  it('parses a bounded comma-separated list', () => {
+    expect(stringListParam({ group: 'stage,,status' }, 'group', 2)).toEqual([
+      'stage',
+      'status',
+    ]);
+    expect(stringListParam({}, 'group', 2)).toBeUndefined();
+    expect(() => stringListParam({ vals: 'foo,bar,baz' }, 'vals', 2)).toThrow(
+      new InvalidQueryError('vals: Expected at most 2 values'),
+    );
   });
 });
 
