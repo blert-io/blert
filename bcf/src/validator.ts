@@ -120,6 +120,17 @@ export interface ValidateOptions {
    * minor BCF versions within the same major version.
    */
   strict?: boolean;
+
+  /**
+   * Whether to report every schema error instead of stopping at the first
+   * invalid location. Semantic errors are always reported in full.
+   *
+   * Collecting every schema error takes time quadratic in the number of errors,
+   * so disable this if inputs can be large or untrusted.
+   *
+   * @default true
+   */
+  allErrors?: boolean;
 }
 
 /**
@@ -152,7 +163,7 @@ export type ValidationResultLax =
   | { valid: true; document: BlertChartFormatLax; version: BCFVersion }
   | { valid: false; errors: ValidationError[] };
 
-/** Cache of compiled schema validators by version and strictness. */
+/** Cache of compiled schema validators by version and configuration. */
 const validatorCache = new Map<string, ValidateFunction<BlertChartFormatLax>>();
 
 function parseVersion(
@@ -178,6 +189,7 @@ function parseVersion(
 function getSchemaValidator(
   version: BCFVersion,
   strict: boolean,
+  allErrors: boolean,
 ): ValidateFunction<BlertChartFormatLax> {
   let cacheKey: string;
   if (strict) {
@@ -186,13 +198,16 @@ function getSchemaValidator(
     const { major } = parseVersion(version)!;
     cacheKey = `${major}.x-lax`; // passes through unknown minor versions
   }
+  if (allErrors) {
+    cacheKey += '-all-errors';
+  }
 
   const cached = validatorCache.get(cacheKey);
   if (cached !== undefined) {
     return cached;
   }
 
-  const ajv = new Ajv({ allErrors: true, strictSchema: false });
+  const ajv = new Ajv({ allErrors, strictSchema: false });
   addFormats(ajv);
 
   let schema: object;
@@ -236,8 +251,9 @@ function validateSchema(
   data: unknown,
   version: BCFVersion,
   strict: boolean,
+  allErrors: boolean,
 ): ValidationError[] {
-  const validator = getSchemaValidator(version, strict);
+  const validator = getSchemaValidator(version, strict, allErrors);
   const valid = validator(data);
 
   if (valid) {
@@ -611,7 +627,7 @@ export function validate(
 
 export function validate(
   data: unknown,
-  options?: { version?: undefined; strict?: undefined },
+  options?: { version?: undefined; strict?: undefined; allErrors?: boolean },
 ): ValidationResultLax;
 
 export function validate(
@@ -671,7 +687,12 @@ export function validate(
 
   const version = options?.version ?? detectedVersion;
 
-  const schemaErrors = validateSchema(data, version, strict);
+  const schemaErrors = validateSchema(
+    data,
+    version,
+    strict,
+    options?.allErrors ?? true,
+  );
   if (schemaErrors.length > 0) {
     return { valid: false, errors: schemaErrors };
   }
@@ -718,7 +739,7 @@ export function parseAndValidate(
 
 export function parseAndValidate(
   json: string,
-  options?: { version?: undefined; strict?: undefined },
+  options?: { version?: undefined; strict?: undefined; allErrors?: boolean },
 ): ValidationResultLax;
 
 export function parseAndValidate(
