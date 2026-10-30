@@ -753,6 +753,8 @@ describe('sessions', () => {
         { downNumber: 2, downTick: 80, walkTicks: 35, accurate: true },
         { downNumber: 3, downTick: 120, walkTicks: 38, accurate: false },
       ]);
+
+      expect(await loadSessionWithStats('$7.89')).toBeNull();
     });
 
     it('returns an empty downs array for challenges without bloat_downs rows', async () => {
@@ -1964,6 +1966,10 @@ describe('loadChallenge', () => {
         ocellusDeaths: null,
       },
     });
+
+    expect(
+      await loadChallenge(ChallengeType.TFA, 'interior crocodile alligator'),
+    ).toBeNull();
   });
 });
 

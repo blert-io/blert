@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/v1/leaderboards', () => {
-  it('forwards requested splits, scale, and limits', async () => {
+  it('forwards deduplicated splits, scale, and limits', async () => {
     const entry = {
       uuid: '25252525-2525-2525-2525-252525252525',
       date: new Date('2026-09-15T13:16:00.173Z'),
@@ -36,7 +36,11 @@ describe('GET /api/v1/leaderboards', () => {
     });
     const response = await GET(
       apiRequest('/api/v1/leaderboards', {
-        splits: `${SplitType.TOB_REG_CHALLENGE}`,
+        splits: [
+          SplitType.TOB_REG_CHALLENGE,
+          SplitType.TOB_REG_MAIDEN,
+          SplitType.TOB_REG_CHALLENGE,
+        ].join(','),
         scale: '1',
         limit: '2',
         tiedTeamsLimit: '0',
@@ -49,7 +53,7 @@ describe('GET /api/v1/leaderboards', () => {
       ],
     });
     expect(mockedFindBestSplitTimes).toHaveBeenCalledWith(
-      [SplitType.TOB_REG_CHALLENGE],
+      [SplitType.TOB_REG_CHALLENGE, SplitType.TOB_REG_MAIDEN],
       1,
       2,
       undefined,
@@ -83,6 +87,7 @@ describe('GET /api/v1/leaderboards', () => {
     [{ splits: 'abc', scale: '5' }, 'splits'],
     [{ splits: '1,abc', scale: '5' }, 'splits'],
     [{ splits: '99999', scale: '5' }, 'splits'],
+    [{ splits: Array(17).fill('18').join(','), scale: '5' }, 'splits'],
     [{ splits: '1', scale: 'abc' }, 'scale'],
     [{ splits: '1', scale: '9' }, 'scale'],
     [{ splits: '1', scale: '5', limit: '0' }, 'limit'],

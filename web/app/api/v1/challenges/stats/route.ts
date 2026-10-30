@@ -8,20 +8,24 @@ import {
   parseAggregateParams,
   parseAggregationParam,
   normalizeSortAggregation,
+  stringListParam,
 } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 import { parseChallengeQueryParams } from '../query';
 
+const MAX_GROUPINGS = 2;
+
 export const GET = withApiRoute(
-  { route: '/api/v1/challenges/stats' },
+  { route: '/api/v1/challenges/stats', concurrencyGroup: 'stats' },
   async (request: NextRequest) => {
     const searchParams = request.nextUrl.searchParams;
 
     const query = parseChallengeQueryParams(searchParams);
 
-    const groupings = (searchParams.get('group') ?? '')
-      .split(',')
-      .filter((g) => g !== '');
+    const groupings =
+      stringListParam(requestParams(searchParams), 'group', MAX_GROUPINGS) ??
+      [];
 
     const options: QueryOptions = { accurateSplits: true };
 

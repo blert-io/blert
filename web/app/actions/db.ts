@@ -26,6 +26,7 @@ function initPostgres(): Sql<NonNullable<unknown>> {
       ssl: 'require',
       max: maxConnections,
       idle_timeout: 60,
+      connection: { statement_timeout: 10_000 },
     };
   }
 

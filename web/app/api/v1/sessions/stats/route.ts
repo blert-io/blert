@@ -10,12 +10,16 @@ import {
   restoreAggregateAliases,
   parseAggregateParams,
   normalizeSortAggregation,
+  stringListParam,
 } from '@/api/query';
+import { requestParams } from '@/utils/url';
 
 import { parseSessionQueryParams } from '../query';
 
+const MAX_GROUPINGS = 2;
+
 export const GET = withApiRoute(
-  { route: '/api/v1/sessions/stats' },
+  { route: '/api/v1/sessions/stats', concurrencyGroup: 'stats' },
   async (request: NextRequest) => {
     const searchParams = request.nextUrl.searchParams;
 
@@ -43,9 +47,9 @@ export const GET = withApiRoute(
     }
     const { aggregations, aliases } = parsed;
 
-    const groupings = (searchParams.get('group') ?? '')
-      .split(',')
-      .filter((g) => g !== '');
+    const groupings =
+      stringListParam(requestParams(searchParams), 'group', MAX_GROUPINGS) ??
+      [];
 
     const query = parseSessionQueryParams(searchParams);
     const result = await aggregateSessions(

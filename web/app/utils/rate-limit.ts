@@ -200,3 +200,54 @@ export function getRateLimitKey(
 
   return `${config.keyPrefix}:ip:${ip}`;
 }
+
+/**
+ * Claims one of a limited number of in-flight slots under a key. Fails open,
+ * granting the slot, if Redis is unavailable.
+ *
+ * @param key Unique identifier for the slot pool.
+ * @param limit Maximum number of slots held at once.
+ * @param maxHoldSec How long a slot can be held before it is presumed leaked
+ *   and reclaimed.
+ * @returns A function that releases the slot, or `null` if every slot is held.
+ */
+export async function acquireConcurrencySlot(
+  key: string,
+  limit: number,
+  maxHoldSec: number,
+): Promise<(() => void) | null> {
+  const now = Date.now();
+  const member = `${now}-${randomUUID()}`;
+
+  try {
+    const client = await redis();
+    const results = await client
+      .multi()
+      .zRemRangeByScore(key, 0, now - maxHoldSec * 1000)
+      .zAdd(key, [{ score: now, value: member }])
+      .zCard(key)
+      .expire(key, maxHoldSec)
+      .exec();
+    if (Number(results?.[2]) > limit) {
+      await client.zRem(key, member);
+      return null;
+    }
+
+    return () => {
+      client.zRem(key, member).catch((error: unknown) => {
+        logger.error('concurrency_release_error', {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    };
+  } catch (error) {
+    logger.error('concurrency_limit_error', {
+      key,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return () => {
+      /* noop */
+    };
+  }
+}
