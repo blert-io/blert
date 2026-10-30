@@ -239,17 +239,6 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-
-  .boardHeader {
-    padding: 16px;
-    border-bottom: 1px solid var(--blert-surface-dark);
-
-    h3 {
-      margin: 0;
-      font-size: 1.2rem;
-      color: var(--blert-font-color-primary);
-    }
-  }
 }
 
 .board {
