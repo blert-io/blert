@@ -35,17 +35,24 @@ export const GET = withApiRoute(
     const params = Object.fromEntries(searchParams);
 
     const period = expectSingle(params, 'period') ?? 'day';
-    const startTime = periodToStartTime(period);
-
     const challengeType = enumParam(ChallengeType, params, 'type');
 
     if (searchParams.has('username')) {
       const username = searchParams.get('username')!;
-      const playersPerHour = await playerActivityByHour(username, startTime);
+      const playersPerHour = await playerActivityByHour(
+        username,
+        periodToStartTime(period),
+      );
       return Response.json(playersPerHour);
     }
 
-    const playersPerHour = await getPlayersPerHour(startTime, challengeType);
+    if (period !== 'day') {
+      throw new InvalidQueryError(
+        'period: Only "day" is supported without a username',
+      );
+    }
+
+    const playersPerHour = await getPlayersPerHour(challengeType);
     return Response.json(playersPerHour);
   },
 );

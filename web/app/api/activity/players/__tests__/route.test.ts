@@ -41,30 +41,21 @@ describe('GET /api/activity/players', () => {
     const response = await GET(apiRequest('/api/activity/players'));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(hours);
-    expect(mockedGetPlayersPerHour).toHaveBeenCalledWith(
-      new Date(NOW - DAY),
-      undefined,
-    );
+    expect(mockedGetPlayersPerHour).toHaveBeenCalledWith(undefined);
   });
 
-  it('forwards period start and challenge type', async () => {
+  it('forwards challenge type', async () => {
     const hours = [
       8, 576, 478, 420, 491, 384, 252, 134, 72, 41, 53, 50, 136, 407, 287, 323,
       587, 643, 630, 614, 569, 427, 444, 519, 546,
     ];
     mockedGetPlayersPerHour.mockResolvedValue(hours);
     const response = await GET(
-      apiRequest('/api/activity/players', {
-        period: 'all',
-        type: `${ChallengeType.TOB}`,
-      }),
+      apiRequest('/api/activity/players', { type: `${ChallengeType.TOB}` }),
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(hours);
-    expect(mockedGetPlayersPerHour).toHaveBeenCalledWith(
-      new Date(0),
-      ChallengeType.TOB,
-    );
+    expect(mockedGetPlayersPerHour).toHaveBeenCalledWith(ChallengeType.TOB);
   });
 
   it('queries one player when username is given', async () => {
@@ -87,6 +78,9 @@ describe('GET /api/activity/players', () => {
   it.each<[Record<string, string>, string]>([
     [{ period: 'abc' }, 'period'],
     [{ period: '' }, 'period'],
+    [{ period: 'week' }, 'period'],
+    [{ period: 'all' }, 'period'],
+    [{ username: '715', period: 'abc' }, 'period'],
     [{ type: '99' }, 'type'],
     [{ type: 'abc' }, 'type'],
   ])('rejects %j', async (params, name) => {
