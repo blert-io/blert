@@ -224,6 +224,86 @@ describe('BCF Validator', () => {
         }
       });
 
+      it('reports every invalid location unless allErrors is false', () => {
+        const doc = {
+          ...minimalValidBCF,
+          timeline: {
+            actors: [
+              { type: 'invalid', id: 'p1', name: 'Test' },
+              { type: 'invalid', id: 'p2', name: 'Test' },
+            ],
+            ticks: [],
+          },
+        };
+
+        expect(validate(doc)).toEqual({
+          valid: false,
+          errors: [
+            {
+              path: '/timeline/actors/0/type',
+              message: 'must be equal to constant',
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/0',
+              message: "must have required property 'npcId'",
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/0/type',
+              message: 'must be equal to constant',
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/0',
+              message: 'must match exactly one schema in oneOf',
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/1/type',
+              message: 'must be equal to constant',
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/1',
+              message: "must have required property 'npcId'",
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/1/type',
+              message: 'must be equal to constant',
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/1',
+              message: 'must match exactly one schema in oneOf',
+              type: 'schema',
+            },
+          ],
+        });
+
+        expect(validate(doc, { allErrors: false })).toEqual({
+          valid: false,
+          errors: [
+            {
+              path: '/timeline/actors/0/type',
+              message: 'must be equal to constant',
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/0',
+              message: "must have required property 'npcId'",
+              type: 'schema',
+            },
+            {
+              path: '/timeline/actors/0',
+              message: 'must match exactly one schema in oneOf',
+              type: 'schema',
+            },
+          ],
+        });
+      });
+
       it('should reject invalid action type in strict mode', () => {
         const doc = {
           ...minimalValidBCF,

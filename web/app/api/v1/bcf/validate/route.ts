@@ -59,7 +59,11 @@ export const POST = withApiRoute(
       return Response.json({ error: 'invalid_body' }, { status: 400 });
     }
 
-    const result = parseAndValidate(body, { version, strict });
+    const result = parseAndValidate(body, {
+      version,
+      strict,
+      allErrors: false,
+    });
 
     let response: ValidateResponse;
     if (result.valid) {
