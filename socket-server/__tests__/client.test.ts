@@ -162,3 +162,34 @@ describe('blert-json-deflate', () => {
     expect(handleMessage).not.toHaveBeenCalled();
   });
 });
+
+describe('message queue', () => {
+  it.each([
+    ['messages', 1000, 1],
+    ['bytes', 4, 4 * 1024 * 1024],
+  ])('closes with 1008 when it fills up on %s', (_, limit, size) => {
+    const handleMessage = jest.fn();
+    const socket = new FakeSocket();
+    new Client(
+      socket as unknown as WebSocket,
+      { handleMessage, closeClient: jest.fn() } as unknown as MessageHandler,
+      { id: 123, keyId: 456, username: '1Ogp', linkedPlayerId: 789 },
+      PluginVersions.fromHeaders({
+        'blert-version': '0.10.5',
+        'blert-revision': 'ffaaaaff',
+        'blert-jar-hash': '10101010',
+        'blert-runelite-version': '1.13.1',
+      })!,
+    );
+
+    const frame = Buffer.alloc(size);
+    for (let i = 0; i < limit; i++) {
+      socket.emit('message', frame, true);
+    }
+    expect(socket.closeCodes).toEqual([]);
+
+    socket.emit('message', frame, true);
+    expect(socket.closeCodes).toEqual([1008]);
+    expect(handleMessage).not.toHaveBeenCalled();
+  });
+});

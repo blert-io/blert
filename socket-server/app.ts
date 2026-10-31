@@ -479,6 +479,7 @@ async function main(): Promise<void> {
 
   const wss = new WebSocketServer({
     noServer: true,
+    maxPayload: Client.MAX_MESSAGE_BYTES,
     handleProtocols: (protocols) => {
       if (protocols.has(SUBPROTOCOL_PROTOBUF)) {
         return SUBPROTOCOL_PROTOBUF;
