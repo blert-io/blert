@@ -1427,6 +1427,199 @@ fn builder_ingest_vars_rejects_malformed_events() {
 }
 
 #[test]
+fn builder_ingest_projectiles() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(5),
+        PluginVersion::new(0, 10, 6),
+        ConfigVersion::LATEST,
+        Stage::MokhaiotlDelve8,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("Sacolyn").unwrap()],
+        None,
+    );
+
+    let orb = |id: u32, x: i32, y: i32, landing_tick: u32| proto::event::Projectile {
+        id,
+        source: None,
+        source_coords: Some(proto::Coords { x, y }),
+        target: Some(proto::Target {
+            target: Some(proto::target::Target::Player("Sacolyn".to_string())),
+        }),
+        target_coords: Some(proto::Coords { x: 3422, y: 6433 }),
+        landing_tick,
+    };
+    let ball = |landing_tick: u32| proto::event::Projectile {
+        id: 3385,
+        source: None,
+        source_coords: Some(proto::Coords { x: 3551, y: 6437 }),
+        target: None,
+        target_coords: Some(proto::Coords { x: 3551, y: 6433 }),
+        landing_tick,
+    };
+
+    let mut ball_orbs = proto::Event {
+        tick: 1,
+        stage: Stage::MokhaiotlDelve8 as i32,
+        ..Default::default()
+    };
+    ball_orbs.set_type(proto::event::Type::Projectiles);
+    ball_orbs.projectiles = vec![orb(3380, 3429, 6435, 5), orb(3379, 3421, 6436, 4)];
+    let mut auto_orb = proto::Event {
+        tick: 1,
+        stage: Stage::MokhaiotlDelve8 as i32,
+        ..Default::default()
+    };
+    auto_orb.set_type(proto::event::Type::Projectiles);
+    auto_orb.projectiles = vec![orb(3378, 3423, 6437, 7)];
+    let mut balls = proto::Event {
+        tick: 2,
+        stage: Stage::MokhaiotlDelve8 as i32,
+        ..Default::default()
+    };
+    balls.set_type(proto::event::Type::Projectiles);
+    balls.projectiles = vec![ball(8), ball(11)];
+
+    assert_eq!(
+        builder.ingest([ball_orbs, auto_orb, balls]).from_tick,
+        Some(Tick(1))
+    );
+    let recording = builder.recording().unwrap();
+    assert_eq!(
+        recording.get_state(Tick(1)).unwrap().raw_projectiles,
+        [
+            RawProjectile {
+                id: 3380,
+                source: None,
+                source_coords: Point(3429, 6435),
+                target: Some(RawActor::Player("Sacolyn".to_string())),
+                target_coords: Point(3422, 6433),
+                landing_tick: Tick(5),
+            },
+            RawProjectile {
+                id: 3379,
+                source: None,
+                source_coords: Point(3421, 6436),
+                target: Some(RawActor::Player("Sacolyn".to_string())),
+                target_coords: Point(3422, 6433),
+                landing_tick: Tick(4),
+            },
+            RawProjectile {
+                id: 3378,
+                source: None,
+                source_coords: Point(3423, 6437),
+                target: Some(RawActor::Player("Sacolyn".to_string())),
+                target_coords: Point(3422, 6433),
+                landing_tick: Tick(7),
+            },
+        ]
+    );
+    assert_eq!(
+        recording.get_state(Tick(2)).unwrap().raw_projectiles,
+        [
+            RawProjectile {
+                id: 3385,
+                source: None,
+                source_coords: Point(3551, 6437),
+                target: None,
+                target_coords: Point(3551, 6433),
+                landing_tick: Tick(8),
+            },
+            RawProjectile {
+                id: 3385,
+                source: None,
+                source_coords: Point(3551, 6437),
+                target: None,
+                target_coords: Point(3551, 6433),
+                landing_tick: Tick(11),
+            },
+        ]
+    );
+    assert_eq!(builder.rejections().count(), 0);
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_projectiles_rejects_malformed_events() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(5),
+        PluginVersion::new(0, 10, 6),
+        ConfigVersion::LATEST,
+        Stage::MokhaiotlDelve8,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("Sacolyn").unwrap()],
+        None,
+    );
+
+    let ball = |source_coords: Option<proto::Coords>, x: i32, landing_tick: u32| {
+        proto::event::Projectile {
+            id: 3385,
+            source: None,
+            source_coords,
+            target: None,
+            target_coords: Some(proto::Coords { x, y: 6433 }),
+            landing_tick,
+        }
+    };
+
+    let mut no_source = proto::Event {
+        tick: 1,
+        stage: Stage::MokhaiotlDelve8 as i32,
+        ..Default::default()
+    };
+    no_source.set_type(proto::event::Type::Projectiles);
+    no_source.projectiles = vec![ball(None, 3551, 7)];
+    let mut negative_target = proto::Event {
+        tick: 2,
+        stage: Stage::MokhaiotlDelve8 as i32,
+        ..Default::default()
+    };
+    negative_target.set_type(proto::event::Type::Projectiles);
+    negative_target.projectiles = vec![ball(Some(proto::Coords { x: 3551, y: 6437 }), -1, 8)];
+    let mut landing_before_tick = proto::Event {
+        tick: 3,
+        stage: Stage::MokhaiotlDelve8 as i32,
+        ..Default::default()
+    };
+    landing_before_tick.set_type(proto::event::Type::Projectiles);
+    landing_before_tick.projectiles = vec![ball(Some(proto::Coords { x: 3551, y: 6437 }), 3551, 2)];
+
+    assert_eq!(
+        builder
+            .ingest([no_source, negative_target, landing_before_tick])
+            .from_tick,
+        None
+    );
+    let recording = builder.recording().unwrap();
+    assert!(recording.get_state(Tick(1)).is_none());
+    assert!(recording.get_state(Tick(2)).is_none());
+    assert!(recording.get_state(Tick(3)).is_none());
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [
+            BuildRejection {
+                tick: Tick(1),
+                kind: proto::event::Type::Projectiles,
+                reason: RejectionReason::MissingPayload("projectiles.source_coords"),
+            },
+            BuildRejection {
+                tick: Tick(2),
+                kind: proto::event::Type::Projectiles,
+                reason: RejectionReason::InvalidField {
+                    field: "projectiles.target_coords",
+                    error: FieldError::OutOfDomain("(-1,6433)".to_string()),
+                },
+            },
+            BuildRejection {
+                tick: Tick(3),
+                kind: proto::event::Type::Projectiles,
+                reason: RejectionReason::Inconsistent("projectile landing_tick before event tick"),
+            },
+        ]
+    );
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
 fn builder_ingest_maiden_blood_splats() {
     let mut builder = RecordingBuilder::new(
         ClientId(4),
@@ -3503,6 +3696,7 @@ fn extract_player_state_update_from_last_seen_tick() {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: vec![],
         },
@@ -3785,6 +3979,7 @@ fn extract_npc_state_update_last_seen_tick() {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: vec![],
         },
@@ -3849,13 +4044,12 @@ fn extract_npc_state_generic_update() {
         active_prayers: 0,
         size: 3,
         animation: Some(14810),
-        target: Some(proto::event::npc::Target {
-            target: Some(proto::event::npc::target::Target::Player(
-                "1Ogp".to_string(),
-            )),
+        target: Some(proto::Target {
+            target: Some(proto::target::Target::Player("1Ogp".to_string())),
         }),
         spot_anims: vec![1908],
         overheads: vec![28_835_840],
+        animation_start_tick: 114,
         r#type: Some(proto::event::npc::Type::Basic(())),
     });
     assert_eq!(
@@ -3872,6 +4066,7 @@ fn extract_npc_state_generic_update() {
             },
             RawNpc {
                 animation: Some(14810),
+                animation_start_tick: Tick(114),
                 target: Some(RawActor::Player("1Ogp".to_string())),
                 spot_anims: vec![1908],
                 overheads: vec![Overhead {
@@ -3899,6 +4094,7 @@ fn extract_npc_state_generic_update() {
             },
             RawNpc {
                 animation: Some(14810),
+                animation_start_tick: Tick(114),
                 target: Some(RawActor::Player("1Ogp".to_string())),
                 spot_anims: vec![1908],
                 overheads: Vec::new(),
@@ -3924,6 +4120,7 @@ fn extract_npc_state_generic_update() {
         target: None,
         spot_anims: vec![4330],
         overheads: vec![28_835_851],
+        animation_start_tick: 720,
         r#type: Some(proto::event::npc::Type::Basic(())),
     });
     assert_eq!(
@@ -3940,6 +4137,7 @@ fn extract_npc_state_generic_update() {
             },
             RawNpc {
                 animation: Some(14844),
+                animation_start_tick: Tick(720),
                 target: None,
                 spot_anims: vec![4330],
                 overheads: vec![Overhead {

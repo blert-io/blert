@@ -257,6 +257,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -276,6 +277,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -370,6 +372,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -465,6 +468,7 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -488,6 +492,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    raw_projectiles: Vec::new(),
                     vars: Vars::default(),
                     events: Vec::new(),
                 },

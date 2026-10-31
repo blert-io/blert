@@ -198,6 +198,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events,
         };
@@ -312,6 +313,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_projectiles: Vec::new(),
             vars: Vars {
                 varbits,
                 varps: BTreeMap::new(),

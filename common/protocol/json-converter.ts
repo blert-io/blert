@@ -5,7 +5,7 @@ import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
 import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import { z } from 'zod';
 
-import { ChallengeMode, Coords, Event } from '../generated/event_pb';
+import { ChallengeMode, Coords, Event, Target } from '../generated/event_pb';
 import {
   AttackDefinition,
   ChallengeEndRequest,
@@ -19,6 +19,7 @@ import {
 
 import {
   attackDefinitionSchema,
+  attackProjectileSchema,
   EventJson,
   npcDefinitionSchema,
   npcSchema,
@@ -30,6 +31,7 @@ import {
   ServerMessageJson,
   serverMessageSchema,
   spellDefinitionSchema,
+  targetSchema,
   weaponProjectileSchema,
 } from './json-schemas';
 
@@ -388,6 +390,10 @@ export function jsonToProtoEvent(json: EventJson): Event {
     event.setVars(vars);
   }
 
+  if (json.projectiles !== undefined) {
+    event.setProjectilesList(json.projectiles.map(projectileJsonToProto));
+  }
+
   // ToB events
   if (json.maidenBloodSplats !== undefined) {
     event.setMaidenBloodSplatsList(
@@ -660,14 +666,11 @@ function npcJsonToProto(json: z.infer<typeof npcSchema>): Event.Npc {
   if (json.animation !== undefined) {
     npc.setAnimation(json.animation);
   }
+  if (json.animationStartTick !== undefined) {
+    npc.setAnimationStartTick(json.animationStartTick);
+  }
   if (json.target !== undefined) {
-    const target = new Event.Npc.Target();
-    if ('player' in json.target) {
-      target.setPlayer(json.target.player);
-    } else {
-      target.setNpcRoomId(json.target.npcRoomId);
-    }
-    npc.setTarget(target);
+    npc.setTarget(targetJsonToProto(json.target));
   }
   if (json.spotAnims !== undefined) {
     npc.setSpotAnimsList(json.spotAnims);
@@ -709,6 +712,16 @@ function coordsJsonToProto(json: { x: number; y: number }): Coords {
   return coords;
 }
 
+function targetJsonToProto(json: z.infer<typeof targetSchema>): Target {
+  const target = new Target();
+  if ('player' in json) {
+    target.setPlayer(json.player);
+  } else {
+    target.setNpcRoomId(json.npcRoomId);
+  }
+  return target;
+}
+
 function varValueJsonToProto(json: {
   id: number;
   value: number;
@@ -717,6 +730,23 @@ function varValueJsonToProto(json: {
   value.setId(json.id);
   value.setValue(json.value);
   return value;
+}
+
+function projectileJsonToProto(
+  json: z.infer<typeof projectileSchema>,
+): Event.Projectile {
+  const projectile = new Event.Projectile();
+  projectile.setId(json.id);
+  if (json.source !== undefined) {
+    projectile.setSource(targetJsonToProto(json.source));
+  }
+  projectile.setSourceCoords(coordsJsonToProto(json.sourceCoords));
+  if (json.target !== undefined) {
+    projectile.setTarget(targetJsonToProto(json.target));
+  }
+  projectile.setTargetCoords(coordsJsonToProto(json.targetCoords));
+  projectile.setLandingTick(json.landingTick);
+  return projectile;
 }
 
 export function attackDefinitionJsonToProto(
@@ -867,6 +897,7 @@ function scopeJsonToProto(
   );
   scope.setVarbitsList(json.varbits ?? []);
   scope.setVarpsList(json.varps ?? []);
+  scope.setProjectilesList(json.projectiles ?? []);
   return scope;
 }
 
@@ -1013,6 +1044,9 @@ function scopeToJson(
   if (scope.getVarpsList().length > 0) {
     json.varps = scope.getVarpsList();
   }
+  if (scope.getProjectilesList().length > 0) {
+    json.projectiles = scope.getProjectilesList();
+  }
   return json;
 }
 
@@ -1052,13 +1086,13 @@ function attackDefinitionToJson(
   };
 
   if (attackDefinition.hasProjectile()) {
-    json.projectile = projectileToJson(attackDefinition.getProjectile()!);
+    json.projectile = attackProjectileToJson(attackDefinition.getProjectile()!);
   }
 
   if (attackDefinition.getWeaponProjectilesList().length > 0) {
     json.weaponProjectiles = attackDefinition
       .getWeaponProjectilesList()
-      .map(projectileToJson<WeaponProjectileSchema>);
+      .map(attackProjectileToJson<WeaponProjectileSchema>);
   }
 
   if (attackDefinition.hasAnimationFrameMin()) {
@@ -1075,13 +1109,14 @@ function attackDefinitionToJson(
   return json;
 }
 
-type ProjectileSchema = z.infer<typeof projectileSchema>;
+type AttackProjectileSchema = z.infer<typeof attackProjectileSchema>;
 type WeaponProjectileSchema = z.infer<typeof weaponProjectileSchema>;
 
-function projectileToJson<
-  T extends ProjectileSchema | WeaponProjectileSchema = ProjectileSchema,
+function attackProjectileToJson<
+  T extends AttackProjectileSchema | WeaponProjectileSchema =
+    AttackProjectileSchema,
 >(weaponProjectile: AttackDefinition.Projectile): T {
-  const json: ProjectileSchema | WeaponProjectileSchema = {
+  const json: AttackProjectileSchema | WeaponProjectileSchema = {
     id: weaponProjectile.getId(),
     startCycleOffset: weaponProjectile.getStartCycleOffset(),
   };
