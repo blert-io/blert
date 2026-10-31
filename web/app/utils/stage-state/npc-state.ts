@@ -8,6 +8,7 @@ import {
   NpcSpawnEvent,
   PrayerSet,
   RoomNpcMap as RawRoomNpcMap,
+  RoomNpcType,
   SkillLevel,
   getNpcDefinition,
   isNpcEvent,
@@ -17,6 +18,7 @@ import {
   EnhancedRoomNpc,
   EventTickMap,
   EventTypeMap,
+  NpcProperties,
   NpcState,
   Nullable,
   RoomNpcMap,
@@ -47,6 +49,16 @@ function processNpcTick(
     .filter((event) => event.npc.roomId === roomId);
 
   if (eventsForThisNpc.length > 0) {
+    const { mokhaiotl } = eventsForThisNpc[0].npc;
+    let properties: NpcProperties;
+    if (mokhaiotl !== undefined) {
+      properties = { type: RoomNpcType.MOKHAIOTL, value: mokhaiotl };
+    } else if (cursor.lastActiveTick !== -1) {
+      properties = npc.stateByTick[cursor.lastActiveTick]!.properties;
+    } else {
+      properties = { type: RoomNpcType.BASIC };
+    }
+
     npc.stateByTick[tick] = {
       id: eventsForThisNpc[0].npc.id,
       attack: null,
@@ -56,6 +68,7 @@ function processNpcTick(
       },
       hitpoints: SkillLevel.fromRaw(eventsForThisNpc[0].npc.hitpoints),
       prayers: PrayerSet.fromRaw(eventsForThisNpc[0].npc.prayers),
+      properties,
     };
     cursor.lastActiveTick = tick;
   }
@@ -70,30 +83,10 @@ function processNpcTick(
     attacks.find((e) => e.npcAttack.attack === NpcAttack.TOB_VERZIK_P3_BALL) ??
     attacks[0];
 
-  if (attackEvent !== undefined) {
-    if (npc.stateByTick[tick] === null) {
-      const hitpoints =
-        cursor.lastActiveTick !== -1
-          ? npc.stateByTick[cursor.lastActiveTick]!.hitpoints
-          : new SkillLevel(0, 1);
-      const prayers =
-        cursor.lastActiveTick !== -1
-          ? npc.stateByTick[cursor.lastActiveTick]!.prayers
-          : PrayerSet.fromRaw(0);
-      npc.stateByTick[tick] = {
-        id: attackEvent.npc.id,
-        attack: null,
-        position: {
-          x: eventsForThisNpc[0]?.xCoord ?? 0,
-          y: eventsForThisNpc[0]?.yCoord ?? 0,
-        },
-        hitpoints,
-        prayers,
-      };
-    }
-
+  const state = npc.stateByTick[tick];
+  if (attackEvent !== undefined && state !== null) {
     npc.relevant = true;
-    npc.stateByTick[tick].attack = attackEvent.npcAttack;
+    state.attack = attackEvent.npcAttack;
   }
 }
 

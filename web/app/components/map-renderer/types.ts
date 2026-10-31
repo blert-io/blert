@@ -161,6 +161,7 @@ export class NpcEntity implements Entity {
   imageUrl: string;
   readonly maxSpeed: number;
   hitpoints: HitpointsState | null;
+  shield: HitpointsState | null = null;
   dimmed: boolean = false;
   label?: string;
 

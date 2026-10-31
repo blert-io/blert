@@ -32,14 +32,32 @@ use crate::{
     proto,
 };
 
-const GENERIC_DEATHS: [(PluginVersion, &[u32]); 1] = [(
-    bloat::MIN_SUPPORTED_VERSION,
-    &[
-        npc::id::BLOAT_ENTRY,
-        npc::id::BLOAT_REGULAR,
-        npc::id::BLOAT_HARD,
-    ],
-)];
+const GENERIC_DEATHS: [(PluginVersion, &[u32]); 2] = [
+    (
+        bloat::MIN_SUPPORTED_VERSION,
+        &[
+            npc::id::BLOAT_ENTRY,
+            npc::id::BLOAT_REGULAR,
+            npc::id::BLOAT_HARD,
+        ],
+    ),
+    (
+        mokhaiotl::GENERIC_VERSION,
+        &[
+            npc::id::MOKHAIOTL,
+            npc::id::MOKHAIOTL_SHIELDED,
+            npc::id::MOKHAIOTL_BURROWED,
+            npc::id::DEMONIC_LARVA,
+            npc::id::DEMONIC_RANGE_LARVA,
+            npc::id::DEMONIC_MAGIC_LARVA,
+            npc::id::DEMONIC_MELEE_LARVA,
+            npc::id::VOLATILE_EARTH,
+            npc::id::EARTHEN_SHIELD,
+            npc::id::GIANT_DEMONIC_RANGE_LARVA,
+            npc::id::GIANT_DEMONIC_MAGIC_LARVA,
+        ],
+    ),
+];
 
 const HEADICONS_PRAYER: u16 = 440;
 

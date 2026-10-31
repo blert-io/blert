@@ -128,7 +128,7 @@ async fn delve_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 125,
+            ticks: 143,
         },
     );
 
@@ -244,7 +244,7 @@ async fn verify_stage_rows(
     assert_eq!(row.get::<_, i16>(2), 1);
     assert_eq!(row.get::<_, i16>(3), Stage::MokhaiotlDelve8 as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 125);
+    assert_eq!(row.get::<_, i32>(5), 143);
     assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
@@ -294,7 +294,7 @@ async fn verify_stage_rows(
         SplitType::MokhaiotlDelve8 as i16
     );
     assert_eq!(splits[0].get::<_, i16>(2), 1);
-    assert_eq!(splits[0].get::<_, i32>(3), 125);
+    assert_eq!(splits[0].get::<_, i32>(3), 143);
     assert!(splits[0].get::<_, bool>(4));
 
     // The player receives PBs.
@@ -336,11 +336,11 @@ async fn verify_stage_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 33),
+            (event::Type::PlayerAttack as i16, 34),
             (event::Type::PlayerSpell as i16, 1),
-            (event::Type::NpcSpawn as i16, 28),
-            (event::Type::NpcDeath as i16, 8),
-            (event::Type::NpcAttack as i16, 18),
+            (event::Type::NpcSpawn as i16, 33),
+            (event::Type::NpcDeath as i16, 7),
+            (event::Type::NpcAttack as i16, 22),
         ]),
     );
 
@@ -358,7 +358,7 @@ async fn verify_stage_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(125));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(143));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }

@@ -89,6 +89,7 @@ const fragmentShader = `
 const SELECTED_COLOR = new THREE.Color('#5865f2');
 const HOVERED_COLOR = new THREE.Color('#f59e0b');
 const BORDER_COLOR = new THREE.Color('#c3c7c9');
+const SHIELD_BAR_COLORS = { fill: '#00d2ac', empty: '#002620' };
 
 function NpcFallback({ width, height }: { width: number; height: number }) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -320,7 +321,7 @@ export default function Npc({
   const { config, playing, mapDefinition } = useReplayContext();
 
   const npcEntity = entity;
-  const hitpoints = npcEntity.hitpoints;
+  const healthBar = npcEntity.shield ?? npcEntity.hitpoints;
 
   const planeSize = entity.size;
 
@@ -539,12 +540,15 @@ export default function Npc({
               </group>
             )}
 
-            {hitpoints && hitpoints.current.getBase() > 0 && (
+            {healthBar && healthBar.current.getBase() > 0 && (
               <group position={[0, (entity.size - 1) * 0.5, 0]}>
                 <HealthBar
-                  hitpoints={hitpoints.current}
-                  nextHitpoints={hitpoints.next}
+                  hitpoints={healthBar.current}
+                  nextHitpoints={healthBar.next}
                   width={2 * entity.size}
+                  colors={
+                    npcEntity.shield !== null ? SHIELD_BAR_COLORS : undefined
+                  }
                   showFull
                 />
               </group>
