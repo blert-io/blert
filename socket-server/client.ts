@@ -83,7 +83,13 @@ export default class Client {
   private static readonly HEARTBEAT_DISCONNECT_THRESHOLD = 10;
   private static readonly MESSAGE_LOOP_INTERVAL_MS = 20;
   private static readonly MESSAGE_STATS_INTERVAL_MS = 2 * 60 * 1000;
-  private static readonly MAX_INFLATED_MESSAGE_BYTES = 4 * 1024 * 1024;
+
+  /** Largest message a client may send, before or after inflation. */
+  public static readonly MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
+  /** Most messages a client may have waiting to be processed. */
+  private static readonly MAX_QUEUED_MESSAGES = 1000;
+  /** Most bytes a client may have waiting to be processed. */
+  private static readonly MAX_QUEUED_BYTES = 4 * Client.MAX_MESSAGE_BYTES;
 
   /** Delay after connection before sending the first GAME_STATE_REQUEST. */
   private static readonly GAME_STATE_REQUEST_INITIAL_DELAY_MS = 1000;
@@ -100,6 +106,7 @@ export default class Client {
   private messageHandler: MessageHandler;
   private activeChallenge: ActiveChallengeInfo | null;
   private messageQueue: Frame[];
+  private queuedBytes: number;
   private inflater: InflateRaw | null;
   private isOpen: boolean;
 
@@ -135,6 +142,7 @@ export default class Client {
     this.activeChallenge = null;
     this.closeCallbacks = [];
     this.messageQueue = [];
+    this.queuedBytes = 0;
     this.inflater =
       messageFormat === MessageFormat.JSON_DEFLATE ? createInflateRaw() : null;
     this.isOpen = true;
@@ -183,7 +191,26 @@ export default class Client {
       }
 
       this.stats.recordIn(this.messageFormat, message.length);
+
+      if (
+        this.messageQueue.length >= Client.MAX_QUEUED_MESSAGES ||
+        this.queuedBytes + message.length > Client.MAX_QUEUED_BYTES
+      ) {
+        logger.warn(
+          'client_message_queue_full',
+          this.logContext({
+            queuedMessages: this.messageQueue.length,
+            queuedBytes: this.queuedBytes,
+          }),
+        );
+        recordClientDisconnection('queue_full');
+        this.isOpen = false;
+        this.close(1008);
+        return;
+      }
+
       this.messageQueue.push({ data: message, isBinary });
+      this.queuedBytes += message.length;
 
       const now = Date.now();
       if (now - this.lastMessageLog > Client.MESSAGE_STATS_INTERVAL_MS) {
@@ -522,7 +549,7 @@ export default class Client {
 
       const onData = (chunk: Buffer) => {
         length += chunk.length;
-        if (length > Client.MAX_INFLATED_MESSAGE_BYTES) {
+        if (length > Client.MAX_MESSAGE_BYTES) {
           resolve(null);
           inflater.destroy();
           return;
@@ -654,7 +681,9 @@ export default class Client {
   private async processMessageLoop(): Promise<void> {
     while (this.isOpen) {
       if (this.messageQueue.length > 0) {
-        const message = await this.parseMessage(this.messageQueue.shift()!);
+        const frame = this.messageQueue.shift()!;
+        this.queuedBytes -= frame.data.length;
+        const message = await this.parseMessage(frame);
         if (!this.isOpen) {
           return;
         }
