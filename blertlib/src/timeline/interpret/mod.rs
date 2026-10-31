@@ -324,6 +324,7 @@ impl HitpointsVarbits {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct RawNpc {
     pub(super) animation: Option<u32>,
+    pub(super) animation_start_tick: Tick,
     pub(super) target: Option<RawActor>,
     pub(super) spot_anims: Vec<u32>,
     pub(super) overheads: Vec<Overhead>,
@@ -376,6 +377,16 @@ impl Overhead {
             _ => &[],
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RawProjectile {
+    pub(super) id: u32,
+    pub(super) source: Option<RawActor>,
+    pub(super) source_coords: Point,
+    pub(super) target: Option<RawActor>,
+    pub(super) target_coords: Point,
+    pub(super) landing_tick: Tick,
 }
 
 /// Returns each tick where `interpretation` differs from the bespoke events
@@ -503,6 +514,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::from([(RoomId(58490), RawNpc::default())]),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -522,6 +534,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },

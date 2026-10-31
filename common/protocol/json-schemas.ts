@@ -33,6 +33,11 @@ export const coordsSchema = z.object({
   y: z.number().int(),
 });
 
+export const targetSchema = z.union([
+  z.object({ player: z.string() }),
+  z.object({ npcRoomId: z.number().int() }),
+]);
+
 export const timestampSchema = z.object({
   seconds: z.number().int(),
   nanos: z.number().int().nonnegative(),
@@ -184,6 +189,7 @@ export const scopeSchema = z.object({
   npcDefinitions: z.array(npcDefinitionSchema).optional(),
   varbits: z.array(uint32Schema).optional(),
   varps: z.array(uint32Schema).optional(),
+  projectiles: z.array(uint32Schema).optional(),
 });
 
 // RecordingConfig.ChallengeScope
@@ -206,13 +212,13 @@ export const recordingInfoSchema = z.object({
 });
 
 // AttackDefinition.Projectile
-export const projectileSchema = z.object({
+export const attackProjectileSchema = z.object({
   id: z.number().int().nonnegative(),
   startCycleOffset: z.number().int().nonnegative(),
   weaponId: z.number().int().optional(),
 });
 
-export const weaponProjectileSchema = projectileSchema.extend({
+export const weaponProjectileSchema = attackProjectileSchema.extend({
   weaponId: z.number().int(),
 });
 
@@ -225,7 +231,7 @@ export const attackDefinitionSchema = z.object({
   weaponIds: z.array(z.number().int()),
   animationIds: z.array(z.number().int()),
   cooldown: z.number().int().nonnegative(),
-  projectile: projectileSchema.optional(),
+  projectile: attackProjectileSchema.optional(),
   weaponProjectiles: z.array(weaponProjectileSchema).optional(),
   continuousAnimation: z.boolean().optional(),
   animationFrameMin: z.number().int().nonnegative().optional(),
@@ -302,12 +308,6 @@ export const verzikCrabSchema = z.object({
   spawn: enumValueSchema,
 });
 
-// Event.Npc.Target
-export const npcTargetSchema = z.union([
-  z.object({ player: z.string() }),
-  z.object({ npcRoomId: z.number().int() }),
-]);
-
 // Event.Npc
 export const npcSchema = z.object({
   id: z.number().int(),
@@ -316,7 +316,8 @@ export const npcSchema = z.object({
   activePrayers: z.number().int().optional(),
   size: uint32Schema.optional(),
   animation: uint32Schema.optional(),
-  target: npcTargetSchema.optional(),
+  animationStartTick: uint32Schema.optional(),
+  target: targetSchema.optional(),
   spotAnims: z.array(uint32Schema).optional(),
   overheads: z.array(uint32Schema).optional(),
   basic: z.object({}).optional(),
@@ -366,6 +367,16 @@ export const varValueSchema = z.object({
 export const varsSchema = z.object({
   varbits: z.array(varValueSchema).optional(),
   varps: z.array(varValueSchema).optional(),
+});
+
+// Event.Projectile
+export const projectileSchema = z.object({
+  id: uint32Schema,
+  source: targetSchema.optional(),
+  sourceCoords: coordsSchema,
+  target: targetSchema.optional(),
+  targetCoords: coordsSchema,
+  landingTick: uint32Schema,
 });
 
 // Event.NpcAttacked
@@ -537,6 +548,7 @@ export const eventSchema = z.object({
   playerSpell: spellSchema.optional(),
   objects: objectsSchema.optional(),
   vars: varsSchema.optional(),
+  projectiles: z.array(projectileSchema).optional(),
 
   // ToB events
   maidenBloodSplats: z.array(coordsSchema).optional(),

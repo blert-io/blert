@@ -1,4 +1,4 @@
-import { Challenge, ChallengeMode, Event } from '../generated/event_pb';
+import { Challenge, ChallengeMode, Event, Target } from '../generated/event_pb';
 import {
   AttackDefinition,
   ChallengeUpdate,
@@ -207,6 +207,7 @@ describe('jsonToServerMessage', () => {
               hitpoints: 30,
               size: 2,
               animation: 13,
+              animationStartTick: 3,
               target: { player: '1Ogp' },
               spotAnims: [19, 23],
               overheads: [28835840],
@@ -242,8 +243,9 @@ describe('jsonToServerMessage', () => {
       expect(first?.getSize()).toBe(2);
       expect(first?.hasAnimation()).toBe(true);
       expect(first?.getAnimation()).toBe(13);
+      expect(first?.getAnimationStartTick()).toBe(3);
       expect(first?.getTarget()?.getTargetCase()).toBe(
-        Event.Npc.Target.TargetCase.PLAYER,
+        Target.TargetCase.PLAYER,
       );
       expect(first?.getTarget()?.getPlayer()).toBe('1Ogp');
       expect(first?.getSpotAnimsList()).toEqual([19, 23]);
@@ -254,8 +256,9 @@ describe('jsonToServerMessage', () => {
       expect(second?.getHitpoints()).toBe(31);
       expect(second?.getSize()).toBe(3);
       expect(second?.hasAnimation()).toBe(false);
+      expect(second?.getAnimationStartTick()).toBe(0);
       expect(second?.getTarget()?.getTargetCase()).toBe(
-        Event.Npc.Target.TargetCase.NPC_ROOM_ID,
+        Target.TargetCase.NPC_ROOM_ID,
       );
       expect(second?.getTarget()?.getNpcRoomId()).toBe(8);
       expect(second?.getSpotAnimsList()).toEqual([]);
@@ -478,6 +481,82 @@ describe('jsonToServerMessage', () => {
         ],
         varpsList: [],
       });
+    });
+
+    it('converts PROJECTILES events', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.PROJECTILES,
+            stage: 60,
+            tick: 39710,
+            xCoord: 0,
+            yCoord: 0,
+            projectiles: [
+              {
+                id: 4201,
+                source: { npcRoomId: 57271 },
+                sourceCoords: { x: 4127, y: 5599 },
+                target: { player: 'Sacolyn' },
+                targetCoords: { x: 4127, y: 5594 },
+                landingTick: 39714,
+              },
+            ],
+          },
+          {
+            type: Event.Type.PROJECTILES,
+            stage: 57,
+            tick: 2,
+            xCoord: 0,
+            yCoord: 0,
+            projectiles: [
+              {
+                id: 3385,
+                sourceCoords: { x: 3551, y: 6437 },
+                targetCoords: { x: 3551, y: 6433 },
+                landingTick: 8,
+              },
+            ],
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const [guardian, ball] = proto.getChallengeEventsList();
+      expect(guardian.getType()).toBe(Event.Type.PROJECTILES);
+      expect(
+        guardian
+          .getProjectilesList()
+          .map((projectile) => projectile.toObject()),
+      ).toEqual([
+        {
+          id: 4201,
+          source: { player: undefined, npcRoomId: 57271 },
+          sourceCoords: { x: 4127, y: 5599 },
+          target: { player: 'Sacolyn', npcRoomId: undefined },
+          targetCoords: { x: 4127, y: 5594 },
+          landingTick: 39714,
+        },
+      ]);
+      expect(
+        guardian.getProjectilesList()[0].getSource()?.getTargetCase(),
+      ).toBe(Target.TargetCase.NPC_ROOM_ID);
+      expect(ball.getType()).toBe(Event.Type.PROJECTILES);
+      expect(
+        ball.getProjectilesList().map((projectile) => projectile.toObject()),
+      ).toEqual([
+        {
+          id: 3385,
+          source: undefined,
+          sourceCoords: { x: 3551, y: 6437 },
+          target: undefined,
+          targetCoords: { x: 3551, y: 6433 },
+          landingTick: 8,
+        },
+      ]);
+      expect(ball.getProjectilesList()[0].hasSource()).toBe(false);
+      expect(ball.getProjectilesList()[0].hasTarget()).toBe(false);
     });
   });
 
@@ -1400,6 +1479,7 @@ describe('round-trip conversion', () => {
               ],
               varbits: [6099, 6100],
               varps: [1683],
+              projectiles: [3378, 3379, 3380, 3384, 3385],
             },
           },
         ],
@@ -1441,6 +1521,12 @@ describe('round-trip conversion', () => {
     expect(config.getChallengesList()[1].getScope()!.getVarpsList()).toEqual([
       1683,
     ]);
+    expect(
+      config.getChallengesList()[0].getScope()!.getProjectilesList(),
+    ).toEqual([]);
+    expect(
+      config.getChallengesList()[1].getScope()!.getProjectilesList(),
+    ).toEqual([3378, 3379, 3380, 3384, 3385]);
 
     const resultJson = serverMessageToJson(proto);
     expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);

@@ -217,6 +217,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -249,6 +250,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -330,6 +332,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -355,6 +358,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(14),
@@ -406,6 +410,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(1),
@@ -425,6 +430,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(1),

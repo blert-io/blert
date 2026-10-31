@@ -21,7 +21,9 @@ use crate::{
     PluginVersion, Point, Rect, Source, Stage, npc, proto,
 };
 
-use super::interpret::{self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects, Vars};
+use super::interpret::{
+    self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects, RawProjectile, Vars,
+};
 use super::{ConfigVersion, Recording, SoteMazePivots, StageData, TickState};
 
 /// A `Rejection` describes a failure to process an incoming proto event during
@@ -103,6 +105,15 @@ pub enum FieldError {
 pub enum RawActor {
     Player(String),
     Npc(u64),
+}
+
+impl From<&proto::target::Target> for RawActor {
+    fn from(target: &proto::target::Target) -> Self {
+        match target {
+            proto::target::Target::Player(name) => Self::Player(name.clone()),
+            proto::target::Target::NpcRoomId(room_id) => Self::Npc(*room_id),
+        }
+    }
 }
 
 /// A `BuildMismatch` describes a tick where the data in a bespoke event sent by
@@ -427,6 +438,7 @@ impl<'a> TickBuilder<'a> {
                 objects,
                 raw_objects,
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -516,6 +528,16 @@ impl<'a> TickBuilder<'a> {
 
             Type::Vars => match parse_vars(event.vars.as_ref()) {
                 Ok(vars) => self.state.vars = vars,
+                Err(reason) => {
+                    self.rejections
+                        .entry(tick)
+                        .or_default()
+                        .push(BuildRejection { tick, kind, reason });
+                }
+            },
+
+            Type::Projectiles => match parse_projectiles(tick, &event.projectiles) {
+                Ok(projectiles) => self.state.raw_projectiles.extend(projectiles),
                 Err(reason) => {
                     self.rejections
                         .entry(tick)
@@ -1193,18 +1215,12 @@ fn extract_npc_state(
         },
         RawNpc {
             animation: npc.animation,
+            animation_start_tick: Tick(npc.animation_start_tick),
             target: npc
                 .target
                 .as_ref()
                 .and_then(|target| target.target.as_ref())
-                .map(|target| match target {
-                    proto::event::npc::target::Target::Player(name) => {
-                        RawActor::Player(name.clone())
-                    }
-                    proto::event::npc::target::Target::NpcRoomId(room_id) => {
-                        RawActor::Npc(*room_id)
-                    }
-                }),
+                .map(RawActor::from),
             spot_anims: npc.spot_anims.clone(),
             overheads,
         },
@@ -1919,6 +1935,52 @@ fn parse_var_values(
         }
     }
     Ok(parsed)
+}
+
+fn parse_projectiles(
+    tick: Tick,
+    projectiles: &[proto::event::Projectile],
+) -> Result<Vec<RawProjectile>, RejectionReason> {
+    let point = |field, coords: Option<&proto::Coords>| {
+        let coords = coords.required(field)?;
+        Point::try_from(*coords).map_err(|_| RejectionReason::InvalidField {
+            field,
+            error: FieldError::OutOfDomain(format!("({},{})", coords.x, coords.y)),
+        })
+    };
+    projectiles
+        .iter()
+        .map(|projectile| {
+            let landing_tick = Tick(projectile.landing_tick);
+            if landing_tick < tick {
+                return Err(RejectionReason::Inconsistent(
+                    "projectile landing_tick before event tick",
+                ));
+            }
+            Ok(RawProjectile {
+                id: projectile.id,
+                source: projectile
+                    .source
+                    .as_ref()
+                    .and_then(|source| source.target.as_ref())
+                    .map(RawActor::from),
+                source_coords: point(
+                    "projectiles.source_coords",
+                    projectile.source_coords.as_ref(),
+                )?,
+                target: projectile
+                    .target
+                    .as_ref()
+                    .and_then(|target| target.target.as_ref())
+                    .map(RawActor::from),
+                target_coords: point(
+                    "projectiles.target_coords",
+                    projectile.target_coords.as_ref(),
+                )?,
+                landing_tick,
+            })
+        })
+        .collect()
 }
 
 fn parse_maze(maze: &proto::event::SoteMaze) -> Result<Maze, RejectionReason> {

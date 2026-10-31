@@ -15,7 +15,7 @@ mod finalize;
 mod interpret;
 mod recording;
 
-use interpret::{RawNpc, RawObjects, Vars};
+use interpret::{RawNpc, RawObjects, RawProjectile, Vars};
 
 pub(crate) use interpret::OcellusProperties;
 
@@ -34,6 +34,7 @@ pub struct TickState {
     pub objects: TickObjects,
     pub(crate) raw_objects: RawObjects,
     pub(crate) raw_npcs: BTreeMap<RoomId, RawNpc>,
+    pub(crate) raw_projectiles: Vec<RawProjectile>,
     pub(crate) vars: Vars,
     pub events: Vec<Event>,
 }
@@ -321,6 +322,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    raw_projectiles: Vec::new(),
                     vars: Vars::default(),
                     events: vec![Event::recorded(ClientId(7), EventKind::BloatUp)],
                 }),
@@ -330,6 +332,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    raw_projectiles: Vec::new(),
                     vars: Vars::default(),
                     events: Vec::new(),
                 }),
@@ -340,6 +343,7 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    raw_projectiles: Vec::new(),
                     vars: Vars::default(),
                     events: vec![Event::recorded(
                         ClientId(7),
@@ -378,6 +382,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             })
@@ -390,6 +395,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(7),
@@ -462,6 +468,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -507,6 +514,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -552,6 +560,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -577,6 +586,7 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_projectiles: Vec::new(),
                 vars: Vars::default(),
                 events: vec![Event::recorded(
                     ClientId(344),
@@ -656,6 +666,7 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_projectiles: Vec::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
