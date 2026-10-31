@@ -6,11 +6,13 @@ import {
   EquipmentSlot,
   Event,
   MaidenCrabProperties,
+  MokhaiotlProperties,
   NpcAttackAction,
   NyloProperties,
   PlayerUpdateEvent,
   PrayerSet,
   RoomNpc,
+  RoomNpcType,
   Skill,
   SkillLevel,
   Spell,
@@ -49,8 +51,13 @@ export type NpcState = {
   hitpoints: SkillLevel;
   prayers: PrayerSet;
   id: number;
+  properties: NpcProperties;
   label?: string;
 };
+
+export type NpcProperties =
+  | { type: RoomNpcType.BASIC }
+  | { type: RoomNpcType.MOKHAIOTL; value: MokhaiotlProperties };
 
 export type EnhancedRoomNpc = RoomNpc & {
   stateByTick: Nullable<NpcState>[];

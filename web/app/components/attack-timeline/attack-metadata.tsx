@@ -1353,7 +1353,7 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
     ),
   },
   [NpcAttack.MOKHAIOTL_SLAM]: {
-    imageUrl: '/images/mokhaiotl/shockwave.png',
+    imageUrl: '/images/mokhaiotl/slam.png',
     description: () => <span>Slammed the ground</span>,
   },
   [NpcAttack.MOKHAIOTL_SHOCKWAVE]: {

@@ -52,6 +52,13 @@ export class MokhaiotlOrb extends CustomEntity<MokhaiotlOrbData> {
 // Maximum height of the orb's parabolic arc, in Three.js units.
 const MAX_Y_HEIGHT = 2.0;
 
+// Fraction of a tick ahead of the orb used to find its on-screen direction.
+const DIRECTION_LOOKAHEAD = 0.05;
+
+const velocity = new THREE.Vector3();
+const screenPosition = new THREE.Vector3();
+const screenAhead = new THREE.Vector3();
+
 function OrbSprite({
   style,
   materialRef,
@@ -111,7 +118,7 @@ function MokhaiotlOrbRenderer({
     animationStartTimeRef.current = null;
   }, [entity.data.currentTravelTick]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ camera, clock, size }) => {
     if (!groupRef.current) {
       return;
     }
@@ -186,6 +193,27 @@ function MokhaiotlOrbRenderer({
     const y = 0.5 + 4 * MAX_Y_HEIGHT * overallProgress * (1 - overallProgress);
 
     groupRef.current.position.y = y;
+
+    // The orb in the texture travels to the left; turn it to face the
+    // direction it is moving on screen.
+    if (materialRef.current) {
+      const { start, end } = animationSegmentRef.current;
+      velocity.set(
+        end.x - start.x,
+        (4 * MAX_Y_HEIGHT * (1 - 2 * overallProgress)) / totalTravelTicks,
+        end.z - start.z,
+      );
+      screenPosition.copy(groupRef.current.position).project(camera);
+      screenAhead
+        .copy(groupRef.current.position)
+        .addScaledVector(velocity, DIRECTION_LOOKAHEAD)
+        .project(camera);
+      const dx = (screenAhead.x - screenPosition.x) * size.width;
+      const dy = (screenAhead.y - screenPosition.y) * size.height;
+      if (dx !== 0 || dy !== 0) {
+        materialRef.current.rotation = Math.atan2(dy, dx) - Math.PI;
+      }
+    }
 
     if (!shouldInterpolate) {
       if (materialRef.current) {

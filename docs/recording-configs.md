@@ -64,9 +64,10 @@ pushed.
 | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | 0.9.24 and earlier | none                                                                    | none                                                                                              |
 | 0.10.0             | `objects`, OBJECTS events                                               | none; object events are sent both bespoke and raw                                                 |
-| 0.10.1             | `npcDefinitions`, NPC_UPDATE `size`, `animation`, `target`, `spotAnims` | Bloat's NPC_SPAWN and NPC_DEATH, BLOAT_DOWN, BLOAT_UP, BLOAT_HANDS_SPLAT, TOB_BLOAT_STOMP attacks |
+| 0.10.1             | `npcDefinitions`, NPC_UPDATE `size`, `animation`, `target`, `spotAnims` | BLOAT_DOWN, BLOAT_UP, BLOAT_HANDS_SPLAT, TOB_BLOAT_STOMP attacks, Bloat NPC is generic |
 | 0.10.4             | none                                                                    | MOKHAIOTL_OBJECTS, MOKHAIOTL_SHOCKWAVE                                                            |
-| next release       | NPC_UPDATE `overheads`                                                  | none                                                                                              |
+| 0.10.5             | NPC_UPDATE `overheads`                                                  | none; active_prayers no longer sent for generic NPCs (always 0)                                   |
+| 0.10.6             | VARS, PROJECTILES, NPC_UPDATE `animationStartTick`                      | MOKHAIOTL_ATTACK_STYLE, MOKHAIOTL_ORB, all Mokhaiotl attacks; Mokhaiotl NPCs are generic          |
 
 Add a row for every release that adds config fields or event fields, or removes
 bespoke events.

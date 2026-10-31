@@ -8,6 +8,8 @@ import {
   MokhaiotlOrbEvent,
   MokhaiotlOrbSource,
   NpcAttack,
+  RoomNpcType,
+  SkillLevel,
   Stage,
 } from '@blert/common';
 import Image from 'next/image';
@@ -24,8 +26,10 @@ import BossPageReplay from '@/components/boss-page-replay';
 import Loading from '@/components/loading';
 import {
   AnyEntity,
+  EntityType,
   ObjectEntity,
   MapDefinition,
+  NpcEntity,
   PlayerEntity,
 } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
@@ -364,12 +368,40 @@ export default function DelvePage({ params }: DelvePageProps) {
     [challenge, eventsByType, rocksByTick, splatsByTick],
   );
 
+  const modifyEntity = useCallback(
+    (tick: number, entity: AnyEntity) => {
+      if (entity.type !== EntityType.NPC) {
+        return entity;
+      }
+
+      const npc = entity as NpcEntity;
+      const stateByTick = npcState.get(npc.roomId)?.stateByTick;
+      const shieldAt = (t: number): SkillLevel | undefined => {
+        const properties = stateByTick?.[t]?.properties;
+        if (
+          properties?.type !== RoomNpcType.MOKHAIOTL ||
+          properties.value.shield === undefined
+        ) {
+          return undefined;
+        }
+        return SkillLevel.fromRaw(properties.value.shield);
+      };
+
+      const shield = shieldAt(tick);
+      if (shield !== undefined) {
+        npc.shield = { current: shield, next: shieldAt(tick + 1) };
+      }
+      return entity;
+    },
+    [npcState],
+  );
+
   const getEntities = useMapEntities(
     challenge,
     playerState,
     npcState,
     totalTicks,
-    { customEntitiesForTick },
+    { customEntitiesForTick, modifyEntity },
   );
   const preloads = usePreloads(npcState, isLive);
 

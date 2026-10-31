@@ -25,6 +25,7 @@ type HealthBarProps = {
   height?: number;
   position?: Vector3;
   showFull?: boolean;
+  colors?: { fill: string; empty: string };
 };
 
 export default function HealthBar({
@@ -34,6 +35,7 @@ export default function HealthBar({
   height = 0.3,
   position = [0, 1.0, 0],
   showFull = false,
+  colors,
 }: HealthBarProps) {
   const { config, playing } = useReplayContext();
 
@@ -47,10 +49,10 @@ export default function HealthBar({
         aspect: { value: width / height },
         healthPercent: { value: 1.0 },
         borderWidth: { value: 0.075 },
-        healthColorHigh: { value: new THREE.Color('#22c55e') },
-        healthColorMid: { value: new THREE.Color('#eab308') },
-        healthColorLow: { value: new THREE.Color('#ef4444') },
-        backgroundColor: { value: new THREE.Color('#1f2937') },
+        healthColorHigh: { value: new THREE.Color(colors?.fill ?? '#22c55e') },
+        healthColorMid: { value: new THREE.Color(colors?.fill ?? '#eab308') },
+        healthColorLow: { value: new THREE.Color(colors?.fill ?? '#ef4444') },
+        backgroundColor: { value: new THREE.Color(colors?.empty ?? '#1f2937') },
         borderColor: { value: new THREE.Color('#000000') },
         borderOpacity: { value: 0.8 },
         backgroundOpacity: { value: 0.9 },
@@ -110,7 +112,7 @@ export default function HealthBar({
     });
 
     return material;
-  }, [width, height]);
+  }, [width, height, colors]);
 
   const currentHpPercent = hitpoints?.percentage() ?? 0;
   const nextHpPercent = nextHitpoints?.percentage() ?? currentHpPercent;

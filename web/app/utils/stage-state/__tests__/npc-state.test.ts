@@ -110,7 +110,11 @@ describe('computeNpcState', () => {
 
   it('tracks NPC attacks', () => {
     const npcMap = toNpcMap(makeNpc(1, 100, 0));
-    const events: Event[] = [npcUpdate(1, 100, 0), npcAttack(1, 100, 2)];
+    const events: Event[] = [
+      npcUpdate(1, 100, 0),
+      npcUpdate(1, 100, 2),
+      npcAttack(1, 100, 2),
+    ];
     const [byTick, byType] = buildEventMaps(events);
     const result = computeNpcState(npcMap, 4, byTick, byType);
     const npc = result.get(1)!;
@@ -131,6 +135,44 @@ describe('computeNpcState', () => {
     expect(result.get(2)!.stateByTick[0]).toBeNull();
     expect(result.get(2)!.stateByTick[1]).not.toBeNull();
   });
+
+  it('carries NPC properties forward until an event changes them', () => {
+    const npcMap = toNpcMap(makeNpc(1, 14708, 0), makeNpc(2, 200, 0));
+    const shieldUp = npcUpdate(1, 14708, 0);
+    shieldUp.npc.mokhaiotl = {
+      charging: false,
+      shield: new SkillLevel(500, 500).toRaw(),
+    };
+    const shieldDown = npcUpdate(1, 14707, 2);
+    shieldDown.npc.mokhaiotl = { charging: false };
+    const events: Event[] = [
+      shieldUp,
+      npcUpdate(2, 200, 0),
+      npcUpdate(1, 14708, 1),
+      shieldDown,
+      npcUpdate(1, 14707, 3),
+    ];
+    const [byTick, byType] = buildEventMaps(events);
+    const result = computeNpcState(npcMap, 4, byTick, byType);
+
+    expect(
+      result.get(1)!.stateByTick.map((state) => state!.properties),
+    ).toEqual([
+      {
+        type: RoomNpcType.MOKHAIOTL,
+        value: { charging: false, shield: new SkillLevel(500, 500).toRaw() },
+      },
+      {
+        type: RoomNpcType.MOKHAIOTL,
+        value: { charging: false, shield: new SkillLevel(500, 500).toRaw() },
+      },
+      { type: RoomNpcType.MOKHAIOTL, value: { charging: false } },
+      { type: RoomNpcType.MOKHAIOTL, value: { charging: false } },
+    ]);
+    expect(result.get(2)!.stateByTick[0]!.properties).toEqual({
+      type: RoomNpcType.BASIC,
+    });
+  });
 });
 
 describe('NpcStateBuilder', () => {
@@ -140,6 +182,7 @@ describe('NpcStateBuilder', () => {
       npcUpdate(1, 100, 0),
       npcUpdate(2, 200, 1),
       npcUpdate(1, 100, 2, 80),
+      npcUpdate(1, 100, 3, 80),
       npcAttack(1, 100, 3),
       npcUpdate(2, 200, 4, 60),
     ];
