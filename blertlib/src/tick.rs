@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 pub struct Tick(pub u32);
 
 impl Tick {
+    /// The longest a recording can run, limited by the game's 6h logout timer.
+    pub const MAX_RECORDED: Self = Self(36_000);
+
     const START: Self = Self(0);
 
     /// Returns the tick that occurs at a given duration from the start.
