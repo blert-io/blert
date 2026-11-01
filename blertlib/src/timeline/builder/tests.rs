@@ -122,6 +122,45 @@ fn builder_ingest_rejects_event_from_another_stage() {
 }
 
 #[test]
+fn builder_ingest_rejects_event_beyond_max_tick() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(13),
+        PluginVersion::new(0, 10, 6),
+        ConfigVersion::LATEST,
+        Stage::TobVerzik,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("Dedion").unwrap()],
+        None,
+    );
+
+    let p2 = proto::Event {
+        r#type: proto::event::Type::TobVerzikPhase as i32,
+        tick: 36_000,
+        stage: Stage::TobVerzik as i32,
+        verzik_phase: Some(proto::event::VerzikPhase::VerzikP2 as i32),
+        ..Default::default()
+    };
+    let p3 = proto::Event {
+        r#type: proto::event::Type::TobVerzikPhase as i32,
+        tick: 36_001,
+        stage: Stage::TobVerzik as i32,
+        verzik_phase: Some(proto::event::VerzikPhase::VerzikP3 as i32),
+        ..Default::default()
+    };
+
+    assert_eq!(builder.ingest([p2, p3]).from_tick, Some(Tick(36_000)));
+    assert_eq!(builder.recording().unwrap().last_tick(), Tick(36_000));
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [BuildRejection {
+            tick: Tick(36_001),
+            kind: proto::event::Type::TobVerzikPhase,
+            reason: RejectionReason::BeyondMaxTick,
+        }]
+    );
+}
+
+#[test]
 fn builder_ingest_drops_action_without_actor() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),

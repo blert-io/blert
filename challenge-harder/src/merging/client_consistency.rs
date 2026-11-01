@@ -15,8 +15,6 @@ use crate::lifecycle::core::types::{ChallengeType, StageExt};
 use super::BadData;
 use super::world;
 
-pub(super) const MAX_RECORDED_TICK: Tick = Tick(36_000); // six hour logout timer
-
 /// A problem detected in a client's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConsistencyIssue {

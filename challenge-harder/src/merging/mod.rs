@@ -633,7 +633,7 @@ impl MergedTimeline {
 
     /// The number of ticks in the timeline on which no client recorded events.
     pub fn missing_tick_count(&self) -> u32 {
-        u32::try_from(self.timeline.missing_tick_count()).expect("below MAX_RECORDED_TICK")
+        u32::try_from(self.timeline.missing_tick_count()).expect("below Tick::MAX_RECORDED")
     }
 
     /// Number of empty ticks inserted at the start of the timeline to align it.

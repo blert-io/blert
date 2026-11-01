@@ -61,6 +61,8 @@ pub enum RejectionReason {
     /// The recording was constructed with a known length, but the event falls
     /// beyond it.
     BeyondLastTick,
+    /// The event falls beyond the longest possible recording.
+    BeyondMaxTick,
 }
 
 /// A `Warning` describes an issue with an event that the recording can absorb.
@@ -297,6 +299,18 @@ impl RecordingBuilder {
                         tick,
                         kind: event.r#type(),
                         reason: RejectionReason::BeyondLastTick,
+                    });
+                continue;
+            }
+
+            if tick > Tick::MAX_RECORDED {
+                self.rejections
+                    .entry(tick)
+                    .or_default()
+                    .push(BuildRejection {
+                        tick,
+                        kind: event.r#type(),
+                        reason: RejectionReason::BeyondMaxTick,
                     });
                 continue;
             }

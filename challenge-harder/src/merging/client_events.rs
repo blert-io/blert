@@ -14,7 +14,7 @@ use crate::lifecycle::core::types::{
 };
 use crate::proto::ChallengeEvents;
 
-use super::client_consistency::{self, ConsistencyIssue, MAX_RECORDED_TICK};
+use super::client_consistency::{self, ConsistencyIssue};
 use super::{BadData, ChallengeInfo};
 
 #[derive(Debug)]
@@ -298,7 +298,7 @@ impl<'a> StreamParser<'a> {
     }
 
     fn check_tick_counts(&mut self, info: &mut ReportedInfo) -> Result<(), BadData> {
-        if info.last_recorded_tick > MAX_RECORDED_TICK {
+        if info.last_recorded_tick > Tick::MAX_RECORDED {
             return Err(BadData::Inconsistent {
                 tick: info.last_recorded_tick,
                 message: "event beyond the maximum recordable tick".to_string(),
@@ -310,7 +310,7 @@ impl<'a> StreamParser<'a> {
 
         let invalid_server = info
             .server_ticks
-            .is_some_and(|st| Tick(st.count) > MAX_RECORDED_TICK);
+            .is_some_and(|st| Tick(st.count) > Tick::MAX_RECORDED);
         if invalid_server {
             tracing::warn!(
                 client_id = %info.id,
@@ -368,7 +368,8 @@ impl<'a> StreamParser<'a> {
                 | RejectionReason::MissingPayload(_)
                 | RejectionReason::InvalidField { .. }
                 | RejectionReason::Inconsistent(_)
-                | RejectionReason::UniqueViolation => {
+                | RejectionReason::UniqueViolation
+                | RejectionReason::BeyondMaxTick => {
                     return Err(BadData::RejectedEvent(rejection.clone()));
                 }
             }
