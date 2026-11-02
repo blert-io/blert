@@ -8,7 +8,6 @@ import {
   Npc,
   NpcEvent,
   RoomNpcType,
-  SplitType,
   Stage,
   TobRaid,
 } from '@blert/common';
@@ -21,9 +20,10 @@ import {
   useState,
 } from 'react';
 
-import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
@@ -268,6 +268,8 @@ export default function Maiden() {
     isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_MAIDEN);
 
+  const timeline = useBossPageTimeline(bcf);
+
   const {
     currentTick,
     advanceTick,
@@ -298,16 +300,13 @@ export default function Maiden() {
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
-  const { splits, spawns } = useMemo(() => {
-    const splits: TimelineSplit[] = [];
-    const spawns: MaidenCrabProperties[][] = [];
+  const splits = useMemo(() => timeline.display.getSplits(), [timeline]);
 
-    const addSplits = (tick: number, name: string) => {
-      if (tick !== 0) {
-        splits.push({ tick, splitName: name });
-        const tickEvents = eventsByTick[tick] ?? [];
+  const spawns = useMemo(
+    () =>
+      splits.map(({ tick }) => {
         const crabs: MaidenCrabProperties[] = [];
-        for (const evt of tickEvents) {
+        for (const evt of eventsByTick[tick] ?? []) {
           if (evt.type !== EventType.NPC_SPAWN) {
             continue;
           }
@@ -321,18 +320,10 @@ export default function Maiden() {
             crabs.push((npc as EnhancedMaidenCrab).maidenCrab);
           }
         }
-        spawns.push(crabs);
-      }
-    };
-
-    if (challenge) {
-      addSplits(challenge.splits[SplitType.TOB_MAIDEN_70S] ?? 0, '70s');
-      addSplits(challenge.splits[SplitType.TOB_MAIDEN_50S] ?? 0, '50s');
-      addSplits(challenge.splits[SplitType.TOB_MAIDEN_30S] ?? 0, '30s');
-    }
-
-    return { splits, spawns };
-  }, [challenge, eventsByTick, npcState]);
+        return crabs;
+      }),
+    [splits, eventsByTick, npcState],
+  );
 
   const eventsByTickRef = useRef(eventsByTick);
   eventsByTickRef.current = eventsByTick;
@@ -421,7 +412,7 @@ export default function Maiden() {
         <BossPageAttackTimeline
           currentTick={currentTick}
           playerState={playerState}
-          bcf={bcf}
+          timeline={timeline}
           updateTickOnPage={setTick}
           npcs={npcState}
           liveFollowing={following}

@@ -19,7 +19,9 @@ import BossFightOverview, {
   BossFightOverviewSection,
   IdleTicksContent,
 } from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
@@ -126,6 +128,8 @@ export default function DelvePage({ params }: DelvePageProps) {
     isLive,
     isStreaming,
   } = useStageEvents<MokhaiotlChallenge>(stage, attempt);
+
+  const timeline = useBossPageTimeline(bcf);
 
   const {
     currentTick,
@@ -441,7 +445,7 @@ export default function DelvePage({ params }: DelvePageProps) {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           customRows={[orbsRow]}
           liveFollowing={following}
         />

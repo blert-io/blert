@@ -7,7 +7,7 @@ import {
 import { Npc, NpcAttack } from '@blert/common';
 
 import { bcfToNpcAttack } from './attack-metadata';
-import { BackgroundColor, ChartColor } from './types';
+import { BackgroundColor, ChartColor, TimelineSplit } from './types';
 
 const BLOAT_DOWN_TICKS = 32;
 
@@ -119,6 +119,14 @@ export class TimelineDisplay {
    */
   getSplitNameAt(tick: number): string | undefined {
     return this.splits.get(tick);
+  }
+
+  /** Returns every timeline split, ordered by tick. */
+  getSplits(): TimelineSplit[] {
+    return Array.from(this.splits.entries(), ([tick, splitName]) => ({
+      tick,
+      splitName,
+    })).sort((a, b) => a.tick - b.tick);
   }
 
   private computeDisplayData(): void {

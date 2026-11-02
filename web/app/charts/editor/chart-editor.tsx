@@ -16,6 +16,7 @@ import BcfRenderer, {
   HitTestResult,
   InteractionHandler,
   RegionOverlay,
+  TimelineDisplay,
 } from '@/components/attack-timeline';
 import Button from '@/components/button';
 import DebugOverlay, {
@@ -150,16 +151,18 @@ export function ChartEditor() {
   const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
 
   // Derived state is local to the renderer and not used in edits.
-  const { conflicts, conflictSpans, derived, derivedResolver } = useMemo(() => {
-    const derived = structuredClone(bcf);
-    const conflicts = deriveState(derived);
-    return {
-      conflicts,
-      conflictSpans: findConflictSpans(conflicts),
-      derived,
-      derivedResolver: new BCFResolver(derived),
-    };
-  }, [bcf]);
+  const { conflicts, conflictSpans, derivedResolver, derivedDisplay } =
+    useMemo(() => {
+      const derived = structuredClone(bcf);
+      const conflicts = deriveState(derived);
+      const derivedResolver = new BCFResolver(derived);
+      return {
+        conflicts,
+        conflictSpans: findConflictSpans(conflicts),
+        derivedResolver,
+        derivedDisplay: new TimelineDisplay(derivedResolver),
+      };
+    }, [bcf]);
   const { activeSlot, brush, focus, focusedBy, respectCooldowns, slots } =
     state;
 
@@ -465,7 +468,8 @@ export function ChartEditor() {
       </div>
       <div className={styles.grid} ref={gridRef}>
         <BcfRenderer
-          bcf={derived}
+          resolver={derivedResolver}
+          display={derivedDisplay}
           cellSize={cellSize}
           wrapWidth={wrapWidth}
           interactionHandler={interactionHandler}

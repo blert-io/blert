@@ -5,7 +5,9 @@ import { useCallback, useContext, useMemo, useRef } from 'react';
 
 import { ActorContext } from '@/(challenges)/raids/tob/context';
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
@@ -173,6 +175,9 @@ export default function SotetsegPage() {
     isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_SOTETSEG);
 
+  const timeline = useBossPageTimeline(bcf);
+  const splits = useMemo(() => timeline.display.getSplits(), [timeline]);
+
   const {
     currentTick,
     setTick,
@@ -184,27 +189,6 @@ export default function SotetsegPage() {
   } = usePlayingState(1, totalTicks, isStreaming);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
-
-  const splits = useMemo(() => {
-    if (!challenge) {
-      return [];
-    }
-
-    const splits = [];
-    if (challenge.splits[SplitType.TOB_SOTETSEG_66]) {
-      splits.push({
-        tick: challenge.splits[SplitType.TOB_SOTETSEG_66],
-        splitName: '66%',
-      });
-    }
-    if (challenge.splits[SplitType.TOB_SOTETSEG_33]) {
-      splits.push({
-        tick: challenge.splits[SplitType.TOB_SOTETSEG_33],
-        splitName: '33%',
-      });
-    }
-    return splits;
-  }, [challenge]);
 
   const bossHealthChartData = useMemo(() => {
     let sotetseg: EnhancedRoomNpc | null = null;
@@ -348,7 +332,7 @@ export default function SotetsegPage() {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           liveFollowing={following}
         />
       </div>

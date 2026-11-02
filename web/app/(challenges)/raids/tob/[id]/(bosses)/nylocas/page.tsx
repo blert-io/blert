@@ -42,7 +42,9 @@ import { ActorContext } from '@/(challenges)/raids/tob/context';
 import { TimelineSplit } from '@/components/attack-timeline';
 import Badge from '@/components/badge';
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageReplay from '@/components/boss-page-replay';
@@ -237,6 +239,8 @@ export default function NylocasPage() {
     isLive,
     isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_NYLOCAS);
+
+  const timeline = useBossPageTimeline(bcf);
 
   const {
     currentTick,
@@ -727,7 +731,7 @@ export default function NylocasPage() {
           currentTick={currentTick}
           playerState={playerState}
           updateTickOnPage={setTick}
-          bcf={bcf}
+          timeline={timeline}
           npcs={npcState}
           liveFollowing={following}
         />

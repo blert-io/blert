@@ -1,6 +1,6 @@
 'use client';
 
-import { BCFResolver, BlertChartFormat } from '@blert/bcf';
+import { BCFResolver } from '@blert/bcf';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import HorizontalScrollable from '@/components/horizontal-scrollable';
@@ -34,7 +34,8 @@ import {
 import styles from './bcf-renderer.module.scss';
 
 export type BcfRendererProps = {
-  bcf: BlertChartFormat;
+  resolver: BCFResolver;
+  display: TimelineDisplay;
   cellSize: number;
   wrapWidth?: number;
   smallLegend?: boolean;
@@ -87,7 +88,8 @@ export type BcfRendererProps = {
 };
 
 export function BcfRenderer({
-  bcf,
+  resolver,
+  display,
   cellSize,
   wrapWidth,
   smallLegend = false,
@@ -107,8 +109,6 @@ export function BcfRenderer({
   liveFollowing = false,
   children,
 }: BcfRendererProps) {
-  const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
-
   const customRowsMap = useMemo(() => {
     const map = new Map<string, CustomRow>();
     customRowsProp?.forEach((row, i) => map.set(`custom:${i}`, row));
@@ -310,8 +310,6 @@ export function BcfRenderer({
   });
 
   const effectiveTooltipId = tooltipId ?? BCF_TOOLTIP_ID;
-
-  const display = useMemo(() => new TimelineDisplay(resolver), [resolver]);
 
   const renderContext = useMemo(
     () => ({
