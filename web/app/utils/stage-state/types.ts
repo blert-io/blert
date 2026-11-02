@@ -51,6 +51,7 @@ export type NpcState = {
   hitpoints: SkillLevel;
   prayers: PrayerSet;
   id: number;
+  size: number;
   properties: NpcProperties;
   label?: string;
 };

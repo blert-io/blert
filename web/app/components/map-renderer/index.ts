@@ -36,4 +36,4 @@ export {
   type ReplayConfig,
 } from './types';
 
-export type { Terrain } from './path';
+export { GridTerrain, type Terrain } from './path';

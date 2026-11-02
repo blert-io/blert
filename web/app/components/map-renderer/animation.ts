@@ -25,6 +25,8 @@ export function createInterpolationState(
   const waypoints = visualPath(from, to, terrain, allowTeleport) ?? [from];
 
   return {
+    from,
+    to,
     waypoints,
     startTime: currentTime,
     tickDuration: config.tickDuration,
@@ -66,11 +68,8 @@ export function updateInterpolation(
 
   if (
     !interpolationState ||
-    !coordsEqual(interpolationState.waypoints[0], from) ||
-    !coordsEqual(
-      interpolationState.waypoints[interpolationState.waypoints.length - 1],
-      to,
-    )
+    !coordsEqual(interpolationState.from, from) ||
+    !coordsEqual(interpolationState.to, to)
   ) {
     return {
       position: from,

@@ -61,6 +61,7 @@ function processNpcTick(
 
     npc.stateByTick[tick] = {
       id: eventsForThisNpc[0].npc.id,
+      size: getNpcDefinition(eventsForThisNpc[0].npc.id)?.size ?? 1,
       attack: null,
       position: {
         x: eventsForThisNpc[0].xCoord,

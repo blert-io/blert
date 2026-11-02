@@ -56,7 +56,6 @@ import {
   EntityType,
   MapDefinition,
   NpcEntity,
-  osrsToThreePosition,
   Terrain,
 } from '@/components/map-renderer';
 import MissingStageData from '@/components/missing-stage-data';
@@ -441,16 +440,11 @@ export default function NylocasPage() {
         spawnNpcId === NpcId.NYLOCAS_PRINKIPAS_DROPPING;
 
       if (isDroppingBoss && tick === npc.spawnTick) {
-        const sizeOffset = (npcEntity.size - 1) / 2;
-        const adjustedPosition = {
-          x: npcEntity.position.x + sizeOffset,
-          y: npcEntity.position.y + sizeOffset,
-        };
-        const finalHeight = npcEntity.size / 2 - 0.2;
-
         npcEntity.options.customInterpolation = {
-          from: osrsToThreePosition(adjustedPosition, 10),
-          to: osrsToThreePosition(adjustedPosition, finalHeight),
+          from: npcEntity.position,
+          to: npcEntity.position,
+          fromHeight: 10,
+          toHeight: npcEntity.size / 2 - 0.2,
           ease: (t) => t * t,
         };
       }

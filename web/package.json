@@ -13,8 +13,8 @@
     "lint": "eslint .",
     "format": "prettier --check . --ignore-path ../.prettierignore",
     "format:fix": "prettier --write . --ignore-path ../.prettierignore",
-    "test": "jest --runInBand",
-    "test:coverage": "jest --coverage --runInBand",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage --runInBand",
     "smoke:auth": "node scripts/ci/auth-smoke.mjs"
   },
   "dependencies": {

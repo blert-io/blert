@@ -26,6 +26,8 @@ export const enum EntityType {
  * Represents the current interpolation state for an entity
  */
 export interface InterpolationState {
+  from: Coords;
+  to: Coords;
   /** The waypoints to animate along during the current tick */
   waypoints: Coords[];
   /** Timestamp when the current tick animation started */
@@ -118,10 +120,9 @@ export class PlayerEntity implements Entity {
         current: hitpoints,
         next: hitpoints,
       };
+    } else if (hitpoints?.current !== undefined) {
+      this.hitpoints = hitpoints as HitpointsState;
     } else {
-      if (hitpoints?.current) {
-        this.hitpoints = hitpoints as HitpointsState;
-      }
       this.hitpoints = null;
     }
   }
@@ -138,22 +139,34 @@ type NpcOptions = {
    *
    * Allows for special effects like having an NPC pop up or drop into the map.
    *
-   * Coordinates provided in `from` and `to` are in 3D Three.js space, where
-   * OSRS (x, y) corresponds to (x, 0, -y). @see {@link osrsToThreePosition} for
-   * more details.
+   * `from` and `to` are the NPC's southwest tiles, and `fromHeight` and
+   * `toHeight` the heights of its center above the ground, in tiles. An omitted
+   * height is the one the NPC's center normally sits at.
    *
    * Warning: if `to` does not end at `nextPosition`, it will result in a visual
    * jump when the next tick begins.
    */
   customInterpolation?: {
-    from: [number, number, number];
-    to: [number, number, number];
+    from: Coords;
+    to: Coords;
+    fromHeight?: number;
+    toHeight?: number;
     /** Easing function to use for the interpolation. Defaults to linear. */
     ease?: (t: number) => number;
   };
 };
 
 export class NpcEntity implements Entity {
+  /**
+   * Returns the entity ID of the NPC with the given room ID.
+   *
+   * @param roomId The room ID of the NPC.
+   * @returns The entity ID of the NPC.
+   */
+  public static uniqueId(roomId: number): string {
+    return `${EntityType.NPC}-${roomId}`;
+  }
+
   type: EntityType = EntityType.NPC;
   interactive: boolean = true;
   readonly name: string;
@@ -199,7 +212,7 @@ export class NpcEntity implements Entity {
   }
 
   public getUniqueId(): string {
-    return `${this.type}-${this.roomId}`;
+    return NpcEntity.uniqueId(this.roomId);
   }
 }
 
