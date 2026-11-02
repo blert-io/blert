@@ -53,6 +53,7 @@ impl TickState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StageNpc {
     pub spawn: Tick,
+    pub dying: Option<Tick>,
     pub death: Option<Tick>,
 }
 
@@ -605,6 +606,7 @@ mod tests {
             timeline.npc(RoomId(64386)),
             Some(StageNpc {
                 spawn: Tick(0),
+                dying: None,
                 death: None,
             })
         );
@@ -612,6 +614,7 @@ mod tests {
             timeline.npc(RoomId(64745)),
             Some(StageNpc {
                 spawn: Tick(32),
+                dying: None,
                 death: Some(Tick(69)),
             })
         );
@@ -623,6 +626,7 @@ mod tests {
                     RoomId(64386),
                     StageNpc {
                         spawn: Tick(0),
+                        dying: None,
                         death: None,
                     }
                 ),
@@ -630,6 +634,7 @@ mod tests {
                     RoomId(64745),
                     StageNpc {
                         spawn: Tick(32),
+                        dying: None,
                         death: Some(Tick(69)),
                     }
                 ),

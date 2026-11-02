@@ -720,7 +720,9 @@ impl<'a> Encoder<'a> {
             }
 
             // Deliberately omitted from the wire.
-            EventKind::SoteMazeEnd(_) | EventKind::HandicapChoice(_) => None,
+            EventKind::NpcDying(_) | EventKind::SoteMazeEnd(_) | EventKind::HandicapChoice(_) => {
+                None
+            }
         }
     }
 }

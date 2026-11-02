@@ -16,6 +16,7 @@ pub struct Definition {
     pub short_name: &'static str,
     pub canonical_id: u32,
     pub size: u16,
+    pub death_animation: Option<u32>,
 }
 
 #[must_use]

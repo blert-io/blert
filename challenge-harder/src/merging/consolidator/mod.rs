@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::proto::event;
 use blert::{
     Actor, DataSource, Event, EventKind, NpcAttack, NpcAttacked, NpcState, PartyIndex,
     PlayerAttack, PlayerAttacked, PlayerCast, PlayerSpell, Point, Recording, RoomId, Source, Tick,
@@ -12,8 +11,8 @@ use blert::{
 };
 
 use super::event::{
-    AttackPairing, Class, IdentityKey, classify, event_type, identity_key, normalize_npc_attack,
-    normalize_player_attack, pair_attacks, stream_config,
+    AttackPairing, Class, EventType, IdentityKey, classify, event_type, identity_key,
+    normalize_npc_attack, normalize_player_attack, pair_attacks, stream_config,
 };
 use super::trace::{
     ActionConflict, AttackMappedDiscardReason, AttackMappedResolution, StreamOccurrence,
@@ -75,7 +74,7 @@ pub(super) enum Disagreement {
         discarded: Actor,
     },
     AttackMapped {
-        kind: event::Type,
+        kind: EventType,
     },
 }
 
@@ -88,19 +87,19 @@ pub(super) enum QualityFlag {
         subject: Disagreement,
     },
     LargeTemporalGap {
-        kind: event::Type,
+        kind: EventType,
         gap: Ticks,
         base_tick: Tick,
         target_tick: Tick,
     },
     UnmappedCrossTickReference {
-        kind: event::Type,
+        kind: EventType,
         merged_tick: Tick,
         source_tick: Tick,
         resolved_tick: Tick,
     },
     AttackMappedNotFound {
-        kind: event::Type,
+        kind: EventType,
         side: Side,
         client_tick: Tick,
         client_attack_tick: Tick,
@@ -304,8 +303,8 @@ struct BufferedEvent<'a> {
 
 #[derive(Debug, Default)]
 struct EventBuffer<'a> {
-    stream: BTreeMap<event::Type, Vec<BufferedEvent<'a>>>,
-    attack_mapped: BTreeMap<event::Type, Vec<BufferedEvent<'a>>>,
+    stream: BTreeMap<EventType, Vec<BufferedEvent<'a>>>,
+    attack_mapped: BTreeMap<EventType, Vec<BufferedEvent<'a>>>,
 }
 
 impl<'a> EventBuffer<'a> {
@@ -338,7 +337,7 @@ impl<'a> EventBuffer<'a> {
     ///
     /// # Panics
     /// Panics if events of `kind` do not have an identity key mapping.
-    fn take_stream_candidates(&mut self, kind: event::Type) -> Vec<StreamCandidate<'a>> {
+    fn take_stream_candidates(&mut self, kind: EventType) -> Vec<StreamCandidate<'a>> {
         let mut candidates: Vec<StreamCandidate<'a>> = self
             .stream
             .remove(&kind)
@@ -618,14 +617,14 @@ impl<'a, 't> Consolidator<'a, 't> {
     /// placing a single version of each event into `merged`.
     fn reconcile_streams(&mut self, merged: &mut Recording) {
         let challenge = self.ctx.challenge.challenge_type;
-        let stream_kinds: BTreeSet<event::Type> = self
+        let stream_kinds: BTreeSet<EventType> = self
             .base_buffer
             .stream
             .keys()
             .chain(self.target_buffer.stream.keys())
             .copied()
             .collect();
-        let attack_mapped_kinds: BTreeSet<event::Type> = self
+        let attack_mapped_kinds: BTreeSet<EventType> = self
             .base_buffer
             .attack_mapped
             .keys()
@@ -1168,7 +1167,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     fn place_paired_stream_event(
         &mut self,
         merged: &mut Recording,
-        kind: event::Type,
+        kind: EventType,
         base: &StreamCandidate<'t>,
         target: &StreamCandidate<'t>,
     ) {
@@ -1219,7 +1218,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     fn place_unpaired_stream_event(
         &mut self,
         merged: &mut Recording,
-        kind: event::Type,
+        kind: EventType,
         side: Side,
         candidate: &StreamCandidate<'t>,
     ) {
@@ -1262,7 +1261,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     fn match_unique(
         &mut self,
         merged: &mut Recording,
-        kind: event::Type,
+        kind: EventType,
         base: &[StreamCandidate<'t>],
         target: &[StreamCandidate<'t>],
     ) {
@@ -1299,7 +1298,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     fn match_temporal(
         &mut self,
         merged: &mut Recording,
-        kind: event::Type,
+        kind: EventType,
         window: Ticks,
         base: &[StreamCandidate<'t>],
         target: &[StreamCandidate<'t>],
@@ -1341,7 +1340,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     fn take_attack_mapped_candidates(
         &mut self,
         merged: &Recording,
-        kind: event::Type,
+        kind: EventType,
         side: Side,
     ) -> Vec<AttackMappedCandidate<'t>> {
         let mappings = self.mappings;
@@ -1408,7 +1407,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     fn place_attack_mapped_event(
         &mut self,
         merged: &mut Recording,
-        kind: event::Type,
+        kind: EventType,
         base: &[AttackMappedCandidate<'t>],
         target: &[AttackMappedCandidate<'t>],
     ) {

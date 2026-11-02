@@ -9,6 +9,7 @@ use super::client_consistency;
 use super::client_events::{Anomaly, BadDataClient, PluginInfo};
 use super::confidence;
 use super::consolidator::{self, Disagreement};
+use super::event::EventType;
 use super::merge_consistency;
 use super::{ReferenceTicks, RegisteredClient, StepResult};
 
@@ -287,25 +288,25 @@ pub enum QualityFlag {
         discarded_source: Source,
     },
     UnexpectedConflict {
-        event_type: i32,
+        event_type: EventType,
         attack_tick: Tick,
         kept_source: Source,
         discarded_source: Source,
     },
     LargeTemporalGap {
-        event_type: i32,
+        event_type: EventType,
         tick_gap: Ticks,
         base_tick: Tick,
         target_tick: Tick,
     },
     UnmappedCrossTickReference {
-        event_type: i32,
+        event_type: EventType,
         merged_tick: Tick,
         source_tick: Tick,
         resolved_tick: Tick,
     },
     AttackMappedNotFound {
-        event_type: i32,
+        event_type: EventType,
         source: Side,
         client_tick: Tick,
         client_attack_tick: Tick,
@@ -420,7 +421,7 @@ impl From<&consolidator::QualityFlag> for QualityFlag {
                         discarded_source,
                     },
                     Disagreement::AttackMapped { kind } => Self::UnexpectedConflict {
-                        event_type: *kind as i32,
+                        event_type: *kind,
                         attack_tick: tick,
                         kept_source,
                         discarded_source,
@@ -433,7 +434,7 @@ impl From<&consolidator::QualityFlag> for QualityFlag {
                 base_tick,
                 target_tick,
             } => Self::LargeTemporalGap {
-                event_type: *kind as i32,
+                event_type: *kind,
                 tick_gap: *gap,
                 base_tick: *base_tick,
                 target_tick: *target_tick,
@@ -444,7 +445,7 @@ impl From<&consolidator::QualityFlag> for QualityFlag {
                 source_tick,
                 resolved_tick,
             } => Self::UnmappedCrossTickReference {
-                event_type: *kind as i32,
+                event_type: *kind,
                 merged_tick: *merged_tick,
                 source_tick: *source_tick,
                 resolved_tick: *resolved_tick,
@@ -455,7 +456,7 @@ impl From<&consolidator::QualityFlag> for QualityFlag {
                 client_tick,
                 client_attack_tick,
             } => Self::AttackMappedNotFound {
-                event_type: *kind as i32,
+                event_type: *kind,
                 source: (*side).into(),
                 client_tick: *client_tick,
                 client_attack_tick: *client_attack_tick,
@@ -743,7 +744,7 @@ pub enum MergeConsistencyIssue {
         occurrences: Vec<NpcOccurrence>,
     },
     DuplicateStreamEvent {
-        event_type: i32,
+        event_type: EventType,
         identity_key: String,
         ticks: Vec<Tick>,
     },
@@ -770,7 +771,7 @@ pub enum MergeConsistencyIssue {
         target: Actor,
     },
     ExclusiveEventViolation {
-        exclusive_types: (i32, i32),
+        exclusive_types: (EventType, EventType),
         tick: Tick,
     },
 }
@@ -792,7 +793,7 @@ pub struct PlayerAttackOccurrence {
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhaseOccurrence {
-    pub event_type: i32,
+    pub event_type: EventType,
     pub identity_key: String,
     pub tick: Tick,
 }
@@ -818,7 +819,7 @@ impl From<&merge_consistency::PlayerAttackOccurrence> for PlayerAttackOccurrence
 impl From<&merge_consistency::PhaseOccurrence> for PhaseOccurrence {
     fn from(occurrence: &merge_consistency::PhaseOccurrence) -> Self {
         Self {
-            event_type: occurrence.kind as i32,
+            event_type: occurrence.kind,
             identity_key: occurrence.identity_key.to_string(),
             tick: occurrence.tick,
         }
@@ -845,7 +846,7 @@ impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
                 identity_key,
                 ticks,
             } => Self::DuplicateStreamEvent {
-                event_type: *kind as i32,
+                event_type: *kind,
                 identity_key: identity_key.to_string(),
                 ticks: ticks.clone(),
             },
@@ -886,7 +887,7 @@ impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
                 exclusive_types: (a, b),
                 tick,
             } => Self::ExclusiveEventViolation {
-                exclusive_types: (*a as i32, *b as i32),
+                exclusive_types: (*a, *b),
                 tick: *tick,
             },
         }

@@ -24,6 +24,7 @@ function makeNpc(
     spawnNpcId: npcId,
     spawnTick,
     spawnPoint: { x: 0, y: 0 },
+    dyingTick: 0,
     deathTick,
     deathPoint: { x: 0, y: 0 },
     type: RoomNpcType.BASIC,

@@ -16,7 +16,7 @@ use super::RegisteredClient;
 use super::alignment::{AlignmentEntry, AlignmentRange, AlignmentResult, LocalAlignment};
 use super::classification::{ClientClassification, ReferenceMethod};
 use super::client_events::{BadDataClient, ClientEvents, ReportedInfo};
-use super::event::{IdentityKey, event_type};
+use super::event::{EventType, IdentityKey, event_type};
 use super::mapping::{MergeMapping, TickMapping};
 use super::report::{
     ActorDef, ClientMetadata, MergeClassification, MergeStatus, QualityFlag, RejectionReason, Side,
@@ -265,16 +265,14 @@ struct TickSummary {
     players: Vec<PlayerSummary>,
     npcs: Vec<NpcSummary>,
     graphics: Vec<GraphicsSummary>,
-    event_counts: BTreeMap<&'static str, u32>,
+    event_counts: BTreeMap<EventType, u32>,
 }
 
 impl TickSummary {
     fn new(tick: Tick, state: &TickState) -> Self {
-        let mut event_counts: BTreeMap<&'static str, u32> = BTreeMap::new();
+        let mut event_counts: BTreeMap<EventType, u32> = BTreeMap::new();
         for event in &state.events {
-            *event_counts
-                .entry(event_type(&event.kind).as_str_name())
-                .or_default() += 1;
+            *event_counts.entry(event_type(&event.kind)).or_default() += 1;
         }
         Self {
             tick,
@@ -469,7 +467,7 @@ pub(super) enum StreamOutcome {
 
 #[derive(Debug)]
 pub(super) struct StreamResolution<'a> {
-    pub kind: event::Type,
+    pub kind: EventType,
     pub key: &'a IdentityKey,
     pub base: Option<StreamOccurrence>,
     pub target: Option<StreamOccurrence>,
@@ -480,7 +478,7 @@ pub(super) struct StreamResolution<'a> {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StreamReconciliationEntry {
-    event_type: &'static str,
+    event_type: EventType,
     identity_key: String,
     base: Option<StreamOccurrence>,
     target: Option<StreamOccurrence>,
@@ -516,7 +514,7 @@ impl From<&super::consolidator::AttackMappedCandidate<'_>> for AttackMappedCandi
 
 #[derive(Debug)]
 pub(super) struct AttackMappedResolution<'a> {
-    pub kind: event::Type,
+    pub kind: EventType,
     pub attack_tick: Tick,
     pub base: Option<&'a super::consolidator::AttackMappedCandidate<'a>>,
     pub target: Option<&'a super::consolidator::AttackMappedCandidate<'a>>,
@@ -528,7 +526,7 @@ pub(super) struct AttackMappedResolution<'a> {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AttackMappedResolutionEntry {
-    event_type: &'static str,
+    event_type: EventType,
     attack_tick: Tick,
     base: Option<AttackMappedCandidate>,
     target: Option<AttackMappedCandidate>,
@@ -540,7 +538,7 @@ struct AttackMappedResolutionEntry {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct AttackMappedDiscardEntry {
-    event_type: &'static str,
+    event_type: EventType,
     side: Side,
     client_tick: Tick,
     client_attack_tick: Tick,
@@ -852,7 +850,7 @@ impl Tracer {
         let Some(step) = &mut self.current_step else {
             return;
         };
-        let event_type = resolution.kind.as_str_name();
+        let event_type = resolution.kind;
         let identity_key = resolution.key.to_string();
         let tick_gap = resolution
             .base
@@ -886,7 +884,7 @@ impl Tracer {
             .attack_mapped
             .resolved
             .push(AttackMappedResolutionEntry {
-                event_type: resolution.kind.as_str_name(),
+                event_type: resolution.kind,
                 attack_tick: resolution.attack_tick,
                 base: resolution.base.map(AttackMappedCandidate::from),
                 target: resolution.target.map(AttackMappedCandidate::from),
@@ -898,7 +896,7 @@ impl Tracer {
 
     pub(super) fn record_attack_mapped_discard(
         &mut self,
-        kind: event::Type,
+        kind: EventType,
         side: super::consolidator::Side,
         client_tick: Tick,
         client_attack_tick: Tick,
@@ -912,7 +910,7 @@ impl Tracer {
             .attack_mapped
             .discarded
             .push(AttackMappedDiscardEntry {
-                event_type: kind.as_str_name(),
+                event_type: kind,
                 side: side.into(),
                 client_tick,
                 client_attack_tick,

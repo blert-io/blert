@@ -36,6 +36,7 @@ describe('buildNpcMapFromEvents', () => {
       spawnNpcId: 100,
       spawnTick: 5,
       spawnPoint: { x: 11, y: 21 },
+      dyingTick: 0,
       deathTick: 0,
       deathPoint: { x: 0, y: 0 },
       type: RoomNpcType.BASIC,

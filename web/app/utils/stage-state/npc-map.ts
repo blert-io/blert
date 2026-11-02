@@ -33,6 +33,7 @@ export class NpcMapBuilder {
           spawnNpcId: event.npc.id,
           spawnTick: event.tick,
           spawnPoint: { x: event.xCoord, y: event.yCoord },
+          dyingTick: 0,
           deathTick: 0,
           deathPoint: ZERO_COORDS,
           type: RoomNpcType.BASIC,

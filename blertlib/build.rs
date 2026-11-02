@@ -269,6 +269,7 @@ fn generate_npc_definitions() -> Result<()> {
         short_name: String,
         canonical_id: u64,
         size: u64,
+        death_animation: Option<u64>,
     }
 
     println!("cargo:rerun-if-changed={DEFINITIONS_FILE}");
@@ -304,6 +305,7 @@ fn generate_npc_definitions() -> Result<()> {
             short_name: short_name.to_string(),
             canonical_id,
             size,
+            death_animation: definition["deathAnimation"].as_u64(),
         };
         match groups
             .iter_mut()
@@ -333,8 +335,12 @@ fn generate_npc_definitions() -> Result<()> {
             .join(" | ");
         writeln!(
             out,
-            "        {patterns} => Some(&Definition {{\n            full_name: {:?},\n            short_name: {:?},\n            canonical_id: {},\n            size: {},\n        }}),",
-            definition.full_name, definition.short_name, definition.canonical_id, definition.size
+            "        {patterns} => Some(&Definition {{\n            full_name: {:?},\n            short_name: {:?},\n            canonical_id: {},\n            size: {},\n            death_animation: {:?},\n        }}),",
+            definition.full_name,
+            definition.short_name,
+            definition.canonical_id,
+            definition.size,
+            definition.death_animation
         )
         .map_err(std::io::Error::other)?;
     }
