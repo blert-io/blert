@@ -523,8 +523,8 @@ function CameraRig({
 
 function TexturePreloader({ urls }: { urls: string[] }) {
   useEffect(() => {
-    if (urls && urls.length > 0) {
-      useTexture.preload(urls);
+    for (const url of urls) {
+      useTexture.preload(url);
     }
   }, [urls]);
   return null;

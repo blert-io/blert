@@ -8,6 +8,7 @@ import {
   InfernoChallenge,
   MokhaiotlChallenge,
   RoomNpcMap as RawRoomNpcMap,
+  RoomNpcType,
   Skill,
   SkillLevel,
   SplitType,
@@ -43,6 +44,7 @@ import {
   computeNpcState,
   computePlayerState,
   EventState,
+  NpcProperties,
   PlayerStateMap,
   RoomNpcMap,
   StageState,
@@ -561,11 +563,13 @@ function buildEntitiesForTick(
 
     let nextPosition: Coords | undefined = undefined;
     let nextHitpoints: SkillLevel | undefined = undefined;
+    let nextShield: SkillLevel | undefined = undefined;
     if (tick < totalTicks - 1) {
       const nextState = npc.stateByTick[tick + 1];
       if (nextState) {
         nextPosition = nextState.position;
         nextHitpoints = nextState.hitpoints;
+        nextShield = npcShield(nextState.properties);
       }
     }
 
@@ -578,6 +582,11 @@ function buildEntitiesForTick(
       nextPosition,
     );
 
+    const shield = npcShield(ns.properties);
+    if (shield !== undefined) {
+      npcEntity.shield = { current: shield, next: nextShield };
+    }
+
     npcEntity = modifyEntity(tick, npcEntity) as NpcEntity;
     entitiesForTick.push(npcEntity);
   }
@@ -585,6 +594,21 @@ function buildEntitiesForTick(
   entitiesForTick.push(...customEntitiesForTick(tick));
 
   return entitiesForTick;
+}
+
+function npcShield(properties: NpcProperties): SkillLevel | undefined {
+  switch (properties.type) {
+    case RoomNpcType.BASIC:
+      return undefined;
+
+    case RoomNpcType.MOKHAIOTL:
+      return properties.value.shield !== undefined
+        ? SkillLevel.fromRaw(properties.value.shield)
+        : undefined;
+  }
+
+  const _exhaustive: never = properties;
+  return undefined;
 }
 
 /**

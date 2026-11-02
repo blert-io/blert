@@ -397,19 +397,31 @@ export default function Npc({
     currentPositionRef.current = basePosition;
 
     const sizeOffset = (entity.size - 1) / 2;
+    const restingHeight = spriteHeight / 2 - 0.1;
     const adjustedPosition = {
       x: basePosition.x + sizeOffset,
       y: basePosition.y + sizeOffset,
     };
 
     if (playing && npcEntity.options.customInterpolation) {
-      const { from, to, ease } = npcEntity.options.customInterpolation;
+      const { from, to, fromHeight, toHeight, ease } =
+        npcEntity.options.customInterpolation;
       const elapsed = currentTime - interpolationStateRef.current.startTime;
       const progress = Math.min(elapsed / config.tickDuration, 1);
       const easedProgress = ease ? ease(progress) : progress;
 
-      const start = new THREE.Vector3(...from);
-      const end = new THREE.Vector3(...to);
+      const start = new THREE.Vector3(
+        ...osrsToThreePosition(
+          { x: from.x + sizeOffset, y: from.y + sizeOffset },
+          fromHeight ?? restingHeight,
+        ),
+      );
+      const end = new THREE.Vector3(
+        ...osrsToThreePosition(
+          { x: to.x + sizeOffset, y: to.y + sizeOffset },
+          toHeight ?? restingHeight,
+        ),
+      );
       groupRef.current.position.lerpVectors(start, end, easedProgress);
     } else {
       let finalPosition = adjustedPosition;
@@ -426,10 +438,7 @@ export default function Npc({
         };
       }
 
-      const threePosition = osrsToThreePosition(
-        finalPosition,
-        spriteHeight / 2 - 0.1,
-      );
+      const threePosition = osrsToThreePosition(finalPosition, restingHeight);
       if (fanOutIndex !== undefined) {
         const targetPosition = new THREE.Vector3(...threePosition);
         groupRef.current.position.lerp(targetPosition, 0.1);

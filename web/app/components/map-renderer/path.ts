@@ -5,6 +5,38 @@ export interface Terrain {
 }
 
 /**
+ * Creates a terrain from an ASCII map grid, where each string is one row of
+ * tiles. Rows run from north to south, so the first character of the last row
+ * is the tile at `origin`. A `#` or a space is impassable, and so is any tile
+ * outside the grid.
+ *
+ * Passable tiles are represented by `.` or a hex digit of movement flags,
+ * as follows:
+ *
+ * - Bit 1: North wall
+ * - Bit 2: East wall
+ * - Bit 3: South wall
+ * - Bit 4: West wall
+ *
+ * `.` represents a tile without walls, equivalent to `0`, for readability.
+ *
+ * The path renderer currently ignores movement flags and treats each
+ * non-blocked tile as fully passable.
+ */
+export class GridTerrain implements Terrain {
+  constructor(
+    private readonly origin: Coords,
+    private readonly rows: string[],
+  ) {}
+
+  isPassable(coords: Coords): boolean {
+    const row = this.rows[this.rows.length - 1 - (coords.y - this.origin.y)];
+    const tile = row?.[coords.x - this.origin.x];
+    return tile !== undefined && tile !== '#' && tile !== ' ';
+  }
+}
+
+/**
  * Returns the visual path moved by an OSRS player in a single tick.
  *
  * This is not a pathfinding algorithm. `from` and `to` must be known player

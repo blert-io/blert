@@ -1,6 +1,10 @@
 import { Coords } from '@blert/common';
 
-import { Terrain, visualPath } from '@/components/map-renderer/path';
+import {
+  GridTerrain,
+  Terrain,
+  visualPath,
+} from '@/components/map-renderer/path';
 
 class MockTerrain implements Terrain {
   private readonly impassableTiles: Set<string>;
@@ -107,5 +111,32 @@ describe('visualPath', () => {
       const intermediate = { x: 10, y: 11 };
       expect(visualPath(from, to, terrain)).toEqual([from, intermediate, to]);
     });
+  });
+});
+
+describe('GridTerrain', () => {
+  it('treats open tiles as passable, including those with walls on their edges', () => {
+    const terrain = new GridTerrain({ x: 4121, y: 5620 }, [
+      '  ###',
+      '# 68.',
+      '.11..',
+    ]);
+
+    const tiles: string[] = [];
+    for (let y = 5623; y >= 5619; y--) {
+      let row = '';
+      for (let x = 4120; x <= 4126; x++) {
+        row += terrain.isPassable({ x, y }) ? '.' : '#';
+      }
+      tiles.push(row);
+    }
+
+    expect(tiles).toEqual([
+      '#######',
+      '#######',
+      '###...#',
+      '#.....#',
+      '#######',
+    ]);
   });
 });

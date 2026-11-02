@@ -1,10 +1,10 @@
-import { Coords } from '@blert/common';
+import { Coords, PrayerSet, SkillLevel } from '@blert/common';
 import {
   createInterpolationState,
   osrsToThreePosition,
   updateInterpolation,
 } from '../animation';
-import { PlayerEntity, ReplayConfig } from '../types';
+import { NpcEntity, PlayerEntity, ReplayConfig } from '../types';
 
 let mockTime = 0;
 
@@ -145,6 +145,44 @@ describe('Animation System', () => {
         mockTime,
       );
       expect(endResult.position).toEqual({ x: 2, y: 2 });
+    });
+
+    it('keeps the interpolation state of a teleport for the whole tick', () => {
+      const guardian = new NpcEntity(
+        { x: 4125, y: 5597 },
+        16659,
+        44854,
+        SkillLevel.fromRaw(0),
+        PrayerSet.fromRaw(0),
+        { x: 4130, y: 5593 },
+      );
+      const config = createTestConfig();
+
+      const initialResult = updateInterpolation(
+        guardian,
+        null,
+        config,
+        true,
+        0,
+      );
+      const midResult = updateInterpolation(
+        guardian,
+        initialResult.interpolationState,
+        config,
+        true,
+        300,
+      );
+
+      expect(midResult).toEqual({
+        position: { x: 4125, y: 5597 },
+        interpolationState: {
+          from: { x: 4125, y: 5597 },
+          to: { x: 4130, y: 5593 },
+          waypoints: [{ x: 4125, y: 5597 }],
+          startTime: 0,
+          tickDuration: 600,
+        },
+      });
     });
   });
 
