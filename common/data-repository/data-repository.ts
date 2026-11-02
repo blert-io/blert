@@ -987,6 +987,7 @@ function npcsFromProto(npcs: ChallengeData.StageNpc[]): RoomNpcMap {
         x: npc.getSpawnPoint()?.getX() ?? 0,
         y: npc.getSpawnPoint()?.getY() ?? 0,
       },
+      dyingTick: npc.getDyingTick(),
       deathTick: npc.getDeathTick(),
       deathPoint: {
         x: npc.getDeathPoint()?.getX() ?? 0,
@@ -1021,6 +1022,7 @@ function npcsToProto(npcs: RoomNpcMap): ChallengeData.StageNpc[] {
     protoNpc.setSpawnNpcId(npc.spawnNpcId);
     protoNpc.setRoomId(npc.roomId);
     protoNpc.setSpawnTick(npc.spawnTick);
+    protoNpc.setDyingTick(npc.dyingTick);
     protoNpc.setDeathTick(npc.deathTick);
 
     const spawnPoint = new CoordsProto();

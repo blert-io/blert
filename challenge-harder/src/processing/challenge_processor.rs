@@ -26,6 +26,9 @@ pub struct RoomNpc {
     pub room_id: u64,
     pub spawn_tick: u32,
     pub spawn_point: (i32, i32),
+    // TODO(frolv): Remove after initial deploy.
+    #[serde(default)]
+    pub dying_tick: u32,
     pub death_tick: u32,
     pub death_point: (i32, i32),
     pub kind: Option<event::npc::Type>,
@@ -58,6 +61,7 @@ impl RoomNpc {
                 i32::from(state.position.point.0),
                 i32::from(state.position.point.1),
             ),
+            dying_tick: npc.dying.map_or(0, |tick| tick.0),
             death_tick: death.map_or(0, |(tick, _)| tick.0),
             death_point: death.map_or((0, 0), |(_, point)| {
                 (i32::from(point.0), i32::from(point.1))
@@ -87,6 +91,7 @@ impl From<&RoomNpc> for challenge_data::StageNpc {
             spawn_npc_id: npc.spawn_npc_id,
             room_id: npc.room_id,
             spawn_tick: npc.spawn_tick,
+            dying_tick: npc.dying_tick,
             death_tick: npc.death_tick,
             spawn_point: Some(Coords {
                 x: npc.spawn_point.0,

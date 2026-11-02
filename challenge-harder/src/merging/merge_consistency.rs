@@ -2,7 +2,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use blert::proto::event;
 use blert::{
     Actor, EventKind, PartyIndex, PlayerAttack, PlayerCooldowns, RoomId, Stage, Tick, Ticks,
     Timeline,
@@ -10,7 +9,7 @@ use blert::{
 
 use crate::lifecycle::core::types::StageExt;
 
-use super::event::{IdentityKey, event_type, identity_key, stream_config};
+use super::event::{EventType, IdentityKey, event_type, identity_key, stream_config};
 
 /// Issues detected by the post-merge consistency checker.
 /// Each issue is a violation of a game invariant that the plugin enforces on a
@@ -26,7 +25,7 @@ pub enum MergeConsistencyIssue {
         occurrences: Vec<NpcOccurrence>,
     },
     DuplicateStreamEvent {
-        kind: event::Type,
+        kind: EventType,
         identity_key: IdentityKey,
         ticks: Vec<Tick>,
     },
@@ -54,7 +53,7 @@ pub enum MergeConsistencyIssue {
     /// Emitted when an event type appears on a tick alongside another event type
     /// it is mutually exclusive with (e.g. `TOB_BLOAT_DOWN` and `TOB_BLOAT_UP`).
     ExclusiveEventViolation {
-        exclusive_types: (event::Type, event::Type),
+        exclusive_types: (EventType, EventType),
         tick: Tick,
     },
 }
@@ -73,15 +72,15 @@ pub struct PlayerAttackOccurrence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseOccurrence {
-    pub kind: event::Type,
+    pub kind: EventType,
     pub identity_key: IdentityKey,
     pub tick: Tick,
 }
 
 /// Registry of event pairs that are mutually exclusive on a single tick.
-fn exclusive_event_pairs(stage: Stage) -> &'static [(event::Type, event::Type)] {
+fn exclusive_event_pairs(stage: Stage) -> &'static [(EventType, EventType)] {
     match stage {
-        Stage::TobBloat => &[(event::Type::TobBloatDown, event::Type::TobBloatUp)],
+        Stage::TobBloat => &[(EventType::TobBloatDown, EventType::TobBloatUp)],
         _ => &[],
     }
 }
@@ -181,7 +180,7 @@ fn check_stream_events(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIss
     // Every stream event without a temporal window is expected to appear at most
     // once per (type, identity). Actor lifecycle events are handled separately
     // by `check_actor_lifecycles` and excluded here to avoid double-reporting.
-    let mut occurrences: BTreeMap<event::Type, BTreeMap<IdentityKey, Vec<Tick>>> = BTreeMap::new();
+    let mut occurrences: BTreeMap<EventType, BTreeMap<IdentityKey, Vec<Tick>>> = BTreeMap::new();
 
     // For events with ordering rules, track the latest occurrence seen.
     // Each stage has at most one ordering sequence.
@@ -361,7 +360,7 @@ fn check_exclusive_event_types(timeline: &Timeline, issues: &mut Vec<MergeConsis
 
 #[cfg(test)]
 mod tests {
-    use blert::proto::Event;
+    use blert::proto::{Event, event};
     use blert::{ChallengeMode, ClientId, Item, PlayerAttacked, Rsn, item};
 
     use super::*;
@@ -688,7 +687,7 @@ mod tests {
         assert_eq!(
             check(&timeline),
             Err(vec![MergeConsistencyIssue::DuplicateStreamEvent {
-                kind: event::Type::TobVerzikPhase,
+                kind: EventType::TobVerzikPhase,
                 identity_key: IdentityKey::Number(1),
                 ticks: vec![Tick(2), Tick(5)],
             }]),
@@ -712,12 +711,12 @@ mod tests {
             check(&timeline),
             Err(vec![MergeConsistencyIssue::PhaseOutOfOrder {
                 previous: PhaseOccurrence {
-                    kind: event::Type::TobVerzikPhase,
+                    kind: EventType::TobVerzikPhase,
                     identity_key: IdentityKey::Number(3),
                     tick: Tick(5),
                 },
                 current: PhaseOccurrence {
-                    kind: event::Type::TobVerzikPhase,
+                    kind: EventType::TobVerzikPhase,
                     identity_key: IdentityKey::Number(2),
                     tick: Tick(10),
                 },
@@ -742,12 +741,12 @@ mod tests {
             check(&timeline),
             Err(vec![MergeConsistencyIssue::PhaseOutOfOrder {
                 previous: PhaseOccurrence {
-                    kind: event::Type::TobSoteMazeProc,
+                    kind: EventType::TobSoteMazeProc,
                     identity_key: IdentityKey::Number(1),
                     tick: Tick(8),
                 },
                 current: PhaseOccurrence {
-                    kind: event::Type::TobSoteMazeEnd,
+                    kind: EventType::TobSoteMazeEnd,
                     identity_key: IdentityKey::Number(0),
                     tick: Tick(10),
                 },
@@ -897,7 +896,7 @@ mod tests {
         assert_eq!(
             check(&timeline),
             Err(vec![MergeConsistencyIssue::ExclusiveEventViolation {
-                exclusive_types: (event::Type::TobBloatDown, event::Type::TobBloatUp),
+                exclusive_types: (EventType::TobBloatDown, EventType::TobBloatUp),
                 tick: Tick(2),
             }]),
         );

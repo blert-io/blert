@@ -537,6 +537,7 @@ export interface RoomNpc {
 
   spawnTick: number;
   spawnPoint: Coords;
+  dyingTick: number;
   deathTick: number;
   deathPoint: Coords;
 

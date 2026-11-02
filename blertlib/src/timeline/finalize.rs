@@ -38,6 +38,7 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
 
     timeline.npcs.retain(|_, npc| npc.spawn < start);
     for npc in timeline.npcs.values_mut() {
+        npc.dying.take_if(|dying| *dying >= start);
         npc.death.take_if(|death| *death >= start);
     }
 
@@ -49,14 +50,23 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
             for &room_id in state.npcs.keys() {
                 timeline.npcs.entry(room_id).or_insert(StageNpc {
                     spawn: tick,
+                    dying: None,
                     death: None,
                 });
             }
             for event in &state.events {
-                if let EventKind::NpcDeath(death) = event.kind
-                    && let Some(npc) = timeline.npcs.get_mut(&death.npc)
-                {
-                    npc.death = Some(tick);
+                match event.kind {
+                    EventKind::NpcDying(room_id) => {
+                        if let Some(npc) = timeline.npcs.get_mut(&room_id) {
+                            npc.dying = Some(tick);
+                        }
+                    }
+                    EventKind::NpcDeath(death) => {
+                        if let Some(npc) = timeline.npcs.get_mut(&death.npc) {
+                            npc.death = Some(tick);
+                        }
+                    }
+                    _ => {}
                 }
             }
         }

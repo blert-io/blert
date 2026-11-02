@@ -1,9 +1,11 @@
 //! Event classification by merge policy.
 
-use blert::proto::event;
+use std::fmt;
+
 use blert::{
     Actor, EventKind, NpcAttack, PartyIndex, PlayerAttack, Point, RoomId, SoteMazeEnd, Ticks,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::lifecycle::core::types::ChallengeType;
 
@@ -51,6 +53,7 @@ pub const fn classify(kind: &EventKind) -> Class {
         }
 
         EventKind::PlayerDeath(_)
+        | EventKind::NpcDying(_)
         | EventKind::NpcDeath(_)
         | EventKind::MaidenCrabLeak(_)
         | EventKind::BloatDown(_)
@@ -72,47 +75,96 @@ pub const fn classify(kind: &EventKind) -> Class {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EventType {
+    PlayerAttack,
+    PlayerDeath,
+    NpcDeath,
+    NpcAttack,
+    PlayerSpell,
+    NpcDying,
+
+    TobMaidenCrabLeak,
+    TobBloatDown,
+    TobBloatUp,
+    TobBloatHandsDrop,
+    TobBloatHandsSplat,
+    TobNyloWaveSpawn,
+    TobNyloWaveStall,
+    TobNyloCleanupEnd,
+    TobNyloBossSpawn,
+    TobSoteMazeProc,
+    TobSoteMazeEnd,
+    TobXarpusPhase,
+    TobXarpusExhumed,
+    TobXarpusSplat,
+    TobVerzikPhase,
+    TobVerzikBounce,
+    TobVerzikHeal,
+    TobVerzikDawn,
+    TobVerzikDawnDrop,
+
+    ColosseumHandicapChoice,
+    ColosseumDoomApplied,
+    ColosseumTotemHeal,
+    ColosseumSolDust,
+    ColosseumSolGrapple,
+    ColosseumSolPools,
+    ColosseumSolLasers,
+
+    MokhaiotlOrb,
+    MokhaiotlLarvaLeak,
+}
+
+impl fmt::Display for EventType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.serialize(f)
+    }
+}
+
 // TODO(frolv): Temporary mapping while the merger operates on events.
-pub(super) const fn event_type(kind: &EventKind) -> event::Type {
+pub(super) const fn event_type(kind: &EventKind) -> EventType {
     match kind {
-        EventKind::PlayerDeath(_) => event::Type::PlayerDeath,
-        EventKind::PlayerAttack(_) => event::Type::PlayerAttack,
-        EventKind::PlayerSpell(_) => event::Type::PlayerSpell,
-        EventKind::NpcDeath(_) => event::Type::NpcDeath,
-        EventKind::NpcAttack(_) => event::Type::NpcAttack,
+        EventKind::PlayerDeath(_) => EventType::PlayerDeath,
+        EventKind::PlayerAttack(_) => EventType::PlayerAttack,
+        EventKind::PlayerSpell(_) => EventType::PlayerSpell,
+        EventKind::NpcDying(_) => EventType::NpcDying,
+        EventKind::NpcDeath(_) => EventType::NpcDeath,
+        EventKind::NpcAttack(_) => EventType::NpcAttack,
 
-        EventKind::MaidenCrabLeak(_) => event::Type::TobMaidenCrabLeak,
-        EventKind::BloatDown(_) => event::Type::TobBloatDown,
-        EventKind::BloatUp => event::Type::TobBloatUp,
-        EventKind::BloatHandsDrop(_) => event::Type::TobBloatHandsDrop,
-        EventKind::BloatHandsSplat(_) => event::Type::TobBloatHandsSplat,
-        EventKind::NyloWaveSpawn(_) => event::Type::TobNyloWaveSpawn,
-        EventKind::NyloWaveStall(_) => event::Type::TobNyloWaveStall,
-        EventKind::NyloCleanupEnd => event::Type::TobNyloCleanupEnd,
-        EventKind::NyloBossSpawn => event::Type::TobNyloBossSpawn,
-        EventKind::SoteMazeProc(_) => event::Type::TobSoteMazeProc,
-        EventKind::SoteMazeEnd(_) => event::Type::TobSoteMazeEnd,
-        EventKind::XarpusPhase(_) => event::Type::TobXarpusPhase,
-        EventKind::XarpusExhumed(_) => event::Type::TobXarpusExhumed,
-        EventKind::XarpusSplat(_) => event::Type::TobXarpusSplat,
-        EventKind::VerzikPhase(_) => event::Type::TobVerzikPhase,
+        EventKind::MaidenCrabLeak(_) => EventType::TobMaidenCrabLeak,
+        EventKind::BloatDown(_) => EventType::TobBloatDown,
+        EventKind::BloatUp => EventType::TobBloatUp,
+        EventKind::BloatHandsDrop(_) => EventType::TobBloatHandsDrop,
+        EventKind::BloatHandsSplat(_) => EventType::TobBloatHandsSplat,
+        EventKind::NyloWaveSpawn(_) => EventType::TobNyloWaveSpawn,
+        EventKind::NyloWaveStall(_) => EventType::TobNyloWaveStall,
+        EventKind::NyloCleanupEnd => EventType::TobNyloCleanupEnd,
+        EventKind::NyloBossSpawn => EventType::TobNyloBossSpawn,
+        EventKind::SoteMazeProc(_) => EventType::TobSoteMazeProc,
+        EventKind::SoteMazeEnd(_) => EventType::TobSoteMazeEnd,
+        EventKind::XarpusPhase(_) => EventType::TobXarpusPhase,
+        EventKind::XarpusExhumed(_) => EventType::TobXarpusExhumed,
+        EventKind::XarpusSplat(_) => EventType::TobXarpusSplat,
+        EventKind::VerzikPhase(_) => EventType::TobVerzikPhase,
         EventKind::VerzikDawnDropped(_) | EventKind::VerzikDawnPickedUp(_) => {
-            event::Type::TobVerzikDawnDrop
+            EventType::TobVerzikDawnDrop
         }
-        EventKind::VerzikDawnHit(_) => event::Type::TobVerzikDawn,
-        EventKind::VerzikBounce(_) => event::Type::TobVerzikBounce,
-        EventKind::VerzikHeal(_) => event::Type::TobVerzikHeal,
+        EventKind::VerzikDawnHit(_) => EventType::TobVerzikDawn,
+        EventKind::VerzikBounce(_) => EventType::TobVerzikBounce,
+        EventKind::VerzikHeal(_) => EventType::TobVerzikHeal,
 
-        EventKind::HandicapChoice(_) => event::Type::ColosseumHandicapChoice,
-        EventKind::DoomApplied => event::Type::ColosseumDoomApplied,
-        EventKind::TotemHeal(_) => event::Type::ColosseumTotemHeal,
-        EventKind::SolDust(_) => event::Type::ColosseumSolDust,
-        EventKind::SolGrapple(_) => event::Type::ColosseumSolGrapple,
-        EventKind::SolPools(_) => event::Type::ColosseumSolPools,
-        EventKind::SolLasers(_) => event::Type::ColosseumSolLasers,
+        EventKind::HandicapChoice(_) => EventType::ColosseumHandicapChoice,
+        EventKind::DoomApplied => EventType::ColosseumDoomApplied,
+        EventKind::TotemHeal(_) => EventType::ColosseumTotemHeal,
+        EventKind::SolDust(_) => EventType::ColosseumSolDust,
+        EventKind::SolGrapple(_) => EventType::ColosseumSolGrapple,
+        EventKind::SolPools(_) => EventType::ColosseumSolPools,
+        EventKind::SolLasers(_) => EventType::ColosseumSolLasers,
 
-        EventKind::MokhaiotlOrb(_) => event::Type::MokhaiotlOrb,
-        EventKind::MokhaiotlLarvaLeak(_) => event::Type::MokhaiotlLarvaLeak,
+        EventKind::MokhaiotlOrb(_) => EventType::MokhaiotlOrb,
+        EventKind::MokhaiotlLarvaLeak(_) => EventType::MokhaiotlLarvaLeak,
     }
 }
 
@@ -144,10 +196,10 @@ const PLAYER_DEATH_RESPAWN_WINDOW: Ticks = Ticks(15);
 
 /// Returns how a stream event type is matched between clients, or `None` for
 /// non stream events.
-pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Option<StreamConfig> {
+pub(super) fn stream_config(challenge: ChallengeType, kind: EventType) -> Option<StreamConfig> {
     #[allow(clippy::match_same_arms)]
     let config = match kind {
-        event::Type::PlayerDeath => StreamConfig::new(
+        EventType::PlayerDeath => StreamConfig::new(
             match challenge {
                 ChallengeType::Cox => Some(PLAYER_DEATH_RESPAWN_WINDOW),
                 ChallengeType::Tob
@@ -161,34 +213,35 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: event::Type) -> Opti
             Some(Ticks(20)),
         ),
 
-        event::Type::NpcDeath => StreamConfig::new(Some(Ticks(8)), Some(Ticks(5))),
+        EventType::NpcDeath => StreamConfig::new(Some(Ticks(10)), Some(Ticks(5))),
+        EventType::NpcDying => StreamConfig::new(None, Some(Ticks(10))),
 
-        event::Type::TobMaidenCrabLeak => StreamConfig::new(None, Some(Ticks(10))),
+        EventType::TobMaidenCrabLeak => StreamConfig::new(None, Some(Ticks(10))),
 
-        event::Type::TobBloatDown | event::Type::TobBloatUp => {
+        EventType::TobBloatDown | EventType::TobBloatUp => {
             StreamConfig::new(Some(Ticks(32)), Some(Ticks(16)))
         }
 
-        event::Type::TobBloatHandsDrop | event::Type::TobBloatHandsSplat => {
+        EventType::TobBloatHandsDrop | EventType::TobBloatHandsSplat => {
             StreamConfig::new(Some(Ticks(5)), None)
         }
 
-        event::Type::TobNyloWaveSpawn => StreamConfig::new(None, Some(Ticks(10))),
-        event::Type::TobSoteMazeProc => StreamConfig::new(None, Some(Ticks(20))),
-        event::Type::TobSoteMazeEnd => StreamConfig::new(None, Some(Ticks(10))),
-        event::Type::TobXarpusPhase => StreamConfig::new(None, Some(Ticks(10))),
-        event::Type::TobXarpusExhumed => StreamConfig::new(Some(Ticks(16)), Some(Ticks(10))),
+        EventType::TobNyloWaveSpawn => StreamConfig::new(None, Some(Ticks(10))),
+        EventType::TobSoteMazeProc => StreamConfig::new(None, Some(Ticks(20))),
+        EventType::TobSoteMazeEnd => StreamConfig::new(None, Some(Ticks(10))),
+        EventType::TobXarpusPhase => StreamConfig::new(None, Some(Ticks(10))),
+        EventType::TobXarpusExhumed => StreamConfig::new(Some(Ticks(16)), Some(Ticks(10))),
 
         // Xarpus splats are permanent; the same coord across the fight always
         // refers to the same splat regardless of when each client first saw it.
-        event::Type::TobXarpusSplat => StreamConfig::new(None, None),
+        EventType::TobXarpusSplat => StreamConfig::new(None, None),
 
-        event::Type::TobVerzikPhase => StreamConfig::new(None, None),
+        EventType::TobVerzikPhase => StreamConfig::new(None, None),
 
         // Dawn drops repeat every 4 ticks with alternating dropped values.
-        event::Type::TobVerzikDawnDrop => StreamConfig::new(Some(Ticks(3)), None),
+        EventType::TobVerzikDawnDrop => StreamConfig::new(Some(Ticks(3)), None),
 
-        event::Type::TobVerzikHeal => StreamConfig::new(Some(Ticks(30)), Some(Ticks(10))),
+        EventType::TobVerzikHeal => StreamConfig::new(Some(Ticks(30)), Some(Ticks(10))),
         _ => return None,
     };
 
@@ -235,6 +288,7 @@ pub(super) fn identity_key(kind: &EventKind) -> IdentityKey {
 
     match kind {
         EventKind::PlayerDeath(player) => IdentityKey::Player(*player),
+        EventKind::NpcDying(npc) => IdentityKey::Npc(*npc),
         EventKind::NpcDeath(death) => IdentityKey::Npc(death.npc),
         EventKind::MaidenCrabLeak(crab) => IdentityKey::Npc(*crab),
         EventKind::BloatDown(_) | EventKind::BloatUp => IdentityKey::Singleton,

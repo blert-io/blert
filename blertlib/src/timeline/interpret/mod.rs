@@ -147,6 +147,7 @@ pub(super) fn interpret(
 
 struct NpcDeathInterpreter<'a> {
     ctx: &'a InterpretContext,
+    dying: BTreeMap<RoomId, Tick>,
     last_seen: BTreeMap<RoomId, Tick>,
 }
 
@@ -154,6 +155,7 @@ impl<'a> NpcDeathInterpreter<'a> {
     fn new(ctx: &'a InterpretContext) -> Self {
         Self {
             ctx,
+            dying: BTreeMap::new(),
             last_seen: BTreeMap::new(),
         }
     }
@@ -168,14 +170,28 @@ impl Interpreter for NpcDeathInterpreter<'_> {
             .collect::<BTreeSet<_>>();
         for (tick, state) in recording.states() {
             for (&room_id, npc) in &state.npcs {
-                if ids.contains(&npc.id) {
-                    self.last_seen.insert(room_id, tick);
+                if !ids.contains(&npc.id) {
+                    continue;
+                }
+                self.last_seen.insert(room_id, tick);
+                if let Some(animation) =
+                    npc::definition(npc.id).and_then(|definition| definition.death_animation)
+                    && state.raw_npcs.get(&room_id).and_then(|raw| raw.animation) == Some(animation)
+                {
+                    self.dying.entry(room_id).or_insert(tick);
                 }
             }
         }
     }
 
     fn apply(self, recording: &mut Recording) -> Option<Tick> {
+        let mut dying = self
+            .dying
+            .iter()
+            .map(|(&room_id, &tick)| (tick, room_id))
+            .collect::<Vec<_>>();
+        dying.sort();
+        let mut dying = dying.into_iter().peekable();
         let mut last_seen = self
             .last_seen
             .iter()
@@ -189,17 +205,24 @@ impl Interpreter for NpcDeathInterpreter<'_> {
         for (tick, state) in recording.states_mut() {
             let removed = state
                 .events
-                .extract_if(.., |event| {
-                    matches!(
-                        event.kind,
-                        EventKind::NpcDeath(death) if self.last_seen.contains_key(&death.npc)
-                    )
+                .extract_if(.., |event| match event.kind {
+                    EventKind::NpcDying(npc) => self.dying.contains_key(&npc),
+                    EventKind::NpcDeath(death) => self.last_seen.contains_key(&death.npc),
+                    _ => false,
                 })
                 .collect::<Vec<_>>();
-            let added = pending_deaths
-                .drain(..)
-                .map(|death| Event::recorded(self.ctx.client_id, EventKind::NpcDeath(death)))
-                .collect::<Vec<_>>();
+            let mut added = Vec::new();
+            while let Some((_, npc)) = dying.next_if(|&(dying_tick, _)| dying_tick == tick) {
+                added.push(Event::recorded(
+                    self.ctx.client_id,
+                    EventKind::NpcDying(npc),
+                ));
+            }
+            added.extend(
+                pending_deaths
+                    .drain(..)
+                    .map(|death| Event::recorded(self.ctx.client_id, EventKind::NpcDeath(death))),
+            );
             if changed.is_none() && removed != added {
                 changed = Some(tick);
             }

@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use blert::proto::Event;
+use blert::proto::event;
 use blert::proto::event::XarpusPhase;
 use blert::proto::event::player::DataSource;
 use blert::{Rsn, SkillLevel, VerzikBounce};
@@ -79,8 +80,8 @@ fn build_recording(
     )
 }
 
-fn event_types(recording: &Recording, tick: Tick) -> Vec<event::Type> {
-    let mut types: Vec<event::Type> = recording
+fn event_types(recording: &Recording, tick: Tick) -> Vec<EventType> {
+    let mut types: Vec<EventType> = recording
         .get_state(tick)
         .map(|state| {
             state
@@ -205,7 +206,7 @@ fn merges_tick_states_and_extracts_stream_events() {
 
     assert_eq!(
         event_types(&result.recording, Tick(2)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -351,7 +352,7 @@ fn populates_leading_or_trailing_ticks_from_the_target() {
 
     assert_eq!(
         event_types(&result.recording, Tick(7)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
     assert_eq!(result.quality_flags, vec![]);
     assert_eq!(result.counters, ReconciliationCounters::default());
@@ -409,7 +410,7 @@ fn deduplicates_deaths_globally_in_regular_challenges() {
     // Earliest observation wins.
     assert_eq!(
         event_types(&result.recording, Tick(2)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
     assert_eq!(event_types(&result.recording, Tick(20)), vec![]);
 
@@ -461,16 +462,16 @@ fn deduplicates_deaths_within_window_in_respawnable_challenges() {
     // The deaths on 22 and 40 are beyond the window and counted distinctly.
     assert_eq!(
         event_types(&result.recording, Tick(2)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
     assert_eq!(event_types(&result.recording, Tick(5)), vec![]);
     assert_eq!(
         event_types(&result.recording, Tick(22)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
     assert_eq!(
         event_types(&result.recording, Tick(40)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
 
     assert_eq!(result.quality_flags, vec![]);
@@ -551,11 +552,11 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
 
     assert_eq!(
         event_types(&result.recording, Tick(1)),
-        vec![event::Type::NpcDeath]
+        vec![EventType::NpcDeath]
     );
     assert_eq!(
         event_types(&result.recording, Tick(2)),
-        vec![event::Type::PlayerDeath]
+        vec![EventType::PlayerDeath]
     );
     assert_eq!(event_types(&result.recording, Tick(7)), vec![]);
     assert_eq!(event_types(&result.recording, Tick(25)), vec![]);
@@ -564,13 +565,13 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
         result.quality_flags,
         &[
             QualityFlag::LargeTemporalGap {
-                kind: event::Type::NpcDeath,
+                kind: EventType::NpcDeath,
                 gap: Ticks(6),
                 base_tick: Tick(1),
                 target_tick: Tick(7),
             },
             QualityFlag::LargeTemporalGap {
-                kind: event::Type::PlayerDeath,
+                kind: EventType::PlayerDeath,
                 gap: Ticks(23),
                 base_tick: Tick(2),
                 target_tick: Tick(25),
@@ -704,7 +705,7 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
 
     assert_eq!(
         event_types(&result.recording, Tick(3)),
-        vec![event::Type::TobXarpusPhase]
+        vec![EventType::TobXarpusPhase]
     );
     assert_eq!(event_types(&result.recording, Tick(12)), vec![]);
 
@@ -1149,7 +1150,7 @@ fn keeps_the_base_bounce_event_in_a_conflict_and_flags() {
             kept_source: Source::Client(BASE_CLIENT_ID),
             discarded_source: Source::Client(TARGET_CLIENT_ID),
             subject: Disagreement::AttackMapped {
-                kind: event::Type::TobVerzikBounce,
+                kind: EventType::TobVerzikBounce,
             },
         }]
     );
@@ -1255,7 +1256,7 @@ fn discards_bounce_events_whose_attack_does_not_exist() {
                 },
             },
             QualityFlag::AttackMappedNotFound {
-                kind: event::Type::TobVerzikBounce,
+                kind: EventType::TobVerzikBounce,
                 side: Side::Target,
                 client_tick: Tick(6),
                 client_attack_tick: Tick(5),

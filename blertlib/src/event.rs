@@ -64,6 +64,7 @@ pub enum EventKind {
     PlayerAttack(PlayerAttacked),
     PlayerSpell(PlayerCast),
 
+    NpcDying(RoomId),
     /// An NPC has despawned following the completion of its death animation.
     NpcDeath(NpcDeath),
     NpcAttack(NpcAttacked),
@@ -123,6 +124,7 @@ impl EventKind {
             Self::PlayerDeath(_)
             | Self::PlayerAttack(_)
             | Self::PlayerSpell(_)
+            | Self::NpcDying(_)
             | Self::NpcDeath(_)
             | Self::NpcAttack(_)
             | Self::MaidenCrabLeak(_)
