@@ -80,7 +80,7 @@ export async function rateLimitAll(
       const count =
         typeof countResult === 'number'
           ? countResult
-          : Number.parseInt(String(countResult ?? 0), 10) || 1;
+          : Number(countResult) || 1;
       const oldestScore = getOldestScore(oldestResult);
 
       const resetBase = Number.isFinite(oldestScore) ? oldestScore : now;

@@ -13,6 +13,8 @@ export async function connect(uri: string): Promise<RedisClientType> {
   const client: RedisClientType = createClient({
     url: uri,
     pingInterval: PING_INTERVAL_MS,
+    // Maintenance notifications are a Redis Enterprise feature.
+    maintNotifications: 'disabled',
   });
 
   client.on('connect', () => logger.info('redis_connected'));

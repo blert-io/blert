@@ -9,6 +9,8 @@ function getRedisClient(): RedisClientType {
   redisClient ??= createClient({
     url: process.env.BLERT_REDIS_URI,
     pingInterval: 3 * 60 * 1000,
+    // Maintenance notifications are a Redis Enterprise feature.
+    maintNotifications: 'disabled',
   });
   return redisClient;
 }

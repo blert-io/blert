@@ -386,6 +386,7 @@ export class RemoteChallengeManager extends ChallengeManager {
     const processedFlags = processedResults.map(redisBoolean);
 
     const multi = this.redisClient.multi();
+    const pendingMetadata: { streamKey: string; version: number | null }[] = [];
     let hasWrites = false;
 
     stageEntries.forEach(({ stage, stageEvents, attempt }, index) => {
@@ -412,7 +413,7 @@ export class RemoteChallengeManager extends ChallengeManager {
           recordingConfigVersion,
         };
         multi.xAdd(streamKey, '*', stageStreamToRecord(metadata));
-        client.recordMetadataWritten(streamKey, recordingConfigVersion);
+        pendingMetadata.push({ streamKey, version: recordingConfigVersion });
         hasWrites = true;
       }
 
@@ -432,6 +433,11 @@ export class RemoteChallengeManager extends ChallengeManager {
 
     if (hasWrites) {
       await multi.exec();
+      // Metadata only counts as written once the transaction has succeeded, so
+      // a failed batch resends it with the next one.
+      for (const { streamKey, version } of pendingMetadata) {
+        client.recordMetadataWritten(streamKey, version);
+      }
     }
   }
 
