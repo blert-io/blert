@@ -12,24 +12,6 @@
   gap: 8px;
   user-select: none;
 
-  .arrow {
-    width: 40px;
-    font-size: 28px;
-    color: var(--blert-font-color-primary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    z-index: 1;
-
-    &:not(:disabled):hover {
-      color: var(--blert-purple);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  }
-
   .wrapper {
     position: relative;
     overflow: hidden;
@@ -42,10 +24,6 @@
     justify-content: center;
     touch-action: pan-y pinch-zoom;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-    &.dragging {
-      transition: none;
-    }
   }
 
   // A skeleton of a player card; the outline fills in on hover.
@@ -187,42 +165,6 @@
     :global([data-theme='aero']) & {
       @include aeroButton;
       border-radius: 999px;
-    }
-  }
-
-  .footer {
-    margin-top: 8px;
-
-    .dots {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      z-index: 1;
-
-      .dot {
-        padding: 1px;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--blert-font-color-primary);
-        opacity: 0.5;
-        transition: all 0.2s ease;
-
-        &.active {
-          opacity: 1;
-          background: var(--blert-purple);
-        }
-      }
-    }
-
-    .addPlayer {
-      margin-top: 8px;
-      min-height: 40px;
-      width: 100%;
-
-      button {
-        flex-direction: row;
-      }
     }
   }
 }
