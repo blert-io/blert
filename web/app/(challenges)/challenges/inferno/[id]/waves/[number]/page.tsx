@@ -2,24 +2,22 @@
 
 import {
   ChallengeType,
-  EventType,
   InfernoChallenge,
   Npc,
-  NpcId,
-  NpcSpawnEvent,
   Stage,
   stageName,
 } from '@blert/common';
 import { notFound, useRouter } from 'next/navigation';
 import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 
-import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview, {
   BossFightOverviewSection,
   IdleTicksContent,
   SpawnContent,
 } from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
@@ -91,7 +89,6 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
   const stage = Stage.INFERNO_WAVE_1 + waveIndex;
   const {
     challenge,
-    eventsByType,
     playerState,
     npcState,
     bcf,
@@ -100,6 +97,9 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
     isLive,
     isStreaming,
   } = useStageEvents<InfernoChallenge>(stage);
+
+  const timeline = useBossPageTimeline(bcf);
+  const splits = useMemo(() => timeline.display.getSplits(), [timeline]);
 
   const {
     currentTick,
@@ -150,72 +150,37 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
   );
   const preloads = usePreloads(npcState, isLive);
 
-  const { sections, splits } = useMemo(() => {
+  const sections = useMemo((): BossFightOverviewSection[] => {
     if (stage !== Stage.INFERNO_WAVE_69) {
-      return { sections: [], splits: [] };
+      return [];
     }
 
-    const sections: BossFightOverviewSection[] = [];
-    let setNumber = 0;
-    const splitsMap = new Map<number, string>();
-
-    eventsByType[EventType.NPC_SPAWN]
-      ?.filter((evt) => {
-        const npcId = (evt as NpcSpawnEvent).npc.id as NpcId;
-        return (
-          npcId === NpcId.JAL_ZEK_ZUK ||
-          npcId === NpcId.JALTOK_JAD_ZUK ||
-          npcId === NpcId.JAL_MEJJAK
-        );
-      })
-      .forEach((evt) => {
-        switch ((evt as NpcSpawnEvent).npc.id as NpcId) {
-          case NpcId.JAL_ZEK_ZUK:
-            setNumber++;
-            splitsMap.set(evt.tick, `Set ${setNumber}`);
-            return;
-          case NpcId.JALTOK_JAD_ZUK:
-            splitsMap.set(evt.tick, 'Jad');
-            return;
-          case NpcId.JAL_MEJJAK:
-            splitsMap.set(evt.tick, 'Healers');
-            return;
-        }
-      });
-
-    const zukSplits: TimelineSplit[] = Array.from(splitsMap.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([tick, label]) => ({
-        tick,
-        splitName: label,
-      }));
-
-    sections.push({
-      span: 2,
-      title: 'Splits',
-      content: (
-        <div className={styles.zukSplits}>
-          {zukSplits.map((split) => (
-            <div key={split.tick} className={styles.splitItem}>
-              <div className={styles.splitInfo}>
-                <span className={styles.splitLabel}>{split.splitName}</span>
-                <span className={styles.splitTick}>Tick {split.tick}</span>
+    return [
+      {
+        span: 2,
+        title: 'Splits',
+        content: (
+          <div className={styles.zukSplits}>
+            {splits.map((split) => (
+              <div key={split.tick} className={styles.splitItem}>
+                <div className={styles.splitInfo}>
+                  <span className={styles.splitLabel}>{split.splitName}</span>
+                  <span className={styles.splitTick}>Tick {split.tick}</span>
+                </div>
+                <button
+                  className={styles.splitTime}
+                  onClick={() => setTick(split.tick)}
+                >
+                  <i className="fas fa-play" />
+                  {ticksToFormattedSeconds(split.tick)}
+                </button>
               </div>
-              <button
-                className={styles.splitTime}
-                onClick={() => setTick(split.tick)}
-              >
-                <i className="fas fa-play" />
-                {ticksToFormattedSeconds(split.tick)}
-              </button>
-            </div>
-          ))}
-        </div>
-      ),
-    });
-
-    return { sections, splits: zukSplits };
-  }, [stage, eventsByType, setTick]);
+            ))}
+          </div>
+        ),
+      },
+    ];
+  }, [stage, splits, setTick]);
 
   const idleTickCounts = useMemo(
     () => computeIdleTickCounts(playerState),
@@ -273,7 +238,7 @@ export default function InfernoWavePage({ params }: InfernoWavePageProps) {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           liveFollowing={following}
         />
       </div>

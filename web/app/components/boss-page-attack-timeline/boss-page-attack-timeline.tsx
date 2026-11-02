@@ -1,9 +1,9 @@
 'use client';
 
 import {
-  BCFAction,
   BCFAttackAction,
   BCFPlayerAction,
+  BCFResolver,
   BlertChartFormat,
 } from '@blert/bcf';
 import { Npc, PlayerAttack, Skill, SkillLevel } from '@blert/common';
@@ -22,6 +22,7 @@ import {
   bcfToPlayerAttack,
   CombatStyle,
   getAttackStyle,
+  TimelineDisplay,
 } from '@/components/attack-timeline';
 import AttackTimeline, {
   ActionEvaluation,
@@ -148,6 +149,9 @@ function isBlunder(
   return false;
 }
 
+const SHOW_KITS_SETTING = { key: 'timeline-show-kits', defaultValue: true };
+const SHOW_SPELLS_SETTING = { key: 'timeline-show-spells', defaultValue: true };
+
 export type CustomStateEntry = {
   playerName?: string;
   npcRoomId?: number;
@@ -155,8 +159,37 @@ export type CustomStateEntry = {
   states: CustomState[];
 };
 
+export type BossPageTimeline = {
+  resolver: BCFResolver;
+  display: TimelineDisplay;
+};
+
+export function useBossPageTimeline(bcf: BlertChartFormat): BossPageTimeline {
+  const [showKits] = useSetting<boolean>(SHOW_KITS_SETTING);
+  const [showSpells] = useSetting<boolean>(SHOW_SPELLS_SETTING);
+
+  return useMemo(() => {
+    const resolver = new BCFResolver(
+      transformBcf(bcf, (action) => {
+        if (!showSpells && action.type === 'spell') {
+          return null;
+        }
+        if (
+          !showKits &&
+          action.type === 'attack' &&
+          action.weaponId !== undefined
+        ) {
+          return { ...action, weaponId: normalizeItemId(action.weaponId) };
+        }
+        return action;
+      }),
+    );
+    return { resolver, display: new TimelineDisplay(resolver) };
+  }, [bcf, showKits, showSpells]);
+}
+
 type BossPageAttackTimelineProps = {
-  bcf: BlertChartFormat;
+  timeline: BossPageTimeline;
   playerState: PlayerStateMap;
   npcs: RoomNpcMap;
   cellSize?: number;
@@ -182,14 +215,8 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
   });
   const [cardWidth, setCardWidth] = useState(0);
 
-  const [showKits, setShowKits] = useSetting<boolean>({
-    key: 'timeline-show-kits',
-    defaultValue: true,
-  });
-  const [showSpells, setShowSpells] = useSetting<boolean>({
-    key: 'timeline-show-spells',
-    defaultValue: true,
-  });
+  const [showKits, setShowKits] = useSetting<boolean>(SHOW_KITS_SETTING);
+  const [showSpells, setShowSpells] = useSetting<boolean>(SHOW_SPELLS_SETTING);
   const [expanded, setExpanded] = useSetting<boolean>({
     key: 'timeline-expanded',
     defaultValue: false,
@@ -281,26 +308,6 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
     setShowSettings(true);
   };
 
-  const transformAction = useMemo(() => {
-    return (action: BCFAction): BCFAction | null => {
-      if (!showSpells && action.type === 'spell') {
-        return null;
-      }
-      if (
-        !showKits &&
-        action.type === 'attack' &&
-        action.weaponId !== undefined
-      ) {
-        return { ...action, weaponId: normalizeItemId(action.weaponId) };
-      }
-      return action;
-    };
-  }, [showSpells, showKits]);
-
-  const bcf = useMemo(
-    () => transformBcf(props.bcf, transformAction),
-    [props.bcf, transformAction],
-  );
   const normalizedParty = useMemo(() => {
     return new Map(
       Array.from(props.playerState.keys()).map((name) => [
@@ -415,7 +422,8 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
   }
 
   const sharedRendererProps = {
-    bcf,
+    resolver: props.timeline.resolver,
+    display: props.timeline.display,
     selectedActorId,
     onActorSelect,
     actionEvaluator,
@@ -502,7 +510,7 @@ export function BossPageAttackTimeline(props: BossPageAttackTimelineProps) {
         width={settingsMenuWidth}
       />
       <BossPageTooltip
-        bcf={bcf}
+        resolver={props.timeline.resolver}
         playerState={props.playerState}
         npcs={props.npcs}
         normalizedParty={normalizedParty}

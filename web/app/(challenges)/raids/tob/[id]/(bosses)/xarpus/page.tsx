@@ -12,7 +12,9 @@ import { useCallback, useContext, useMemo } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
 import BossPageParty from '@/components/boss-page-party';
@@ -85,6 +87,8 @@ export default function XarpusPage() {
     isLive,
     isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_XARPUS);
+
+  const timeline = useBossPageTimeline(bcf);
 
   const {
     currentTick,
@@ -358,7 +362,7 @@ export default function XarpusPage() {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           liveFollowing={following}
         />
       </div>

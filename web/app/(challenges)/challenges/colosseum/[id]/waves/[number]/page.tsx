@@ -20,6 +20,7 @@ import BossFightOverview, {
 } from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
   CustomStateEntry,
+  useBossPageTimeline,
 } from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
@@ -116,6 +117,9 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     isLive,
     isStreaming,
   } = useStageEvents<ColosseumChallenge>(stage);
+
+  const timeline = useBossPageTimeline(bcf);
+  const splits = useMemo(() => timeline.display.getSplits(), [timeline]);
 
   const { selectedActor, setSelectedActor } = useContext(ActorContext);
 
@@ -331,19 +335,6 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
 
   const username = challenge.party[0].username;
 
-  const timelineSplits: { tick: number; splitName: string }[] = [];
-  if (waveNumber < 12) {
-    const reinforcementPhase = bcf.timeline.phases?.find(
-      (p) => p.phaseType === 'COLOSSEUM_REINFORCEMENTS',
-    );
-    if (reinforcementPhase !== undefined) {
-      timelineSplits.push({
-        tick: reinforcementPhase.tick,
-        splitName: 'Reinforcements',
-      });
-    }
-  }
-
   const sections = [];
   if (waveInfo !== undefined || handicapsSoFar.length > 0) {
     sections.push({
@@ -421,7 +412,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           customStates={customStates}
           liveFollowing={following}
         />
@@ -454,7 +445,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
         currentTick={currentTick}
         updateTick={setTick}
         updatePlayingState={setPlaying}
-        splits={timelineSplits}
+        splits={splits}
         following={following}
         onJumpToLive={isStreaming ? jumpToLive : undefined}
       />

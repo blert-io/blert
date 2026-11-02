@@ -5,7 +5,9 @@ import { useContext, useMemo } from 'react';
 
 import { ActorContext } from '@/(challenges)/raids/tfa/context';
 import BossFightOverview from '@/components/boss-fight-overview';
-import BossPageAttackTimeline from '@/components/boss-page-attack-timeline';
+import BossPageAttackTimeline, {
+  useBossPageTimeline,
+} from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
 import BossPageReplay from '@/components/boss-page-replay';
@@ -54,6 +56,9 @@ export default function GuardianPage() {
     isStreaming,
   } = useStageEvents<TfaRaid>(Stage.TFA_GUARDIAN);
 
+  const timeline = useBossPageTimeline(bcf);
+  const splits = useMemo(() => timeline.display.getSplits(), [timeline]);
+
   const {
     currentTick,
     setTick,
@@ -101,7 +106,7 @@ export default function GuardianPage() {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           liveFollowing={following}
         />
       </div>
@@ -133,6 +138,7 @@ export default function GuardianPage() {
         currentTick={currentTick}
         updateTick={setTick}
         updatePlayingState={setPlaying}
+        splits={splits}
         following={following}
         onJumpToLive={isStreaming ? jumpToLive : undefined}
       />

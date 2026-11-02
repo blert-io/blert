@@ -19,6 +19,7 @@ import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
   CustomStateEntry,
+  useBossPageTimeline,
 } from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageParty from '@/components/boss-page-party';
@@ -99,6 +100,8 @@ export default function VerzikPage() {
     isLive,
     isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_VERZIK);
+
+  const timeline = useBossPageTimeline(bcf);
 
   const {
     currentTick,
@@ -530,7 +533,7 @@ export default function VerzikPage() {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           customStates={customStates}
           liveFollowing={following}
         />

@@ -1,6 +1,6 @@
 'use client';
 
-import { BCFNpcAttackAction, BCFResolver, BlertChartFormat } from '@blert/bcf';
+import { BCFNpcAttackAction, BCFResolver } from '@blert/bcf';
 import {
   DataSource,
   NpcAttack,
@@ -618,7 +618,7 @@ function TooltipRenderer({
 }
 
 type BossPageTooltipProps = {
-  bcf: BlertChartFormat;
+  resolver: BCFResolver;
   playerState: PlayerStateMap;
   npcs: RoomNpcMap;
   normalizedParty: Map<string, string>;
@@ -628,7 +628,7 @@ type BossPageTooltipProps = {
 };
 
 export function BossPageTooltip({
-  bcf,
+  resolver,
   playerState,
   npcs,
   normalizedParty,
@@ -636,8 +636,6 @@ export function BossPageTooltip({
   stateProvider,
   onActorSelect,
 }: BossPageTooltipProps) {
-  const resolver = useMemo(() => new BCFResolver(bcf), [bcf]);
-
   const customRows = useMemo(() => {
     const map = new Map<string, CustomRow>();
     customRowsProp?.forEach((row, i) => map.set(`custom:${i}`, row));

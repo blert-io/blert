@@ -18,6 +18,7 @@ import { useCallback, useContext, useMemo } from 'react';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
   CustomStateEntry,
+  useBossPageTimeline,
 } from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
 import BossPageDPSTimeline from '@/components/boss-page-dps-timeline';
@@ -122,6 +123,9 @@ export default function BloatPage() {
     isStreaming,
   } = useStageEvents<TobRaid>(Stage.TOB_BLOAT);
 
+  const timeline = useBossPageTimeline(bcf);
+  const splits = useMemo(() => timeline.display.getSplits(), [timeline]);
+
   const {
     currentTick,
     advanceTick,
@@ -148,7 +152,7 @@ export default function BloatPage() {
     EventType.TOB_BLOAT_HANDS_SPLAT,
   );
 
-  const { downInfo, splits } = useMemo(() => {
+  const downInfo = useMemo(() => {
     const bloat: EnhancedRoomNpc | null =
       npcState.values().next().value ?? null;
 
@@ -159,13 +163,7 @@ export default function BloatPage() {
       endHitpoints: undefined,
     }));
 
-    const splits = downInfo.map((down, i) => ({
-      tick: down.tick,
-      splitName: `Down ${i + 1}`,
-    }));
-
     bloatUpEvents.forEach((evt, i) => {
-      splits.push({ tick: evt.tick, splitName: 'Moving' });
       downInfo[i].endHitpoints = bloat?.stateByTick[evt.tick]?.hitpoints;
     });
 
@@ -174,7 +172,7 @@ export default function BloatPage() {
         bloat?.stateByTick[totalTicks - 1]?.hitpoints;
     }
 
-    return { downInfo, splits };
+    return downInfo;
   }, [bloatDownEvents, bloatUpEvents, npcState, totalTicks]);
 
   const bossHealthChartData = useMemo(() => {
@@ -398,7 +396,7 @@ export default function BloatPage() {
           playerState={playerState}
           updateTickOnPage={setTick}
           npcs={npcState}
-          bcf={bcf}
+          timeline={timeline}
           customStates={customStates}
           liveFollowing={following}
         />
