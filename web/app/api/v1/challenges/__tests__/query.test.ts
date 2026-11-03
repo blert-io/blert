@@ -151,6 +151,7 @@ describe('parseChallengeQuery', () => {
         'tob.nylocasPostCapStalls': '0',
         'tob.xarpusHealing': '>100',
         'tob.verzikRedsCount': '<5',
+        'tfa.guardianDownCount': '<=2',
         'mok.maxCompletedDelve': '30..50',
         'mok.avgDeepDelveTicks': '<=120',
       }),
@@ -163,6 +164,9 @@ describe('parseChallengeQuery', () => {
         nylocasPostCapStalls: ['==', 0],
         xarpusHealing: ['>', 100],
         verzikRedsCount: ['<', 5],
+      },
+      tfa: {
+        guardianDownCount: ['<=', 2],
       },
       mokhaiotl: {
         maxCompletedDelve: ['range', [30, 50]],
@@ -310,6 +314,7 @@ describe('parseChallengeQuery', () => {
     { stage: '99999' },
     { challengeTicks: '99999999999' },
     { 'tob.bloatDownCount': '9002' },
+    { 'tfa.guardianDownCount': '9002' },
     { 'split:99999': '1' },
     { before: '1', after: '1' },
     { sort: 'challengeTicks' },

@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { ReactNode } from 'react';
+import { CSSProperties, ReactNode } from 'react';
 
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
@@ -50,8 +50,8 @@ export function BossFightOverview({
               key={section.title}
               className={styles.section}
               style={
-                section.span
-                  ? { gridColumn: `span ${section.span}` }
+                section.span !== undefined
+                  ? ({ '--span': section.span } as CSSProperties)
                   : undefined
               }
             >

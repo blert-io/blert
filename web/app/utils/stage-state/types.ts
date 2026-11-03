@@ -5,6 +5,7 @@ import {
   Coords,
   EquipmentSlot,
   Event,
+  GuardianProperties,
   MaidenCrabProperties,
   MokhaiotlProperties,
   NpcAttackAction,
@@ -58,7 +59,8 @@ export type NpcState = {
 
 export type NpcProperties =
   | { type: RoomNpcType.BASIC }
-  | { type: RoomNpcType.MOKHAIOTL; value: MokhaiotlProperties };
+  | { type: RoomNpcType.MOKHAIOTL; value: MokhaiotlProperties }
+  | { type: RoomNpcType.GUARDIAN; value: GuardianProperties };
 
 export type EnhancedRoomNpc = RoomNpc & {
   stateByTick: Nullable<NpcState>[];

@@ -563,6 +563,10 @@ export type TobQueryableField = `tob:${keyof Pick<
   | 'xarpusHealing'
   | 'verzikRedsCount'
 >}`;
+export type TfaQueryableField = `tfa:${keyof Pick<
+  TfaChallengeStats,
+  'guardianDownCount'
+>}`;
 export type MokhaiotlQueryableField = `mok:${keyof Pick<
   MokhaiotlChallengeStats,
   'delve' | 'maxCompletedDelve' | 'avgDeepDelveTicks'
@@ -571,6 +575,7 @@ export type QueryableField =
   | BasicSortableFields
   | SplitSortableFields
   | TobQueryableField
+  | TfaQueryableField
   | MokhaiotlQueryableField;
 
 export type SingleOrArray<T> = T | T[];
@@ -584,6 +589,11 @@ export type TobQuery = {
   verzikRedsCount?: Comparator<number>;
 };
 
+export type TfaQuery = {
+  route?: Stage[];
+  guardianDownCount?: Comparator<number>;
+};
+
 export type ColosseumQuery = {
   has?: Comparator<Handicap>;
   /** Leveled handicap filters. */
@@ -593,10 +603,6 @@ export type ColosseumQuery = {
 export type MokhaiotlQuery = {
   maxCompletedDelve?: Comparator<number>;
   avgDeepDelveTicks?: Comparator<number>;
-};
-
-export type TfaQuery = {
-  route?: Stage[];
 };
 
 export type SpawnQuery = {
@@ -659,6 +665,11 @@ function shorthandToFullField(field: string): [string, string] {
   if (field.startsWith('tob:')) {
     const tobField = field.slice(4);
     return [tobField, 'tob_challenge_stats'];
+  }
+
+  if (field.startsWith('tfa:')) {
+    const tfaField = field.slice(4);
+    return [tfaField, 'tfa_challenge_stats'];
   }
 
   if (field.startsWith('mok:')) {
@@ -834,6 +845,62 @@ function applyTobFilters(
   }
 }
 
+function applyTfaFilters(
+  tfa: TfaQuery,
+  baseTable: postgres.Helper<string>,
+  joins: Join[],
+  conditions: postgres.Fragment[],
+) {
+  const statsConditions: postgres.Fragment[] = [];
+
+  if (tfa.route !== undefined && tfa.route.length > 0) {
+    conditions.push(
+      comparatorToSql(baseTable, 'type', ['==', ChallengeType.TFA]),
+      comparatorToSql(baseTable, 'stage', ['>=', Math.max(...tfa.route)]),
+    );
+
+    const choices: [number, number][] = [];
+    for (const boss of tfa.route) {
+      const row = TFA_ROWS.findIndex((stages) => stages.includes(boss));
+      if (TFA_ROWS[row].length === 2) {
+        choices.push([row - 1, TFA_ROWS[row].indexOf(boss)]);
+      }
+    }
+
+    if (choices.length > 0) {
+      const doorRows = TFA_ROWS.filter((stages) => stages.length === 2).length;
+      const routes: number[] = [];
+      for (let route = 0; route < 1 << doorRows; route++) {
+        if (choices.every(([bit, side]) => ((route >> bit) & 1) === side)) {
+          routes.push(route);
+        }
+      }
+      statsConditions.push(
+        comparatorToSql(sql('tfa_challenge_stats'), 'route', ['in', routes]),
+      );
+    }
+  }
+
+  if (tfa.guardianDownCount !== undefined) {
+    statsConditions.push(
+      comparatorToSql(
+        sql('tfa_challenge_stats'),
+        'guardian_down_count',
+        tfa.guardianDownCount,
+      ),
+    );
+  }
+
+  if (statsConditions.length > 0) {
+    joins.push({
+      table: sql`tfa_challenge_stats`,
+      on: sql`${baseTable}.id = tfa_challenge_stats.challenge_id`,
+      tableName: 'tfa_challenge_stats',
+    });
+    conditions.push(...statsConditions);
+  }
+}
+
 function applyMokhaiotlFilters(
   mokhaiotl: MokhaiotlQuery,
   baseTable: postgres.Helper<string>,
@@ -866,50 +933,6 @@ function applyMokhaiotlFilters(
       comparatorToSql(sql('mokhaiotl_challenge_stats'), column, comparator),
     );
   }
-}
-
-function applyTfaFilters(
-  tfa: TfaQuery,
-  baseTable: postgres.Helper<string>,
-  joins: Join[],
-  conditions: postgres.Fragment[],
-) {
-  if (tfa.route === undefined || tfa.route.length === 0) {
-    return;
-  }
-
-  conditions.push(
-    comparatorToSql(baseTable, 'type', ['==', ChallengeType.TFA]),
-    comparatorToSql(baseTable, 'stage', ['>=', Math.max(...tfa.route)]),
-  );
-
-  const choices: [number, number][] = [];
-  for (const boss of tfa.route) {
-    const row = TFA_ROWS.findIndex((stages) => stages.includes(boss));
-    if (TFA_ROWS[row].length === 2) {
-      choices.push([row - 1, TFA_ROWS[row].indexOf(boss)]);
-    }
-  }
-  if (choices.length === 0) {
-    return;
-  }
-
-  const doorRows = TFA_ROWS.filter((stages) => stages.length === 2).length;
-  const routes: number[] = [];
-  for (let route = 0; route < 1 << doorRows; route++) {
-    if (choices.every(([bit, side]) => ((route >> bit) & 1) === side)) {
-      routes.push(route);
-    }
-  }
-
-  joins.push({
-    table: sql`tfa_challenge_stats`,
-    on: sql`${baseTable}.id = tfa_challenge_stats.challenge_id`,
-    tableName: 'tfa_challenge_stats',
-  });
-  conditions.push(
-    comparatorToSql(sql('tfa_challenge_stats'), 'route', ['in', routes]),
-  );
 }
 
 function applyColosseumFilters(

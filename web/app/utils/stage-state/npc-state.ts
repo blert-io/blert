@@ -49,10 +49,12 @@ function processNpcTick(
     .filter((event) => event.npc.roomId === roomId);
 
   if (eventsForThisNpc.length > 0) {
-    const { mokhaiotl } = eventsForThisNpc[0].npc;
+    const { mokhaiotl, guardian } = eventsForThisNpc[0].npc;
     let properties: NpcProperties;
     if (mokhaiotl !== undefined) {
       properties = { type: RoomNpcType.MOKHAIOTL, value: mokhaiotl };
+    } else if (guardian !== undefined) {
+      properties = { type: RoomNpcType.GUARDIAN, value: guardian };
     } else if (cursor.lastActiveTick !== -1) {
       properties = npc.stateByTick[cursor.lastActiveTick]!.properties;
     } else {

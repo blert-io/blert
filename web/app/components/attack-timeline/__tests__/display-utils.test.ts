@@ -187,4 +187,79 @@ describe('TimelineDisplay', () => {
       });
     });
   });
+
+  describe('Archive Guardian splits', () => {
+    it('numbers each down and labels ups and enrage', () => {
+      const doc: BlertChartFormat = {
+        version: '1.0',
+        config: { totalTicks: 189, startTick: 1 },
+        timeline: {
+          actors: [
+            { type: 'player', id: '715', name: '715' },
+            { type: 'player', id: '1ogp', name: '1Ogp' },
+            {
+              type: 'npc',
+              id: 'npc-57933',
+              name: 'Archive Guardian',
+              npcId: NpcId.ARCHIVE_GUARDIAN_INERT,
+              spawnTick: 0,
+            },
+          ],
+          ticks: [
+            {
+              tick: 43,
+              cells: [
+                {
+                  actorId: 'npc-57933',
+                  actions: [
+                    { type: 'npcPhase', phaseType: 'TFA_GUARDIAN_DOWN' },
+                  ],
+                },
+              ],
+            },
+            {
+              tick: 78,
+              cells: [
+                {
+                  actorId: 'npc-57933',
+                  actions: [{ type: 'npcPhase', phaseType: 'TFA_GUARDIAN_UP' }],
+                },
+              ],
+            },
+            {
+              tick: 116,
+              cells: [
+                {
+                  actorId: 'npc-57933',
+                  actions: [
+                    { type: 'npcPhase', phaseType: 'TFA_GUARDIAN_DOWN' },
+                  ],
+                },
+              ],
+            },
+            {
+              tick: 130,
+              cells: [
+                {
+                  actorId: 'npc-57933',
+                  actions: [
+                    { type: 'npcPhase', phaseType: 'TFA_GUARDIAN_ENRAGE' },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      const display = new TimelineDisplay(new BCFResolver(doc));
+
+      expect(splitsByTick(display, 189)).toEqual({
+        43: 'Down 1',
+        78: 'Up',
+        116: 'Down 2',
+        130: 'Enrage',
+      });
+    });
+  });
 });

@@ -89,6 +89,30 @@
       "introduced": "2026-01-30",
       "details": "Occurs on the tick Verzik's P2 NPC starts the transition animation to P3.",
       "tags": ["tob", "verzik"]
+    },
+    {
+      "id": "TFA_GUARDIAN_DOWN",
+      "status": "active",
+      "summary": "Archive Guardian down",
+      "introduced": "2026-11-01",
+      "details": "Occurs on the tick of each Archive Guardian down.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_UP",
+      "status": "active",
+      "summary": "Archive Guardian up",
+      "introduced": "2026-11-01",
+      "details": "Occurs on the tick the Archive Guardian's down ends and it returns to its regular shield phase.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_ENRAGE",
+      "status": "active",
+      "summary": "Archive Guardian enrage",
+      "introduced": "2026-11-01",
+      "details": "Occurs on the tick the Archive Guardian enters its enraged phase.",
+      "tags": ["tfa", "guardian"]
     }
   ]
 }

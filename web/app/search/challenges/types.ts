@@ -104,6 +104,9 @@ export const enum Column {
   TFA_XARTH,
   TFA_FINAL_ENTRY,
   TFA_OCELLUS,
+
+  TFA_GUARDIAN_ENRAGE,
+  TFA_GUARDIAN_DOWN_COUNT,
 }
 
 export type SelectedColumn = {

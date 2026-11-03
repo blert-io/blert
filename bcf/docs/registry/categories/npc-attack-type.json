@@ -194,6 +194,54 @@
       "tags": ["tob", "verzik"]
     },
     {
+      "id": "TFA_GUARDIAN_AUTO",
+      "status": "active",
+      "summary": "Guardian auto attack",
+      "introduced": "2026-10-31",
+      "details": "The Guardian throws rocks at its target and nearby players.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_MELEE",
+      "status": "active",
+      "summary": "Guardian melee attack",
+      "introduced": "2026-10-31",
+      "details": "The Guardian's melee attack on players under it.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_MUSHROOMS",
+      "status": "active",
+      "summary": "Guardian mushrooms",
+      "introduced": "2026-10-31",
+      "details": "The Guardian spawns mushrooms around each player.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_LEAP",
+      "status": "active",
+      "summary": "Guardian leap",
+      "introduced": "2026-10-31",
+      "details": "The Guardian leaps into range of its target.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_BREATH_FOCUS",
+      "status": "active",
+      "summary": "Guardian breath focus",
+      "introduced": "2026-10-31",
+      "details": "The Guardian focuses on a player in its final phase.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
+      "id": "TFA_GUARDIAN_BREATH",
+      "status": "active",
+      "summary": "Guardian breath",
+      "introduced": "2026-10-31",
+      "details": "The Guardian breathes fire towards the player it focused.",
+      "tags": ["tfa", "guardian"]
+    },
+    {
       "id": "COLOSSEUM_BERSERKER_AUTO",
       "status": "active",
       "summary": "Fremennik Berserker auto attack",

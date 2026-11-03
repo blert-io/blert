@@ -403,7 +403,11 @@ export default function Npc({
       y: basePosition.y + sizeOffset,
     };
 
-    if (playing && npcEntity.options.customInterpolation) {
+    if (
+      playing &&
+      config.interpolationEnabled &&
+      npcEntity.options.customInterpolation
+    ) {
       const { from, to, fromHeight, toHeight, ease } =
         npcEntity.options.customInterpolation;
       const elapsed = currentTime - interpolationStateRef.current.startTime;

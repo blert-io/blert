@@ -133,6 +133,41 @@ describe('challenges filter URL round-trip', () => {
     expect(result.tob.verzikRedsCount).toEqual([Comparator.LESS_THAN, 5]);
   });
 
+  it('preserves TFA sub-filters', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      tfa: {
+        route: [
+          Stage.TFA_OCELLUS,
+          Stage.TFA_BORK,
+          Stage.TFA_GUARDIAN,
+          Stage.TFA_XARTH,
+          Stage.TFA_DREADNOTH,
+        ],
+        guardianDownCount: [Comparator.LESS_THAN_OR_EQUAL, 2],
+      },
+    };
+    const params = filtersToUrlParams(filters);
+    expect(params['tfa.route']).toEqual([
+      'guardian',
+      'bork',
+      'dreadnoth',
+      'xarth',
+      'ocellus',
+    ]);
+    expect(params['tfa.guardianDownCount']).toBe('le2');
+    expect(roundTrip(filters).tfa).toEqual({
+      route: [
+        Stage.TFA_GUARDIAN,
+        Stage.TFA_BORK,
+        Stage.TFA_DREADNOTH,
+        Stage.TFA_XARTH,
+        Stage.TFA_OCELLUS,
+      ],
+      guardianDownCount: [Comparator.LESS_THAN_OR_EQUAL, 2],
+    });
+  });
+
   it('preserves Mokhaiotl sub-filters', () => {
     const filters: SearchFilters = {
       ...defaultSearchFilters(),
@@ -153,37 +188,6 @@ describe('challenges filter URL round-trip', () => {
     const params = filtersToUrlParams(filters);
     expect(params['mok.maxCompletedDelve']).toBeUndefined();
     expect(params['mok.avgDeepDelveTicks']).toBeUndefined();
-  });
-
-  it('preserves a full TFA route', () => {
-    const filters: SearchFilters = {
-      ...defaultSearchFilters(),
-      tfa: {
-        route: [
-          Stage.TFA_OCELLUS,
-          Stage.TFA_BORK,
-          Stage.TFA_GUARDIAN,
-          Stage.TFA_XARTH,
-          Stage.TFA_DREADNOTH,
-        ],
-      },
-    };
-    expect(filtersToUrlParams(filters)['tfa.route']).toEqual([
-      'guardian',
-      'bork',
-      'dreadnoth',
-      'xarth',
-      'ocellus',
-    ]);
-    expect(roundTrip(filters).tfa).toEqual({
-      route: [
-        Stage.TFA_GUARDIAN,
-        Stage.TFA_BORK,
-        Stage.TFA_DREADNOTH,
-        Stage.TFA_XARTH,
-        Stage.TFA_OCELLUS,
-      ],
-    });
   });
 
   it('preserves options', () => {
@@ -271,6 +275,17 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(filters)).toBe(4);
   });
 
+  it('counts TFA sub-filters individually', () => {
+    const filters: SearchFilters = {
+      ...defaultSearchFilters(),
+      tfa: {
+        route: [Stage.TFA_BORK, Stage.TFA_MOIA, Stage.TFA_XARTH],
+        guardianDownCount: [Comparator.EQUAL, 3],
+      },
+    };
+    expect(countActiveFilters(filters)).toBe(3);
+  });
+
   it('counts Mokhaiotl sub-filters individually', () => {
     const filters: SearchFilters = {
       ...defaultSearchFilters(),
@@ -281,14 +296,6 @@ describe('countActiveFilters', () => {
       },
     };
     expect(countActiveFilters(filters)).toBe(3);
-  });
-
-  it('counts a TFA route as one filter', () => {
-    const filters: SearchFilters = {
-      ...defaultSearchFilters(),
-      tfa: { route: [Stage.TFA_BORK, Stage.TFA_MOIA, Stage.TFA_XARTH] },
-    };
-    expect(countActiveFilters(filters)).toBe(2);
   });
 
   it('counts passthrough parameters', () => {
