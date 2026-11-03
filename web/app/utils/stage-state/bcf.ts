@@ -10,6 +10,7 @@ import {
   NyloWaveSpawnEvent,
   PlayerAttack,
   PlayerSpell,
+  RoomNpcType,
   SplitType,
   SpellTarget,
   Stage,
@@ -518,6 +519,36 @@ function getNpcPhaseAction(
     }
   }
 
+  if (Npc.isArchiveGuardian(state.id)) {
+    return guardianPhaseAction(npc, tick, tickEvents);
+  }
+
+  return null;
+}
+
+function guardianPhaseAction(
+  npc: EnhancedRoomNpc,
+  tick: number,
+  tickEvents: Event[],
+): BCFNpcPhaseAction | null {
+  const state = npc.stateByTick[tick];
+  const lastState = npc.stateByTick[tick - 1];
+  const enraged =
+    state?.properties.type === RoomNpcType.GUARDIAN &&
+    state.properties.value.enraged;
+  const wasEnraged =
+    lastState?.properties.type === RoomNpcType.GUARDIAN &&
+    lastState.properties.value.enraged;
+
+  if (enraged && !wasEnraged) {
+    return { type: 'npcPhase', phaseType: 'TFA_GUARDIAN_ENRAGE' };
+  }
+  if (tickEvents.some((e) => e.type === EventType.TFA_GUARDIAN_DOWN)) {
+    return { type: 'npcPhase', phaseType: 'TFA_GUARDIAN_DOWN' };
+  }
+  if (tickEvents.some((e) => e.type === EventType.TFA_GUARDIAN_UP)) {
+    return { type: 'npcPhase', phaseType: 'TFA_GUARDIAN_UP' };
+  }
   return null;
 }
 

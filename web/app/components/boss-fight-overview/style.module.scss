@@ -104,10 +104,15 @@
   }
 }
 
+$section-width: 260px;
+$section-max-width: 400px;
+$section-gap: 16px;
+
 .content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: $section-gap;
   flex-grow: 1;
 
   @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
@@ -116,11 +121,21 @@
 }
 
 .section {
+  --span: 1;
+  flex: var(--span) var(--span)
+    calc(var(--span) * #{$section-width} + (var(--span) - 1) * #{$section-gap});
+  max-width: calc(
+    var(--span) * #{$section-max-width} + (var(--span) - 1) * #{$section-gap}
+  );
   display: flex;
   flex-direction: column;
   background: var(--blert-surface-dark);
   border-radius: 8px;
   padding: 16px;
+
+  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
+    max-width: none;
+  }
 
   :global([data-theme='aero']) & {
     @include aeroWell;

@@ -212,6 +212,8 @@ const COLUMN_GROUPS: ColumnGroup[] = [
     label: 'TFA',
     columns: [
       Column.TFA_GUARDIAN,
+      Column.TFA_GUARDIAN_ENRAGE,
+      Column.TFA_GUARDIAN_DOWN_COUNT,
       Column.TFA_EZEKIEL,
       Column.TFA_BORK,
       Column.TFA_ROW_2_ENTRY,
@@ -851,6 +853,20 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     100,
     'Guardian Time',
   ),
+  [Column.TFA_GUARDIAN_ENRAGE]: splitColumn(
+    'Guardian enrage',
+    SplitType.TFA_GUARDIAN_ENRAGE,
+    140,
+  ),
+  [Column.TFA_GUARDIAN_DOWN_COUNT]: {
+    name: 'Guardian downs',
+    fullName: 'Guardian down count',
+    align: 'right',
+    renderer: (challenge) => challenge.tfaStats?.guardianDownCount ?? '-',
+    field: 'tfa:guardianDownCount',
+    aggregate: { renderer: aggregateNumber },
+    toggleFields: includeStats,
+  },
   [Column.TFA_EZEKIEL]: splitColumn(
     'Ezekiel',
     SplitType.TFA_EZEKIEL,

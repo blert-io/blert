@@ -602,6 +602,7 @@ function npcShield(properties: NpcProperties): SkillLevel | undefined {
       return undefined;
 
     case RoomNpcType.MOKHAIOTL:
+    case RoomNpcType.GUARDIAN:
       return properties.value.shield !== undefined
         ? SkillLevel.fromRaw(properties.value.shield)
         : undefined;

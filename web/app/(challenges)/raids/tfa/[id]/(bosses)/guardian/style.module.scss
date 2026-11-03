@@ -1,0 +1,33 @@
+.phaseTimes {
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  gap: 16px;
+  min-width: 300px;
+
+  .phaseTime {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .phaseLabel {
+      font-weight: 500;
+      color: var(--blert-font-color-secondary);
+    }
+
+    .phaseValue {
+      font-family: var(--font-roboto-mono), monospace;
+      font-size: 1.1em;
+      font-weight: 500;
+      color: var(--blert-purple);
+      background: rgba(var(--blert-purple-base), 0.1);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+
+      &:hover {
+        background: rgba(var(--blert-purple-base), 0.2);
+      }
+    }
+  }
+}

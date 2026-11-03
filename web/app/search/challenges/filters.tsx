@@ -348,10 +348,12 @@ export default function Filters({
       </FilterField>
 
       {(context.filters.type.includes(ChallengeType.TFA) ||
-        hasTfaFilters(context.filters.tfa)) && (
+        context.filters.tfa.route.length > 0) && (
         <TfaRouteFilter
           route={context.filters.tfa.route}
-          onChange={(route) => updateFilters({ tfa: { route } })}
+          onChange={(route) =>
+            updateFilters({ tfa: { ...context.filters.tfa, route } })
+          }
           disabled={loading}
         />
       )}
@@ -609,6 +611,24 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
     ],
   },
   {
+    label: 'TFA',
+    subMenu: [
+      {
+        label: 'Guardian',
+        subMenu: [
+          {
+            label: 'Down count',
+            value: def('Guardian down count', {
+              path: 'tfa.guardianDownCount',
+              inputKind: 'number',
+              min: 0,
+            }).id,
+          },
+        ],
+      },
+    ],
+  },
+  {
     label: 'Mokhaiotl',
     subMenu: [
       {
@@ -796,6 +816,10 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           {
             label: 'Guardian time',
             value: s('Guardian time', SplitType.TFA_GUARDIAN).id,
+          },
+          {
+            label: 'Guardian enrage',
+            value: s('Guardian enrage', SplitType.TFA_GUARDIAN_ENRAGE).id,
           },
           {
             label: 'Row 1',
@@ -1164,8 +1188,8 @@ function cloneFiltersForCustomEdit(filters: SearchFilters): SearchFilters {
       ...filters.tob,
       bloatDowns: new Map(filters.tob.bloatDowns),
     },
+    tfa: { ...filters.tfa, route: [...filters.tfa.route] },
     mokhaiotl: { ...filters.mokhaiotl },
-    tfa: { route: [...filters.tfa.route] },
   };
 }
 

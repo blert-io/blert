@@ -1364,6 +1364,34 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
     imageUrl: '/images/mokhaiotl/melee.png',
     description: basicDescription('a melee attack'),
   },
+  [NpcAttack.TFA_GUARDIAN_AUTO]: {
+    imageUrl: '/images/tfa/guardian/rocks.png',
+    description: basicDescription('a rock throw'),
+  },
+  [NpcAttack.TFA_GUARDIAN_MELEE]: {
+    imageUrl: '/images/tfa/guardian/slam.png',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.TFA_GUARDIAN_MUSHROOMS]: {
+    imageUrl: '/images/tfa/guardian/mushrooms.png',
+    description: () => <span>Spawned mushrooms</span>,
+  },
+  [NpcAttack.TFA_GUARDIAN_LEAP]: {
+    imageUrl: '/images/tfa/guardian/leap.png',
+    description: () => <span>Leapt</span>,
+  },
+  [NpcAttack.TFA_GUARDIAN_BREATH_FOCUS]: {
+    imageUrl: '/images/tfa/guardian/breath-focus.png',
+    description: (target) => (
+      <span>Focused intently on {target ?? 'someone'}</span>
+    ),
+  },
+  [NpcAttack.TFA_GUARDIAN_BREATH]: {
+    imageUrl: '/images/tfa/guardian/breath.png',
+    description: (target) => (
+      <span>Breathed fire{target ? <> towards {target}</> : ''}</span>
+    ),
+  },
 };
 
 const DEFAULT_WEAPON_IDS = new Map<PlayerAttack, number>(
@@ -1508,7 +1536,9 @@ export function getActionMetadata(action: BCFAction): ActionMetadata {
         name: action.attackType,
         image: {
           type: 'url',
-          url: NPC_ATTACK_METADATA[bcfToNpcAttack(action.attackType)].imageUrl,
+          url:
+            NPC_ATTACK_METADATA[bcfToNpcAttack(action.attackType)]?.imageUrl ??
+            '/images/huh.png',
         },
       };
     case 'npcPhase':

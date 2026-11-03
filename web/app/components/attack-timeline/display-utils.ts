@@ -279,8 +279,33 @@ export class TimelineDisplay {
 
   private processNpc(actor: BCFNpcActor): void {
     const phases = this.resolver.getNpcPhases(actor.id);
-    if (phases.length > 0) {
+    if (phases.length === 0) {
+      return;
+    }
+
+    if (Npc.isArchiveGuardian(actor.npcId)) {
+      this.processGuardianPhases(phases);
+    } else {
       this.processNpcPhases(actor, phases);
+    }
+  }
+
+  private processGuardianPhases(phases: NpcPhase[]): void {
+    let downNumber = 1;
+
+    for (const { tick, phaseType } of phases) {
+      switch (phaseType) {
+        case 'TFA_GUARDIAN_DOWN':
+          this.splits.set(tick, `Down ${downNumber}`);
+          downNumber++;
+          break;
+        case 'TFA_GUARDIAN_UP':
+          this.splits.set(tick, 'Up');
+          break;
+        case 'TFA_GUARDIAN_ENRAGE':
+          this.splits.set(tick, 'Enrage');
+          break;
+      }
     }
   }
 

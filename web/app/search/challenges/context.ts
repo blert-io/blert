@@ -66,13 +66,14 @@ export type TobFilters = {
   verzikRedsCount: [Comparator, number] | null;
 };
 
+export type TfaFilters = {
+  route: Stage[];
+  guardianDownCount: [Comparator, number] | null;
+};
+
 export type MokhaiotlFilters = {
   maxCompletedDelve: [Comparator, number] | null;
   avgDeepDelveTicks: [Comparator, number] | null;
-};
-
-export type TfaFilters = {
-  route: Stage[];
 };
 
 function parseTobParam(tob: TobFilters, key: string, value: string): void {
@@ -136,12 +137,12 @@ export function hasTobFilters(tob: TobFilters): boolean {
   return countTobFilters(tob) > 0;
 }
 
-export function hasMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): boolean {
-  return countMokhaiotlFilters(mokhaiotl) > 0;
+export function hasTfaFilters(tfa: TfaFilters): boolean {
+  return countTfaFilters(tfa) > 0;
 }
 
-export function hasTfaFilters(tfa: TfaFilters): boolean {
-  return tfa.route.length > 0;
+export function hasMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): boolean {
+  return countMokhaiotlFilters(mokhaiotl) > 0;
 }
 
 function countTobFilters(tob: TobFilters): number {
@@ -159,6 +160,24 @@ function countTobFilters(tob: TobFilters): number {
     count++;
   }
   if (tob.verzikRedsCount !== null) {
+    count++;
+  }
+  return count;
+}
+
+export function emptyTfaFilters(): TfaFilters {
+  return {
+    route: [],
+    guardianDownCount: null,
+  };
+}
+
+function countTfaFilters(tfa: TfaFilters): number {
+  let count = 0;
+  if (tfa.route.length > 0) {
+    count++;
+  }
+  if (tfa.guardianDownCount !== null) {
     count++;
   }
   return count;
@@ -182,12 +201,6 @@ function countMokhaiotlFilters(mokhaiotl: MokhaiotlFilters): number {
   return count;
 }
 
-export function emptyTfaFilters(): TfaFilters {
-  return {
-    route: [],
-  };
-}
-
 export function countActiveFilters(filters: SearchFilters): number {
   let count = countSharedFilters(filters);
   if (filters.status.length > 0) {
@@ -198,10 +211,8 @@ export function countActiveFilters(filters: SearchFilters): number {
   }
   count += filters.splits.size;
   count += countTobFilters(filters.tob);
+  count += countTfaFilters(filters.tfa);
   count += countMokhaiotlFilters(filters.mokhaiotl);
-  if (hasTfaFilters(filters.tfa)) {
-    count++;
-  }
   if (filters.accurateSplits) {
     count++;
   }
@@ -217,8 +228,8 @@ export type SearchFilters = SharedFilters & {
   stage: [Comparator, Stage] | null;
   splits: Map<number, [Comparator, number]>;
   tob: TobFilters;
-  mokhaiotl: MokhaiotlFilters;
   tfa: TfaFilters;
+  mokhaiotl: MokhaiotlFilters;
   accurateSplits: boolean;
   fullRecordings: boolean;
   /** Params that are forwarded directly without being interpreted. */
@@ -234,8 +245,8 @@ export function defaultSearchFilters(): SearchFilters {
     stage: null,
     splits: new Map(),
     tob: emptyTobFilters(),
-    mokhaiotl: emptyMokhaiotlFilters(),
     tfa: emptyTfaFilters(),
+    mokhaiotl: emptyMokhaiotlFilters(),
     accurateSplits: true,
     fullRecordings: false,
     passthrough: { spawns: [] },
@@ -342,6 +353,18 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
     }
   }
 
+  if (filters.tfa.route.length > 0) {
+    params['tfa.route'] = filters.tfa.route
+      .toSorted((a, b) => a - b)
+      .map((stage) => stagePath(stage));
+  }
+
+  if (filters.tfa.guardianDownCount !== null) {
+    const [comparator, value] = filters.tfa.guardianDownCount;
+    params['tfa.guardianDownCount'] =
+      `${serializeComparator(comparator)}${value}`;
+  }
+
   const mokhaiotlScalarFields: (keyof MokhaiotlFilters)[] = [
     'maxCompletedDelve',
     'avgDeepDelveTicks',
@@ -352,12 +375,6 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
       const [comparator, value] = v;
       params[`mok.${field}`] = `${serializeComparator(comparator)}${value}`;
     }
-  }
-
-  if (hasTfaFilters(filters.tfa)) {
-    params['tfa.route'] = filters.tfa.route
-      .toSorted((a, b) => a - b)
-      .map((stage) => stagePath(stage));
   }
 
   return params;
@@ -438,6 +455,14 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
         const route = value.split(',').map(tfaBossFromToken);
         if (route.every((stage) => stage !== null)) {
           context.filters.tfa.route = route;
+        }
+        break;
+      }
+
+      case 'tfa.guardianDownCount': {
+        const parsed = parseComparatorParam(value);
+        if (parsed !== null) {
+          context.filters.tfa.guardianDownCount = parsed;
         }
         break;
       }

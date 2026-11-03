@@ -294,6 +294,41 @@ export function parseChallengeQuery(
     }
   }
 
+  const route = comparatorParam(searchParams, 'tfa.route', (token) => {
+    const boss = tfaBossFromToken(token);
+    if (boss === null) {
+      throw new InvalidQueryError(`Invalid TFA boss: ${token}`);
+    }
+    return boss;
+  });
+  if (route !== undefined) {
+    if (route[0] !== '==' && route[0] !== 'in') {
+      throw new InvalidQueryError(`Invalid TFA route operator: ${route[0]}`);
+    }
+    const bosses = Array.isArray(route[1]) ? route[1] : [route[1]];
+    const rows = new Set<number>();
+    for (const boss of bosses) {
+      const row = TFA_ROWS.findIndex((stages) => stages.includes(boss));
+      if (rows.has(row)) {
+        throw new InvalidQueryError(
+          'Invalid TFA route: more than one boss from a row',
+        );
+      }
+      rows.add(row);
+    }
+    (query.tfa ??= {}).route = bosses;
+  }
+
+  const guardianDownCount = integerComparatorParam(
+    searchParams,
+    'tfa.guardianDownCount',
+    0,
+    9001,
+  );
+  if (guardianDownCount !== undefined) {
+    (query.tfa ??= {}).guardianDownCount = guardianDownCount;
+  }
+
   const mokhaiotlScalarParams = [
     'maxCompletedDelve',
     'avgDeepDelveTicks',
@@ -318,31 +353,6 @@ export function parseChallengeQuery(
       throw new InvalidQueryError(`Invalid handicap operator: ${op}`);
     }
     (query.colosseum ??= {}).has = handicap;
-  }
-
-  const route = comparatorParam(searchParams, 'tfa.route', (token) => {
-    const boss = tfaBossFromToken(token);
-    if (boss === null) {
-      throw new InvalidQueryError(`Invalid TFA boss: ${token}`);
-    }
-    return boss;
-  });
-  if (route !== undefined) {
-    if (route[0] !== '==' && route[0] !== 'in') {
-      throw new InvalidQueryError(`Invalid TFA route operator: ${route[0]}`);
-    }
-    const bosses = Array.isArray(route[1]) ? route[1] : [route[1]];
-    const rows = new Set<number>();
-    for (const boss of bosses) {
-      const row = TFA_ROWS.findIndex((stages) => stages.includes(boss));
-      if (rows.has(row)) {
-        throw new InvalidQueryError(
-          'Invalid TFA route: more than one boss from a row',
-        );
-      }
-      rows.add(row);
-    }
-    (query.tfa ??= {}).route = bosses;
   }
 
   const customQuery = expectSingle(searchParams, 'q');
