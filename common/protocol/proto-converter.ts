@@ -34,6 +34,10 @@ import {
   SoteMazePathEvent,
   Spell,
   SpellTarget,
+  TfaGuardianBrazierEvent,
+  TfaGuardianDownEvent,
+  TfaGuardianRocksEvent,
+  TfaGuardianShroomsEvent,
   VerzikAttackStyleEvent,
   VerzikBounceEvent,
   VerzikDawnDropEvent,
@@ -192,6 +196,10 @@ export function protoToJsonEvent(evt: EventProto): Event {
         e.npc.verzikCrab = npc.getVerzikCrab()!.toObject();
       } else if (npc.hasMokhaiotl()) {
         e.npc.mokhaiotl = npc.getMokhaiotl()!.toObject();
+      } else if (npc.hasGuardian()) {
+        e.npc.guardian = npc.getGuardian()!.toObject();
+      } else if (npc.hasGuardianBrazier()) {
+        e.npc.guardianBrazier = npc.getGuardianBrazier()!.toObject();
       }
       break;
     }
@@ -384,6 +392,50 @@ export function protoToJsonEvent(evt: EventProto): Event {
       if (verzikBounce.hasBouncedPlayer()) {
         e.verzikBounce.bouncedPlayer = verzikBounce.getBouncedPlayer();
       }
+      break;
+    }
+
+    case EventType.TFA_GUARDIAN_DOWN: {
+      const e = event as TfaGuardianDownEvent;
+      e.tfaGuardianDown = {
+        downNumber: evt.getTfaGuardianDown()!.getDownNumber(),
+      };
+      break;
+    }
+
+    case EventType.TFA_GUARDIAN_UP:
+      // No fields.
+      break;
+
+    case EventType.TFA_GUARDIAN_ROCKS: {
+      const e = event as TfaGuardianRocksEvent;
+      e.tfaGuardianRocks = {
+        targets: evt.getTfaGuardianRocks()!.getTargetsList(),
+      };
+      break;
+    }
+
+    case EventType.TFA_GUARDIAN_SHROOMS: {
+      const e = event as TfaGuardianShroomsEvent;
+      const shrooms = evt.getTfaGuardianShrooms()!;
+      e.tfaGuardianShrooms = {
+        updated: shrooms.getUpdatedList().map((shroom) => ({
+          id: shroom.getId(),
+          position: shroom.getPosition()!.toObject(),
+          state: shroom.getState(),
+        })),
+        removed: shrooms.getRemovedList(),
+      };
+      break;
+    }
+
+    case EventType.TFA_GUARDIAN_BRAZIER: {
+      const e = event as TfaGuardianBrazierEvent;
+      const brazier = evt.getTfaGuardianBrazier()!;
+      e.tfaGuardianBrazier = {
+        roomId: brazier.getRoomId(),
+        position: brazier.getPosition(),
+      };
       break;
     }
 

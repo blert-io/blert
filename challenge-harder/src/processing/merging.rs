@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use crate::lifecycle::core::types::ChallengeType;
+use crate::lifecycle::core::types::Stage;
 use crate::merging::{
     ClientAnomaly, ClientOutcome, MergeAlert, MergeCapture, MergeReport, MergeStatus,
     MergedTimeline, QualityFlag,
@@ -129,6 +129,16 @@ impl CaptureRates {
 
 const LOW_CONFIDENCE_CAPTURE_BOUND: f64 = 0.85;
 
+const TFA_CAPTURE_STAGES: [Stage; 7] = [
+    Stage::TfaEzekiel,
+    Stage::TfaBork,
+    Stage::TfaMoia,
+    Stage::TfaDreadnoth,
+    Stage::TfaDagonhai,
+    Stage::TfaXarth,
+    Stage::TfaOcellus,
+];
+
 fn is_noteworthy_flag(flag: &QualityFlag) -> bool {
     match flag {
         QualityFlag::AttackTypeMismatch { .. }
@@ -145,7 +155,7 @@ fn is_noteworthy_flag(flag: &QualityFlag) -> bool {
 }
 
 pub fn capture_reasons(
-    challenge_type: ChallengeType,
+    stage: Stage,
     report: &MergeReport,
     development: bool,
 ) -> Vec<CaptureReason> {
@@ -221,7 +231,7 @@ pub fn capture_reasons(
         reasons.insert(CaptureReason::UnmergedClients);
     }
 
-    if challenge_type == ChallengeType::Tfa {
+    if TFA_CAPTURE_STAGES.contains(&stage) {
         reasons.insert(CaptureReason::Tfa);
     }
 
@@ -277,7 +287,7 @@ impl StreamCapturer {
         report: &MergeReport,
         streams: &MergeCapture,
     ) -> Option<Capture> {
-        let reasons = capture_reasons(challenge.challenge_type, report, self.development);
+        let reasons = capture_reasons(challenge.stage, report, self.development);
         let should_capture = reasons
             .iter()
             .any(|reason| rand::random::<f64>() < self.rates.rate(*reason));
@@ -307,7 +317,7 @@ impl StreamCapturer {
         streams: &MergeCapture,
         clients: &[ClientOutcome],
     ) -> Option<Capture> {
-        let is_tfa = challenge.challenge_type == ChallengeType::Tfa;
+        let is_tfa = TFA_CAPTURE_STAGES.contains(&challenge.stage);
         if !is_tfa {
             let mut window = self
                 .window

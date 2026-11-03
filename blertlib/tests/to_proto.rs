@@ -293,3 +293,10 @@ fn mokhaiotl_delve_8() {
     assert_golden_output(&fixture);
     assert_refresh_matches_snapshot(&fixture);
 }
+
+#[test]
+fn tfa_guardian() {
+    let fixture = Fixture::load("tfa_guardian");
+    assert_golden_output(&fixture);
+    assert_refresh_matches_snapshot(&fixture);
+}

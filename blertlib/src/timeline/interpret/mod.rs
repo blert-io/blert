@@ -2,6 +2,7 @@
 
 mod bloat;
 mod colosseum;
+mod guardian;
 mod maiden;
 mod mokhaiotl;
 mod ocellus;
@@ -13,6 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bloat::BloatInterpreter;
 use colosseum::ColosseumInterpreter;
+use guardian::GuardianInterpreter;
 use maiden::MaidenInterpreter;
 use mokhaiotl::MokhaiotlInterpreter;
 use ocellus::OcellusInterpreter;
@@ -32,9 +34,9 @@ use crate::{
     proto,
 };
 
-const GENERIC_DEATHS: [(PluginVersion, &[u32]); 2] = [
+const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 3] = [
     (
-        bloat::MIN_SUPPORTED_VERSION,
+        Some(bloat::MIN_SUPPORTED_VERSION),
         &[
             npc::id::BLOAT_ENTRY,
             npc::id::BLOAT_REGULAR,
@@ -42,7 +44,7 @@ const GENERIC_DEATHS: [(PluginVersion, &[u32]); 2] = [
         ],
     ),
     (
-        mokhaiotl::GENERIC_VERSION,
+        Some(mokhaiotl::GENERIC_VERSION),
         &[
             npc::id::MOKHAIOTL,
             npc::id::MOKHAIOTL_SHIELDED,
@@ -55,6 +57,19 @@ const GENERIC_DEATHS: [(PluginVersion, &[u32]); 2] = [
             npc::id::EARTHEN_SHIELD,
             npc::id::GIANT_DEMONIC_RANGE_LARVA,
             npc::id::GIANT_DEMONIC_MAGIC_LARVA,
+        ],
+    ),
+    (
+        None,
+        &[
+            npc::id::ARCHIVE_GUARDIAN_INERT,
+            npc::id::ARCHIVE_GUARDIAN_DEFEATED,
+            npc::id::ARCHIVE_GUARDIAN,
+            npc::id::ARCHIVE_GUARDIAN_UNSHIELDED,
+            npc::id::GUARDIAN_BATTERY_INACTIVE,
+            npc::id::GUARDIAN_BATTERY,
+            npc::id::GUARDIAN_BATTERY_DESTROYED,
+            npc::id::GUARDIAN_VINE,
         ],
     ),
 ];
@@ -136,6 +151,8 @@ pub(super) fn interpret(
             MokhaiotlInterpreter::new(&ctx, recording)
                 .and_then(|mokhaiotl| mokhaiotl.interpret(recording))
         }
+        Stage::TfaGuardian => GuardianInterpreter::new(&ctx, recording)
+            .and_then(|guardian| guardian.interpret(recording)),
         Stage::TfaOcellus => {
             OcellusInterpreter::new(recording).and_then(|ocellus| ocellus.interpret(recording))
         }
@@ -163,9 +180,9 @@ impl<'a> NpcDeathInterpreter<'a> {
 
 impl Interpreter for NpcDeathInterpreter<'_> {
     fn decide(&mut self, recording: &Recording) {
-        let ids = GENERIC_DEATHS
+        let ids = GENERIC_NPCS
             .iter()
-            .filter(|(version, _)| self.ctx.plugin_version >= *version)
+            .filter(|(version, _)| version.is_none_or(|version| self.ctx.plugin_version >= version))
             .flat_map(|(_, ids)| ids.iter().copied())
             .collect::<BTreeSet<_>>();
         for (tick, state) in recording.states() {
@@ -176,7 +193,11 @@ impl Interpreter for NpcDeathInterpreter<'_> {
                 self.last_seen.insert(room_id, tick);
                 if let Some(animation) =
                     npc::definition(npc.id).and_then(|definition| definition.death_animation)
-                    && state.raw_npcs.get(&room_id).and_then(|raw| raw.animation) == Some(animation)
+                    && state
+                        .raw_npcs
+                        .get(&room_id)
+                        .and_then(|raw| raw.animation_id)
+                        == Some(animation)
                 {
                     self.dying.entry(room_id).or_insert(tick);
                 }
@@ -333,7 +354,7 @@ impl HitpointsVarbits {
         let dying = state
             .raw_npcs
             .get(&self.room_id)
-            .is_some_and(|npc| npc.animation == Some(self.death_animation));
+            .is_some_and(|npc| npc.animation_id == Some(self.death_animation));
         if self.start_value.is_some() && self.death_tick.is_none() && dying {
             self.death_tick = Some(tick);
         }
@@ -364,11 +385,18 @@ impl HitpointsVarbits {
 /// An NPC as recorded by a plugin.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct RawNpc {
-    pub(super) animation: Option<u32>,
+    pub(super) animation_id: Option<u32>,
     pub(super) animation_start_tick: Tick,
     pub(super) target: Option<RawActor>,
     pub(super) spot_anims: Vec<u32>,
     pub(super) overheads: Vec<Overhead>,
+}
+
+impl RawNpc {
+    pub(super) fn animation(&self, tick: Tick) -> Option<u32> {
+        self.animation_id
+            .filter(|_| self.animation_start_tick == tick)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

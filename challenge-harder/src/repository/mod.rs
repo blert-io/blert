@@ -148,6 +148,11 @@ impl DataRepository {
                 }
                 event.player = Some(player);
             }
+
+            if let Some(rocks) = &mut event.tfa_guardian_rocks {
+                // Only store target party indices.
+                rocks.targets.clear();
+            }
         }
 
         let contents = ChallengeEvents {
@@ -193,6 +198,16 @@ impl DataRepository {
                 && let Some(npc_attack) = &mut event.npc_attack
             {
                 npc_attack.target = Some(player.name);
+            }
+
+            if let Some(rocks) = &mut event.tfa_guardian_rocks
+                && rocks.targets.is_empty()
+            {
+                rocks.targets = rocks
+                    .target_party_indices
+                    .iter()
+                    .map(|&index| party.get(index as usize).cloned().unwrap_or_default())
+                    .collect();
             }
         }
         Ok(events)
@@ -362,6 +377,16 @@ mod tests {
                 }),
                 ..Default::default()
             },
+            Event {
+                r#type: event::Type::TfaGuardianRocks as i32,
+                stage: Stage::TfaGuardian as i32,
+                tick: 8803,
+                tfa_guardian_rocks: Some(event::TfaGuardianRocks {
+                    targets: vec!["WWWWWWWWWWQQ".into(), "1Ogp".into()],
+                    target_party_indices: vec![1, 0],
+                }),
+                ..Default::default()
+            },
         ]
     }
 
@@ -479,6 +504,16 @@ mod tests {
                     player: Some(event::Player {
                         party_index: 0,
                         ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                Event {
+                    r#type: event::Type::TfaGuardianRocks as i32,
+                    stage: Stage::TfaGuardian as i32,
+                    tick: 8803,
+                    tfa_guardian_rocks: Some(event::TfaGuardianRocks {
+                        targets: Vec::new(),
+                        target_party_indices: vec![1, 0],
                     }),
                     ..Default::default()
                 },

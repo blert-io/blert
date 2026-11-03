@@ -48,6 +48,11 @@ impl TickState {
             Actor::Player(player) => self.players.get(player).is_some(),
         }
     }
+
+    /// Returns all state for a generic NPC.
+    pub(crate) fn generic_npc(&self, room_id: RoomId) -> Option<(&NpcState, &RawNpc)> {
+        self.npcs.get(&room_id).zip(self.raw_npcs.get(&room_id))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

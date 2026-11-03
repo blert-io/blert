@@ -1,6 +1,6 @@
 import { Empty } from 'google-protobuf/google/protobuf/empty_pb';
 
-import { Stage } from '../challenge';
+import { GuardianBrazierPosition, Stage } from '../challenge';
 import {
   BloatDownEvent,
   ColosseumReentryPoolsEvent,
@@ -20,6 +20,11 @@ import {
   PlayerUpdateEvent,
   SoteMazePathEvent,
   SpellTarget,
+  TfaGuardianBrazierEvent,
+  TfaGuardianDownEvent,
+  TfaGuardianRocksEvent,
+  TfaGuardianShroomState,
+  TfaGuardianShroomsEvent,
   VerzikBounceEvent,
   VerzikDawnDropEvent,
   VerzikDawnEvent,
@@ -519,6 +524,85 @@ describe('protoToJsonEvent', () => {
       expect(result.verzikBounce.playersInRange).toBe(3);
       expect(result.verzikBounce.playersNotInRange).toBe(1);
       expect(result.verzikBounce.bouncedPlayer).toBe('TestPlayer');
+    });
+  });
+
+  describe('TFA events', () => {
+    it('converts guardian down', () => {
+      const evt = makeEvent(EventType.TFA_GUARDIAN_DOWN, {
+        stage: Stage.TFA_GUARDIAN,
+        tick: 8835,
+      });
+      const down = new EventProto.TfaGuardianDown();
+      down.setDownNumber(2);
+      evt.setTfaGuardianDown(down);
+
+      const result = protoToJsonEvent(evt) as TfaGuardianDownEvent;
+
+      expect(result.tfaGuardianDown).toEqual({ downNumber: 2 });
+    });
+
+    it('converts guardian rocks', () => {
+      const evt = makeEvent(EventType.TFA_GUARDIAN_ROCKS, {
+        stage: Stage.TFA_GUARDIAN,
+        tick: 8803,
+      });
+      const rocks = new EventProto.TfaGuardianRocks();
+      rocks.setTargetsList(['Sacolyn', '1Ogp']);
+      rocks.setTargetPartyIndicesList([1, 0]);
+      evt.setTfaGuardianRocks(rocks);
+
+      const result = protoToJsonEvent(evt) as TfaGuardianRocksEvent;
+
+      expect(result.tfaGuardianRocks).toEqual({
+        targets: ['Sacolyn', '1Ogp'],
+      });
+    });
+
+    it('converts guardian shrooms', () => {
+      const evt = makeEvent(EventType.TFA_GUARDIAN_SHROOMS, {
+        stage: Stage.TFA_GUARDIAN,
+      });
+      const shrooms = new EventProto.TfaGuardianShrooms();
+      const shroom = new EventProto.TfaGuardianShrooms.Shroom();
+      shroom.setId(1);
+      shroom.setPosition(makeCoords(4133, 5602));
+      shroom.setState(EventProto.TfaGuardianShrooms.State.SPAWNING);
+      shrooms.setUpdatedList([shroom]);
+      shrooms.setRemovedList([0]);
+      evt.setTfaGuardianShrooms(shrooms);
+
+      const result = protoToJsonEvent(evt) as TfaGuardianShroomsEvent;
+
+      expect(result.tfaGuardianShrooms).toEqual({
+        updated: [
+          {
+            id: 1,
+            position: { x: 4133, y: 5602 },
+            state: TfaGuardianShroomState.SPAWNING,
+          },
+        ],
+        removed: [0],
+      });
+    });
+
+    it('converts guardian brazier', () => {
+      const evt = makeEvent(EventType.TFA_GUARDIAN_BRAZIER, {
+        stage: Stage.TFA_GUARDIAN,
+        x: 4139,
+        y: 5605,
+      });
+      const brazier = new EventProto.TfaGuardianBrazier();
+      brazier.setRoomId(57363);
+      brazier.setPosition(EventProto.Npc.GuardianBrazier.Position.NORTHEAST);
+      evt.setTfaGuardianBrazier(brazier);
+
+      const result = protoToJsonEvent(evt) as TfaGuardianBrazierEvent;
+
+      expect(result.tfaGuardianBrazier).toEqual({
+        roomId: 57363,
+        position: GuardianBrazierPosition.NORTHEAST,
+      });
     });
   });
 

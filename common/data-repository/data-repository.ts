@@ -21,6 +21,7 @@ import {
 } from '../generated/event_pb';
 import {
   ColosseumData,
+  GuardianBrazier,
   InfernoData,
   MaidenCrab,
   MokhaiotlData,
@@ -330,6 +331,10 @@ export class DataRepository {
           e.setPlayer(player);
         }
       }
+
+      if (e.hasTfaGuardianRocks()) {
+        e.getTfaGuardianRocks()!.clearTargetsList();
+      }
     });
 
     challengeEvents.setEventsList(events);
@@ -377,6 +382,15 @@ export class DataRepository {
         const npcAttack = e.getNpcAttack()!;
         npcAttack.setTarget(player.getName());
         e.clearPlayer();
+      }
+
+      if (e.hasTfaGuardianRocks()) {
+        const rocks = e.getTfaGuardianRocks()!;
+        if (rocks.getTargetsList().length === 0) {
+          rocks.setTargetsList(
+            rocks.getTargetPartyIndicesList().map((index) => party[index]),
+          );
+        }
       }
 
       return e;
@@ -1006,6 +1020,12 @@ function npcsFromProto(npcs: ChallengeData.StageNpc[]): RoomNpcMap {
     if (npc.hasVerzikCrab()) {
       roomNpc.type = RoomNpcType.VERZIK_CRAB;
       (roomNpc as VerzikCrab).verzikCrab = npc.getVerzikCrab()!.toObject();
+    }
+    if (npc.hasGuardianBrazier()) {
+      roomNpc.type = RoomNpcType.GUARDIAN_BRAZIER;
+      (roomNpc as GuardianBrazier).guardianBrazier = npc
+        .getGuardianBrazier()!
+        .toObject();
     }
 
     map[roomNpc.roomId] = roomNpc;

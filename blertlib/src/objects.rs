@@ -17,6 +17,10 @@ pub enum ObjectKind {
     MokhaiotlRock,
     MokhaiotlSplat,
     MokhaiotlShockwave,
+
+    GuardianShroomSpawning,
+    GuardianShroomGrown,
+    GuardianShroomPopped,
 }
 
 /// The set of objects present in the world on a tick.

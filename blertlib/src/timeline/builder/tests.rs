@@ -4104,7 +4104,7 @@ fn extract_npc_state_generic_update() {
                 properties: None,
             },
             RawNpc {
-                animation: Some(14810),
+                animation_id: Some(14810),
                 animation_start_tick: Tick(114),
                 target: Some(RawActor::Player("1Ogp".to_string())),
                 spot_anims: vec![1908],
@@ -4132,7 +4132,7 @@ fn extract_npc_state_generic_update() {
                 properties: None,
             },
             RawNpc {
-                animation: Some(14810),
+                animation_id: Some(14810),
                 animation_start_tick: Tick(114),
                 target: Some(RawActor::Player("1Ogp".to_string())),
                 spot_anims: vec![1908],
@@ -4175,7 +4175,7 @@ fn extract_npc_state_generic_update() {
                 properties: None,
             },
             RawNpc {
-                animation: Some(14844),
+                animation_id: Some(14844),
                 animation_start_tick: Tick(720),
                 target: None,
                 spot_anims: vec![4330],

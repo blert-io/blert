@@ -241,6 +241,9 @@ impl GraphicsSummary {
                     ObjectKind::MaidenBloodSplats => "TOB_MAIDEN_BLOOD_SPLATS",
                     ObjectKind::SoteMazeTiles => "TOB_SOTE_OVERWORLD_TILES",
                     ObjectKind::VerzikYellows => "TOB_VERZIK_YELLOWS",
+                    ObjectKind::GuardianShroomSpawning => "TFA_GUARDIAN_SHROOMS_SPAWNING",
+                    ObjectKind::GuardianShroomGrown => "TFA_GUARDIAN_SHROOMS_GROWN",
+                    ObjectKind::GuardianShroomPopped => "TFA_GUARDIAN_SHROOMS_POPPED",
 
                     // Solo challenges only.
                     ObjectKind::ColosseumReentryPrimaryPool

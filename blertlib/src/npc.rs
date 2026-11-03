@@ -244,6 +244,25 @@ pub fn is_mokhaiotl_larva(npc_id: u32) -> bool {
 }
 
 #[must_use]
+pub fn is_guardian(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::ARCHIVE_GUARDIAN_INERT
+            | id::ARCHIVE_GUARDIAN_DEFEATED
+            | id::ARCHIVE_GUARDIAN
+            | id::ARCHIVE_GUARDIAN_UNSHIELDED
+    )
+}
+
+#[must_use]
+pub fn is_guardian_brazier(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::GUARDIAN_BATTERY_INACTIVE | id::GUARDIAN_BATTERY | id::GUARDIAN_BATTERY_DESTROYED
+    )
+}
+
+#[must_use]
 pub fn is_ocellus(npc_id: u32) -> bool {
     matches!(npc_id, id::OCELLUS_P1 | id::OCELLUS_P2 | id::OCELLUS_P3)
 }

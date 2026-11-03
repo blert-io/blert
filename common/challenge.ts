@@ -63,6 +63,7 @@ export interface TfaRaid extends Challenge {
 export type TfaChallengeStats = {
   route: number | null;
   guardianDeaths: number | null;
+  guardianDownCount: number | null;
   ezekielDeaths: number | null;
   borkDeaths: number | null;
   moiaDeaths: number | null;
@@ -522,6 +523,8 @@ export enum RoomNpcType {
   NYLO = 2,
   VERZIK_CRAB = 3,
   MOKHAIOTL = 15,
+  GUARDIAN = 16,
+  GUARDIAN_BRAZIER = 17,
 }
 
 export interface RoomNpc {
@@ -559,6 +562,11 @@ export interface VerzikCrab extends RoomNpc {
   verzikCrab: VerzikCrabProperties;
 }
 
+export interface GuardianBrazier extends RoomNpc {
+  type: RoomNpcType.GUARDIAN_BRAZIER;
+  guardianBrazier: GuardianBrazierProperties;
+}
+
 export type MaidenCrabProperties = {
   spawn: MaidenCrabSpawn;
   position: MaidenCrabPosition;
@@ -588,6 +596,10 @@ export type NyloProperties = {
 export type VerzikCrabProperties = {
   phase: VerzikPhase;
   spawn: VerzikCrabSpawn;
+};
+
+export type GuardianBrazierProperties = {
+  position: GuardianBrazierPosition;
 };
 
 export enum Skill {
@@ -825,6 +837,13 @@ export enum NpcAttack {
   TOB_VERZIK_P3_YELLOWS = NpcAttackProto.TOB_VERZIK_P3_YELLOWS,
   TOB_VERZIK_P3_BALL = NpcAttackProto.TOB_VERZIK_P3_BALL,
 
+  TFA_GUARDIAN_AUTO = NpcAttackProto.TFA_GUARDIAN_AUTO,
+  TFA_GUARDIAN_MELEE = NpcAttackProto.TFA_GUARDIAN_MELEE,
+  TFA_GUARDIAN_MUSHROOMS = NpcAttackProto.TFA_GUARDIAN_MUSHROOMS,
+  TFA_GUARDIAN_LEAP = NpcAttackProto.TFA_GUARDIAN_LEAP,
+  TFA_GUARDIAN_BREATH_FOCUS = NpcAttackProto.TFA_GUARDIAN_BREATH_FOCUS,
+  TFA_GUARDIAN_BREATH = NpcAttackProto.TFA_GUARDIAN_BREATH,
+
   MOKHAIOTL_AUTO = NpcAttackProto.MOKHAIOTL_AUTO,
   MOKHAIOTL_RANGED_AUTO = NpcAttackProto.MOKHAIOTL_RANGED_AUTO,
   MOKHAIOTL_MAGE_AUTO = NpcAttackProto.MOKHAIOTL_MAGE_AUTO,
@@ -920,6 +939,13 @@ export enum VerzikCrabSpawn {
   SOUTHEAST = EventProto.Npc.VerzikCrab.Spawn.SOUTHEAST,
   SOUTHWEST = EventProto.Npc.VerzikCrab.Spawn.SOUTHWEST,
   WEST = EventProto.Npc.VerzikCrab.Spawn.WEST,
+}
+
+export enum GuardianBrazierPosition {
+  NORTHEAST = EventProto.Npc.GuardianBrazier.Position.NORTHEAST,
+  SOUTHEAST = EventProto.Npc.GuardianBrazier.Position.SOUTHEAST,
+  SOUTHWEST = EventProto.Npc.GuardianBrazier.Position.SOUTHWEST,
+  NORTHWEST = EventProto.Npc.GuardianBrazier.Position.NORTHWEST,
 }
 
 export enum Maze {

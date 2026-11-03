@@ -148,7 +148,7 @@ impl BloatState {
         let Some(npc) = state.raw_npcs.get(&self.id) else {
             return;
         };
-        let animation = npc.animation;
+        let animation = npc.animation_id;
 
         if animation == Some(DEATH_ANIMATION) {
             if let Phase::Down(down) = self.phase {
@@ -253,7 +253,7 @@ mod tests {
             raw_npcs: BTreeMap::from([(
                 RoomId(58490),
                 RawNpc {
-                    animation,
+                    animation_id: animation,
                     ..Default::default()
                 },
             )]),
@@ -368,7 +368,7 @@ mod tests {
             raw_npcs: BTreeMap::from([(
                 RoomId(58490),
                 RawNpc {
-                    animation,
+                    animation_id: animation,
                     ..Default::default()
                 },
             )]),
@@ -464,7 +464,7 @@ mod tests {
             raw_npcs: BTreeMap::from([(
                 RoomId(58490),
                 RawNpc {
-                    animation,
+                    animation_id: animation,
                     ..Default::default()
                 },
             )]),

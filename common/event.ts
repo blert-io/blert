@@ -3,6 +3,8 @@ import { RawItemDelta } from './item-delta';
 import { RawPrayerSet } from './prayer-set';
 import {
   EquipmentSlot,
+  GuardianBrazierPosition,
+  GuardianBrazierProperties,
   Handicap,
   MaidenCrabProperties,
   Maze,
@@ -49,6 +51,11 @@ export enum EventType {
   TOB_VERZIK_YELLOWS = EventProto.Type.TOB_VERZIK_YELLOWS,
   TOB_VERZIK_HEAL = EventProto.Type.TOB_VERZIK_HEAL,
   TOB_VERZIK_DAWN_DROP = EventProto.Type.TOB_VERZIK_DAWN_DROP,
+  TFA_GUARDIAN_DOWN = EventProto.Type.TFA_GUARDIAN_DOWN,
+  TFA_GUARDIAN_UP = EventProto.Type.TFA_GUARDIAN_UP,
+  TFA_GUARDIAN_ROCKS = EventProto.Type.TFA_GUARDIAN_ROCKS,
+  TFA_GUARDIAN_SHROOMS = EventProto.Type.TFA_GUARDIAN_SHROOMS,
+  TFA_GUARDIAN_BRAZIER = EventProto.Type.TFA_GUARDIAN_BRAZIER,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
   COLOSSEUM_DOOM_APPLIED = EventProto.Type.COLOSSEUM_DOOM_APPLIED,
   COLOSSEUM_TOTEM_HEAL = EventProto.Type.COLOSSEUM_TOTEM_HEAL,
@@ -256,6 +263,48 @@ export interface VerzikDawnDropEvent extends BaseEvent {
   };
 }
 
+export interface TfaGuardianDownEvent extends BaseEvent {
+  type: EventType.TFA_GUARDIAN_DOWN;
+  tfaGuardianDown: { downNumber: number };
+}
+
+export interface TfaGuardianUpEvent extends BaseEvent {
+  type: EventType.TFA_GUARDIAN_UP;
+}
+
+export interface TfaGuardianRocksEvent extends BaseEvent {
+  type: EventType.TFA_GUARDIAN_ROCKS;
+  tfaGuardianRocks: { targets: string[] };
+}
+
+export interface TfaGuardianShroomsEvent extends BaseEvent {
+  type: EventType.TFA_GUARDIAN_SHROOMS;
+  tfaGuardianShrooms: {
+    updated: TfaGuardianShroom[];
+    removed: number[];
+  };
+}
+
+export interface TfaGuardianBrazierEvent extends BaseEvent {
+  type: EventType.TFA_GUARDIAN_BRAZIER;
+  tfaGuardianBrazier: {
+    roomId: number;
+    position: GuardianBrazierPosition;
+  };
+}
+
+export type TfaGuardianShroom = {
+  id: number;
+  position: Coords;
+  state: TfaGuardianShroomState;
+};
+
+export enum TfaGuardianShroomState {
+  SPAWNING = EventProto.TfaGuardianShrooms.State.SPAWNING,
+  GROWN = EventProto.TfaGuardianShrooms.State.GROWN,
+  POPPED = EventProto.TfaGuardianShrooms.State.POPPED,
+}
+
 export interface HandicapChoiceEvent extends BaseEvent {
   type: EventType.COLOSSEUM_HANDICAP_CHOICE;
   handicap: Handicap;
@@ -400,6 +449,11 @@ export type Event =
   | VerzikYellowsEvent
   | VerzikHealEvent
   | VerzikDawnDropEvent
+  | TfaGuardianDownEvent
+  | TfaGuardianUpEvent
+  | TfaGuardianRocksEvent
+  | TfaGuardianShroomsEvent
+  | TfaGuardianBrazierEvent
   | HandicapChoiceEvent
   | ColosseumDoomAppliedEvent
   | ColosseumTotemHealEvent
@@ -458,6 +512,11 @@ export type MokhaiotlProperties = {
   shield?: RawSkillLevel;
 };
 
+export type GuardianProperties = {
+  enraged: boolean;
+  shield?: RawSkillLevel;
+};
+
 export interface EventNpc extends BasicEventNpc {
   hitpoints: RawSkillLevel;
   prayers: RawPrayerSet;
@@ -465,6 +524,8 @@ export interface EventNpc extends BasicEventNpc {
   nylo?: NyloProperties;
   verzikCrab?: VerzikCrabProperties;
   mokhaiotl?: MokhaiotlProperties;
+  guardian?: GuardianProperties;
+  guardianBrazier?: GuardianBrazierProperties;
 }
 
 export type Attack = {
