@@ -180,17 +180,6 @@ export function getContainerDimensions(container: Container): {
 }
 
 /**
- * Checks if a grid position is valid for a container.
- */
-export function isValidGridPosition(
-  x: number,
-  y: number,
-  container: Container,
-): boolean {
-  return coordsToIndex(x, y, container) !== null;
-}
-
-/**
  * Converts a DOM event within a container to grid coordinates.
  * @param event Mouse event
  * @param containerElement The DOM element of the container
