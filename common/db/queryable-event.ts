@@ -34,6 +34,7 @@ export const QueryableEventField = {
   NPC_NYLO_STYLE: 'custom_short_2',
   NPC_VERZIK_CRAB_PHASE: 'custom_short_1',
   NPC_VERZIK_CRAB_SPAWN: 'custom_short_2',
+  NPC_GUARDIAN_BRAZIER_POSITION: 'custom_short_1',
 
   TOB_MAIDEN_CRAB_LEAK_SPAWN: 'custom_short_1',
   TOB_MAIDEN_CRAB_LEAK_POSITION: 'custom_short_2',
@@ -55,4 +56,8 @@ export const QueryableEventField = {
 
   SOL_GRAPPLE_TARGET: 'custom_short_1',
   SOL_GRAPPLE_OUTCOME: 'custom_short_2',
+
+  TFA_GUARDIAN_DOWN_NUMBER: 'custom_short_1',
+
+  TFA_GUARDIAN_BRAZIER_POSITION: 'custom_short_1',
 } as const;

@@ -1964,6 +1964,7 @@ describe('loadChallenge', () => {
         dagonhaiDeaths: null,
         xarthDeaths: null,
         ocellusDeaths: null,
+        guardianDownCount: null,
       },
     });
 

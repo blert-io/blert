@@ -1,7 +1,7 @@
 //! Fractured Archive challenge processing.
 
 use async_trait::async_trait;
-use blert::{Tick, TickState, Ticks, Timeline};
+use blert::{EventKind, NpcProperties, Tick, TickState, Ticks, Timeline};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -115,10 +115,16 @@ fn deaths_column(stage: Stage) -> &'static str {
     }
 }
 
+#[derive(Debug, Default)]
+struct GuardianState {
+    downs: u8,
+}
+
 #[derive(Debug)]
 pub struct ArchiveProcessor {
     challenge: ChallengeInfo,
     data: CustomData,
+    guardian: GuardianState,
 }
 
 impl ArchiveProcessor {
@@ -144,7 +150,29 @@ impl ArchiveProcessor {
             }
             None => CustomData::default(),
         };
-        Ok(ArchiveProcessor { challenge, data })
+        Ok(ArchiveProcessor {
+            challenge,
+            data,
+            guardian: GuardianState::default(),
+        })
+    }
+
+    fn process_guardian_tick(&mut self, ctx: &mut StageContext, tick: Tick, state: &TickState) {
+        let enraged = state.npcs.values().any(|npc| {
+            matches!(
+                &npc.properties,
+                Some(NpcProperties::Guardian(guardian)) if guardian.enraged
+            )
+        });
+        for event in &state.events {
+            match event.kind {
+                EventKind::GuardianDown(_) => self.guardian.downs += 1,
+                EventKind::GuardianUp if enraged => {
+                    ctx.set_stage_split(SplitType::TfaGuardianEnrage, tick, Tick(0), false);
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -152,11 +180,14 @@ impl ArchiveProcessor {
 impl ChallengeProcessor for ArchiveProcessor {
     fn process_tick(
         &mut self,
-        _ctx: &mut StageContext,
-        _tick: Tick,
-        _state: &TickState,
+        ctx: &mut StageContext,
+        tick: Tick,
+        state: &TickState,
         _timeline: &Timeline,
     ) {
+        if ctx.stage() == Stage::TfaGuardian {
+            self.process_guardian_tick(ctx, tick, state);
+        }
     }
 
     async fn on_create(&mut self, txn: &db::Transaction) -> Result<(), db::Error> {
@@ -240,6 +271,14 @@ impl ChallengeProcessor for ArchiveProcessor {
             &[&deaths, &self.data.route(), &txn.challenge_id()],
         )
         .await?;
+
+        if stage == Stage::TfaGuardian {
+            txn.execute(
+                "UPDATE tfa_challenge_stats SET guardian_down_count = $1 WHERE challenge_id = $2",
+                &[&i16::from(self.guardian.downs), &txn.challenge_id()],
+            )
+            .await?;
+        }
 
         Ok(ChallengeTicks::Add(last_tick.duration()))
     }

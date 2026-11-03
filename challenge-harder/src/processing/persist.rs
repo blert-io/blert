@@ -703,6 +703,11 @@ fn to_queryable_event(
                         row.custom_short_2 = Some(crab.spawn as i16);
                     }
                     event::npc::Type::Mokhaiotl(_) => row.subtype = Some(15),
+                    event::npc::Type::Guardian(_) => row.subtype = Some(16),
+                    event::npc::Type::GuardianBrazier(brazier) => {
+                        row.subtype = Some(17);
+                        row.custom_short_1 = Some(brazier.position as i16);
+                    }
                 }
             }
             row
@@ -792,6 +797,18 @@ fn to_queryable_event(
             row.custom_short_1 = Some(grapple.target as i16);
             // SOL_GRAPPLE_OUTCOME
             row.custom_short_2 = Some(grapple.outcome as i16);
+            row
+        }
+        event::Type::TfaGuardianDown => {
+            let down = event.tfa_guardian_down.as_ref()?;
+            let mut row = base();
+            row.custom_short_1 = Some(down.down_number as i16);
+            row
+        }
+        event::Type::TfaGuardianBrazier => {
+            let brazier = event.tfa_guardian_brazier.as_ref()?;
+            let mut row = base();
+            row.custom_short_1 = Some(brazier.position as i16);
             row
         }
         _ => return None,

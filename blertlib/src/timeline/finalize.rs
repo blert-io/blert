@@ -2,14 +2,16 @@
 
 use std::collections::BTreeMap;
 
-use crate::actor::RoomId;
-use crate::event::{Event, EventKind, NyloWave};
+use crate::actor::{Guardian, NpcProperties, PartyIndex, RoomId, Rsn};
+use crate::event::{Event, EventKind, GuardianShrooms, NyloWave, Shroom, ShroomState};
+use crate::objects::ObjectKind;
 use crate::tick::{Tick, Ticks};
-use crate::{ChallengeMode, Stage, npc};
+use crate::{ChallengeMode, NpcAttack, Point, Stage, npc};
 
-use super::{StageNpc, TickState, Timeline};
+use super::{RawActor, StageNpc, TickState, Timeline};
 
 struct FinalizeContext<'a> {
+    party: &'a [Rsn],
     npcs: &'a BTreeMap<RoomId, StageNpc>,
 }
 
@@ -32,8 +34,10 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
     let (history, states) = timeline.states.split_at_mut(start.as_usize());
 
     let mut finalizers: Vec<Box<dyn Finalizer>> = Vec::new();
-    if timeline.stage == Stage::TobNylocas {
-        finalizers.push(Box::new(NylocasFinalizer::new(timeline.mode)));
+    match timeline.stage {
+        Stage::TobNylocas => finalizers.push(Box::new(NylocasFinalizer::new(timeline.mode))),
+        Stage::TfaGuardian => finalizers.push(Box::new(GuardianFinalizer::default())),
+        _ => {}
     }
 
     timeline.npcs.retain(|_, npc| npc.spawn < start);
@@ -72,6 +76,7 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
         }
 
         let ctx = FinalizeContext {
+            party: &timeline.party,
             npcs: &timeline.npcs,
         };
         for finalizer in &mut finalizers {
@@ -208,6 +213,164 @@ impl Finalizer for NylocasFinalizer {
                         nylos_alive,
                     })));
             }
+        }
+    }
+}
+
+#[derive(Default)]
+struct GuardianFinalizer {
+    guardian: Option<u32>,
+    downs: u8,
+    braziers: BTreeMap<RoomId, u32>,
+    shrooms: BTreeMap<Point, Shroom>,
+    next_shroom: u32,
+}
+
+impl GuardianFinalizer {
+    const ROCK_PROJECTILE: u32 = 4201;
+    const SHROOMS: [(ObjectKind, ShroomState); 3] = [
+        (ObjectKind::GuardianShroomSpawning, ShroomState::Spawning),
+        (ObjectKind::GuardianShroomGrown, ShroomState::Grown),
+        (ObjectKind::GuardianShroomPopped, ShroomState::Popped),
+    ];
+
+    fn new_shroom_id(&mut self) -> u32 {
+        let id = self.next_shroom;
+        self.next_shroom += 1;
+        id
+    }
+}
+
+impl Finalizer for GuardianFinalizer {
+    fn initialize(&mut self, history: &[Option<TickState>]) {
+        for state in history.iter().flatten() {
+            for (&room_id, npc) in &state.npcs {
+                if npc::is_guardian(npc.id) {
+                    self.guardian = Some(npc.id);
+                } else if npc::is_guardian_brazier(npc.id) {
+                    self.braziers.insert(room_id, npc.id);
+                }
+            }
+            for event in &state.events {
+                match &event.kind {
+                    EventKind::GuardianDown(down_number) => self.downs = *down_number,
+                    EventKind::GuardianShrooms(shrooms) => {
+                        self.shrooms
+                            .retain(|_, shroom| !shrooms.removed.contains(&shroom.id));
+                        for &shroom in &shrooms.updated {
+                            self.shrooms.insert(shroom.position, shroom);
+                            self.next_shroom = self.next_shroom.max(shroom.id + 1);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn tick(&mut self, ctx: &FinalizeContext, _tick: Tick, state: &mut Option<TickState>) {
+        let Some(state) = state else {
+            return;
+        };
+
+        let auto_attacked = state.events.iter().any(|event| {
+            matches!(
+                &event.kind,
+                EventKind::NpcAttack(attack) if attack.attack == NpcAttack::TfaGuardianAuto
+            )
+        });
+        if auto_attacked {
+            let rocks = state
+                .raw_projectiles
+                .iter()
+                .filter(|projectile| projectile.id == Self::ROCK_PROJECTILE)
+                .filter_map(|projectile| match &projectile.target {
+                    Some(RawActor::Player(name)) => PartyIndex::resolve(ctx.party, name),
+                    Some(RawActor::Npc(_)) | None => None,
+                })
+                .collect::<Vec<_>>();
+            if !rocks.is_empty() {
+                state
+                    .events
+                    .push(Event::synthetic(EventKind::GuardianRocks(rocks)));
+            }
+        }
+
+        for (&room_id, npc) in &state.npcs {
+            if npc::is_guardian(npc.id) {
+                let enraged = matches!(
+                    &npc.properties,
+                    Some(NpcProperties::Guardian(Guardian { enraged: true, .. }))
+                );
+                let previous = self.guardian.replace(npc.id);
+                let event = match (previous, npc.id) {
+                    (Some(npc::id::ARCHIVE_GUARDIAN), npc::id::ARCHIVE_GUARDIAN_UNSHIELDED)
+                        if !enraged =>
+                    {
+                        self.downs += 1;
+                        Some(EventKind::GuardianDown(self.downs))
+                    }
+                    (Some(npc::id::ARCHIVE_GUARDIAN_UNSHIELDED), npc::id::ARCHIVE_GUARDIAN) => {
+                        Some(EventKind::GuardianUp)
+                    }
+                    _ => None,
+                };
+                state.events.extend(event.map(Event::synthetic));
+            } else if npc::is_guardian_brazier(npc.id) {
+                let previous = self.braziers.insert(room_id, npc.id);
+                if matches!(
+                    (previous, npc.id),
+                    (
+                        Some(npc::id::GUARDIAN_BATTERY),
+                        npc::id::GUARDIAN_BATTERY_DESTROYED
+                    )
+                ) {
+                    state
+                        .events
+                        .push(Event::synthetic(EventKind::GuardianBrazier(room_id)));
+                }
+            }
+        }
+
+        let mut tiles = BTreeMap::new();
+        for (kind, shroom_state) in Self::SHROOMS {
+            for position in state.objects.iter_of(kind) {
+                tiles.insert(position, shroom_state);
+            }
+        }
+
+        let mut removed = self
+            .shrooms
+            .extract_if(.., |position, _| !tiles.contains_key(position))
+            .map(|(_, shroom)| shroom.id)
+            .collect::<Vec<_>>();
+
+        let mut updated = Vec::new();
+        for (position, shroom_state) in tiles {
+            let id = match self.shrooms.get(&position) {
+                Some(shroom) if shroom.state == shroom_state => continue,
+                Some(shroom) if shroom_state == ShroomState::Spawning => {
+                    removed.push(shroom.id);
+                    self.new_shroom_id()
+                }
+                Some(shroom) => shroom.id,
+                None => self.new_shroom_id(),
+            };
+            let shroom = Shroom {
+                id,
+                position,
+                state: shroom_state,
+            };
+            self.shrooms.insert(position, shroom);
+            updated.push(shroom);
+        }
+
+        if !updated.is_empty() || !removed.is_empty() {
+            state
+                .events
+                .push(Event::synthetic(EventKind::GuardianShrooms(
+                    GuardianShrooms { updated, removed },
+                )));
         }
     }
 }

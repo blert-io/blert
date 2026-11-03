@@ -16,6 +16,7 @@ pub use crate::proto::event::colosseum_sol_dust::Direction as SolDustDirection;
 pub use crate::proto::event::colosseum_sol_grapple::Outcome as SolGrappleOutcome;
 pub use crate::proto::event::colosseum_sol_lasers::Phase as SolLaserPhase;
 pub use crate::proto::event::mokhaiotl_orb::Source as MokhaiotlOrbSource;
+pub use crate::proto::event::tfa_guardian_shrooms::State as ShroomState;
 pub use crate::proto::event::{VerzikPhase, XarpusPhase};
 
 /// A semantic event occurring in a stage.
@@ -101,6 +102,16 @@ pub enum EventKind {
 
     MokhaiotlOrb(MokhaiotlOrb),
     MokhaiotlLarvaLeak(MokhaiotlLarvaLeak),
+
+    GuardianDown(u8),
+    GuardianUp,
+    /// Guardian auto attacked, targeting one or more players. Sent on the same
+    /// tick as an NPC attack of type [`NpcAttack::TfaGuardianAuto`].
+    GuardianRocks(Vec<PartyIndex>),
+    /// The states of shrooms in the room changed.
+    GuardianShrooms(GuardianShrooms),
+    /// A brazier was destroyed.
+    GuardianBrazier(RoomId),
 }
 
 impl EventKind {
@@ -149,7 +160,12 @@ impl EventKind {
             | Self::SolDust(_)
             | Self::SolPools(_)
             | Self::SolLasers(_)
-            | Self::MokhaiotlLarvaLeak(_) => {}
+            | Self::MokhaiotlLarvaLeak(_)
+            | Self::GuardianDown(_)
+            | Self::GuardianUp
+            | Self::GuardianRocks(_)
+            | Self::GuardianShrooms(_)
+            | Self::GuardianBrazier(_) => {}
         }
     }
 }
@@ -400,6 +416,19 @@ pub struct MokhaiotlOrb {
 pub struct MokhaiotlLarvaLeak {
     pub larva: RoomId,
     pub heal_amount: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuardianShrooms {
+    pub updated: Vec<Shroom>,
+    pub removed: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Shroom {
+    pub id: u32,
+    pub position: Point,
+    pub state: ShroomState,
 }
 
 #[cfg(test)]

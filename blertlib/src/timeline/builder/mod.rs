@@ -867,7 +867,12 @@ impl<'a> TickBuilder<'a> {
             Type::TobVerzikRedsSpawn
             | Type::TobNyloWaveStall
             | Type::TobNyloCleanupEnd
-            | Type::TobNyloBossSpawn => {
+            | Type::TobNyloBossSpawn
+            | Type::TfaGuardianDown
+            | Type::TfaGuardianUp
+            | Type::TfaGuardianRocks
+            | Type::TfaGuardianShrooms
+            | Type::TfaGuardianBrazier => {
                 // Deliberately ignored.
             }
         }
@@ -1167,9 +1172,12 @@ fn extract_npc_state(
     let position = Rect::square(parse_point(event)?, size);
 
     let properties = match &npc.r#type {
-        None | Some(proto::event::npc::Type::Basic(())) => {
-            prior.and_then(|prior| prior.properties.clone())
-        }
+        None
+        | Some(
+            proto::event::npc::Type::Basic(())
+            | proto::event::npc::Type::Guardian(_)
+            | proto::event::npc::Type::GuardianBrazier(_),
+        ) => prior.and_then(|prior| prior.properties.clone()),
         Some(proto::event::npc::Type::MaidenCrab(crab)) => {
             Some(NpcProperties::MaidenCrab(MaidenCrab {
                 spawn: in_domain(crab.spawn, "npc.maiden_crab.spawn")?,
@@ -1228,7 +1236,7 @@ fn extract_npc_state(
             properties,
         },
         RawNpc {
-            animation: npc.animation,
+            animation_id: npc.animation,
             animation_start_tick: Tick(npc.animation_start_tick),
             target: npc
                 .target

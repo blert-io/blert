@@ -44,9 +44,14 @@ pub const fn classify(kind: &EventKind) -> Class {
         | EventKind::MokhaiotlOrb(_)
         | EventKind::MokhaiotlLarvaLeak(_) => Class::Solo,
 
-        EventKind::NyloWaveStall(_) | EventKind::NyloCleanupEnd | EventKind::NyloBossSpawn => {
-            Class::Derived
-        }
+        EventKind::NyloWaveStall(_)
+        | EventKind::NyloCleanupEnd
+        | EventKind::NyloBossSpawn
+        | EventKind::GuardianDown(_)
+        | EventKind::GuardianUp
+        | EventKind::GuardianRocks(_)
+        | EventKind::GuardianShrooms(_)
+        | EventKind::GuardianBrazier(_) => Class::Derived,
 
         EventKind::PlayerAttack(_) | EventKind::PlayerSpell(_) | EventKind::NpcAttack(_) => {
             Class::TickState
@@ -115,6 +120,12 @@ pub enum EventType {
 
     MokhaiotlOrb,
     MokhaiotlLarvaLeak,
+
+    TfaGuardianDown,
+    TfaGuardianUp,
+    TfaGuardianRocks,
+    TfaGuardianShrooms,
+    TfaGuardianBrazier,
 }
 
 impl fmt::Display for EventType {
@@ -165,6 +176,12 @@ pub(super) const fn event_type(kind: &EventKind) -> EventType {
 
         EventKind::MokhaiotlOrb(_) => EventType::MokhaiotlOrb,
         EventKind::MokhaiotlLarvaLeak(_) => EventType::MokhaiotlLarvaLeak,
+
+        EventKind::GuardianDown(_) => EventType::TfaGuardianDown,
+        EventKind::GuardianUp => EventType::TfaGuardianUp,
+        EventKind::GuardianRocks(_) => EventType::TfaGuardianRocks,
+        EventKind::GuardianShrooms(_) => EventType::TfaGuardianShrooms,
+        EventKind::GuardianBrazier(_) => EventType::TfaGuardianBrazier,
     }
 }
 

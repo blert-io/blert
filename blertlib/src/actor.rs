@@ -11,6 +11,7 @@ use crate::{
     AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, Tick, VerzikPhase, npc, proto,
 };
 
+pub use crate::proto::event::npc::guardian_brazier::Position as GuardianBrazierPosition;
 pub use crate::proto::event::npc::maiden_crab::{
     Position as MaidenCrabPosition, Spawn as MaidenCrabSpawn,
 };
@@ -290,6 +291,8 @@ pub enum NpcProperties {
     Nylo(Nylo),
     VerzikCrab(VerzikCrab),
     Mokhaiotl(Mokhaiotl),
+    Guardian(Guardian),
+    GuardianBrazier(GuardianBrazier),
     Ocellus(OcellusProperties),
 }
 
@@ -297,7 +300,12 @@ impl NpcProperties {
     pub fn remap_ticks(&mut self, remap: impl FnMut(Tick) -> Tick) {
         match self {
             Self::Ocellus(ocellus) => ocellus.remap_ticks(remap),
-            Self::MaidenCrab(_) | Self::Nylo(_) | Self::VerzikCrab(_) | Self::Mokhaiotl(_) => {}
+            Self::MaidenCrab(_)
+            | Self::Nylo(_)
+            | Self::VerzikCrab(_)
+            | Self::Mokhaiotl(_)
+            | Self::Guardian(_)
+            | Self::GuardianBrazier(_) => {}
         }
     }
 
@@ -342,6 +350,17 @@ impl NpcProperties {
                     shield: mokhaiotl.shield.map(SkillLevel::to_raw),
                 })
             }
+            Self::Guardian(guardian) => {
+                proto::event::npc::Type::Guardian(proto::event::npc::Guardian {
+                    enraged: guardian.enraged,
+                    shield: guardian.shield.map(SkillLevel::to_raw),
+                })
+            }
+            Self::GuardianBrazier(brazier) => {
+                proto::event::npc::Type::GuardianBrazier(proto::event::npc::GuardianBrazier {
+                    position: brazier.position as i32,
+                })
+            }
             Self::Ocellus(_) => return None,
         };
         Some(npc_type)
@@ -384,6 +403,17 @@ pub struct VerzikCrab {
 pub struct Mokhaiotl {
     pub charging: bool,
     pub shield: Option<SkillLevel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Guardian {
+    pub enraged: bool,
+    pub shield: Option<SkillLevel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuardianBrazier {
+    pub position: GuardianBrazierPosition,
 }
 
 #[cfg(test)]

@@ -1,10 +1,14 @@
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { Stage } from '../challenge';
 import { DataRepository } from '../data-repository/data-repository';
-import { ChallengeData } from '../generated/challenge_storage_pb';
+import {
+  ChallengeData,
+  ChallengeEvents,
+} from '../generated/challenge_storage_pb';
+import { Event as EventProto } from '../generated/event_pb';
 
 const UUID = '25252525-2525-2525-2525-252525252525';
 
@@ -81,6 +85,38 @@ describe('DataRepository', () => {
       await expect(repository.loadTfaChallengeData(UUID)).rejects.toThrow(
         DataRepository.InvalidType,
       );
+    });
+  });
+
+  describe('stage events', () => {
+    it('stores guardian rock targets as party indices', async () => {
+      const rocks = new EventProto.TfaGuardianRocks();
+      rocks.setTargetsList(['TobDataEgirl', '715']);
+      rocks.setTargetPartyIndicesList([0, 1]);
+      const event = new EventProto();
+      event.setType(EventProto.Type.TFA_GUARDIAN_ROCKS);
+      event.setStage(Stage.TFA_GUARDIAN);
+      event.setTick(8803);
+      event.setTfaGuardianRocks(rocks);
+
+      await repository.saveProtoStageEvents(
+        UUID,
+        Stage.TFA_GUARDIAN,
+        ['TobDataEgirl', '715'],
+        [event.cloneMessage()],
+      );
+
+      const atRest = event.cloneMessage();
+      atRest.getTfaGuardianRocks()!.clearTargetsList();
+      const stored = ChallengeEvents.deserializeBinary(
+        await readFile(join(root, '25', UUID.replaceAll('-', ''), 'guardian')),
+      );
+      expect(stored.getEventsList().map((e) => e.toObject())).toEqual([
+        atRest.toObject(),
+      ]);
+
+      const loaded = await repository.loadStageEvents(UUID, Stage.TFA_GUARDIAN);
+      expect(loaded.map((e) => e.toObject())).toEqual([event.toObject()]);
     });
   });
 });

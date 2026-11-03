@@ -207,10 +207,7 @@ impl Interpreter for MokhaiotlInterpreter<'_> {
 
         let mut phase = Phase::Up;
         for (tick, state) in recording.states() {
-            let (Some(mokhaiotl), Some(raw)) = (
-                state.npcs.get(&self.room_id),
-                state.raw_npcs.get(&self.room_id),
-            ) else {
+            let Some((mokhaiotl, raw)) = state.generic_npc(self.room_id) else {
                 continue;
             };
 
@@ -222,7 +219,7 @@ impl Interpreter for MokhaiotlInterpreter<'_> {
                 _ => phase,
             };
 
-            let animation = raw.animation.filter(|_| raw.animation_start_tick == tick);
+            let animation = raw.animation(tick);
 
             // When Doom performs an auto attack, its projectile is created on
             // the same tick within its body. The auto always lands after any

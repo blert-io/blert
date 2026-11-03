@@ -33,6 +33,8 @@ fn main() -> Result<()> {
         ".blert.Event.Npc.Nylo",
         ".blert.Event.Npc.VerzikCrab",
         ".blert.Event.Npc.Mokhaiotl",
+        ".blert.Event.Npc.Guardian",
+        ".blert.Event.Npc.GuardianBrazier",
     ] {
         config.type_attribute(ty, "#[derive(serde::Serialize, serde::Deserialize)]");
     }

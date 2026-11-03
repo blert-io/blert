@@ -118,6 +118,10 @@ impl<'a> Encoder<'a> {
         }
     }
 
+    fn name(&self, index: PartyIndex) -> String {
+        self.timeline.party[index.as_usize()].to_string()
+    }
+
     fn player_update_event(
         &self,
         tick: Tick,
@@ -135,7 +139,7 @@ impl<'a> Encoder<'a> {
             Some(player.position),
         );
         event.player = Some(proto::event::Player {
-            name: self.timeline.party[index.as_usize()].to_string(),
+            name: self.name(index),
             off_cooldown_tick: self.cooldowns.off_cooldown_tick(index).0,
             hitpoints: stats.map(|stats| stats.hitpoints.to_raw()),
             prayer: stats.map(|stats| stats.prayer.to_raw()),
@@ -298,6 +302,9 @@ impl<'a> Encoder<'a> {
                         Some(proto::event::MokhaiotlShockwave { tiles: points() });
                     events.push(event);
                 }
+                ObjectKind::GuardianShroomSpawning
+                | ObjectKind::GuardianShroomGrown
+                | ObjectKind::GuardianShroomPopped => {}
             }
         }
     }
@@ -314,7 +321,7 @@ impl<'a> Encoder<'a> {
                 let position = state.players.get(*index).map(|player| player.position);
                 let mut event = self.event(proto::event::Type::PlayerDeath, tick, position);
                 event.player = Some(proto::event::Player {
-                    name: self.timeline.party[index.as_usize()].to_string(),
+                    name: self.name(*index),
                     party_index: u32::from(index.0),
                     ..Default::default()
                 });
@@ -336,7 +343,7 @@ impl<'a> Encoder<'a> {
                     Some(player.position),
                 );
                 event.player = Some(proto::event::Player {
-                    name: self.timeline.party[attack.player.as_usize()].to_string(),
+                    name: self.name(attack.player),
                     party_index: u32::from(attack.player.0),
                     ..Default::default()
                 });
@@ -367,9 +374,9 @@ impl<'a> Encoder<'a> {
                 }
                 let player = state.players.get(cast.player)?;
                 let target = match cast.target {
-                    Some(Actor::Player(target)) => proto::event::spell::Target::TargetPlayer(
-                        self.timeline.party[target.as_usize()].to_string(),
-                    ),
+                    Some(Actor::Player(target)) => {
+                        proto::event::spell::Target::TargetPlayer(self.name(target))
+                    }
                     Some(Actor::Npc(room_id)) => {
                         proto::event::spell::Target::TargetNpc(proto::event::Npc {
                             id: state.npcs.get(&room_id).map_or(0, |npc| npc.id),
@@ -382,7 +389,7 @@ impl<'a> Encoder<'a> {
                 let mut event =
                     self.event(proto::event::Type::PlayerSpell, tick, Some(player.position));
                 event.player = Some(proto::event::Player {
-                    name: self.timeline.party[cast.player.as_usize()].to_string(),
+                    name: self.name(cast.player),
                     party_index: u32::from(cast.player.0),
                     ..Default::default()
                 });
@@ -429,9 +436,7 @@ impl<'a> Encoder<'a> {
                 event.npc_attack = Some(proto::event::NpcAttacked {
                     attack: attack.attack as i32,
                     target: match attack.target {
-                        Some(Actor::Player(target)) => {
-                            Some(self.timeline.party[target.as_usize()].to_string())
-                        }
+                        Some(Actor::Player(target)) => Some(self.name(target)),
                         Some(Actor::Npc(_)) | None => None,
                     },
                 });
@@ -592,7 +597,7 @@ impl<'a> Encoder<'a> {
                 event.verzik_dawn = Some(proto::event::VerzikDawn {
                     attack_tick: hit.attack_tick.0,
                     damage: hit.damage,
-                    player: self.timeline.party[hit.player.as_usize()].to_string(),
+                    player: self.name(hit.player),
                 });
                 Some(event)
             }
@@ -609,9 +614,7 @@ impl<'a> Encoder<'a> {
                     npc_attack_tick: bounce.attack_tick.0.cast_signed(),
                     players_in_range: u32::from(bounce.players_in_range),
                     players_not_in_range: u32::try_from(not_in_range).expect("party is small"),
-                    bounced_player: bounce
-                        .bounced
-                        .map(|player| self.timeline.party[player.as_usize()].to_string()),
+                    bounced_player: bounce.bounced.map(|player| self.name(player)),
                 });
                 Some(event)
             }
@@ -620,7 +623,7 @@ impl<'a> Encoder<'a> {
                 let position = state.players.get(heal.player).map(|player| player.position);
                 let mut event = self.event(proto::event::Type::TobVerzikHeal, tick, position);
                 event.verzik_heal = Some(proto::event::VerzikHeal {
-                    player: self.timeline.party[heal.player.as_usize()].to_string(),
+                    player: self.name(heal.player),
                     heal_amount: heal.amount.map_or(-1, u32::cast_signed),
                 });
                 Some(event)
@@ -715,6 +718,61 @@ impl<'a> Encoder<'a> {
                 event.mokhaiotl_larva_leak = Some(proto::event::MokhaiotlLarvaLeak {
                     room_id: leak.larva.0,
                     heal_amount: leak.heal_amount,
+                });
+                Some(event)
+            }
+
+            EventKind::GuardianDown(down_number) => {
+                let mut event = self.event(proto::event::Type::TfaGuardianDown, tick, None);
+                event.tfa_guardian_down = Some(proto::event::TfaGuardianDown {
+                    down_number: u32::from(*down_number),
+                });
+                Some(event)
+            }
+
+            EventKind::GuardianUp => {
+                Some(self.event(proto::event::Type::TfaGuardianUp, tick, None))
+            }
+
+            EventKind::GuardianRocks(targets) => {
+                let mut event = self.event(proto::event::Type::TfaGuardianRocks, tick, None);
+                event.tfa_guardian_rocks = Some(proto::event::TfaGuardianRocks {
+                    targets: targets.iter().map(|&index| self.name(index)).collect(),
+                    target_party_indices: targets.iter().map(|index| u32::from(index.0)).collect(),
+                });
+                Some(event)
+            }
+
+            EventKind::GuardianShrooms(shrooms) => {
+                let mut event = self.event(proto::event::Type::TfaGuardianShrooms, tick, None);
+                event.tfa_guardian_shrooms = Some(proto::event::TfaGuardianShrooms {
+                    updated: shrooms
+                        .updated
+                        .iter()
+                        .map(|shroom| proto::event::tfa_guardian_shrooms::Shroom {
+                            id: shroom.id,
+                            position: Some(proto::Coords::from(shroom.position)),
+                            state: shroom.state as i32,
+                        })
+                        .collect(),
+                    removed: shrooms.removed.clone(),
+                });
+                Some(event)
+            }
+
+            EventKind::GuardianBrazier(room_id) => {
+                let brazier = state.npcs.get(room_id)?;
+                let Some(NpcProperties::GuardianBrazier(properties)) = &brazier.properties else {
+                    return None;
+                };
+                let mut event = self.event(
+                    proto::event::Type::TfaGuardianBrazier,
+                    tick,
+                    Some(brazier.position.point),
+                );
+                event.tfa_guardian_brazier = Some(proto::event::TfaGuardianBrazier {
+                    room_id: room_id.0,
+                    position: properties.position as i32,
                 });
                 Some(event)
             }

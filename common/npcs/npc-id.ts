@@ -510,4 +510,15 @@ export class Npc {
   static isRockySupport(npcId: number): boolean {
     return (npcId as NpcId) === NpcId.ROCKY_SUPPORT;
   }
+
+  private static readonly ARCHIVE_GUARDIAN_IDS: number[] = [
+    NpcId.ARCHIVE_GUARDIAN_INERT,
+    NpcId.ARCHIVE_GUARDIAN_DEFEATED,
+    NpcId.ARCHIVE_GUARDIAN,
+    NpcId.ARCHIVE_GUARDIAN_UNSHIELDED,
+  ];
+
+  static isArchiveGuardian(npcId: number): boolean {
+    return Npc.ARCHIVE_GUARDIAN_IDS.includes(npcId);
+  }
 }

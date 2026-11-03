@@ -353,6 +353,7 @@ export enum SplitType {
   TFA_CHALLENGE = 400,
   TFA_OVERALL = 401,
   TFA_GUARDIAN = 410,
+  TFA_GUARDIAN_ENRAGE = 411,
   TFA_EZEKIEL = 420,
   TFA_BORK = 430,
   TFA_MOIA = 440,
@@ -594,6 +595,8 @@ export function splitName(
       return full ? 'TFA overall time' : 'Overall time';
     case SplitType.TFA_GUARDIAN:
       return full ? 'Guardian room time' : 'Guardian';
+    case SplitType.TFA_GUARDIAN_ENRAGE:
+      return full ? 'Guardian enrage time' : 'Guardian enrage';
     case SplitType.TFA_EZEKIEL:
       return full ? 'Ezekiel room time' : 'Ezekiel';
     case SplitType.TFA_BORK:
