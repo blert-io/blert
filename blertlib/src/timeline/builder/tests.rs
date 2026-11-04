@@ -217,7 +217,7 @@ fn builder_ingest_drops_action_without_actor() {
 fn builder_ingest_player_update() {
     let mut builder = RecordingBuilder::new(
         ClientId(9),
-        PluginVersion::new(0, 10, 0),
+        PluginVersion::new(0, 10, 7),
         ConfigVersion::LATEST,
         Stage::TobNylocas,
         ChallengeMode::TobRegular,
@@ -262,6 +262,7 @@ fn builder_ingest_player_update() {
         active_prayers: Some(0),
         data_source: proto::event::player::DataSource::Primary as i32,
         snapshot: true,
+        spot_anims: vec![1873, 1116],
         ..Default::default()
     });
     let mut secondary_snapshot = proto::Event {
@@ -309,6 +310,7 @@ fn builder_ingest_player_update() {
         active_prayers: Some(0),
         data_source: proto::event::player::DataSource::Primary as i32,
         snapshot: false,
+        spot_anims: vec![1873],
         ..Default::default()
     });
 
@@ -328,6 +330,18 @@ fn builder_ingest_player_update() {
             .collect::<Vec<_>>(),
         [PartyIndex::from_usize(0), PartyIndex::from_usize(1)]
     );
+    assert_eq!(
+        first.raw_players,
+        BTreeMap::from([
+            (
+                PartyIndex::from_usize(0),
+                RawPlayer {
+                    spot_anims: vec![1873, 1116],
+                },
+            ),
+            (PartyIndex::from_usize(1), RawPlayer::default()),
+        ])
+    );
     assert_eq!(first.events, []);
     let second = recording.get_state(Tick(1)).unwrap();
     assert_eq!(
@@ -336,6 +350,15 @@ fn builder_ingest_player_update() {
             PartyIndex::from_usize(0),
             first.players.get(PartyIndex::from_usize(0)).unwrap()
         )]
+    );
+    assert_eq!(
+        second.raw_players,
+        BTreeMap::from([(
+            PartyIndex::from_usize(0),
+            RawPlayer {
+                spot_anims: vec![1873],
+            },
+        )])
     );
     assert_eq!(second.events, []);
     assert_eq!(builder.rejections().count(), 0);
@@ -851,61 +874,28 @@ fn builder_ingest_objects() {
     );
 
     let mut first = proto::Event {
-        tick: 19,
+        tick: 32,
         stage: Stage::TobMaiden as i32,
         ..Default::default()
     };
     first.set_type(proto::event::Type::Objects);
     first.objects = Some(proto::event::Objects {
-        snapshot: true,
+        snapshot: false,
         updates: vec![proto::event::ObjectUpdate {
-            r#type: proto::event::object_update::Type::Graphics as i32,
-            id: 1579,
-            added: vec![
-                proto::Coords { x: 3168, y: 4449 },
-                proto::Coords { x: 3168, y: 4447 },
-                proto::Coords { x: 3164, y: 4443 },
-                proto::Coords { x: 3168, y: 4444 },
-                proto::Coords { x: 3166, y: 4450 },
-                proto::Coords { x: 3170, y: 4448 },
-                proto::Coords { x: 3169, y: 4450 },
-            ],
+            r#type: proto::event::object_update::Type::Game as i32,
+            id: 32984,
+            added: vec![proto::Coords { x: 3168, y: 4449 }],
             removed: vec![],
-            snapshot: true,
+            snapshot: false,
         }],
     });
     let mut second = proto::Event {
-        tick: 32,
+        tick: 34,
         stage: Stage::TobMaiden as i32,
         ..Default::default()
     };
     second.set_type(proto::event::Type::Objects);
     second.objects = Some(proto::event::Objects {
-        snapshot: false,
-        updates: vec![
-            proto::event::ObjectUpdate {
-                r#type: proto::event::object_update::Type::Game as i32,
-                id: 32984,
-                added: vec![proto::Coords { x: 3168, y: 4449 }],
-                removed: vec![],
-                snapshot: false,
-            },
-            proto::event::ObjectUpdate {
-                r#type: proto::event::object_update::Type::Graphics as i32,
-                id: 1579,
-                added: vec![],
-                removed: vec![],
-                snapshot: true,
-            },
-        ],
-    });
-    let mut third = proto::Event {
-        tick: 34,
-        stage: Stage::TobMaiden as i32,
-        ..Default::default()
-    };
-    third.set_type(proto::event::Type::Objects);
-    third.objects = Some(proto::event::Objects {
         snapshot: false,
         updates: vec![proto::event::ObjectUpdate {
             r#type: proto::event::object_update::Type::Game as i32,
@@ -916,38 +906,9 @@ fn builder_ingest_objects() {
         }],
     });
 
-    assert_eq!(
-        builder.ingest([first, second, third]).from_tick,
-        Some(Tick(19))
-    );
+    assert_eq!(builder.ingest([first, second]).from_tick, Some(Tick(32)));
     let recording = builder.recording().unwrap();
-    assert_eq!(
-        recording
-            .get_state(Tick(19))
-            .unwrap()
-            .raw_objects
-            .get(ObjectDef(object_update::Type::Graphics, 1579))
-            .into_iter()
-            .flatten()
-            .copied()
-            .collect::<Vec<_>>(),
-        [
-            Point(3164, 4443),
-            Point(3166, 4450),
-            Point(3168, 4444),
-            Point(3168, 4447),
-            Point(3168, 4449),
-            Point(3169, 4450),
-            Point(3170, 4448),
-        ]
-    );
     let state = recording.get_state(Tick(32)).unwrap();
-    assert_eq!(
-        state
-            .raw_objects
-            .get(ObjectDef(object_update::Type::Graphics, 1579)),
-        None
-    );
     assert_eq!(
         state
             .raw_objects
@@ -974,20 +935,6 @@ fn builder_ingest_objects() {
     assert_eq!(
         builder.mismatches().cloned().collect::<Vec<_>>(),
         [
-            BuildMismatch {
-                tick: Tick(19),
-                kind: "MaidenBloodSplats".to_string(),
-                bespoke: vec![],
-                interpreted: vec![
-                    "(3164,4443)".to_string(),
-                    "(3166,4450)".to_string(),
-                    "(3168,4444)".to_string(),
-                    "(3168,4447)".to_string(),
-                    "(3168,4449)".to_string(),
-                    "(3169,4450)".to_string(),
-                    "(3170,4448)".to_string(),
-                ],
-            },
             BuildMismatch {
                 tick: Tick(32),
                 kind: "MaidenBloodSplats".to_string(),
@@ -1652,6 +1599,302 @@ fn builder_ingest_projectiles_rejects_malformed_events() {
                 tick: Tick(3),
                 kind: proto::event::Type::Projectiles,
                 reason: RejectionReason::Inconsistent("projectile landing_tick before event tick"),
+            },
+        ]
+    );
+    assert_eq!(builder.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_spot_anims() {
+    let mut maiden = RecordingBuilder::new(
+        ClientId(2),
+        PluginVersion::new(0, 10, 7),
+        ConfigVersion::LATEST,
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("Sacolyn").unwrap()],
+        None,
+    );
+
+    let splat = |x: i32, y: i32, draw_tick: u32, end_tick: u32| proto::event::SpotAnim {
+        id: 1579,
+        placement: Some(proto::event::spot_anim::Placement::Tile(proto::Coords {
+            x,
+            y,
+        })),
+        draw_tick,
+        end_tick,
+    };
+
+    let mut first = proto::Event {
+        tick: 29,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    first.set_type(proto::event::Type::SpotAnims);
+    first.spot_anims = vec![
+        splat(3172, 4453, 34, 44),
+        splat(3163, 4443, 32, 42),
+        splat(3167, 4450, 32, 42),
+        splat(3171, 4451, 33, 43),
+        splat(3172, 4449, 34, 44),
+        splat(3170, 4444, 33, 43),
+        splat(3163, 4441, 33, 43),
+    ];
+    let mut second = proto::Event {
+        tick: 89,
+        stage: Stage::TobMaiden as i32,
+        ..Default::default()
+    };
+    second.set_type(proto::event::Type::SpotAnims);
+    second.spot_anims = vec![
+        splat(3171, 4442, 93, 103),
+        splat(3174, 4451, 95, 105),
+        splat(3175, 4452, 95, 105),
+        splat(3176, 4450, 95, 105),
+        splat(3168, 4447, 92, 102),
+        splat(3164, 4443, 92, 102),
+        splat(3166, 4443, 92, 102),
+    ];
+
+    assert_eq!(maiden.ingest([first, second]).from_tick, Some(Tick(29)));
+    let recording = maiden.recording().unwrap();
+    assert_eq!(
+        recording.get_state(Tick(29)).unwrap().raw_spot_anims,
+        BTreeMap::from([(
+            1579,
+            vec![
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3172, 4453)),
+                    draw_tick: Tick(34),
+                    end_tick: Tick(44),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3163, 4443)),
+                    draw_tick: Tick(32),
+                    end_tick: Tick(42),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3167, 4450)),
+                    draw_tick: Tick(32),
+                    end_tick: Tick(42),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3171, 4451)),
+                    draw_tick: Tick(33),
+                    end_tick: Tick(43),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3172, 4449)),
+                    draw_tick: Tick(34),
+                    end_tick: Tick(44),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3170, 4444)),
+                    draw_tick: Tick(33),
+                    end_tick: Tick(43),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3163, 4441)),
+                    draw_tick: Tick(33),
+                    end_tick: Tick(43),
+                },
+            ],
+        )])
+    );
+    assert_eq!(
+        recording.get_state(Tick(89)).unwrap().raw_spot_anims,
+        BTreeMap::from([(
+            1579,
+            vec![
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3171, 4442)),
+                    draw_tick: Tick(93),
+                    end_tick: Tick(103),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3174, 4451)),
+                    draw_tick: Tick(95),
+                    end_tick: Tick(105),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3175, 4452)),
+                    draw_tick: Tick(95),
+                    end_tick: Tick(105),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3176, 4450)),
+                    draw_tick: Tick(95),
+                    end_tick: Tick(105),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3168, 4447)),
+                    draw_tick: Tick(92),
+                    end_tick: Tick(102),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3164, 4443)),
+                    draw_tick: Tick(92),
+                    end_tick: Tick(102),
+                },
+                RawSpotAnim {
+                    placement: SpotAnimPlacement::Tile(Point(3166, 4443)),
+                    draw_tick: Tick(92),
+                    end_tick: Tick(102),
+                },
+            ],
+        )])
+    );
+    assert_eq!(maiden.rejections().count(), 0);
+    assert_eq!(maiden.warnings().count(), 0);
+
+    let mut guardian = RecordingBuilder::new(
+        ClientId(2),
+        PluginVersion::new(0, 10, 7),
+        ConfigVersion::LATEST,
+        Stage::TfaGuardian,
+        ChallengeMode::NoMode,
+        vec![Rsn::try_from("1Ogp").unwrap()],
+        None,
+    );
+    let mut zoryas_tome = proto::Event {
+        tick: 2981,
+        stage: Stage::TfaGuardian as i32,
+        ..Default::default()
+    };
+    zoryas_tome.set_type(proto::event::Type::SpotAnims);
+    zoryas_tome.spot_anims = vec![proto::event::SpotAnim {
+        id: 4430,
+        placement: Some(proto::event::spot_anim::Placement::Actor(proto::Target {
+            target: Some(proto::target::Target::NpcRoomId(39540)),
+        })),
+        draw_tick: 2981,
+        end_tick: 2981,
+    }];
+
+    assert_eq!(guardian.ingest([zoryas_tome]).from_tick, Some(Tick(2981)));
+    assert_eq!(
+        guardian
+            .recording()
+            .unwrap()
+            .get_state(Tick(2981))
+            .unwrap()
+            .raw_spot_anims,
+        BTreeMap::from([(
+            4430,
+            vec![RawSpotAnim {
+                placement: SpotAnimPlacement::Actor(RawActor::Npc(39540)),
+                draw_tick: Tick(2981),
+                end_tick: Tick(2981),
+            }],
+        )])
+    );
+    assert_eq!(guardian.rejections().count(), 0);
+    assert_eq!(guardian.warnings().count(), 0);
+}
+
+#[test]
+fn builder_ingest_spot_anims_rejects_malformed_events() {
+    let mut builder = RecordingBuilder::new(
+        ClientId(2),
+        PluginVersion::new(0, 10, 7),
+        ConfigVersion::LATEST,
+        Stage::TobMaiden,
+        ChallengeMode::TobRegular,
+        vec![Rsn::try_from("Sacolyn").unwrap()],
+        None,
+    );
+
+    let event = |tick: u32, spot_anim: proto::event::SpotAnim| {
+        let mut event = proto::Event {
+            tick,
+            stage: Stage::TobMaiden as i32,
+            ..Default::default()
+        };
+        event.set_type(proto::event::Type::SpotAnims);
+        event.spot_anims = vec![spot_anim];
+        event
+    };
+    let splat = |placement, draw_tick: u32, end_tick: u32| proto::event::SpotAnim {
+        id: 1579,
+        placement,
+        draw_tick,
+        end_tick,
+    };
+    let tile = |x: i32| {
+        Some(proto::event::spot_anim::Placement::Tile(proto::Coords {
+            x,
+            y: 4453,
+        }))
+    };
+
+    let no_placement = event(29, splat(None, 34, 44));
+    let no_actor = event(
+        30,
+        splat(
+            Some(proto::event::spot_anim::Placement::Actor(proto::Target {
+                target: None,
+            })),
+            34,
+            44,
+        ),
+    );
+    let negative_tile = event(31, splat(tile(-1), 34, 44));
+    let draw_after_end = event(32, splat(tile(3172), 44, 34));
+    let end_past_max = event(33, splat(tile(3172), 34, 36_001));
+
+    assert_eq!(
+        builder
+            .ingest([
+                no_placement,
+                no_actor,
+                negative_tile,
+                draw_after_end,
+                end_past_max,
+            ])
+            .from_tick,
+        None
+    );
+    let recording = builder.recording().unwrap();
+    assert!(recording.get_state(Tick(29)).is_none());
+    assert!(recording.get_state(Tick(30)).is_none());
+    assert!(recording.get_state(Tick(31)).is_none());
+    assert!(recording.get_state(Tick(32)).is_none());
+    assert!(recording.get_state(Tick(33)).is_none());
+    assert_eq!(
+        builder.rejections().cloned().collect::<Vec<_>>(),
+        [
+            BuildRejection {
+                tick: Tick(29),
+                kind: proto::event::Type::SpotAnims,
+                reason: RejectionReason::MissingPayload("spot_anims.placement"),
+            },
+            BuildRejection {
+                tick: Tick(30),
+                kind: proto::event::Type::SpotAnims,
+                reason: RejectionReason::MissingPayload("spot_anims.actor"),
+            },
+            BuildRejection {
+                tick: Tick(31),
+                kind: proto::event::Type::SpotAnims,
+                reason: RejectionReason::InvalidField {
+                    field: "spot_anims.tile",
+                    error: FieldError::OutOfDomain("(-1,4453)".to_string()),
+                },
+            },
+            BuildRejection {
+                tick: Tick(32),
+                kind: proto::event::Type::SpotAnims,
+                reason: RejectionReason::Inconsistent("spot anim draw_tick after end_tick"),
+            },
+            BuildRejection {
+                tick: Tick(33),
+                kind: proto::event::Type::SpotAnims,
+                reason: RejectionReason::InvalidField {
+                    field: "spot_anims.end_tick",
+                    error: FieldError::OutOfDomain("36001".to_string()),
+                },
             },
         ]
     );
@@ -3406,7 +3649,8 @@ fn extract_player_state_snapshot() {
                     ranged: SkillLevel::from_raw(7_340_131),
                     magic: SkillLevel::from_raw(7_340_131),
                 }),
-            }
+            },
+            RawPlayer::default(),
         ))
     );
 
@@ -3487,7 +3731,8 @@ fn extract_player_state_snapshot() {
                 ],
                 prayers: PrayerSet::from_raw(0),
                 data: DataSource::Secondary,
-            }
+            },
+            RawPlayer::default(),
         ))
     );
 
@@ -3735,7 +3980,9 @@ fn extract_player_state_update_from_last_seen_tick() {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: vec![],
         },
@@ -3829,7 +4076,8 @@ fn extract_player_state_update_from_last_seen_tick() {
                     ranged: SkillLevel::from_raw(7_340_131),
                     magic: SkillLevel::from_raw(7_340_131),
                 }),
-            }
+            },
+            RawPlayer::default(),
         ))
     );
 
@@ -3856,7 +4104,7 @@ fn extract_player_state_update_from_last_seen_tick() {
         snapshot: false,
         ..Default::default()
     });
-    let (index, state) =
+    let (index, state, _) =
         extract_player_state(ClientId(9), &party, &recording, &last_seen_actors, &ammo).unwrap();
     assert_eq!(index, PartyIndex::from_usize(0));
     assert_eq!(state.position, Point(3298, 4249));
@@ -4018,7 +4266,9 @@ fn extract_npc_state_update_last_seen_tick() {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: vec![],
         },

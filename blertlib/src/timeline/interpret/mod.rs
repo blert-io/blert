@@ -34,6 +34,9 @@ use crate::{
     proto,
 };
 
+/// Plugin version which introduced standalone spotanim recording.
+const SPOT_ANIMS_PLUGIN_VERSION: PluginVersion = PluginVersion::new(0, 10, 7);
+
 const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 3] = [
     (
         Some(bloat::MIN_SUPPORTED_VERSION),
@@ -382,6 +385,11 @@ impl HitpointsVarbits {
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct RawPlayer {
+    pub(super) spot_anims: Vec<u32>,
+}
+
 /// An NPC as recorded by a plugin.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct RawNpc {
@@ -456,6 +464,19 @@ pub(crate) struct RawProjectile {
     pub(super) target: Option<RawActor>,
     pub(super) target_coords: Point,
     pub(super) landing_tick: Tick,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RawSpotAnim {
+    pub(super) placement: SpotAnimPlacement,
+    pub(super) draw_tick: Tick,
+    pub(super) end_tick: Tick,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SpotAnimPlacement {
+    Actor(RawActor),
+    Tile(Point),
 }
 
 /// Returns each tick where `interpretation` differs from the bespoke events
@@ -583,7 +604,9 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::from([(RoomId(58490), RawNpc::default())]),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -603,7 +626,9 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_players: BTreeMap::new(),
                 raw_projectiles: Vec::new(),
+                raw_spot_anims: BTreeMap::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },

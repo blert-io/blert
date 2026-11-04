@@ -5,26 +5,14 @@ use crate::{
     Source, TickState, npc,
 };
 
-use super::{InterpretContext, Interpreter, ObjectDef};
+use super::{InterpretContext, Interpreter, ObjectDef, SpotAnimPlacement};
 
 const REENTRY_PRIMARY_POOL: ObjectDef = ObjectDef(object_update::Type::Game, 50743);
 const REENTRY_SECONDARY_POOL: ObjectDef = ObjectDef(object_update::Type::Ground, 50744);
-const SOL_POOL: ObjectDef = ObjectDef(object_update::Type::Graphics, 2698);
-const SOL_LASER_SCAN: [ObjectDef; 3] = [
-    ObjectDef(object_update::Type::Graphics, 2689),
-    ObjectDef(object_update::Type::Graphics, 2690),
-    ObjectDef(object_update::Type::Graphics, 2691),
-];
-const SOL_LASER_SHOT: [ObjectDef; 3] = [
-    ObjectDef(object_update::Type::Graphics, 2693),
-    ObjectDef(object_update::Type::Graphics, 2694),
-    ObjectDef(object_update::Type::Graphics, 2695),
-];
-const SOL_DUST: [ObjectDef; 3] = [
-    ObjectDef(object_update::Type::Graphics, 2669),
-    ObjectDef(object_update::Type::Graphics, 2670),
-    ObjectDef(object_update::Type::Graphics, 2671),
-];
+const SOL_POOL: u32 = 2698;
+const SOL_LASER_SCAN: [u32; 3] = [2689, 2690, 2691];
+const SOL_LASER_SHOT: [u32; 3] = [2693, 2694, 2695];
+const SOL_DUST: [u32; 3] = [2669, 2670, 2671];
 
 const OBJECTS: [(ObjectDef, ObjectKind); 2] = [
     (
@@ -87,10 +75,13 @@ impl<'a> ColosseumInterpreter<'a> {
 
     fn sol_pools(&self, state: &TickState) -> Option<Event> {
         let pools = state
-            .raw_objects
-            .get(SOL_POOL)?
+            .raw_spot_anims
+            .get(&SOL_POOL)?
             .iter()
-            .copied()
+            .filter_map(|spot_anim| match spot_anim.placement {
+                SpotAnimPlacement::Tile(point) => Some(point),
+                SpotAnimPlacement::Actor(_) => None,
+            })
             .collect::<Vec<_>>();
         Some(Event::recorded(
             self.ctx.client_id,
@@ -99,8 +90,7 @@ impl<'a> ColosseumInterpreter<'a> {
     }
 
     fn sol_lasers(&self, state: &TickState) -> Option<Event> {
-        let any_present =
-            |defs: &[ObjectDef]| defs.iter().any(|&def| state.raw_objects.get(def).is_some());
+        let any_present = |ids: &[u32]| ids.iter().any(|id| state.raw_spot_anims.contains_key(id));
         let phase = if any_present(&SOL_LASER_SHOT) {
             SolLaserPhase::Shot
         } else if any_present(&SOL_LASER_SCAN) {
@@ -121,9 +111,12 @@ impl<'a> ColosseumInterpreter<'a> {
             .find(|npc| npc.id == npc::id::SOL_HEREDIT)?;
         let mut dust = SOL_DUST
             .iter()
-            .filter_map(|&def| state.raw_objects.get(def))
+            .filter_map(|id| state.raw_spot_anims.get(id))
             .flatten()
-            .copied()
+            .filter_map(|spot_anim| match spot_anim.placement {
+                SpotAnimPlacement::Tile(point) => Some(point),
+                SpotAnimPlacement::Actor(_) => None,
+            })
             .peekable();
         dust.peek()?;
 

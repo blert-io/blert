@@ -559,9 +559,25 @@ impl<'a, 't> Consolidator<'a, 't> {
         for event in &mut cloned.events {
             self.remap_ticks(side, event, client_tick, merged_tick);
         }
-        for npc in cloned.npcs.values_mut() {
-            self.remap_npc_ticks(side, npc, client_tick, merged_tick);
-        }
+        let mapping = match side {
+            Side::Base => &self.mappings.base,
+            Side::Target => &self.mappings.target,
+        };
+        cloned.remap_ticks(|tick| {
+            match mapping.resolve_with_fallback(tick, client_tick, merged_tick) {
+                Ok(mapped) => mapped,
+                Err(resolved) => {
+                    tracing::warn!(
+                        source_tick = %client_tick,
+                        cross_tick_ref = %tick,
+                        %merged_tick,
+                        %resolved,
+                        "unmapped_state_tick"
+                    );
+                    resolved
+                }
+            }
+        });
         merged.set_state(merged_tick, cloned);
     }
 
@@ -675,20 +691,9 @@ impl<'a, 't> Consolidator<'a, 't> {
         let (kind, source) = (event_type(&event.kind), event.source);
 
         event.kind.remap_ticks(|tick| {
-            if let Some(mapped) = mapping.to_merged(tick) {
-                return mapped;
-            }
-
-            // The cross-tick reference points to a client tick with no
-            // merged mapping (alignment gap or beyond recorded range).
-            // Approximate with the offset between the event's source
-            // tick and its final merged position. This preserves the
-            // relative distance but can be wrong if insertions exist
-            // between the two ticks.
-            let resolved = if merged_tick >= source_tick {
-                tick + (merged_tick - source_tick)
-            } else {
-                tick - (source_tick - merged_tick)
+            let resolved = match mapping.resolve_with_fallback(tick, source_tick, merged_tick) {
+                Ok(mapped) => return mapped,
+                Err(resolved) => resolved,
             };
 
             tracing::warn!(
@@ -728,24 +733,20 @@ impl<'a, 't> Consolidator<'a, 't> {
         };
 
         properties.remap_ticks(|tick| {
-            if let Some(mapped) = mapping.to_merged(tick) {
-                return mapped;
+            match mapping.resolve_with_fallback(tick, source_tick, merged_tick) {
+                Ok(mapped) => mapped,
+                Err(resolved) => {
+                    tracing::warn!(
+                        npc_id,
+                        %source_tick,
+                        cross_tick_ref = %tick,
+                        %merged_tick,
+                        %resolved,
+                        "unmapped_npc_property_tick"
+                    );
+                    resolved
+                }
             }
-
-            let resolved = if merged_tick >= source_tick {
-                tick + (merged_tick - source_tick)
-            } else {
-                tick - (source_tick - merged_tick)
-            };
-            tracing::warn!(
-                npc_id,
-                %source_tick,
-                cross_tick_ref = %tick,
-                %merged_tick,
-                %resolved,
-                "unmapped_npc_property_tick"
-            );
-            resolved
         });
     }
 

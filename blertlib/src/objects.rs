@@ -88,9 +88,12 @@ impl TickObjects {
         source: Source,
         points: impl IntoIterator<Item = Point>,
     ) {
-        let map = self.0.entry(kind).or_default();
         for point in points {
-            map.entry(point).or_insert(source);
+            self.0
+                .entry(kind)
+                .or_default()
+                .entry(point)
+                .or_insert(source);
         }
     }
 

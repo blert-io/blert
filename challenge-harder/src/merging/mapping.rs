@@ -173,6 +173,30 @@ impl TickMapping {
             .flatten()
             .map(Tick::from_usize)
     }
+
+    /// Attempts to map a client tick to its merged tick, falling back to an
+    /// offset approximation if it does not map directly, for example if there
+    /// is an alignment gap or the tick falls outside of the merged range.
+    ///
+    /// The approximation preserves relative distance, but may be wrong if
+    /// insertions exist between the two ticks. It is returned as an `Err` to
+    /// allow callers to decide whether to reject it.
+    pub fn resolve_with_fallback(
+        &self,
+        tick: Tick,
+        source_tick: Tick,
+        merged_tick: Tick,
+    ) -> Result<Tick, Tick> {
+        if let Some(mapped) = self.to_merged(tick) {
+            return Ok(mapped);
+        }
+
+        if merged_tick >= source_tick {
+            Err(tick + (merged_tick - source_tick))
+        } else {
+            Err(tick - (source_tick - merged_tick))
+        }
+    }
 }
 
 fn reverse_map(fwd: &[Option<usize>], count: usize) -> Vec<Option<usize>> {
