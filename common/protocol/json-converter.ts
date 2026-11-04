@@ -31,6 +31,7 @@ import {
   ServerMessageJson,
   serverMessageSchema,
   spellDefinitionSchema,
+  spotAnimSchema,
   targetSchema,
   weaponProjectileSchema,
 } from './json-schemas';
@@ -316,6 +317,9 @@ export function jsonToProtoEvent(json: EventJson): Event {
     if (json.player.snapshot !== undefined) {
       player.setSnapshot(json.player.snapshot);
     }
+    if (json.player.spotAnims !== undefined) {
+      player.setSpotAnimsList(json.player.spotAnims);
+    }
     event.setPlayer(player);
   }
 
@@ -392,6 +396,10 @@ export function jsonToProtoEvent(json: EventJson): Event {
 
   if (json.projectiles !== undefined) {
     event.setProjectilesList(json.projectiles.map(projectileJsonToProto));
+  }
+
+  if (json.spotAnims !== undefined) {
+    event.setSpotAnimsList(json.spotAnims.map(spotAnimJsonToProto));
   }
 
   // ToB events
@@ -749,6 +757,21 @@ function projectileJsonToProto(
   return projectile;
 }
 
+function spotAnimJsonToProto(
+  json: z.infer<typeof spotAnimSchema>,
+): Event.SpotAnim {
+  const spotAnim = new Event.SpotAnim();
+  spotAnim.setId(json.id);
+  if ('actor' in json) {
+    spotAnim.setActor(targetJsonToProto(json.actor));
+  } else {
+    spotAnim.setTile(coordsJsonToProto(json.tile));
+  }
+  spotAnim.setDrawTick(json.drawTick);
+  spotAnim.setEndTick(json.endTick);
+  return spotAnim;
+}
+
 export function attackDefinitionJsonToProto(
   json: z.infer<typeof attackDefinitionSchema>,
 ): AttackDefinition {
@@ -898,6 +921,14 @@ function scopeJsonToProto(
   scope.setVarbitsList(json.varbits ?? []);
   scope.setVarpsList(json.varps ?? []);
   scope.setProjectilesList(json.projectiles ?? []);
+  scope.setSpotAnimsList(
+    (json.spotAnims ?? []).map((s) => {
+      const definition = new RecordingConfig.SpotAnimDefinition();
+      definition.setId(s.id);
+      definition.setLength(s.length);
+      return definition;
+    }),
+  );
   return scope;
 }
 
@@ -1046,6 +1077,12 @@ function scopeToJson(
   }
   if (scope.getProjectilesList().length > 0) {
     json.projectiles = scope.getProjectilesList();
+  }
+  if (scope.getSpotAnimsList().length > 0) {
+    json.spotAnims = scope.getSpotAnimsList().map((definition) => ({
+      id: definition.getId(),
+      length: definition.getLength(),
+    }));
   }
   return json;
 }

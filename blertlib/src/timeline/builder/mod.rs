@@ -22,7 +22,8 @@ use crate::{
 };
 
 use super::interpret::{
-    self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects, RawProjectile, Vars,
+    self, InterpretMode, ObjectDef, Overhead, RawNpc, RawObjects, RawPlayer, RawProjectile,
+    RawSpotAnim, SpotAnimPlacement, Vars,
 };
 use super::{ConfigVersion, Recording, SoteMazePivots, StageData, TickState};
 
@@ -452,7 +453,9 @@ impl<'a> TickBuilder<'a> {
                 objects,
                 raw_objects,
                 raw_npcs: BTreeMap::new(),
+                raw_players: BTreeMap::new(),
                 raw_projectiles: Vec::new(),
+                raw_spot_anims: BTreeMap::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -498,8 +501,9 @@ impl<'a> TickBuilder<'a> {
                     self.last_seen_actors,
                     event,
                 ) {
-                    Ok((index, state)) => {
+                    Ok((index, state, raw)) => {
                         self.state.players[index] = Some(state);
+                        self.state.raw_players.insert(index, raw);
                     }
                     Err(reason) => {
                         self.rejections
@@ -552,6 +556,24 @@ impl<'a> TickBuilder<'a> {
 
             Type::Projectiles => match parse_projectiles(tick, &event.projectiles) {
                 Ok(projectiles) => self.state.raw_projectiles.extend(projectiles),
+                Err(reason) => {
+                    self.rejections
+                        .entry(tick)
+                        .or_default()
+                        .push(BuildRejection { tick, kind, reason });
+                }
+            },
+
+            Type::SpotAnims => match parse_spot_anims(&event.spot_anims) {
+                Ok(spot_anims) => {
+                    for (id, spot_anim) in spot_anims {
+                        self.state
+                            .raw_spot_anims
+                            .entry(id)
+                            .or_default()
+                            .push(spot_anim);
+                    }
+                }
                 Err(reason) => {
                     self.rejections
                         .entry(tick)
@@ -1074,7 +1096,7 @@ fn extract_player_state(
     recording: &Recording,
     last_seen_actors: &HashMap<Actor, Tick>,
     event: &proto::Event,
-) -> Result<(PartyIndex, PlayerState), RejectionReason> {
+) -> Result<(PartyIndex, PlayerState, RawPlayer), RejectionReason> {
     let player = expect_player(event)?;
     let index =
         resolve_index(party, &player.name).map_err(|error| RejectionReason::InvalidField {
@@ -1138,6 +1160,9 @@ fn extract_player_state(
             equipment,
             prayers: PrayerSet::from_raw(player.active_prayers()),
             data,
+        },
+        RawPlayer {
+            spot_anims: player.spot_anims.clone(),
         },
     ))
 }
@@ -2001,6 +2026,54 @@ fn parse_projectiles(
                 )?,
                 landing_tick,
             })
+        })
+        .collect()
+}
+
+fn parse_spot_anims(
+    spot_anims: &[proto::event::SpotAnim],
+) -> Result<Vec<(u32, RawSpotAnim)>, RejectionReason> {
+    spot_anims
+        .iter()
+        .map(|spot_anim| {
+            let placement = match spot_anim
+                .placement
+                .as_ref()
+                .required("spot_anims.placement")?
+            {
+                proto::event::spot_anim::Placement::Actor(actor) => SpotAnimPlacement::Actor(
+                    RawActor::from(actor.target.as_ref().required("spot_anims.actor")?),
+                ),
+                proto::event::spot_anim::Placement::Tile(coords) => {
+                    SpotAnimPlacement::Tile(Point::try_from(*coords).map_err(|_| {
+                        RejectionReason::InvalidField {
+                            field: "spot_anims.tile",
+                            error: FieldError::OutOfDomain(format!("({},{})", coords.x, coords.y)),
+                        }
+                    })?)
+                }
+            };
+            let draw_tick = Tick(spot_anim.draw_tick);
+            let end_tick = Tick(spot_anim.end_tick);
+            if end_tick > Tick::MAX_RECORDED {
+                return Err(RejectionReason::InvalidField {
+                    field: "spot_anims.end_tick",
+                    error: FieldError::OutOfDomain(end_tick.to_string()),
+                });
+            }
+            if draw_tick > end_tick {
+                return Err(RejectionReason::Inconsistent(
+                    "spot anim draw_tick after end_tick",
+                ));
+            }
+            Ok((
+                spot_anim.id,
+                RawSpotAnim {
+                    placement,
+                    draw_tick,
+                    end_tick,
+                },
+            ))
         })
         .collect()
 }

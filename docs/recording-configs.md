@@ -60,14 +60,15 @@ code either dual-emits or takes precedence over generic events, so a build that
 sends bespoke events will always send them regardless of the config it was
 pushed.
 
-| Release            | Added                                                                   | Bespoke events removed                                                                            |
-| ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 0.9.24 and earlier | none                                                                    | none                                                                                              |
-| 0.10.0             | `objects`, OBJECTS events                                               | none; object events are sent both bespoke and raw                                                 |
-| 0.10.1             | `npcDefinitions`, NPC_UPDATE `size`, `animation`, `target`, `spotAnims` | BLOAT_DOWN, BLOAT_UP, BLOAT_HANDS_SPLAT, TOB_BLOAT_STOMP attacks, Bloat NPC is generic |
-| 0.10.4             | none                                                                    | MOKHAIOTL_OBJECTS, MOKHAIOTL_SHOCKWAVE                                                            |
-| 0.10.5             | NPC_UPDATE `overheads`                                                  | none; active_prayers no longer sent for generic NPCs (always 0)                                   |
-| 0.10.6             | VARS, PROJECTILES, NPC_UPDATE `animationStartTick`                      | MOKHAIOTL_ATTACK_STYLE, MOKHAIOTL_ORB, all Mokhaiotl attacks; Mokhaiotl NPCs are generic          |
+| Release            | Added                                                                   | Bespoke events removed                                                                   |
+| ------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 0.9.24 and earlier | none                                                                    | none                                                                                     |
+| 0.10.0             | `objects`, OBJECTS events                                               | none; object events are sent both bespoke and raw                                        |
+| 0.10.1             | `npcDefinitions`, NPC_UPDATE `size`, `animation`, `target`, `spotAnims` | BLOAT_DOWN, BLOAT_UP, BLOAT_HANDS_SPLAT, TOB_BLOAT_STOMP attacks, Bloat NPC is generic   |
+| 0.10.4             | none                                                                    | MOKHAIOTL_OBJECTS, MOKHAIOTL_SHOCKWAVE                                                   |
+| 0.10.5             | NPC_UPDATE `overheads`                                                  | none; active_prayers no longer sent for generic NPCs (always 0)                          |
+| 0.10.6             | VARS, PROJECTILES, NPC_UPDATE `animationStartTick`                      | MOKHAIOTL_ATTACK_STYLE, MOKHAIOTL_ORB, all Mokhaiotl attacks; Mokhaiotl NPCs are generic |
+| 0.10.7             | `spotAnims`, SPOT_ANIMS, Player `spotAnims`                             | none; graphics objects are sent as SPOT_ANIMS instead of in OBJECTS                      |
 
 Add a row for every release that adds config fields or event fields, or removes
 bespoke events.

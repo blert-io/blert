@@ -207,7 +207,9 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: vec![Event::recorded(
                 ClientId(31),
@@ -309,7 +311,9 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: vec![Event::recorded(
                 ClientId(31),
@@ -388,7 +392,9 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: vec![Event::recorded(
                 ClientId(31),

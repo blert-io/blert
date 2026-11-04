@@ -6,7 +6,9 @@ use crate::tick::{Tick, Ticks};
 use crate::timeline::{Recording, TickState};
 use crate::{NpcAttack, PluginVersion, RoomId, npc};
 
-use super::{InterpretContext, Interpreter, ObjectDef};
+use super::{
+    InterpretContext, Interpreter, ObjectDef, SPOT_ANIMS_PLUGIN_VERSION, SpotAnimPlacement,
+};
 
 pub(super) const MIN_SUPPORTED_VERSION: PluginVersion = PluginVersion::new(0, 10, 1);
 
@@ -69,13 +71,26 @@ impl Interpreter for BloatInterpreter<'_> {
         let mut changed = None;
 
         for (tick, state) in recording.states_mut() {
-            let splats = state
-                .raw_objects
-                .get(HANDS_SPLAT)
-                .into_iter()
-                .flatten()
-                .copied()
-                .collect::<Vec<_>>();
+            let splats = if self.ctx.plugin_version >= SPOT_ANIMS_PLUGIN_VERSION {
+                state
+                    .raw_spot_anims
+                    .get(&HANDS_SPLAT.1)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|spot_anim| match spot_anim.placement {
+                        SpotAnimPlacement::Tile(point) => Some(point),
+                        SpotAnimPlacement::Actor(_) => None,
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                state
+                    .raw_objects
+                    .get(HANDS_SPLAT)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .collect::<Vec<_>>()
+            };
 
             // The plugin's hands drop events are kept because they encode the
             // order in which the server spawned the hands, which a generic
@@ -257,7 +272,9 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -277,7 +294,9 @@ mod tests {
                 objects: TickObjects::default(),
                 raw_objects: RawObjects::default(),
                 raw_npcs: BTreeMap::new(),
+                raw_players: BTreeMap::new(),
                 raw_projectiles: Vec::new(),
+                raw_spot_anims: BTreeMap::new(),
                 vars: Vars::default(),
                 events: Vec::new(),
             },
@@ -372,7 +391,9 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -468,7 +489,9 @@ mod tests {
                     ..Default::default()
                 },
             )]),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events: Vec::new(),
         };
@@ -492,7 +515,9 @@ mod tests {
                     objects: TickObjects::default(),
                     raw_objects: RawObjects::default(),
                     raw_npcs: BTreeMap::new(),
+                    raw_players: BTreeMap::new(),
                     raw_projectiles: Vec::new(),
+                    raw_spot_anims: BTreeMap::new(),
                     vars: Vars::default(),
                     events: Vec::new(),
                 },

@@ -109,6 +109,7 @@ describe('jsonToServerMessage', () => {
               dataSource: 1,
               partyIndex: 0,
               snapshot: true,
+              spotAnims: [4182],
             },
           },
         ],
@@ -130,6 +131,7 @@ describe('jsonToServerMessage', () => {
       expect(player?.getActivePrayers()).toBe(262144);
       expect(player?.getEquipmentDeltasList()).toEqual([1234, 5678]);
       expect(player?.getSnapshot()).toBe(true);
+      expect(player?.getSpotAnimsList()).toEqual([4182]);
     });
 
     it('converts an NPC_SPAWN event with basic NPC', () => {
@@ -490,7 +492,7 @@ describe('jsonToServerMessage', () => {
           {
             type: Event.Type.PROJECTILES,
             stage: 60,
-            tick: 39710,
+            tick: 110,
             xCoord: 0,
             yCoord: 0,
             projectiles: [
@@ -500,7 +502,7 @@ describe('jsonToServerMessage', () => {
                 sourceCoords: { x: 4127, y: 5599 },
                 target: { player: 'Sacolyn' },
                 targetCoords: { x: 4127, y: 5594 },
-                landingTick: 39714,
+                landingTick: 114,
               },
             ],
           },
@@ -536,7 +538,7 @@ describe('jsonToServerMessage', () => {
           sourceCoords: { x: 4127, y: 5599 },
           target: { player: 'Sacolyn', npcRoomId: undefined },
           targetCoords: { x: 4127, y: 5594 },
-          landingTick: 39714,
+          landingTick: 114,
         },
       ]);
       expect(
@@ -557,6 +559,77 @@ describe('jsonToServerMessage', () => {
       ]);
       expect(ball.getProjectilesList()[0].hasSource()).toBe(false);
       expect(ball.getProjectilesList()[0].hasTarget()).toBe(false);
+    });
+
+    it('converts SPOT_ANIMS events', () => {
+      const json: ServerMessageJson = {
+        type: ServerMessage.Type.EVENT_STREAM,
+        challengeEvents: [
+          {
+            type: Event.Type.SPOT_ANIMS,
+            stage: 60,
+            tick: 110,
+            xCoord: 0,
+            yCoord: 0,
+            spotAnims: [
+              {
+                id: 4182,
+                actor: { npcRoomId: 57271 },
+                drawTick: 111,
+                endTick: 114,
+              },
+            ],
+          },
+          {
+            type: Event.Type.SPOT_ANIMS,
+            stage: 10,
+            tick: 103,
+            xCoord: 0,
+            yCoord: 0,
+            spotAnims: [
+              {
+                id: 1579,
+                tile: { x: 3170, y: 4440 },
+                drawTick: 101,
+                endTick: 111,
+              },
+            ],
+          },
+        ],
+      };
+
+      const proto = jsonToServerMessage(json);
+      const [guardian, maiden] = proto.getChallengeEventsList();
+      expect(guardian.getType()).toBe(Event.Type.SPOT_ANIMS);
+      expect(
+        guardian.getSpotAnimsList().map((spotAnim) => spotAnim.toObject()),
+      ).toEqual([
+        {
+          id: 4182,
+          actor: { player: undefined, npcRoomId: 57271 },
+          tile: undefined,
+          drawTick: 111,
+          endTick: 114,
+        },
+      ]);
+      expect(guardian.getSpotAnimsList()[0].getPlacementCase()).toBe(
+        Event.SpotAnim.PlacementCase.ACTOR,
+      );
+      expect(maiden.getType()).toBe(Event.Type.SPOT_ANIMS);
+      expect(
+        maiden.getSpotAnimsList().map((spotAnim) => spotAnim.toObject()),
+      ).toEqual([
+        {
+          id: 1579,
+          actor: undefined,
+          tile: { x: 3170, y: 4440 },
+          drawTick: 101,
+          endTick: 111,
+        },
+      ]);
+      expect(maiden.getSpotAnimsList()[0].getPlacementCase()).toBe(
+        Event.SpotAnim.PlacementCase.TILE,
+      );
     });
   });
 
@@ -1480,6 +1553,11 @@ describe('round-trip conversion', () => {
               varbits: [6099, 6100],
               varps: [1683],
               projectiles: [3378, 3379, 3380, 3384, 3385],
+              spotAnims: [
+                { id: 3405, length: 30 },
+                { id: 3406, length: 30 },
+                { id: 3407, length: 30 },
+              ],
             },
           },
         ],
@@ -1527,6 +1605,20 @@ describe('round-trip conversion', () => {
     expect(
       config.getChallengesList()[1].getScope()!.getProjectilesList(),
     ).toEqual([3378, 3379, 3380, 3384, 3385]);
+    expect(
+      config.getChallengesList()[0].getScope()!.getSpotAnimsList(),
+    ).toEqual([]);
+    expect(
+      config
+        .getChallengesList()[1]
+        .getScope()!
+        .getSpotAnimsList()
+        .map((definition) => definition.toObject()),
+    ).toEqual([
+      { id: 3405, length: 30 },
+      { id: 3406, length: 30 },
+      { id: 3407, length: 30 },
+    ]);
 
     const resultJson = serverMessageToJson(proto);
     expect(resultJson.recordingConfig).toEqual(originalJson.recordingConfig);

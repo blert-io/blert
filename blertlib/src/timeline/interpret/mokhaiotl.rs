@@ -9,7 +9,10 @@ use crate::{
     Source, TickState, npc,
 };
 
-use super::{HitpointsVarbits, InterpretContext, Interpreter, ObjectDef};
+use super::{
+    HitpointsVarbits, InterpretContext, Interpreter, ObjectDef, SPOT_ANIMS_PLUGIN_VERSION,
+    SpotAnimPlacement,
+};
 
 pub(super) const MIN_SUPPORTED_VERSION: PluginVersion = PluginVersion::new(0, 10, 0);
 pub(super) const GENERIC_VERSION: PluginVersion = PluginVersion::new(0, 10, 6);
@@ -44,12 +47,9 @@ const SHOCKWAVE: [ObjectDef; 3] = [
     ObjectDef(object_update::Type::Graphics, 3407),
 ];
 
-const OBJECTS: [(ObjectDef, ObjectKind); 5] = [
+const OBJECTS: [(ObjectDef, ObjectKind); 2] = [
     (ROCK, ObjectKind::MokhaiotlRock),
     (ACID_SPLAT, ObjectKind::MokhaiotlSplat),
-    (SHOCKWAVE[0], ObjectKind::MokhaiotlShockwave),
-    (SHOCKWAVE[1], ObjectKind::MokhaiotlShockwave),
-    (SHOCKWAVE[2], ObjectKind::MokhaiotlShockwave),
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -97,6 +97,7 @@ impl<'a> MokhaiotlInterpreter<'a> {
         for &(_, kind) in &OBJECTS {
             state.objects.clear(kind);
         }
+        state.objects.clear(ObjectKind::MokhaiotlShockwave);
         for &(def, kind) in &OBJECTS {
             if let Some(points) = state.raw_objects.get(def) {
                 state.objects.insert(
@@ -104,6 +105,31 @@ impl<'a> MokhaiotlInterpreter<'a> {
                     Source::Client(self.ctx.client_id),
                     points.iter().copied(),
                 );
+            }
+        }
+
+        if self.ctx.plugin_version >= SPOT_ANIMS_PLUGIN_VERSION {
+            state.objects.insert(
+                ObjectKind::MokhaiotlShockwave,
+                Source::Client(self.ctx.client_id),
+                SHOCKWAVE
+                    .iter()
+                    .filter_map(|def| state.raw_spot_anims.get(&def.1))
+                    .flatten()
+                    .filter_map(|spot_anim| match spot_anim.placement {
+                        SpotAnimPlacement::Tile(point) => Some(point),
+                        SpotAnimPlacement::Actor(_) => None,
+                    }),
+            );
+        } else {
+            for &def in &SHOCKWAVE {
+                if let Some(points) = state.raw_objects.get(def) {
+                    state.objects.insert(
+                        ObjectKind::MokhaiotlShockwave,
+                        Source::Client(self.ctx.client_id),
+                        points.iter().copied(),
+                    );
+                }
             }
         }
     }
@@ -194,6 +220,20 @@ impl<'a> MokhaiotlInterpreter<'a> {
         }
         changed
     }
+
+    fn has_shockwave(&self, state: &TickState) -> bool {
+        if self.ctx.plugin_version >= SPOT_ANIMS_PLUGIN_VERSION {
+            SHOCKWAVE
+                .iter()
+                .filter_map(|def| state.raw_spot_anims.get(&def.1))
+                .flatten()
+                .any(|spot_anim| matches!(spot_anim.placement, SpotAnimPlacement::Tile(_)))
+        } else {
+            SHOCKWAVE
+                .iter()
+                .any(|&def| state.raw_objects.get(def).is_some())
+        }
+    }
 }
 
 impl Interpreter for MokhaiotlInterpreter<'_> {
@@ -243,6 +283,7 @@ impl Interpreter for MokhaiotlInterpreter<'_> {
                 animation,
                 tick,
                 state,
+                self.has_shockwave(state),
                 potential_auto_orb.map(|(_, style)| style),
             );
 
@@ -331,12 +372,9 @@ fn decide_attack(
     animation: Option<u32>,
     tick: Tick,
     state: &TickState,
+    has_shockwave: bool,
     auto_orb_style: Option<CombatStyle>,
 ) -> Option<NpcAttack> {
-    let has_shockwave = SHOCKWAVE
-        .iter()
-        .any(|&def| state.raw_objects.get(def).is_some());
-
     match (phase, animation) {
         (Phase::Up, Some(AUTO_ANIMATION)) => auto_orb_style.map(|style| match style {
             CombatStyle::Melee => NpcAttack::MokhaiotlMeleeAuto,
@@ -421,7 +459,9 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars::default(),
             events,
         };
@@ -536,7 +576,9 @@ mod tests {
             objects: TickObjects::default(),
             raw_objects: RawObjects::default(),
             raw_npcs: BTreeMap::new(),
+            raw_players: BTreeMap::new(),
             raw_projectiles: Vec::new(),
+            raw_spot_anims: BTreeMap::new(),
             vars: Vars {
                 varbits,
                 varps: BTreeMap::new(),

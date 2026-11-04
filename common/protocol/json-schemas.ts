@@ -183,6 +183,12 @@ export const npcDefinitionSchema = z.object({
   hitpointsVarbit: hitpointsVarbitSchema.optional(),
 });
 
+// RecordingConfig.SpotAnimDefinition
+export const spotAnimDefinitionSchema = z.object({
+  id: uint32Schema,
+  length: uint32Schema,
+});
+
 // RecordingConfig.Scope
 export const scopeSchema = z.object({
   objects: z.array(objectCaptureSchema).optional(),
@@ -190,6 +196,7 @@ export const scopeSchema = z.object({
   varbits: z.array(uint32Schema).optional(),
   varps: z.array(uint32Schema).optional(),
   projectiles: z.array(uint32Schema).optional(),
+  spotAnims: z.array(spotAnimDefinitionSchema).optional(),
 });
 
 // RecordingConfig.ChallengeScope
@@ -284,6 +291,7 @@ export const playerSchema = z.object({
   dataSource: enumValueSchema.optional(),
   partyIndex: z.number().int().optional(),
   snapshot: z.boolean().optional(),
+  spotAnims: z.array(uint32Schema).optional(),
 });
 
 // Event.Npc.MaidenCrab
@@ -378,6 +386,18 @@ export const projectileSchema = z.object({
   targetCoords: coordsSchema,
   landingTick: uint32Schema,
 });
+
+// Event.SpotAnim
+const spotAnimBaseSchema = z.object({
+  id: uint32Schema,
+  drawTick: uint32Schema,
+  endTick: uint32Schema,
+});
+
+export const spotAnimSchema = z.union([
+  spotAnimBaseSchema.extend({ actor: targetSchema }),
+  spotAnimBaseSchema.extend({ tile: coordsSchema }),
+]);
 
 // Event.NpcAttacked
 export const npcAttackSchema = z.object({
@@ -549,6 +569,7 @@ export const eventSchema = z.object({
   objects: objectsSchema.optional(),
   vars: varsSchema.optional(),
   projectiles: z.array(projectileSchema).optional(),
+  spotAnims: z.array(spotAnimSchema).optional(),
 
   // ToB events
   maidenBloodSplats: z.array(coordsSchema).optional(),
