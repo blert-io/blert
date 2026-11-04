@@ -17,7 +17,6 @@ import {
   Skill,
   SkillLevel,
   Spell,
-  VerzikCrabProperties,
 } from '@blert/common';
 
 export type Nullable<T> = T | null;
@@ -73,10 +72,6 @@ export type EnhancedMaidenCrab = EnhancedRoomNpc & {
 
 export type EnhancedNylo = EnhancedRoomNpc & {
   nylo: NyloProperties;
-};
-
-export type EnhancedVerzikCrab = EnhancedRoomNpc & {
-  verzikCrab: VerzikCrabProperties;
 };
 
 export type StagePlayer = {
