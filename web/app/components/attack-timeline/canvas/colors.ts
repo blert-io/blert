@@ -80,7 +80,3 @@ export const OUTLINE_DANGER = 'rgba(239, 68, 68, 0.5)';
 export const OUTLINE_DANGER_HOVER = 'rgba(239, 68, 68, 0.9)';
 
 export const OUTLINE_NPC_ATTACK_HOVER = 'rgba(239, 68, 68, 0.9)';
-
-// Text colors
-
-export const TEXT_NPC_ATTACK = 'rgba(239, 68, 68, 0.9)';
