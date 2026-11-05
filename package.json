@@ -24,7 +24,7 @@
     "@protocolbuffers/protoc-gen-js": "4.0.3",
     "@typescript-eslint/eslint-plugin": "~8.72.1",
     "@typescript-eslint/parser": "~8.72.1",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "patch-package": "^8.0.1",
     "prettier": "^3.9.10",
     "protoc": "36.2.0",
