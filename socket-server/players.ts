@@ -1,5 +1,4 @@
 import {
-  PlayerStats,
   Player,
   activePlayerKey,
   CamelToSnakeCase,
@@ -11,8 +10,6 @@ import { RedisClientType } from 'redis';
 
 import sql from './db';
 import logger from './log';
-
-export type ModifiablePlayerStats = Omit<PlayerStats, 'date' | 'playerId'>;
 
 type Experience = Pick<
   Player,
