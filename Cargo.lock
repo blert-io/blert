@@ -244,9 +244,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-s3"
-version = "1.155.0"
+version = "1.156.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a542f0e9261b9ce56708d591a62062079fa3c58a362ffbf49a2e48a4f6ced16"
+checksum = "1072c9aa20159b9b417115342d38c4c53108fc98e5359fcb86b7d4575747eb59"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -2558,9 +2558,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7acd809e80afa754c63f586955699d8990efe1c4b6613183ee5f027a11fbc8b5"
+checksum = "db7f3d75b5a3301746bff39a767bf4c5c42506b08513527308b3875bfb64a031"
 dependencies = [
  "arcstr",
  "async-lock",
