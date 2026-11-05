@@ -303,27 +303,16 @@ export type {
 
 export type { TobChallengeStatsRow } from './db/challenge-stats';
 
-import {
-  PlayerAttack as PlayerAttackEnum,
-  PlayerSpell as PlayerSpellEnum,
-} from './challenge';
+import { PlayerAttack as PlayerAttackEnum } from './challenge';
 import attackDefinitionsJson from './generated/attack_definitions.json';
-import spellDefinitionsJson from './generated/spell_definitions.json';
 
 export const attackDefinitions = attackDefinitionsJson;
-export const spellDefinitions = spellDefinitionsJson;
 
 /** Lookup table of attack metadata keyed by `PlayerAttack`. */
 export const attackDefinitionsById: ReadonlyMap<
   PlayerAttackEnum,
   (typeof attackDefinitionsJson)[number]
 > = new Map(attackDefinitionsJson.map((d) => [d.protoId, d]));
-
-/** Lookup table of spell metadata keyed by `PlayerSpell`. */
-export const spellDefinitionsById: ReadonlyMap<
-  PlayerSpellEnum,
-  (typeof spellDefinitionsJson)[number]
-> = new Map(spellDefinitionsJson.map((d) => [d.id, d]));
 
 export {
   type LaneSpawnJson,
