@@ -14,4 +14,3 @@ export const FROM_EMAIL =
   process.env.BLERT_RESEND_FROM_EMAIL ?? 'notifications@blert.io';
 export const REPLY_TO_EMAIL =
   process.env.BLERT_RESEND_REPLY_TO_EMAIL ?? 'support@blert.io';
-export const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://blert.io';
