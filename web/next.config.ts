@@ -5,6 +5,7 @@ const repoRoot = path.join(__dirname, '../');
 const emptyModulePath = './config/empty-browser-module.js';
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: process.env.BLERT_ALLOWED_DEV_ORIGINS?.split(','),
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
   serverExternalPackages: [
