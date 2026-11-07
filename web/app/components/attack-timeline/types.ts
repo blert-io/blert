@@ -19,6 +19,7 @@ export type CustomState = {
   label?: string;
   iconUrl?: string;
   fullText?: string;
+  superimposeLabel?: boolean;
 };
 
 export type TimelineSplit = {

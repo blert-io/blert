@@ -24,6 +24,7 @@ export {
 
 export { useEntityPositions } from './entity-position-context';
 export { useReplayContext } from './replay-context';
+export { anchorOffset, showCell, useSheetTexture } from './sprite-sheet';
 export {
   type AnyEntity,
   CustomEntity,
@@ -34,6 +35,7 @@ export {
   ObjectEntity,
   PlayerEntity,
   type ReplayConfig,
+  type SpriteSheet,
 } from './types';
 
 export { GridTerrain, type Terrain } from './path';

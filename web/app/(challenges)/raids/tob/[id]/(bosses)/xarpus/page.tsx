@@ -1,18 +1,27 @@
 'use client';
 
 import {
+  ChallengeMode,
+  Coords,
   EventType,
   Npc,
+  NpcAttack,
+  NpcAttackEvent,
   SplitType,
   Stage,
   TobRaid,
   XarpusExhumedEvent,
+  XarpusExhumesEvent,
+  XarpusHealEvent,
+  XarpusSplatEvent,
+  XarpusSplatSource,
 } from '@blert/common';
 import { useCallback, useContext, useMemo } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
 import BossPageAttackTimeline, {
+  CustomStateEntry,
   useBossPageTimeline,
 } from '@/components/boss-page-attack-timeline';
 import BossPageControls from '@/components/boss-page-controls';
@@ -22,8 +31,10 @@ import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import {
   AnyEntity,
+  EntityType,
   MapDefinition,
-  ObjectEntity,
+  NpcEntity,
+  SpriteSheet,
 } from '@/components/map-renderer';
 import Loading from '@/components/loading';
 import MissingStageData from '@/components/missing-stage-data';
@@ -41,10 +52,17 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
 import {
+  ACID_BALL,
+  ACID_POOL,
+  ACID_SPLASH,
+  AcidBallEntity,
+  AcidPoolEntity,
+  AcidSplashEntity,
+  DangerQuadrantEntity,
   ExhumedEntity,
   PoisonBallEntity,
   ExhumedState,
-} from './exhumed-entity';
+} from './entities';
 
 import bossStyles from '../style.module.scss';
 import styles from './style.module.scss';
@@ -62,6 +80,64 @@ const BARRIERS = [
   new BarrierEntity({ x: 3170, y: 4380 }, 3),
   new BarrierEntity({ x: 3170, y: 4395 }, 3, Math.PI),
 ];
+
+const XARPUS_FACINGS: SpriteSheet = {
+  url: '/images/objects/xarpus-facings.webp',
+  columns: 4,
+  rows: 4,
+  cellWidth: 5.2422,
+  cellHeight: 3.5859,
+  anchorX: 0.5007,
+  anchorY: 0.9804,
+};
+
+const XARPUS_P1_FACINGS: SpriteSheet = {
+  url: '/images/objects/xarpus-p1-facings.webp',
+  columns: 4,
+  rows: 4,
+  cellWidth: 2.875,
+  cellHeight: 2.2188,
+  anchorX: 0.5027,
+  anchorY: 0.8556,
+};
+
+const MAX_ORIENTATION = 2048;
+
+const TURN_ORIENTATIONS = new Map<NpcAttack, number>([
+  [NpcAttack.TOB_XARPUS_TURN_NORTHEAST, 1280],
+  [NpcAttack.TOB_XARPUS_TURN_SOUTHEAST, 1792],
+  [NpcAttack.TOB_XARPUS_TURN_SOUTHWEST, 256],
+  [NpcAttack.TOB_XARPUS_TURN_NORTHWEST, 768],
+]);
+
+const TURN_PER_TICK = 32 * 30;
+
+const XARPUS_MID_HEIGHT =
+  (XARPUS_FACINGS.anchorY * XARPUS_FACINGS.cellHeight) / 2;
+
+const DANGER_QUADRANT_CORNERS = new Map<NpcAttack, Coords>([
+  [NpcAttack.TOB_XARPUS_TURN_NORTHEAST, { x: 3177, y: 4394 }],
+  [NpcAttack.TOB_XARPUS_TURN_SOUTHEAST, { x: 3177, y: 4380 }],
+  [NpcAttack.TOB_XARPUS_TURN_SOUTHWEST, { x: 3163, y: 4380 }],
+  [NpcAttack.TOB_XARPUS_TURN_NORTHWEST, { x: 3163, y: 4394 }],
+]);
+
+function turnToward(from: number, to: number, amount: number): number {
+  const half = MAX_ORIENTATION / 2;
+  const delta =
+    ((((to - from + half) % MAX_ORIENTATION) + MAX_ORIENTATION) %
+      MAX_ORIENTATION) -
+    half;
+  const turned = from + Math.sign(delta) * Math.min(Math.abs(delta), amount);
+  return ((turned % MAX_ORIENTATION) + MAX_ORIENTATION) % MAX_ORIENTATION;
+}
+
+type Exhumed = {
+  position: Coords;
+  spawnTick: number;
+  despawnTick: number | null;
+  healTicks: number[];
+};
 
 export default function XarpusPage() {
   const display = useContext(DisplayContext);
@@ -123,61 +199,265 @@ export default function XarpusPage() {
     return splits;
   }, [challenge]);
 
-  const bossHealthChartData = useMemo(() => {
-    let xarpus: EnhancedRoomNpc | null = null;
+  const xarpus = useMemo((): EnhancedRoomNpc | null => {
     const iter = npcState.values();
     for (let npc = iter.next(); !npc.done; npc = iter.next()) {
       if (Npc.isXarpus(npc.value.spawnNpcId)) {
-        xarpus = npcState.get(npc.value.roomId)!;
-        break;
+        return npc.value;
       }
     }
+    return null;
+  }, [npcState]);
 
-    return (
+  const bossHealthChartData = useMemo(
+    () =>
       xarpus?.stateByTick.map((state, tick) => ({
         tick,
         bossHealthPercentage: state?.hitpoints.percentage() ?? 0,
-      })) ?? []
-    );
-  }, [npcState]);
+      })) ?? [],
+    [xarpus],
+  );
 
-  const splatEvents = useStableEvents(eventsByType, EventType.TOB_XARPUS_SPLAT);
+  const splatEvents = useStableEvents<XarpusSplatEvent>(
+    eventsByType,
+    EventType.TOB_XARPUS_SPLAT,
+  );
   const exhumedEvents = useStableEvents<XarpusExhumedEvent>(
     eventsByType,
     EventType.TOB_XARPUS_EXHUMED,
   );
+  const exhumesEvents = useStableEvents<XarpusExhumesEvent>(
+    eventsByType,
+    EventType.TOB_XARPUS_EXHUMES,
+  );
+  const healEvents = useStableEvents<XarpusHealEvent>(
+    eventsByType,
+    EventType.TOB_XARPUS_HEAL,
+  );
+
+  const isLegacy =
+    exhumedEvents.length > 0 ||
+    (eventsByType[EventType.NPC_ATTACK] ?? []).find(
+      (e) =>
+        (e as NpcAttackEvent).npcAttack.attack === NpcAttack.TOB_XARPUS_TURN,
+    );
+
+  const exhumes = useMemo((): Exhumed[] => {
+    if (exhumedEvents.length > 0) {
+      return exhumedEvents.map((evt) => ({
+        position: { x: evt.xCoord, y: evt.yCoord },
+        spawnTick: evt.xarpusExhumed.spawnTick,
+        despawnTick: evt.tick,
+        healTicks: evt.xarpusExhumed.healTicks,
+      }));
+    }
+
+    const byId = new Map<number, Exhumed>();
+    for (const evt of exhumesEvents) {
+      for (const id of evt.xarpusExhumes.despawned) {
+        const exhumed = byId.get(id);
+        if (exhumed !== undefined) {
+          exhumed.despawnTick = evt.tick;
+        }
+      }
+      for (const { id, position } of evt.xarpusExhumes.spawned) {
+        byId.set(id, {
+          position,
+          spawnTick: evt.tick,
+          despawnTick: null,
+          healTicks: [],
+        });
+      }
+    }
+    for (const evt of healEvents) {
+      byId.get(evt.xarpusHeal.exhumed)?.healTicks.push(evt.tick);
+    }
+    return [...byId.values()];
+  }, [exhumedEvents, exhumesEvents, healEvents]);
+
+  const customStates = useMemo(() => {
+    const entries: CustomStateEntry[] = [];
+    if (xarpus === null) {
+      return entries;
+    }
+
+    const healsByTick = new Map<number, number>();
+    for (const exhumed of exhumes) {
+      for (const tick of exhumed.healTicks) {
+        healsByTick.set(tick, (healsByTick.get(tick) ?? 0) + 1);
+      }
+    }
+
+    let totalHeals = 0;
+    healsByTick.forEach((count) => {
+      totalHeals += count;
+    });
+
+    const healAmount = challenge?.tobStats.xarpusHealing
+      ? challenge.tobStats.xarpusHealing / totalHeals
+      : null;
+
+    healsByTick.forEach((count, tick) => {
+      const healThisTick = healAmount !== null ? count * healAmount : null;
+      entries.push({
+        npcRoomId: xarpus.roomId,
+        tick,
+        states: [
+          {
+            iconUrl: '/images/combat/hitsplats/heal.png',
+            label: healThisTick?.toString() ?? undefined,
+            superimposeLabel: true,
+            fullText: `Xarpus healed${healThisTick !== null ? ` for ${healThisTick.toString()} HP` : ''}`,
+          },
+        ],
+      });
+    });
+
+    return entries;
+  }, [challenge, xarpus, exhumes]);
+
+  const dangerQuadrants = useMemo((): (Coords | null)[] => {
+    if (xarpus === null) {
+      return [];
+    }
+
+    let corner: Coords | null = null;
+    return xarpus.stateByTick.map((state) => {
+      if (state === null) {
+        corner = null;
+        return null;
+      }
+
+      const attack = state.attack?.attack;
+      if (attack !== undefined) {
+        corner = DANGER_QUADRANT_CORNERS.get(attack) ?? corner;
+      }
+      return corner;
+    });
+  }, [xarpus]);
+
+  const pools = useMemo(() => {
+    const firstSplats = new Map<string, XarpusSplatEvent>();
+    for (const evt of splatEvents) {
+      const tile = `${evt.xCoord},${evt.yCoord}`;
+      if (!firstSplats.has(tile)) {
+        firstSplats.set(tile, evt);
+      }
+    }
+    return Array.from(firstSplats.values());
+  }, [splatEvents]);
+
+  const acidBalls = useMemo(() => {
+    if (isLive || isLegacy) {
+      return [];
+    }
+
+    return splatEvents.flatMap((evt, i) => {
+      const { source, bounceFrom, startTick } = evt.xarpusSplat;
+      if (startTick === null) {
+        return [];
+      }
+
+      let from: Coords;
+      let fromHeight: number;
+      let launchTick: number;
+      switch (source) {
+        case XarpusSplatSource.XARPUS:
+          from = MAP_CENTER;
+          fromHeight = XARPUS_MID_HEIGHT;
+          launchTick = startTick + 1;
+          break;
+        case XarpusSplatSource.BOUNCE:
+          if (bounceFrom === null) {
+            return [];
+          }
+          from = bounceFrom;
+          fromHeight = 0;
+          launchTick = startTick + 0.5;
+          break;
+        case XarpusSplatSource.UNKNOWN:
+          return [];
+        default: {
+          const _exhaustive: never = source;
+          return _exhaustive;
+        }
+      }
+
+      if (launchTick >= evt.tick) {
+        return [];
+      }
+      return [
+        new AcidBallEntity(
+          from,
+          fromHeight,
+          { x: evt.xCoord, y: evt.yCoord },
+          launchTick,
+          evt.tick,
+          `acid-ball-${i}`,
+        ),
+      ];
+    });
+  }, [isLive, isLegacy, splatEvents]);
 
   const customEntitiesForTick = useCallback(
     (tick: number) => {
       const entities: AnyEntity[] = [...BARRIERS];
 
+      const dangerQuadrant = dangerQuadrants[tick] ?? null;
+      if (dangerQuadrant !== null) {
+        entities.push(new DangerQuadrantEntity(MAP_CENTER, dangerQuadrant));
+      }
+
+      const despawnTick =
+        xarpus !== null && xarpus.deathTick > 0 ? xarpus.deathTick : null;
       entities.push(
-        ...splatEvents
-          .filter((evt) => evt.tick <= tick)
+        ...pools
+          .filter(
+            (evt) =>
+              evt.tick <= tick && (despawnTick === null || tick <= despawnTick),
+          )
           .map(
             (evt) =>
-              new ObjectEntity(
+              new AcidPoolEntity(
                 { x: evt.xCoord, y: evt.yCoord },
-                '/images/objects/xarpus-acid-pool.png',
-                'Xarpus Splat',
-                1,
-                /*borderColor=*/ undefined,
-                /*layFlat=*/ true,
+                evt.tick,
+                despawnTick,
               ),
           ),
       );
 
-      for (const evt of exhumedEvents) {
-        const exhumed = evt.xarpusExhumed;
-        const spawnTick = exhumed.spawnTick;
-        const deathTick = evt.tick;
+      splatEvents.forEach((evt, i) => {
+        if (evt.tick === tick) {
+          entities.push(
+            new AcidSplashEntity(
+              { x: evt.xCoord, y: evt.yCoord },
+              evt.tick,
+              `acid-splash-${i}`,
+            ),
+          );
+        }
+      });
 
-        if (tick >= spawnTick && tick <= deathTick) {
+      entities.push(
+        ...acidBalls.filter(
+          (ball) =>
+            Math.floor(ball.data.launchTick) <= tick &&
+            tick < ball.data.landingTick,
+        ),
+      );
+
+      for (const exhumed of exhumes) {
+        const { spawnTick, despawnTick } = exhumed;
+
+        if (
+          tick >= spawnTick &&
+          (despawnTick === null || tick <= despawnTick)
+        ) {
           let state: ExhumedState;
 
           if (tick === spawnTick) {
             state = ExhumedState.RISING;
-          } else if (tick === deathTick) {
+          } else if (tick === despawnTick) {
             state = ExhumedState.RECEDING;
           } else {
             state = ExhumedState.ACTIVE;
@@ -185,34 +465,93 @@ export default function XarpusPage() {
 
           const healCount = exhumed.healTicks.filter((t) => t <= tick).length;
 
-          entities.push(
-            new ExhumedEntity(
-              { x: evt.xCoord, y: evt.yCoord },
-              state,
-              healCount,
-            ),
-          );
+          entities.push(new ExhumedEntity(exhumed.position, state, healCount));
         }
       }
 
-      const balls = exhumedEvents.flatMap((evt) => {
-        const exhumed = evt.xarpusExhumed;
+      const balls = exhumes.flatMap((exhumed) => {
         return exhumed.healTicks
           .filter((t) => t === tick)
-          .map(
-            (_) =>
-              new PoisonBallEntity(
-                { x: evt.xCoord, y: evt.yCoord },
-                MAP_CENTER,
-              ),
-          );
+          .map((_) => new PoisonBallEntity(exhumed.position, MAP_CENTER));
       });
 
       entities.push(...balls);
 
       return entities;
     },
-    [splatEvents, exhumedEvents],
+    [dangerQuadrants, xarpus, pools, splatEvents, acidBalls, exhumes],
+  );
+
+  const facings = useMemo((): ({ start: number; target: number } | null)[] => {
+    if (xarpus === null || isLive || isLegacy) {
+      return [];
+    }
+
+    const xarpusSplats = splatEvents.filter(
+      (evt) => evt.xarpusSplat.source === XarpusSplatSource.XARPUS,
+    );
+    const hardModeScreech =
+      challenge?.mode === ChallengeMode.TOB_HARD
+        ? (challenge.splits[SplitType.TOB_XARPUS_SCREECH] ?? null)
+        : null;
+
+    let target = 0;
+    let orientation = 0;
+    return xarpus.stateByTick.map((state, tick) => {
+      if (hardModeScreech !== null && tick >= hardModeScreech) {
+        return null;
+      }
+
+      const attack = state?.attack?.attack;
+      if (state !== null && attack === NpcAttack.TOB_XARPUS_SPIT) {
+        const splat = xarpusSplats.find((evt) => evt.tick > tick);
+        if (splat !== undefined) {
+          const center = (state.size - 1) / 2;
+          const dx = splat.xCoord - (state.position.x + center);
+          const dy = splat.yCoord - (state.position.y + center);
+          target =
+            ((Math.atan2(-dx, -dy) * (MAX_ORIENTATION / 2)) / Math.PI +
+              MAX_ORIENTATION) %
+            MAX_ORIENTATION;
+        }
+      } else if (attack !== undefined) {
+        target = TURN_ORIENTATIONS.get(attack) ?? target;
+      }
+
+      const start = orientation;
+      orientation = turnToward(start, target, TURN_PER_TICK);
+      return { start, target };
+    });
+  }, [challenge, xarpus, isLive, isLegacy, splatEvents]);
+
+  const modifyEntity = useCallback(
+    (tick: number, entity: AnyEntity) => {
+      if (entity.type !== EntityType.NPC) {
+        return entity;
+      }
+
+      const npcEntity = entity as NpcEntity;
+      if (npcEntity.roomId !== xarpus?.roomId || isLive || isLegacy) {
+        return entity;
+      }
+
+      if (Npc.isXarpusP1(npcEntity.id)) {
+        npcEntity.options.sprite = { sheet: XARPUS_P1_FACINGS, orientation: 0 };
+      } else {
+        const facing = facings[tick] ?? null;
+        if (facing !== null) {
+          const { start, target } = facing;
+          npcEntity.options.sprite = {
+            sheet: XARPUS_FACINGS,
+            orientation: target,
+            turn: (progress) =>
+              turnToward(start, target, TURN_PER_TICK * progress),
+          };
+        }
+      }
+      return entity;
+    },
+    [xarpus, isLive, isLegacy, facings],
   );
 
   const getEntities = useMapEntities(
@@ -220,9 +559,20 @@ export default function XarpusPage() {
     playerState,
     npcState,
     totalTicks,
-    { customEntitiesForTick },
+    { customEntitiesForTick, modifyEntity },
   );
-  const preloads = usePreloads(npcState, isLive);
+  const npcPreloads = usePreloads(npcState, isLive);
+  const preloads = useMemo(
+    () => [
+      ...npcPreloads,
+      XARPUS_FACINGS.url,
+      XARPUS_P1_FACINGS.url,
+      ACID_BALL.url,
+      ACID_POOL.url,
+      ACID_SPLASH.url,
+    ],
+    [npcPreloads],
+  );
 
   if (loading || challenge === null) {
     return <Loading />;
@@ -239,12 +589,7 @@ export default function XarpusPage() {
     twice: 0,
     many: 0,
   };
-  let healAmount = 0;
-
-  for (const evt of exhumedEvents) {
-    const exhumed = evt.xarpusExhumed;
-    healAmount = exhumed.healAmount;
-
+  for (const exhumed of exhumes) {
     if (exhumed.healTicks.length === 0) {
       exhumedHealing.none++;
     } else if (exhumed.healTicks.length === 1) {
@@ -308,12 +653,9 @@ export default function XarpusPage() {
         <table className={styles.healingTable}>
           <thead>
             <tr>
-              <th colSpan={2} className={styles.healingTableHeader}>
+              <th colSpan={4} className={styles.healingTableHeader}>
                 <i className="fas fa-heart" /> Total Healing:{' '}
                 {challenge.tobStats.xarpusHealing}
-              </th>
-              <th colSpan={2} className={styles.healingTableHeader}>
-                <i className="fas fa-splotch" /> Per Splat: {healAmount}
               </th>
             </tr>
           </thead>
@@ -364,6 +706,7 @@ export default function XarpusPage() {
           npcs={npcState}
           timeline={timeline}
           liveFollowing={following}
+          customStates={customStates}
         />
       </div>
 

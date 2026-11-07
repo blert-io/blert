@@ -506,8 +506,9 @@ export function drawNpcCell(
 
 /**
  * Draws custom state indicators in the top-right corner of a cell.
- * Shows only the first state's icon or label. If multiple states exist, a
- * `+` marker indicates more.
+ * Shows only the first state's icon or label, or its label over its icon if
+ * it sets `superimposeLabel`. If multiple states exist, a `+` marker indicates
+ * more.
  *
  * @returns `true` if all images were drawn successfully.
  */
@@ -525,12 +526,23 @@ function drawCustomStates(
   const iconSize = Math.floor(cellSize / 2);
 
   if (first.iconUrl !== undefined) {
-    allDrawn = drawCachedImage(ctx, imageCache, first.iconUrl, {
+    const icon = {
       x: cellPos.x + cellSize - iconSize,
       y: cellPos.y,
       width: iconSize,
       height: iconSize,
-    });
+    };
+    allDrawn = drawCachedImage(ctx, imageCache, first.iconUrl, icon);
+    if (first.superimposeLabel === true && first.label !== undefined) {
+      ctx.save();
+      ctx.font = `bold 8px 'Plus Jakarta Sans', sans-serif`;
+      ctx.fillStyle = palette.textPrimary;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      applyLabelShadow(ctx);
+      ctx.fillText(first.label, icon.x + iconSize / 2, icon.y + iconSize / 2);
+      ctx.restore();
+    }
   } else if (first.label !== undefined) {
     ctx.save();
     ctx.font = `bold 8px 'Plus Jakarta Sans', sans-serif`;

@@ -91,10 +91,43 @@
     },
     {
       "id": "TOB_XARPUS_TURN",
-      "status": "active",
+      "status": "deprecated",
       "summary": "Xarpus turn",
       "introduced": "2026-01-30",
+      "deprecated": "2026-11-05",
       "details": "Xarpus turns to face a new direction during P3.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_TURN_NORTHEAST",
+      "status": "active",
+      "summary": "Xarpus turn northeast",
+      "introduced": "2026-11-05",
+      "details": "Xarpus turns northeast during P3.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_TURN_SOUTHEAST",
+      "status": "active",
+      "summary": "Xarpus turn southeast",
+      "introduced": "2026-11-05",
+      "details": "Xarpus turns southeast during P3.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_TURN_SOUTHWEST",
+      "status": "active",
+      "summary": "Xarpus turn southwest",
+      "introduced": "2026-11-05",
+      "details": "Xarpus turns southwest during P3.",
+      "tags": ["tob", "xarpus"]
+    },
+    {
+      "id": "TOB_XARPUS_TURN_NORTHWEST",
+      "status": "active",
+      "summary": "Xarpus turn northwest",
+      "introduced": "2026-11-05",
+      "details": "Xarpus turns northwest during P3.",
       "tags": ["tob", "xarpus"]
     },
     {

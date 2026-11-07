@@ -34,9 +34,11 @@ import {
 export type NpcComponentProps = InteractiveEntityProps<NpcEntity>;
 
 const vertexShader = `
+  uniform vec2 u_uvOffset;
+  uniform vec2 u_uvScale;
   varying vec2 vUv;
   void main() {
-    vUv = uv;
+    vUv = u_uvOffset + uv * u_uvScale;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -46,6 +48,8 @@ const fragmentShader = `
   uniform vec4 u_outlineColor;
   uniform float u_outlineThickness;
   uniform vec2 u_textureResolution;
+  uniform vec2 u_uvOffset;
+  uniform vec2 u_uvScale;
   varying vec2 vUv;
   uniform bool u_isDimmed;
   uniform float u_dimOpacity;
@@ -74,7 +78,8 @@ const fragmentShader = `
       for (int y = -1; y <= 1; y++) {
         if (x == 0 && y == 0 || abs(x) == abs(y)) continue;
         vec2 offset = vec2(float(x), float(y)) * texelSize * u_outlineThickness;
-        maxAlpha = max(maxAlpha, texture2D(u_texture, vUv + offset).a);
+        vec2 sampleUv = clamp(vUv + offset, u_uvOffset, u_uvOffset + u_uvScale);
+        maxAlpha = max(maxAlpha, texture2D(u_texture, sampleUv).a);
       }
     }
 
@@ -132,6 +137,7 @@ function NpcFallback({ width, height }: { width: number; height: number }) {
 function NpcSpriteMesh({
   spriteWidth,
   spriteHeight,
+  offset,
   isSelected,
   isHovered,
   isDimmed,
@@ -140,6 +146,7 @@ function NpcSpriteMesh({
 }: {
   spriteWidth: number;
   spriteHeight: number;
+  offset: [number, number];
   isSelected: boolean;
   isHovered: boolean;
   isDimmed: boolean;
@@ -148,14 +155,20 @@ function NpcSpriteMesh({
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
 
-  const spriteTexture = useTexture(npcEntity.imageUrl, (texture) => {
-    texture.minFilter = THREE.NearestFilter;
-    texture.magFilter = THREE.NearestFilter;
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    const image = texture.image as { width: number; height: number };
-    setAspect(image.width / image.height);
-  });
+  const sprite = npcEntity.options.sprite;
+  const spriteTexture = useTexture(
+    sprite?.sheet.url ?? npcEntity.imageUrl,
+    (texture) => {
+      texture.minFilter = THREE.NearestFilter;
+      texture.magFilter = THREE.NearestFilter;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      if (sprite === undefined) {
+        const image = texture.image as { width: number; height: number };
+        setAspect(image.width / image.height);
+      }
+    },
+  );
 
   const outlineMaterial = useMemo(() => {
     const outlineColor = SELECTED_COLOR;
@@ -177,6 +190,8 @@ function NpcSpriteMesh({
         u_outlineThickness: { value: 0.0 },
         u_isDimmed: { value: false },
         u_dimOpacity: { value: 0.5 },
+        u_uvOffset: { value: new THREE.Vector2(0, 0) },
+        u_uvScale: { value: new THREE.Vector2(1, 1) },
       },
       vertexShader,
       fragmentShader,
@@ -184,6 +199,45 @@ function NpcSpriteMesh({
       side: THREE.DoubleSide,
     });
   }, [spriteTexture]);
+
+  const sheet = sprite?.sheet;
+  useEffect(() => {
+    const uvOffset = outlineMaterial.uniforms.u_uvOffset.value as THREE.Vector2;
+    const uvScale = outlineMaterial.uniforms.u_uvScale.value as THREE.Vector2;
+    if (sheet === undefined) {
+      uvOffset.set(0, 0);
+      uvScale.set(1, 1);
+      return;
+    }
+    uvScale.set(1 / sheet.columns, 1 / sheet.rows);
+  }, [outlineMaterial, sheet]);
+
+  const { config, playing, currentTick, replayTime } = useReplayContext();
+  const screenUp = useRef(new THREE.Vector3());
+  useFrame(({ camera }) => {
+    if (sprite === undefined) {
+      return;
+    }
+
+    const { sheet, turn } = sprite;
+    let orientation = sprite.orientation;
+    if (playing && config.interpolationEnabled && turn !== undefined) {
+      const progress = replayTime.current / config.tickDuration - currentTick;
+      orientation = turn(Math.min(Math.max(progress, 0), 1));
+    }
+
+    const up = screenUp.current.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    const viewerOrientation = (Math.atan2(up.x, -up.z) * 1024) / Math.PI;
+    const relative = (((orientation - viewerOrientation) % 2048) + 2048) % 2048;
+    const cells = sheet.columns * sheet.rows;
+    const cell = Math.round((relative * cells) / 2048) % cells;
+
+    const uvOffset = outlineMaterial.uniforms.u_uvOffset.value as THREE.Vector2;
+    uvOffset.set(
+      (cell % sheet.columns) / sheet.columns,
+      1 - (Math.floor(cell / sheet.columns) + 1) / sheet.rows,
+    );
+  });
 
   useEffect(() => {
     outlineMaterial.uniforms.u_outlineThickness.value =
@@ -210,6 +264,7 @@ function NpcSpriteMesh({
   return (
     <mesh
       ref={meshRef}
+      position={[offset[0], offset[1], 0]}
       scale={[spriteWidth, spriteHeight, 1]}
       material={outlineMaterial}
     >
@@ -238,6 +293,8 @@ function PrayerSprite({ prayers }: { prayers: PrayerSet }) {
         u_outlineThickness: { value: 0.0 },
         u_isDimmed: { value: false },
         u_dimOpacity: { value: 0.5 },
+        u_uvOffset: { value: new THREE.Vector2(0, 0) },
+        u_uvScale: { value: new THREE.Vector2(1, 1) },
       },
       vertexShader,
       fragmentShader,
@@ -330,6 +387,18 @@ export default function Npc({
 
   const spriteWidth = finalScale * aspect;
   const spriteHeight = finalScale;
+  const restingHeight = spriteHeight / 2 - 0.1;
+
+  const sheet = npcEntity.options.sprite?.sheet;
+  const meshWidth = sheet?.cellWidth ?? spriteWidth;
+  const meshHeight = sheet?.cellHeight ?? spriteHeight;
+  const meshOffset: [number, number] =
+    sheet === undefined
+      ? [0, 0]
+      : [
+          (0.5 - sheet.anchorX) * sheet.cellWidth,
+          (sheet.anchorY - 0.5) * sheet.cellHeight - restingHeight,
+        ];
 
   const borderMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -397,7 +466,6 @@ export default function Npc({
     currentPositionRef.current = basePosition;
 
     const sizeOffset = (entity.size - 1) / 2;
-    const restingHeight = spriteHeight / 2 - 0.1;
     const adjustedPosition = {
       x: basePosition.x + sizeOffset,
       y: basePosition.y + sizeOffset,
@@ -503,8 +571,9 @@ export default function Npc({
             fallback={<NpcFallback width={spriteWidth} height={spriteHeight} />}
           >
             <NpcSpriteMesh
-              spriteWidth={spriteWidth}
-              spriteHeight={spriteHeight}
+              spriteWidth={meshWidth}
+              spriteHeight={meshHeight}
+              offset={meshOffset}
               isSelected={isSelected}
               isHovered={isHovered}
               isDimmed={isDimmed}
