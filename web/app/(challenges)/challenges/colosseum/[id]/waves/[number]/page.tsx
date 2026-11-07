@@ -269,7 +269,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
       const existing = playerStatesByTick.get(tick) ?? [];
       existing.push({
         label: count.toString(),
-        iconUrl: '/images/colosseum/doom-hitsplat.png',
+        iconUrl: '/images/combat/hitsplats/doom.png',
         fullText: `+${count} stack${count === 1 ? '' : 's'} of doom applied (total: ${totalDoom})`,
       });
       playerStatesByTick.set(tick, existing);

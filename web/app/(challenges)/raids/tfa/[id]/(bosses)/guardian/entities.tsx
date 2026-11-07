@@ -8,23 +8,20 @@ import {
 } from '@blert/common';
 import { Billboard, Line, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import {
-  ComponentRef,
-  RefObject,
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import { ComponentRef, RefObject, Suspense, useRef } from 'react';
 import * as THREE from 'three';
 
 import {
+  anchorOffset,
   CustomEntity,
   NpcEntity,
   osrsToThreePosition,
   PlayerEntity,
+  showCell,
+  SpriteSheet,
   useEntityPositions,
   useReplayContext,
+  useSheetTexture,
 } from '@/components/map-renderer';
 import { EnhancedRoomNpc, PlayerStateMap } from '@/utils/boss-room-state';
 
@@ -49,16 +46,6 @@ const ROCK_HEIGHT_OFFSET =
   (ROCK_FALL_HEIGHT - ROCK_FALL_SPEED * (ROCK_FLIGHT_CYCLES - ROCK_FALL_CYCLE));
 const ROCK_WIDTH = 1.1;
 const ROCK_TURNS_PER_TICK = 1;
-
-type SpriteSheet = {
-  url: string;
-  columns: number;
-  rows: number;
-  cellWidth: number;
-  cellHeight: number;
-  anchorX: number;
-  anchorY: number;
-};
 
 type SpriteFrame = {
   sheet: SpriteSheet;
@@ -845,35 +832,4 @@ function frameAt(animation: ShroomAnimation, cycle: number): SpriteFrame {
     }
   }
   return animation.frames[animation.frames.length - 1];
-}
-
-function useSheetTexture(sheet: SpriteSheet): THREE.Texture {
-  const loaded = useTexture(sheet.url);
-
-  const texture = useMemo(() => {
-    const clone = loaded.clone();
-    clone.colorSpace = THREE.SRGBColorSpace;
-    clone.minFilter = THREE.NearestFilter;
-    clone.magFilter = THREE.NearestFilter;
-    clone.repeat.set(1 / sheet.columns, 1 / sheet.rows);
-    return clone;
-  }, [loaded, sheet]);
-
-  useEffect(() => () => texture.dispose(), [texture]);
-
-  return texture;
-}
-
-function showCell(texture: THREE.Texture, sheet: SpriteSheet, cell: number) {
-  texture.offset.set(
-    (cell % sheet.columns) / sheet.columns,
-    1 - (Math.floor(cell / sheet.columns) + 1) / sheet.rows,
-  );
-}
-
-function anchorOffset(sheet: SpriteSheet): [number, number] {
-  return [
-    (0.5 - sheet.anchorX) * sheet.cellWidth,
-    (sheet.anchorY - 0.5) * sheet.cellHeight,
-  ];
 }

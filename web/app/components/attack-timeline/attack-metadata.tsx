@@ -1107,14 +1107,30 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
     ),
   },
   [NpcAttack.TOB_XARPUS_SPIT]: {
-    imageUrl: '/xarpus_spit.png',
+    imageUrl: '/images/tob/xarpus/spit.png',
     description: (target) => (
       <span>Spat poison{target ? <> at {target}</> : ''}</span>
     ),
   },
   [NpcAttack.TOB_XARPUS_TURN]: {
-    imageUrl: '/xarpus_turn.webp',
+    imageUrl: '/images/tob/xarpus/turn.webp',
     description: () => <span>Turned</span>,
+  },
+  [NpcAttack.TOB_XARPUS_TURN_NORTHEAST]: {
+    imageUrl: '/images/tob/xarpus/turn-northeast.png',
+    description: () => <span>Turned northeast</span>,
+  },
+  [NpcAttack.TOB_XARPUS_TURN_SOUTHEAST]: {
+    imageUrl: '/images/tob/xarpus/turn-southeast.png',
+    description: () => <span>Turned southeast</span>,
+  },
+  [NpcAttack.TOB_XARPUS_TURN_SOUTHWEST]: {
+    imageUrl: '/images/tob/xarpus/turn-southwest.png',
+    description: () => <span>Turned southwest</span>,
+  },
+  [NpcAttack.TOB_XARPUS_TURN_NORTHWEST]: {
+    imageUrl: '/images/tob/xarpus/turn-northwest.png',
+    description: () => <span>Turned northwest</span>,
   },
   [NpcAttack.TOB_VERZIK_P1_AUTO]: {
     imageUrl: '/verzik_p1_auto.png',

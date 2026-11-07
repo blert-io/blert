@@ -132,7 +132,31 @@ export class PlayerEntity implements Entity {
   }
 }
 
+export type SpriteSheet = {
+  url: string;
+  columns: number;
+  rows: number;
+  cellWidth: number;
+  cellHeight: number;
+  anchorX: number;
+  anchorY: number;
+};
+
 type NpcOptions = {
+  /**
+   * Draws a cell of a sprite sheet in place of the NPC's image, with the
+   * sheet's anchor on the NPC's center. The sheet's cells must be views spaced
+   * evenly around the NPC, starting with cell 0 facing the camera, and the
+   * cell drawn is the one matching `orientation` as seen from the camera.
+   * While interpolating, `turn` replaces `orientation`, giving the orientation
+   * at each point of the tick from its progress (0 to 1).
+   */
+  sprite?: {
+    sheet: SpriteSheet;
+    orientation: number;
+    turn?: (progress: number) => number;
+  };
+
   /**
    * Overrides the default interpolation for the NPC over the course of tick,
    * which paths it in 2D space from `position` to `nextPosition`.
