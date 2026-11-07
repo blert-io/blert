@@ -7,7 +7,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use blert::Rsn;
+use blert::{RoomId, Rsn};
 use bytes::Bytes;
 use prost::Message;
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ use crate::lifecycle::core::types::{
 use crate::proto::ChallengeEvents;
 
 use super::Tick;
-use super::report::{ClientOutcome, MergeStatus};
+use super::report::{ClientOutcome, MergeAlert, MergeStatus};
 
 /// A stage's captured client streams.
 #[derive(Debug)]
@@ -304,6 +304,7 @@ struct Report {
     capture: Option<Identity>,
     /// Absent if the merge produced nothing.
     merge: Option<Summary>,
+    alerts: Vec<MergeAlert>,
     /// Every client's outcome, in client ID order.
     clients: Vec<ClientOutcome>,
     error: Option<String>,
@@ -331,6 +332,16 @@ struct Summary {
     precise_server_tick_count: bool,
     accurate_until: Tick,
     queryable_until: Tick,
+    npcs: Vec<Npc>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Npc {
+    room_id: RoomId,
+    spawn: Tick,
+    dying: Option<Tick>,
+    death: Option<Tick>,
 }
 
 /// Loads and merges one capture, returning its report and, if the merge
@@ -344,6 +355,7 @@ fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<s
         file,
         capture: None,
         merge: None,
+        alerts: Vec::new(),
         clients: Vec::new(),
         error: None,
     };
@@ -385,6 +397,7 @@ fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<s
         }
     };
 
+    report.alerts = merge_report.alerts;
     report.clients = merge_report.clients;
     report.clients.sort_unstable_by_key(|outcome| outcome.id);
 
@@ -400,6 +413,16 @@ fn merge_capture(path: &Path, trace: bool) -> (Report, Option<Vec<u8>>, Option<s
         precise_server_tick_count: merged.has_precise_server_tick_count(),
         accurate_until: merged.accurate_until(),
         queryable_until: merged.queryable_until(),
+        npcs: merged
+            .timeline()
+            .npcs()
+            .map(|(room_id, npc)| Npc {
+                room_id,
+                spawn: npc.spawn,
+                dying: npc.dying,
+                death: npc.death,
+            })
+            .collect(),
     });
     let events = ChallengeEvents {
         events: merged.timeline().to_proto().collect(),
@@ -441,6 +464,11 @@ fn write_outputs(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::io::Read;
+
+    use blert::golden::assert_golden;
+    use flate2::read::GzDecoder;
 
     use crate::lifecycle::core::types::ServerTicks;
 
@@ -517,5 +545,25 @@ mod tests {
         assert_eq!(loaded.attempt, None);
         assert_eq!(loaded.latest_config_version, Some(3));
         assert_eq!(loaded.records, capture.records);
+    }
+
+    #[test]
+    fn guardian_capture_report() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/golden/processing");
+        let mut capture = Vec::new();
+        GzDecoder::new(fs::File::open(dir.join("tfa_guardian_capture.json.gz")).unwrap())
+            .read_to_end(&mut capture)
+            .unwrap();
+
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("capture.json");
+        fs::write(&path, capture).unwrap();
+
+        let (report, _, _) = merge_capture(&path, false);
+        assert_golden(
+            "tfa_guardian_capture_report",
+            &dir.join("tfa_guardian_capture_report.json.gz"),
+            &serde_json::to_string_pretty(&report).unwrap(),
+        );
     }
 }
