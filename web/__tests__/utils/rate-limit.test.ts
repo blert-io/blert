@@ -4,7 +4,6 @@ import redis from '@/actions/redis';
 import {
   acquireConcurrencySlot,
   getRateLimitKey,
-  getRateLimitStatus,
   RateLimitConfig,
   rateLimit,
   rateLimitAll,
@@ -23,9 +22,6 @@ type MockPipeline = {
 
 type MockRedisClient = {
   multi: jest.Mock;
-  zRemRangeByScore: jest.Mock;
-  zCard: jest.Mock;
-  zRangeWithScores: jest.Mock;
   zRem: jest.Mock;
 };
 
@@ -45,9 +41,6 @@ function createMockPipeline(): MockPipeline {
 function createMockClient(): MockRedisClient {
   return {
     multi: jest.fn(),
-    zRemRangeByScore: jest.fn(),
-    zCard: jest.fn(),
-    zRangeWithScores: jest.fn(),
     zRem: jest.fn().mockResolvedValue(1),
   };
 }
@@ -328,59 +321,6 @@ describe('rate-limit utils', () => {
         success: true,
         limit: 5,
         remaining: 5,
-        reset: Math.floor((Date.now() + 60 * 1000) / 1000),
-      });
-    });
-  });
-
-  describe('getRateLimitStatus', () => {
-    it('returns remaining tokens without incrementing usage', async () => {
-      mockClient.zRemRangeByScore.mockResolvedValue(undefined);
-      mockClient.zCard.mockResolvedValue(12);
-      mockClient.zRangeWithScores.mockResolvedValue([]);
-
-      const status = await getRateLimitStatus('ratelimit:test', 20, 60);
-      const expectedReset = Math.floor((Date.now() + 60 * 1000) / 1000);
-
-      expect(status).toMatchObject({
-        limit: 20,
-        remaining: 8,
-      });
-      expect(status.reset).toBe(expectedReset);
-      expect(mockClient.zRemRangeByScore).toHaveBeenCalledWith(
-        'ratelimit:test',
-        0,
-        Date.now() - 60 * 1000,
-      );
-      expect(mockClient.zCard).toHaveBeenCalledWith('ratelimit:test');
-      expect(mockClient.zRangeWithScores).toHaveBeenCalledWith(
-        'ratelimit:test',
-        0,
-        0,
-      );
-    });
-
-    it('returns a full window when Redis errors', async () => {
-      mockClient.zRemRangeByScore.mockRejectedValue(new Error('oops'));
-
-      const status = await getRateLimitStatus('ratelimit:test', 10, 60);
-
-      expect(status).toMatchObject({
-        limit: 10,
-        remaining: 10,
-      });
-      expect(status.reset).toBe(Math.floor((Date.now() + 60 * 1000) / 1000));
-      expect(mockClient.zCard).not.toHaveBeenCalled();
-    });
-
-    it('returns a full window when the Redis connection cannot be established', async () => {
-      mockedRedis.mockRejectedValue(new Error('connection refused'));
-
-      const status = await getRateLimitStatus('ratelimit:test', 10, 60);
-
-      expect(status).toEqual({
-        limit: 10,
-        remaining: 10,
         reset: Math.floor((Date.now() + 60 * 1000) / 1000),
       });
     });
