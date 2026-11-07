@@ -148,50 +148,6 @@ export async function rateLimit(
 }
 
 /**
- * Retrieves the current rate limit status without incrementing the counter.
- * @param key Unique identifier for the rate limit bucket.
- * @param limit Maximum requests allowed in the configured window.
- * @param windowSec Time window duration in seconds.
- * @returns The current rate limit status. Reset reflects when the oldest
- *   retained request exits the window.
- */
-export async function getRateLimitStatus(
-  key: string,
-  limit: number,
-  windowSec: number,
-): Promise<Omit<RateLimitResult, 'success'>> {
-  const now = Date.now();
-  const windowStart = now - windowSec * 1000;
-
-  try {
-    const client = await redis();
-    await client.zRemRangeByScore(key, 0, windowStart);
-    const [count, oldestEntries] = await Promise.all([
-      client.zCard(key),
-      client.zRangeWithScores(key, 0, 0),
-    ]);
-    const oldestScore = getOldestScore(oldestEntries);
-    const resetBase = Number.isFinite(oldestScore) ? oldestScore : now;
-
-    return {
-      limit,
-      remaining: Math.max(0, limit - count),
-      reset: toUnixSeconds(resetBase + windowSec * 1000),
-    };
-  } catch (error) {
-    logger.error('rate_limit_status_error', {
-      key,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {
-      limit,
-      remaining: limit,
-      reset: toUnixSeconds(now + windowSec * 1000),
-    };
-  }
-}
-
-/**
  * Returns the rate limit key for a request.
  *
  * API key takes precedence over IP-based limits.
