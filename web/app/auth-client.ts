@@ -7,6 +7,5 @@ import {
 import type { auth } from './auth';
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_BASE_URL,
   plugins: [usernameClient(), customSessionClient<typeof auth>()],
 });
