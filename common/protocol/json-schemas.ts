@@ -176,12 +176,24 @@ export const hitpointsVarbitSchema = z.object({
 });
 
 // RecordingConfig.NpcDefinition
-export const npcDefinitionSchema = z.object({
-  ids: z.array(uint32Schema),
-  mode: enumMemberSchema(ChallengeMode).optional(),
-  hitpoints: z.array(uint32Schema.nullable()).optional(),
-  hitpointsVarbit: hitpointsVarbitSchema.optional(),
-});
+export const npcDefinitionSchema = z
+  .object({
+    ids: z.array(uint32Schema),
+    mode: enumMemberSchema(ChallengeMode).optional(),
+    hitpoints: z.array(uint32Schema.nullable()).optional(),
+    hitpointsVarbit: hitpointsVarbitSchema.optional(),
+    startingHitpoints: z.array(uint32Schema).optional(),
+    captureOverheadText: z.boolean().optional(),
+  })
+  .refine(
+    ({ hitpoints = [], startingHitpoints = [] }) =>
+      startingHitpoints.length === 0 ||
+      startingHitpoints.length === hitpoints.length,
+    {
+      message: 'startingHitpoints must have one value per hitpoints entry',
+      path: ['startingHitpoints'],
+    },
+  );
 
 // RecordingConfig.SpotAnimDefinition
 export const spotAnimDefinitionSchema = z.object({
@@ -328,6 +340,8 @@ export const npcSchema = z.object({
   target: targetSchema.optional(),
   spotAnims: z.array(uint32Schema).optional(),
   overheads: z.array(uint32Schema).optional(),
+  orientation: uint32Schema.optional(),
+  overheadText: z.string().optional(),
   basic: z.object({}).optional(),
   maidenCrab: maidenCrabSchema.optional(),
   nylo: nyloSchema.optional(),

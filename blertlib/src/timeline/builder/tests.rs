@@ -3,6 +3,7 @@ use crate::event::{
     MokhaiotlOrbSource, SolDustDirection, SolGrappleOutcome, SolLaserPhase, VerzikPhase,
     XarpusPhase,
 };
+use crate::timeline::interpret::Orientation;
 use crate::{ChallengeMode, Stage, item};
 
 #[test]
@@ -4339,6 +4340,8 @@ fn extract_npc_state_generic_update() {
         spot_anims: vec![1908],
         overheads: vec![28_835_840],
         animation_start_tick: 114,
+        orientation: 1291,
+        overhead_text: Some("abc".to_string()),
         r#type: Some(proto::event::npc::Type::Basic(())),
     });
     assert_eq!(
@@ -4362,6 +4365,8 @@ fn extract_npc_state_generic_update() {
                     archive: 440,
                     sprite: 0,
                 }],
+                orientation: Orientation::try_from(1291).unwrap(),
+                overhead_text: Some("abc".to_string()),
             },
         ))
     );
@@ -4369,6 +4374,7 @@ fn extract_npc_state_generic_update() {
     let npc = update.npc.as_mut().unwrap();
     npc.active_prayers = 262_144;
     npc.overheads = Vec::new();
+    npc.overhead_text = None;
     assert_eq!(
         extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
         Ok((
@@ -4387,6 +4393,8 @@ fn extract_npc_state_generic_update() {
                 target: Some(RawActor::Player("1Ogp".to_string())),
                 spot_anims: vec![1908],
                 overheads: Vec::new(),
+                orientation: Orientation::try_from(1291).unwrap(),
+                overhead_text: None,
             },
         ))
     );
@@ -4410,6 +4418,8 @@ fn extract_npc_state_generic_update() {
         spot_anims: vec![4330],
         overheads: vec![28_835_851],
         animation_start_tick: 720,
+        orientation: 0,
+        overhead_text: None,
         r#type: Some(proto::event::npc::Type::Basic(())),
     });
     assert_eq!(
@@ -4433,6 +4443,8 @@ fn extract_npc_state_generic_update() {
                     archive: 440,
                     sprite: 11,
                 }],
+                orientation: Orientation::default(),
+                overhead_text: None,
             },
         ))
     );
@@ -4443,6 +4455,15 @@ fn extract_npc_state_generic_update() {
         Err(RejectionReason::InvalidField {
             field: "npc.overheads",
             error: FieldError::OutOfDomain("[28835840, 28835851]".to_string()),
+        })
+    );
+
+    update.npc.as_mut().unwrap().orientation = 2048;
+    assert_eq!(
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
+        Err(RejectionReason::InvalidField {
+            field: "npc.orientation",
+            error: FieldError::OutOfDomain("2048".to_string()),
         })
     );
 }
@@ -5636,7 +5657,7 @@ fn convert_xarpus_exhumed() {
     });
     assert_eq!(
         convert_event(&party, &exhumed),
-        EventOutcome::Accepted(EventKind::XarpusExhumed(XarpusExhumed {
+        EventOutcome::Accepted(EventKind::XarpusExhumed(XarpusExhumedEvent {
             position: Point(3164, 4386),
             spawn_tick: Tick(11),
             heal_ticks: vec![Tick(14), Tick(15), Tick(16)],
@@ -5712,12 +5733,14 @@ fn convert_xarpus_splat() {
     xarpus.xarpus_splat = Some(proto::event::XarpusSplat {
         source: proto::event::xarpus_splat::Source::Xarpus as i32,
         bounce_from: None,
+        start_tick: Some(100),
     });
     assert_eq!(
         convert_event(&party, &xarpus),
         EventOutcome::Accepted(EventKind::XarpusSplat(XarpusSplat {
             position: Point(3167, 4387),
             source: XarpusSplatSource::Xarpus,
+            start_tick: Some(Tick(100)),
         }))
     );
 
@@ -5732,12 +5755,14 @@ fn convert_xarpus_splat() {
     bounce.xarpus_splat = Some(proto::event::XarpusSplat {
         source: proto::event::xarpus_splat::Source::Bounce as i32,
         bounce_from: Some(proto::Coords { x: 3173, y: 4387 }),
+        start_tick: Some(101),
     });
     assert_eq!(
         convert_event(&party, &bounce),
         EventOutcome::Accepted(EventKind::XarpusSplat(XarpusSplat {
             position: Point(3167, 4387),
             source: XarpusSplatSource::Bounce(Point(3173, 4387)),
+            start_tick: Some(Tick(101)),
         }))
     );
 
@@ -5752,13 +5777,35 @@ fn convert_xarpus_splat() {
     unknown_source.xarpus_splat = Some(proto::event::XarpusSplat {
         source: proto::event::xarpus_splat::Source::Unknown as i32,
         bounce_from: None,
+        start_tick: None,
     });
     assert_eq!(
         convert_event(&party, &unknown_source),
         EventOutcome::Accepted(EventKind::XarpusSplat(XarpusSplat {
             position: Point(3174, 4384),
             source: XarpusSplatSource::Unknown,
+            start_tick: None,
         }))
+    );
+
+    let mut started_after_landing = proto::Event {
+        tick: 103,
+        stage: Stage::TobXarpus as i32,
+        x_coord: 3167,
+        y_coord: 4387,
+        ..Default::default()
+    };
+    started_after_landing.set_type(proto::event::Type::TobXarpusSplat);
+    started_after_landing.xarpus_splat = Some(proto::event::XarpusSplat {
+        source: proto::event::xarpus_splat::Source::Xarpus as i32,
+        bounce_from: None,
+        start_tick: Some(104),
+    });
+    assert_eq!(
+        convert_event(&party, &started_after_landing),
+        EventOutcome::Rejected(RejectionReason::Inconsistent(
+            "xarpus splat started after it landed"
+        ))
     );
 
     let mut missing_bounce_from = proto::Event {
@@ -5772,6 +5819,7 @@ fn convert_xarpus_splat() {
     missing_bounce_from.xarpus_splat = Some(proto::event::XarpusSplat {
         source: proto::event::xarpus_splat::Source::Bounce as i32,
         bounce_from: None,
+        start_tick: None,
     });
     assert_eq!(
         convert_event(&party, &missing_bounce_from),
@@ -5789,6 +5837,7 @@ fn convert_xarpus_splat() {
     invalid_bounce_from.xarpus_splat = Some(proto::event::XarpusSplat {
         source: proto::event::xarpus_splat::Source::Bounce as i32,
         bounce_from: Some(proto::Coords { x: 3170, y: -3 }),
+        start_tick: None,
     });
     assert_eq!(
         convert_event(&party, &invalid_bounce_from),
@@ -5809,6 +5858,7 @@ fn convert_xarpus_splat() {
     invalid_source.xarpus_splat = Some(proto::event::XarpusSplat {
         source: 5,
         bounce_from: None,
+        start_tick: None,
     });
     assert_eq!(
         convert_event(&party, &invalid_source),

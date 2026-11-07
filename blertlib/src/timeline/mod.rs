@@ -89,6 +89,31 @@ pub struct SoteMazePivots {
     pub underworld: Vec<Point>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XarpusExhumed {
+    pub position: Point,
+    pub spawn_tick: Tick,
+    pub despawn_tick: Option<Tick>,
+    pub heal_count: u32,
+}
+
+impl XarpusExhumed {
+    /// Returns the amount an exhumed heals Xarpus per splat.
+    #[must_use]
+    pub fn heal_amount(mode: ChallengeMode, scale: usize) -> u32 {
+        match (scale, mode) {
+            (1, ChallengeMode::TobHard) => 21,
+            (1, _) => 20,
+            (2, ChallengeMode::TobHard) => 14,
+            (2, _) => 16,
+            (3, _) => 12,
+            (4, _) => 9,
+            (5, _) => 8,
+            _ => 0,
+        }
+    }
+}
+
 /// Information about a recording that exists at the stage level instead of
 /// occurring on a specific tick.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,6 +121,9 @@ pub enum StageData {
     None,
     Sotetseg {
         mazes: BTreeMap<Maze, SoteMazePivots>,
+    },
+    Xarpus {
+        exhumes: BTreeMap<u32, XarpusExhumed>,
     },
     Inferno {
         /// The plugin sends a wave start on tick 0 of each wave with its own
@@ -109,7 +137,7 @@ pub enum StageData {
 impl StageData {
     fn normalize(&mut self) {
         match self {
-            Self::None | Self::Inferno { .. } => {}
+            Self::None | Self::Xarpus { .. } | Self::Inferno { .. } => {}
             Self::Sotetseg { mazes } => {
                 for pivots in mazes.values_mut() {
                     pivots.overworld.sort_by_key(|point| point.1);

@@ -9,6 +9,7 @@ use crate::{Point, Source};
 pub enum ObjectKind {
     MaidenBloodSplats,
     SoteMazeTiles,
+    XarpusExhumes,
     VerzikYellows,
 
     ColosseumReentryPrimaryPool,

@@ -31,6 +31,8 @@ import {
   VerzikHealEvent,
   VerzikPhaseEvent,
   XarpusExhumedEvent,
+  XarpusExhumesEvent,
+  XarpusHealEvent,
   XarpusSplatEvent,
 } from '../event';
 import { Coords, Event as EventProto, StageMap } from '../generated/event_pb';
@@ -442,12 +444,16 @@ describe('protoToJsonEvent', () => {
       const splat = new EventProto.XarpusSplat();
       splat.setSource(1);
       splat.setBounceFrom(makeCoords(3160, 4435));
+      splat.setStartTick(101);
       evt.setXarpusSplat(splat);
 
       const result = protoToJsonEvent(evt) as XarpusSplatEvent;
 
-      expect(result.xarpusSplat.source).toBe(1);
-      expect(result.xarpusSplat.bounceFrom).toEqual({ x: 3160, y: 4435 });
+      expect(result.xarpusSplat).toEqual({
+        source: 1,
+        bounceFrom: { x: 3160, y: 4435 },
+        startTick: 101,
+      });
     });
 
     it('converts xarpus splat without bounce', () => {
@@ -458,7 +464,40 @@ describe('protoToJsonEvent', () => {
 
       const result = protoToJsonEvent(evt) as XarpusSplatEvent;
 
-      expect(result.xarpusSplat.bounceFrom).toBeNull();
+      expect(result.xarpusSplat).toEqual({
+        source: 0,
+        bounceFrom: null,
+        startTick: null,
+      });
+    });
+
+    it('converts xarpus exhumes', () => {
+      const evt = makeEvent(EventType.TOB_XARPUS_EXHUMES, { stage: 14 });
+      const exhumes = new EventProto.XarpusExhumes();
+      const exhumed = new EventProto.XarpusExhumes.Exhumed();
+      exhumed.setId(3);
+      exhumed.setPosition(makeCoords(3160, 4435));
+      exhumes.setSpawnedList([exhumed]);
+      exhumes.setDespawnedList([1, 2]);
+      evt.setXarpusExhumes(exhumes);
+
+      const result = protoToJsonEvent(evt) as XarpusExhumesEvent;
+
+      expect(result.xarpusExhumes).toEqual({
+        spawned: [{ id: 3, position: { x: 3160, y: 4435 } }],
+        despawned: [1, 2],
+      });
+    });
+
+    it('converts xarpus heal', () => {
+      const evt = makeEvent(EventType.TOB_XARPUS_HEAL, { stage: 14 });
+      const heal = new EventProto.XarpusHeal();
+      heal.setExhumed(3);
+      evt.setXarpusHeal(heal);
+
+      const result = protoToJsonEvent(evt) as XarpusHealEvent;
+
+      expect(result.xarpusHeal).toEqual({ exhumed: 3 });
     });
 
     it('converts verzik phase', () => {

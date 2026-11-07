@@ -289,6 +289,16 @@ export class Npc {
     );
   }
 
+  private static readonly XARPUS_P1_IDS: number[] = [
+    NpcId.XARPUS_P1_ENTRY,
+    NpcId.XARPUS_P1_REGULAR,
+    NpcId.XARPUS_P1_HARD,
+  ];
+
+  static isXarpusP1(npcId: number): boolean {
+    return Npc.XARPUS_P1_IDS.includes(npcId);
+  }
+
   private static readonly VERZIK_P1_IDS: number[] = [
     NpcId.VERZIK_P1_ENTRY,
     NpcId.VERZIK_P1_ENTRY_10832,

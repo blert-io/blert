@@ -670,6 +670,31 @@ pub fn xarpus_phase_event(tick: Tick, phase: XarpusPhase) -> Event {
     event
 }
 
+pub fn xarpus_splat_event(
+    tick: Tick,
+    coords: (i32, i32),
+    bounce_from: Option<(i32, i32)>,
+) -> Event {
+    let mut event = Event {
+        tick: tick.0,
+        stage: Stage::TobXarpus as i32,
+        x_coord: coords.0,
+        y_coord: coords.1,
+        ..Default::default()
+    };
+    event.set_type(event::Type::TobXarpusSplat);
+    let source = match bounce_from {
+        Some(_) => event::xarpus_splat::Source::Bounce,
+        None => event::xarpus_splat::Source::Xarpus,
+    };
+    event.xarpus_splat = Some(event::XarpusSplat {
+        source: source as i32,
+        bounce_from: bounce_from.map(|(x, y)| Coords { x, y }),
+        start_tick: None,
+    });
+    event
+}
+
 pub fn verzik_phase_event(tick: Tick, phase: VerzikPhase) -> Event {
     let mut event = Event {
         tick: tick.0,

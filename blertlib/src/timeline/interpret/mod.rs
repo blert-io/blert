@@ -9,6 +9,7 @@ mod ocellus;
 mod player_attack;
 mod sotetseg;
 mod verzik;
+mod xarpus;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,6 +22,7 @@ use ocellus::OcellusInterpreter;
 use player_attack::PlayerAttackInterpreter;
 use sotetseg::SotetsegInterpreter;
 use verzik::VerzikInterpreter;
+use xarpus::XarpusInterpreter;
 
 pub(crate) use ocellus::OcellusProperties;
 
@@ -37,13 +39,27 @@ use crate::{
 /// Plugin version which introduced standalone spotanim recording.
 const SPOT_ANIMS_PLUGIN_VERSION: PluginVersion = PluginVersion::new(0, 10, 7);
 
-const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 3] = [
+const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 4] = [
     (
         Some(bloat::MIN_SUPPORTED_VERSION),
         &[
             npc::id::BLOAT_ENTRY,
             npc::id::BLOAT_REGULAR,
             npc::id::BLOAT_HARD,
+        ],
+    ),
+    (
+        Some(xarpus::GENERIC_VERSION),
+        &[
+            npc::id::XARPUS_IDLE_ENTRY,
+            npc::id::XARPUS_IDLE_REGULAR,
+            npc::id::XARPUS_IDLE_HARD,
+            npc::id::XARPUS_P1_ENTRY,
+            npc::id::XARPUS_P1_REGULAR,
+            npc::id::XARPUS_P1_HARD,
+            npc::id::XARPUS_ENTRY,
+            npc::id::XARPUS_REGULAR,
+            npc::id::XARPUS_HARD,
         ],
     ),
     (
@@ -150,6 +166,9 @@ pub(super) fn interpret(
     let deaths = NpcDeathInterpreter::new(&ctx).interpret(recording);
     let stage = match recording.stage() {
         Stage::TobBloat => BloatInterpreter::new(&ctx).interpret(recording),
+        Stage::TobXarpus => {
+            XarpusInterpreter::new(&ctx, recording).and_then(|xarpus| xarpus.interpret(recording))
+        }
         stage if (Stage::MokhaiotlDelve1..=Stage::MokhaiotlDelve8plus).contains(&stage) => {
             MokhaiotlInterpreter::new(&ctx, recording)
                 .and_then(|mokhaiotl| mokhaiotl.interpret(recording))
@@ -398,6 +417,8 @@ pub(crate) struct RawNpc {
     pub(super) target: Option<RawActor>,
     pub(super) spot_anims: Vec<u32>,
     pub(super) overheads: Vec<Overhead>,
+    pub(super) orientation: Orientation,
+    pub(super) overhead_text: Option<String>,
 }
 
 impl RawNpc {
@@ -453,6 +474,66 @@ impl Overhead {
             17 => &[Prayer::Curse(AncientCurse::DeflectMagic)],
             _ => &[],
         }
+    }
+}
+
+/// An `Orientation` is the direction an actor is rendered as facing, in Jagex's
+/// engine units, where a full circle is 2048 discrete steps.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct Orientation(u16);
+
+impl Orientation {
+    const MAX: u16 = 2047;
+
+    /// Returns the compass direction nearest to this orientation.
+    pub(super) fn direction(self) -> Direction {
+        const DIRECTIONS: [Direction; 8] = [
+            Direction::South,
+            Direction::Southwest,
+            Direction::West,
+            Direction::Northwest,
+            Direction::North,
+            Direction::Northeast,
+            Direction::East,
+            Direction::Southeast,
+        ];
+        DIRECTIONS[(usize::from((self.0 + 128) >> 8)) & 7]
+    }
+}
+
+/// A compass direction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Direction {
+    North,
+    Northeast,
+    East,
+    Southeast,
+    South,
+    Southwest,
+    West,
+    Northwest,
+}
+
+impl TryFrom<u32> for Orientation {
+    type Error = InvalidOrientation;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        u16::try_from(value)
+            .ok()
+            .filter(|&orientation| orientation <= Self::MAX)
+            .map(Self)
+            .ok_or(InvalidOrientation(value))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct InvalidOrientation(u32);
+
+impl std::error::Error for InvalidOrientation {}
+
+impl std::fmt::Display for InvalidOrientation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid orientation {}", self.0)
     }
 }
 

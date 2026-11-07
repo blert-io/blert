@@ -4,6 +4,7 @@ use std::fmt;
 
 use blert::{
     Actor, EventKind, NpcAttack, PartyIndex, PlayerAttack, Point, RoomId, SoteMazeEnd, Ticks,
+    XarpusSplatSource,
 };
 use serde::{Deserialize, Serialize};
 
@@ -47,6 +48,8 @@ pub const fn classify(kind: &EventKind) -> Class {
         EventKind::NyloWaveStall(_)
         | EventKind::NyloCleanupEnd
         | EventKind::NyloBossSpawn
+        | EventKind::XarpusExhumes(_)
+        | EventKind::XarpusHeal(_)
         | EventKind::GuardianDown(_)
         | EventKind::GuardianUp
         | EventKind::GuardianRocks(_)
@@ -96,9 +99,6 @@ pub enum EventType {
     TobBloatHandsDrop,
     TobBloatHandsSplat,
     TobNyloWaveSpawn,
-    TobNyloWaveStall,
-    TobNyloCleanupEnd,
-    TobNyloBossSpawn,
     TobSoteMazeProc,
     TobSoteMazeEnd,
     TobXarpusPhase,
@@ -120,12 +120,6 @@ pub enum EventType {
 
     MokhaiotlOrb,
     MokhaiotlLarvaLeak,
-
-    TfaGuardianDown,
-    TfaGuardianUp,
-    TfaGuardianRocks,
-    TfaGuardianShrooms,
-    TfaGuardianBrazier,
 }
 
 impl fmt::Display for EventType {
@@ -150,9 +144,6 @@ pub(super) const fn event_type(kind: &EventKind) -> EventType {
         EventKind::BloatHandsDrop(_) => EventType::TobBloatHandsDrop,
         EventKind::BloatHandsSplat(_) => EventType::TobBloatHandsSplat,
         EventKind::NyloWaveSpawn(_) => EventType::TobNyloWaveSpawn,
-        EventKind::NyloWaveStall(_) => EventType::TobNyloWaveStall,
-        EventKind::NyloCleanupEnd => EventType::TobNyloCleanupEnd,
-        EventKind::NyloBossSpawn => EventType::TobNyloBossSpawn,
         EventKind::SoteMazeProc(_) => EventType::TobSoteMazeProc,
         EventKind::SoteMazeEnd(_) => EventType::TobSoteMazeEnd,
         EventKind::XarpusPhase(_) => EventType::TobXarpusPhase,
@@ -177,11 +168,16 @@ pub(super) const fn event_type(kind: &EventKind) -> EventType {
         EventKind::MokhaiotlOrb(_) => EventType::MokhaiotlOrb,
         EventKind::MokhaiotlLarvaLeak(_) => EventType::MokhaiotlLarvaLeak,
 
-        EventKind::GuardianDown(_) => EventType::TfaGuardianDown,
-        EventKind::GuardianUp => EventType::TfaGuardianUp,
-        EventKind::GuardianRocks(_) => EventType::TfaGuardianRocks,
-        EventKind::GuardianShrooms(_) => EventType::TfaGuardianShrooms,
-        EventKind::GuardianBrazier(_) => EventType::TfaGuardianBrazier,
+        EventKind::NyloWaveStall(_)
+        | EventKind::NyloCleanupEnd
+        | EventKind::NyloBossSpawn
+        | EventKind::XarpusExhumes(_)
+        | EventKind::XarpusHeal(_)
+        | EventKind::GuardianDown(_)
+        | EventKind::GuardianUp
+        | EventKind::GuardianRocks(_)
+        | EventKind::GuardianShrooms(_)
+        | EventKind::GuardianBrazier(_) => panic!("derived events are never merged"),
     }
 }
 
@@ -249,9 +245,7 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: EventType) -> Option
         EventType::TobXarpusPhase => StreamConfig::new(None, Some(Ticks(10))),
         EventType::TobXarpusExhumed => StreamConfig::new(Some(Ticks(16)), Some(Ticks(10))),
 
-        // Xarpus splats are permanent; the same coord across the fight always
-        // refers to the same splat regardless of when each client first saw it.
-        EventType::TobXarpusSplat => StreamConfig::new(None, None),
+        EventType::TobXarpusSplat => StreamConfig::new(Some(Ticks(3)), None),
 
         EventType::TobVerzikPhase => StreamConfig::new(None, None),
 
@@ -322,7 +316,14 @@ pub(super) fn identity_key(kind: &EventKind) -> IdentityKey {
             IdentityKey::Number(u64::from(i32::from(*phase).cast_unsigned()))
         }
         EventKind::XarpusExhumed(exhumed) => IdentityKey::Point(exhumed.position),
-        EventKind::XarpusSplat(splat) => IdentityKey::Point(splat.position),
+        EventKind::XarpusSplat(splat) => {
+            let mut points = vec![splat.position];
+            if let XarpusSplatSource::Bounce(from) = splat.source {
+                points.push(from);
+            }
+            points.sort_unstable();
+            IdentityKey::Points(points)
+        }
         EventKind::VerzikPhase(phase) => {
             IdentityKey::Number(u64::from(i32::from(*phase).cast_unsigned()))
         }

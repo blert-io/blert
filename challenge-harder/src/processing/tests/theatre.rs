@@ -1405,7 +1405,7 @@ async fn xarpus_test() {
     let client = db.checkout().await.expect("client");
 
     let uuid: Uuid = XARPUS_UUID.parse().expect("uuid is valid");
-    let party: Vec<String> = PARTY[..4].iter().map(ToString::to_string).collect();
+    let party: Vec<String> = PARTY.iter().map(ToString::to_string).collect();
 
     // Clean the DB from previous runs.
     client
@@ -1448,7 +1448,7 @@ async fn xarpus_test() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tob,
-        mode: ChallengeMode::TobRegular,
+        mode: ChallengeMode::TobHard,
         party: party
             .iter()
             .map(|name| Rsn::try_from(name.as_str()).unwrap())
@@ -1473,7 +1473,7 @@ async fn xarpus_test() {
 
     let repository =
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
-    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 4).await;
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 5).await;
 
     let payload = pipeline
         .process(ProcessingRequest {
@@ -1490,7 +1490,7 @@ async fn xarpus_test() {
         payload,
         ProcessingPayload::Stage {
             status: StageStatus::Completed,
-            ticks: 229,
+            ticks: 280,
         },
     );
 
@@ -1553,11 +1553,11 @@ async fn verify_xarpus_rows(
         .await
         .expect("challenge row");
     assert_eq!(row.get::<_, i16>(0), ChallengeType::Tob as i16);
-    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TobRegular as i16);
-    assert_eq!(row.get::<_, i16>(2), 4);
+    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TobHard as i16);
+    assert_eq!(row.get::<_, i16>(2), 5);
     assert_eq!(row.get::<_, i16>(3), Stage::TobXarpus as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
-    assert_eq!(row.get::<_, i32>(5), 229);
+    assert_eq!(row.get::<_, i32>(5), 280);
     assert_eq!(row.get::<_, i32>(6), 0);
     assert_eq!(
         row.get::<_, std::time::SystemTime>(7),
@@ -1577,8 +1577,9 @@ async fn verify_xarpus_rows(
         PrimaryMeleeGear::RadiantOathplate,
         PrimaryMeleeGear::Oathplate,
         PrimaryMeleeGear::Oathplate,
+        PrimaryMeleeGear::Torva,
     ];
-    assert_eq!(rows.len(), 4);
+    assert_eq!(rows.len(), 5);
     for (orb, (row, gear)) in rows.iter().zip(expected_gear).enumerate() {
         assert_eq!(row.get::<_, &str>(0), PARTY[orb]);
         assert_eq!(row.get::<_, i16>(1), i16::try_from(orb).unwrap());
@@ -1591,7 +1592,7 @@ async fn verify_xarpus_rows(
         );
     }
 
-    // 15 heals.
+    // 19 heals.
     let row = client
         .query_one(
             "SELECT xarpus_deaths, xarpus_healing FROM tob_challenge_stats
@@ -1601,9 +1602,9 @@ async fn verify_xarpus_rows(
         .await
         .expect("stats row");
     assert_eq!(row.get::<_, Option<i32>>(0), Some(0));
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(135));
+    assert_eq!(row.get::<_, Option<i32>>(1), Some(152));
 
-    // Screech at 181.
+    // Screech at 224.
     let splits = client
         .query(
             "SELECT id, type, scale, ticks, accurate FROM challenge_splits
@@ -1613,16 +1614,16 @@ async fn verify_xarpus_rows(
         .await
         .expect("split rows");
     let expected = [
-        (SplitType::TobRegXarpus, 229),
-        (SplitType::TobRegXarpusExhumes, 85),
-        (SplitType::TobRegXarpusScreech, 181),
-        (SplitType::TobRegXarpusP2, 96),
-        (SplitType::TobRegXarpusP3, 48),
+        (SplitType::TobHmXarpus, 280),
+        (SplitType::TobHmXarpusExhumes, 116),
+        (SplitType::TobHmXarpusScreech, 224),
+        (SplitType::TobHmXarpusP2, 108),
+        (SplitType::TobHmXarpusP3, 56),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {
         assert_eq!(row.get::<_, i16>(1), split as i16, "{split:?}");
-        assert_eq!(row.get::<_, i16>(2), 4, "{split:?}");
+        assert_eq!(row.get::<_, i16>(2), 5, "{split:?}");
         assert_eq!(row.get::<_, i32>(3), ticks, "{split:?}");
         assert!(row.get::<_, bool>(4), "{split:?}");
     }
@@ -1665,42 +1666,89 @@ async fn verify_xarpus_rows(
     assert_eq!(
         counts,
         BTreeMap::from([
-            (event::Type::PlayerAttack as i16, 109),
+            (event::Type::PlayerAttack as i16, 150),
             (event::Type::NpcSpawn as i16, 1),
             (event::Type::NpcDeath as i16, 1),
-            (event::Type::NpcAttack as i16, 28),
-            (event::Type::PlayerSpell as i16, 1),
-            (event::Type::TobXarpusExhumed as i16, 15),
+            (event::Type::NpcAttack as i16, 25),
+            (event::Type::PlayerSpell as i16, 4),
+            (event::Type::TobXarpusExhumes as i16, 24),
+            (event::Type::TobXarpusHeal as i16, 19),
         ]),
+    );
+
+    let rows = client
+        .query(
+            "SELECT tick, x_coord, y_coord FROM queryable_events
+             WHERE challenge_id = $1 AND event_type = $2 ORDER BY tick",
+            &[&challenge_id, &(event::Type::TobXarpusExhumes as i16)],
+        )
+        .await
+        .expect("exhumes rows");
+    let exhumes: Vec<(i32, i16, i16)> = rows
+        .iter()
+        .map(|row| (row.get(0), row.get(1), row.get(2)))
+        .collect();
+    assert_eq!(
+        exhumes,
+        vec![
+            (8, 3173, 4388),
+            (12, 3165, 4388),
+            (16, 3174, 4387),
+            (20, 3170, 4382),
+            (24, 3173, 4392),
+            (28, 3168, 4389),
+            (32, 3167, 4383),
+            (36, 3165, 4383),
+            (40, 3168, 4392),
+            (44, 3171, 4391),
+            (48, 3165, 4385),
+            (52, 3165, 4387),
+            (56, 3172, 4383),
+            (60, 3175, 4391),
+            (64, 3175, 4387),
+            (68, 3166, 4389),
+            (72, 3169, 4383),
+            (76, 3175, 4386),
+            (80, 3171, 4382),
+            (84, 3168, 4383),
+            (88, 3174, 4382),
+            (92, 3172, 4383),
+            (96, 3167, 4382),
+            (100, 3167, 4383),
+        ],
     );
 
     let rows = client
         .query(
             "SELECT tick, custom_short_1 FROM queryable_events
              WHERE challenge_id = $1 AND event_type = $2 ORDER BY tick",
-            &[&challenge_id, &(event::Type::TobXarpusExhumed as i16)],
+            &[&challenge_id, &(event::Type::TobXarpusHeal as i16)],
         )
         .await
-        .expect("exhumed rows");
-    let exhumeds: Vec<(i32, i16)> = rows.iter().map(|row| (row.get(0), row.get(1))).collect();
+        .expect("heal rows");
+    let heals: Vec<(i32, i16)> = rows.iter().map(|row| (row.get(0), row.get(1))).collect();
     assert_eq!(
-        exhumeds,
+        heals,
         vec![
-            (9, 1),
-            (13, 0),
-            (17, 0),
-            (21, 2),
-            (25, 1),
-            (29, 1),
-            (33, 1),
-            (37, 0),
-            (41, 1),
-            (45, 1),
-            (49, 0),
-            (53, 1),
-            (57, 2),
-            (61, 3),
-            (65, 1),
+            (15, 8),
+            (23, 8),
+            (27, 8),
+            (28, 8),
+            (39, 8),
+            (40, 8),
+            (43, 8),
+            (55, 8),
+            (63, 8),
+            (67, 8),
+            (87, 8),
+            (91, 8),
+            (92, 8),
+            (93, 8),
+            (94, 8),
+            (95, 8),
+            (96, 8),
+            (103, 8),
+            (104, 8),
         ],
     );
 
@@ -1717,7 +1765,7 @@ async fn verify_xarpus_rows(
         row.get::<_, Option<i16>>(1),
         Some(StageStatus::Completed as i16),
     );
-    assert_eq!(row.get::<_, Option<i32>>(2), Some(229));
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(280));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
 }
@@ -2487,6 +2535,169 @@ async fn nylocas_merge_consistency_rejection_test() {
     let capture = super::capture_file(&repository, uuid, Stage::TobNylocas).await;
     golden::assert_stage_artifacts(
         "tob_nylocas_merge_consistency_rejection",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+        &capture,
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
+}
+
+const XARPUS_MERGE_CLEAN_UUID: &str = "c9a78ed9-94e3-456c-a527-001126cb987f";
+
+#[tokio::test]
+async fn xarpus_merge_clean_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = XARPUS_MERGE_CLEAN_UUID.parse().expect("uuid is valid");
+    let party: Vec<String> = PARTY[..4].iter().map(ToString::to_string).collect();
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+
+    let fixture = load_fixture("tob_xarpus_merge_clean");
+    prepare_fixture(uuid, Stage::TobXarpus, &fixture.records).await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tob,
+        mode: ChallengeMode::TobRegular,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(name.as_str()).unwrap())
+            .collect(),
+        party_changed: false,
+        stage: Stage::TobXarpus,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 4).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TobXarpus,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("xarpus runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 282,
+        },
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Completed as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(282));
+    let custom_data = row
+        .get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present");
+
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TobXarpus, None)
+        .await
+        .expect("stage events");
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TobXarpus).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TobXarpus).await;
+    golden::assert_stage_artifacts(
+        "tob_xarpus_merge_clean",
         &custom_data,
         &stored_data,
         &events,

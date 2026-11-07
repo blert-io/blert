@@ -213,6 +213,8 @@ describe('jsonToServerMessage', () => {
               target: { player: '1Ogp' },
               spotAnims: [19, 23],
               overheads: [28835840],
+              orientation: 1291,
+              overheadText: 'abc',
               basic: {},
             },
           },
@@ -252,6 +254,9 @@ describe('jsonToServerMessage', () => {
       expect(first?.getTarget()?.getPlayer()).toBe('1Ogp');
       expect(first?.getSpotAnimsList()).toEqual([19, 23]);
       expect(first?.getOverheadsList()).toEqual([28835840]);
+      expect(first?.getOrientation()).toBe(1291);
+      expect(first?.hasOverheadText()).toBe(true);
+      expect(first?.getOverheadText()).toBe('abc');
 
       expect(second?.getId()).toBe(7);
       expect(second?.getRoomId()).toBe(9);
@@ -265,6 +270,8 @@ describe('jsonToServerMessage', () => {
       expect(second?.getTarget()?.getNpcRoomId()).toBe(8);
       expect(second?.getSpotAnimsList()).toEqual([]);
       expect(second?.getOverheadsList()).toEqual([]);
+      expect(second?.getOrientation()).toBe(0);
+      expect(second?.hasOverheadText()).toBe(false);
     });
 
     it('converts an NPC_SPAWN event with nylo data', () => {
@@ -1319,6 +1326,66 @@ describe('jsonToServerMessage', () => {
 
       expect(() => jsonToServerMessage(json)).toThrow(z.ZodError);
     });
+
+    it('throws if starting hitpoints has a different length to hitpoints', () => {
+      const json = {
+        type: ServerMessage.Type.RECORDING_CONFIG,
+        recordingConfig: {
+          version: 1,
+          challenges: [
+            {
+              challenge: Challenge.TOB,
+              scope: {
+                npcDefinitions: [
+                  {
+                    ids: [8338, 8339, 8340],
+                    mode: ChallengeMode.TOB_REGULAR,
+                    hitpoints: [4870, 4902, 4902, 5455, 6152],
+                    startingHitpoints: [3750, 3750, 3750, 4375],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      };
+
+      expect(() => jsonToServerMessage(json)).toThrow(z.ZodError);
+    });
+
+    it('accepts empty starting hitpoints', () => {
+      const json = {
+        type: ServerMessage.Type.RECORDING_CONFIG,
+        recordingConfig: {
+          version: 1,
+          challenges: [
+            {
+              challenge: Challenge.TOB,
+              scope: {
+                npcDefinitions: [
+                  {
+                    ids: [8338, 8339, 8340],
+                    mode: ChallengeMode.TOB_REGULAR,
+                    hitpoints: [4870, 4902, 4902, 5455, 6152],
+                    startingHitpoints: [],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      };
+
+      const [definition] = jsonToServerMessage(json)
+        .getRecordingConfig()!
+        .getChallengesList()[0]
+        .getScope()!
+        .getNpcDefinitionsList();
+      expect(definition.getHitpointsList()).toEqual([
+        4870, 4902, 4902, 5455, 6152,
+      ]);
+      expect(definition.getStartingHitpointsList()).toEqual([]);
+    });
   });
 });
 
@@ -1540,6 +1607,15 @@ describe('round-trip conversion', () => {
                   mode: ChallengeMode.TOB_REGULAR,
                   hitpoints: [1500, 1500, 1500, 1750, 2000],
                   hitpointsVarbit: { id: 6448, scale: 1000 },
+                  captureOverheadText: false,
+                },
+                {
+                  ids: [8338, 8339, 8340],
+                  mode: ChallengeMode.TOB_REGULAR,
+                  hitpoints: [4870, 4902, 4902, 5455, 6152],
+                  hitpointsVarbit: { id: 6448, scale: 1000 },
+                  startingHitpoints: [3750, 3750, 3750, 4375, 5000],
+                  captureOverheadText: true,
                 },
               ],
             },
@@ -1578,15 +1654,27 @@ describe('round-trip conversion', () => {
     expect(tobObjects[0].getType()).toBe(Event.ObjectUpdate.Type.GROUND);
     expect(tobObjects[0].getOnCreation()).toBe(false);
     expect(tobObjects[1].getOnCreation()).toBe(true);
-    const [npc] = config
+    const definitions = config
       .getChallengesList()[0]
       .getScope()!
       .getNpcDefinitionsList();
-    expect(npc.getIdsList()).toEqual([8359]);
-    expect(npc.getMode()).toBe(ChallengeMode.TOB_REGULAR);
-    expect(npc.getHitpointsList()).toEqual([1500, 1500, 1500, 1750, 2000]);
-    expect(npc.getHitpointsVarbit()!.getId()).toBe(6448);
-    expect(npc.getHitpointsVarbit()!.getScale()).toBe(1000);
+    expect(definitions[0].getIdsList()).toEqual([8359]);
+    expect(definitions[0].getMode()).toBe(ChallengeMode.TOB_REGULAR);
+    expect(definitions[0].getHitpointsList()).toEqual([
+      1500, 1500, 1500, 1750, 2000,
+    ]);
+    expect(definitions[0].getHitpointsVarbit()!.getId()).toBe(6448);
+    expect(definitions[0].getHitpointsVarbit()!.getScale()).toBe(1000);
+    expect(definitions[0].getStartingHitpointsList()).toEqual([]);
+    expect(definitions[0].getCaptureOverheadText()).toBe(false);
+    expect(definitions[1].getIdsList()).toEqual([8338, 8339, 8340]);
+    expect(definitions[1].getHitpointsList()).toEqual([
+      4870, 4902, 4902, 5455, 6152,
+    ]);
+    expect(definitions[1].getStartingHitpointsList()).toEqual([
+      3750, 3750, 3750, 4375, 5000,
+    ]);
+    expect(definitions[1].getCaptureOverheadText()).toBe(true);
     expect(
       config.getChallengesList()[1].getScope()!.getNpcDefinitionsList(),
     ).toEqual([]);
@@ -1638,10 +1726,12 @@ describe('round-trip conversion', () => {
                 {
                   ids: [16652],
                   hitpoints: [null, null, 4350, 5610, 6870, 8130, 9390],
+                  captureOverheadText: false,
                 },
                 {
                   ids: [16678],
                   hitpoints: [null, null, null, 44, 44, null, 44],
+                  captureOverheadText: false,
                 },
               ],
             },
@@ -1698,7 +1788,9 @@ describe('round-trip conversion', () => {
           challenge: Challenge.TFA,
           scope: {
             objects: [],
-            npcDefinitions: [{ ids: [16653], hitpoints: [] }],
+            npcDefinitions: [
+              { ids: [16653], hitpoints: [], captureOverheadText: false },
+            ],
           },
         },
       ],

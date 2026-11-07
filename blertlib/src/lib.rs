@@ -32,7 +32,7 @@ pub use tick::{Tick, Ticks};
 pub use timeline::{
     BuildMismatch, BuildRejection, BuildWarning, ConfigVersion, FieldError, InvalidVersion,
     Modified, PlayerCooldowns, RawActor, Recording, RecordingBuilder, RejectionReason,
-    SoteMazePivots, StageData, StageNpc, TickState, Timeline, WarningReason,
+    SoteMazePivots, StageData, StageNpc, TickState, Timeline, WarningReason, XarpusExhumed,
 };
 
 /// A location in the game world.

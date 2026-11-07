@@ -44,6 +44,8 @@ export enum EventType {
   TOB_XARPUS_PHASE = EventProto.Type.TOB_XARPUS_PHASE,
   TOB_XARPUS_EXHUMED = EventProto.Type.TOB_XARPUS_EXHUMED,
   TOB_XARPUS_SPLAT = EventProto.Type.TOB_XARPUS_SPLAT,
+  TOB_XARPUS_EXHUMES = EventProto.Type.TOB_XARPUS_EXHUMES,
+  TOB_XARPUS_HEAL = EventProto.Type.TOB_XARPUS_HEAL,
   TOB_VERZIK_PHASE = EventProto.Type.TOB_VERZIK_PHASE,
   TOB_VERZIK_ATTACK_STYLE = EventProto.Type.TOB_VERZIK_ATTACK_STYLE,
   TOB_VERZIK_DAWN = EventProto.Type.TOB_VERZIK_DAWN,
@@ -212,6 +214,19 @@ export interface XarpusExhumedEvent extends BaseEvent {
 export interface XarpusSplatEvent extends BaseEvent {
   type: EventType.TOB_XARPUS_SPLAT;
   xarpusSplat: XarpusSplat;
+}
+
+export interface XarpusExhumesEvent extends BaseEvent {
+  type: EventType.TOB_XARPUS_EXHUMES;
+  xarpusExhumes: {
+    spawned: { id: number; position: Coords }[];
+    despawned: number[];
+  };
+}
+
+export interface XarpusHealEvent extends BaseEvent {
+  type: EventType.TOB_XARPUS_HEAL;
+  xarpusHeal: { exhumed: number };
 }
 
 export interface VerzikPhaseEvent extends BaseEvent {
@@ -441,6 +456,8 @@ export type Event =
   | SoteMazePathEvent
   | XarpusExhumedEvent
   | XarpusSplatEvent
+  | XarpusExhumesEvent
+  | XarpusHealEvent
   | XarpusPhaseEvent
   | VerzikPhaseEvent
   | VerzikAttackStyleEvent
@@ -594,6 +611,7 @@ export enum XarpusSplatSource {
 export type XarpusSplat = {
   source: XarpusSplatSource;
   bounceFrom: Coords | null;
+  startTick: number | null;
 };
 
 export enum AttackStyle {

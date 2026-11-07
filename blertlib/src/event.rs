@@ -83,7 +83,9 @@ pub enum EventKind {
     SoteMazeProc(Maze),
     SoteMazeEnd(SoteMazeEnd),
     XarpusPhase(XarpusPhase),
-    XarpusExhumed(XarpusExhumed),
+    XarpusExhumed(XarpusExhumedEvent),
+    XarpusExhumes(XarpusExhumes),
+    XarpusHeal(u32),
     XarpusSplat(XarpusSplat),
     VerzikPhase(VerzikPhase),
     VerzikDawnDropped(Point),
@@ -132,6 +134,7 @@ impl EventKind {
                 orb.spawn_tick = remap(orb.spawn_tick);
                 orb.end_tick = remap(orb.end_tick);
             }
+            Self::XarpusSplat(splat) => splat.start_tick = splat.start_tick.map(remap),
             Self::PlayerDeath(_)
             | Self::PlayerAttack(_)
             | Self::PlayerSpell(_)
@@ -150,7 +153,8 @@ impl EventKind {
             | Self::SoteMazeProc(_)
             | Self::SoteMazeEnd(_)
             | Self::XarpusPhase(_)
-            | Self::XarpusSplat(_)
+            | Self::XarpusExhumes(_)
+            | Self::XarpusHeal(_)
             | Self::VerzikPhase(_)
             | Self::VerzikDawnDropped(_)
             | Self::VerzikDawnPickedUp(_)
@@ -310,33 +314,29 @@ pub struct SoteMazeEnd {
 
 /// The lifecycle of an exhumed, emitted after it despawns.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct XarpusExhumed {
+pub struct XarpusExhumedEvent {
     pub position: Point,
     pub spawn_tick: Tick,
     pub heal_ticks: Vec<Tick>,
 }
 
-impl XarpusExhumed {
-    /// Returns the amount an exhumed heals Xarpus per splat.
-    #[must_use]
-    pub fn heal_amount(mode: ChallengeMode, scale: usize) -> u32 {
-        match (scale, mode) {
-            (1, ChallengeMode::TobHard) => 21,
-            (1, _) => 20,
-            (2, ChallengeMode::TobHard) => 14,
-            (2, _) => 16,
-            (3, _) => 12,
-            (4, _) => 9,
-            (5, _) => 8,
-            _ => 0,
-        }
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XarpusExhumes {
+    pub spawned: Vec<Exhumed>,
+    pub despawned: Vec<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Exhumed {
+    pub id: u32,
+    pub position: Point,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XarpusSplat {
     pub position: Point,
     pub source: XarpusSplatSource,
+    pub start_tick: Option<Tick>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -437,7 +437,7 @@ mod tests {
 
     #[test]
     fn event_kind_remap() {
-        let mut exhumed = EventKind::XarpusExhumed(XarpusExhumed {
+        let mut exhumed = EventKind::XarpusExhumed(XarpusExhumedEvent {
             position: Point(3170, 4387),
             spawn_tick: Tick(20),
             heal_ticks: vec![Tick(24), Tick(28), Tick(32)],

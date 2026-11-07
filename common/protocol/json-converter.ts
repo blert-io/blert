@@ -686,6 +686,12 @@ function npcJsonToProto(json: z.infer<typeof npcSchema>): Event.Npc {
   if (json.overheads !== undefined) {
     npc.setOverheadsList(json.overheads);
   }
+  if (json.orientation !== undefined) {
+    npc.setOrientation(json.orientation);
+  }
+  if (json.overheadText !== undefined) {
+    npc.setOverheadText(json.overheadText);
+  }
 
   if (json.maidenCrab !== undefined) {
     const crab = new Event.Npc.MaidenCrab();
@@ -915,6 +921,8 @@ function scopeJsonToProto(
         varbit.setScale(d.hitpointsVarbit.scale);
         definition.setHitpointsVarbit(varbit);
       }
+      definition.setStartingHitpointsList(d.startingHitpoints ?? []);
+      definition.setCaptureOverheadText(d.captureOverheadText ?? false);
       return definition;
     }),
   );
@@ -1066,6 +1074,10 @@ function scopeToJson(
         const varbit = definition.getHitpointsVarbit()!;
         json.hitpointsVarbit = { id: varbit.getId(), scale: varbit.getScale() };
       }
+      if (definition.getStartingHitpointsList().length > 0) {
+        json.startingHitpoints = definition.getStartingHitpointsList();
+      }
+      json.captureOverheadText = definition.getCaptureOverheadText();
       return json;
     });
   }

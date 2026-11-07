@@ -46,6 +46,8 @@ import {
   VerzikPhaseEvent,
   VerzikYellowsEvent,
   XarpusExhumedEvent,
+  XarpusExhumesEvent,
+  XarpusHealEvent,
   XarpusPhaseEvent,
   XarpusSplatEvent,
 } from '../event';
@@ -319,6 +321,30 @@ export function protoToJsonEvent(evt: EventProto): Event {
               y: xarpusSplat.getBounceFrom()!.getY(),
             }
           : null,
+        startTick: xarpusSplat.hasStartTick()
+          ? xarpusSplat.getStartTick()
+          : null,
+      };
+      break;
+    }
+
+    case EventType.TOB_XARPUS_EXHUMES: {
+      const e = event as XarpusExhumesEvent;
+      const exhumes = evt.getXarpusExhumes()!;
+      e.xarpusExhumes = {
+        spawned: exhumes.getSpawnedList().map((exhumed) => ({
+          id: exhumed.getId(),
+          position: exhumed.getPosition()!.toObject(),
+        })),
+        despawned: exhumes.getDespawnedList(),
+      };
+      break;
+    }
+
+    case EventType.TOB_XARPUS_HEAL: {
+      const e = event as XarpusHealEvent;
+      e.xarpusHeal = {
+        exhumed: evt.getXarpusHeal()!.getExhumed(),
       };
       break;
     }

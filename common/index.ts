@@ -77,6 +77,8 @@ export type {
   VerzikPhaseEvent,
   XarpusExhumed,
   XarpusExhumedEvent,
+  XarpusExhumesEvent,
+  XarpusHealEvent,
   XarpusPhaseEvent,
   XarpusSplat,
   XarpusSplatEvent,

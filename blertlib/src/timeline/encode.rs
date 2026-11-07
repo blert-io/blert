@@ -4,13 +4,13 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use crate::actor::{Actor, DataSource, NpcProperties, NpcState, PartyIndex, PlayerState, RoomId};
-use crate::event::{EventKind, Maze, SolDust, XarpusExhumed, XarpusSplatSource};
+use crate::event::{EventKind, Maze, SolDust, XarpusSplatSource};
 use crate::item::{EQUIPMENT_SLOTS, Item, ItemDelta, Slot};
 use crate::objects::{ObjectKind, TickObjects};
 use crate::tick::Tick;
 use crate::{Point, Stage, npc, proto};
 
-use super::{PlayerCooldowns, TickState, Timeline};
+use super::{PlayerCooldowns, StageData, TickState, Timeline, XarpusExhumed};
 
 /// Encodes every tick of `timeline` from `start` to proto events.
 pub(super) fn encode_from(timeline: &Timeline, start: Tick) -> impl Iterator<Item = proto::Event> {
@@ -302,7 +302,8 @@ impl<'a> Encoder<'a> {
                         Some(proto::event::MokhaiotlShockwave { tiles: points() });
                     events.push(event);
                 }
-                ObjectKind::GuardianShroomSpawning
+                ObjectKind::XarpusExhumes
+                | ObjectKind::GuardianShroomSpawning
                 | ObjectKind::GuardianShroomGrown
                 | ObjectKind::GuardianShroomPopped => {}
             }
@@ -549,25 +550,54 @@ impl<'a> Encoder<'a> {
                 Some(event)
             }
 
+            EventKind::XarpusExhumes(exhumes) => {
+                let mut event = self.event(proto::event::Type::TobXarpusExhumes, tick, None);
+                event.xarpus_exhumes = Some(proto::event::XarpusExhumes {
+                    spawned: exhumes
+                        .spawned
+                        .iter()
+                        .map(|exhumed| proto::event::xarpus_exhumes::Exhumed {
+                            id: exhumed.id,
+                            position: Some(proto::Coords::from(exhumed.position)),
+                        })
+                        .collect(),
+                    despawned: exhumes.despawned.clone(),
+                });
+                Some(event)
+            }
+
+            EventKind::XarpusHeal(exhumed) => {
+                let position = match &self.timeline.stage_data {
+                    StageData::Xarpus { exhumes } => {
+                        exhumes.get(exhumed).map(|exhumed| exhumed.position)
+                    }
+                    _ => None,
+                };
+                let mut event = self.event(proto::event::Type::TobXarpusHeal, tick, position);
+                event.xarpus_heal = Some(proto::event::XarpusHeal { exhumed: *exhumed });
+                Some(event)
+            }
+
             EventKind::XarpusSplat(splat) => {
                 let mut event = self.event(
                     proto::event::Type::TobXarpusSplat,
                     tick,
                     Some(splat.position),
                 );
-                event.xarpus_splat = Some(match splat.source {
-                    XarpusSplatSource::Unknown => proto::event::XarpusSplat {
-                        source: proto::event::xarpus_splat::Source::Unknown as i32,
-                        bounce_from: None,
-                    },
-                    XarpusSplatSource::Xarpus => proto::event::XarpusSplat {
-                        source: proto::event::xarpus_splat::Source::Xarpus as i32,
-                        bounce_from: None,
-                    },
-                    XarpusSplatSource::Bounce(from) => proto::event::XarpusSplat {
-                        source: proto::event::xarpus_splat::Source::Bounce as i32,
-                        bounce_from: Some(proto::Coords::from(from)),
-                    },
+                let (source, bounce_from) = match splat.source {
+                    XarpusSplatSource::Unknown => {
+                        (proto::event::xarpus_splat::Source::Unknown, None)
+                    }
+                    XarpusSplatSource::Xarpus => (proto::event::xarpus_splat::Source::Xarpus, None),
+                    XarpusSplatSource::Bounce(from) => (
+                        proto::event::xarpus_splat::Source::Bounce,
+                        Some(proto::Coords::from(from)),
+                    ),
+                };
+                event.xarpus_splat = Some(proto::event::XarpusSplat {
+                    source: source as i32,
+                    bounce_from,
+                    start_tick: splat.start_tick.map(|start_tick| start_tick.0),
                 });
                 Some(event)
             }
