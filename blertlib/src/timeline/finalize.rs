@@ -3,12 +3,15 @@
 use std::collections::BTreeMap;
 
 use crate::actor::{Guardian, NpcProperties, PartyIndex, RoomId, Rsn};
-use crate::event::{Event, EventKind, GuardianShrooms, NyloWave, Shroom, ShroomState};
+use crate::event::{
+    Event, EventKind, Exhumed, GuardianShrooms, NyloWave, Shroom, ShroomState, XarpusExhumedEvent,
+    XarpusExhumes,
+};
 use crate::objects::ObjectKind;
 use crate::tick::{Tick, Ticks};
 use crate::{ChallengeMode, NpcAttack, Point, Stage, npc};
 
-use super::{RawActor, StageNpc, TickState, Timeline};
+use super::{RawActor, StageData, StageNpc, TickState, Timeline, XarpusExhumed};
 
 struct FinalizeContext<'a> {
     party: &'a [Rsn],
@@ -26,6 +29,9 @@ trait Finalizer {
 
     /// Finalizes the state for a single tick, updating it in place.
     fn tick(&mut self, ctx: &FinalizeContext, tick: Tick, state: &mut Option<TickState>);
+
+    /// Writes the finalizer's results to the stage data after the last tick.
+    fn finish(&mut self, _stage_data: &mut StageData) {}
 }
 
 /// Runs finalizers for the timeline's stage, beginning from `start`.
@@ -36,6 +42,15 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
     let mut finalizers: Vec<Box<dyn Finalizer>> = Vec::new();
     match timeline.stage {
         Stage::TobNylocas => finalizers.push(Box::new(NylocasFinalizer::new(timeline.mode))),
+        Stage::TobXarpus => {
+            let legacy = history
+                .iter()
+                .chain(states.iter())
+                .flatten()
+                .flat_map(|state| &state.events)
+                .any(|event| matches!(event.kind, EventKind::XarpusExhumed(_)));
+            finalizers.push(Box::new(XarpusFinalizer::new(legacy)));
+        }
         Stage::TfaGuardian => finalizers.push(Box::new(GuardianFinalizer::default())),
         _ => {}
     }
@@ -82,6 +97,10 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
         for finalizer in &mut finalizers {
             finalizer.tick(&ctx, tick, state);
         }
+    }
+
+    for finalizer in &mut finalizers {
+        finalizer.finish(&mut timeline.stage_data);
     }
 }
 
@@ -214,6 +233,164 @@ impl Finalizer for NylocasFinalizer {
                     })));
             }
         }
+    }
+}
+
+struct XarpusFinalizer {
+    legacy: bool,
+    exhumes: BTreeMap<u32, XarpusExhumed>,
+    next_exhumed: u32,
+}
+
+impl XarpusFinalizer {
+    const HEAL_PROJECTILE: u32 = 1550;
+
+    fn new(legacy: bool) -> Self {
+        Self {
+            legacy,
+            exhumes: BTreeMap::new(),
+            next_exhumed: 0,
+        }
+    }
+
+    fn new_exhumed_id(&mut self) -> u32 {
+        let id = self.next_exhumed;
+        self.next_exhumed += 1;
+        id
+    }
+
+    fn insert_exhumed_from_event(&mut self, tick: Tick, event: &XarpusExhumedEvent) {
+        let id = self.new_exhumed_id();
+        self.exhumes.insert(
+            id,
+            XarpusExhumed {
+                position: event.position,
+                spawn_tick: event.spawn_tick,
+                despawn_tick: Some(tick),
+                heal_count: u32::try_from(event.heal_ticks.len()).expect("heals fit in u32"),
+            },
+        );
+    }
+}
+
+impl Finalizer for XarpusFinalizer {
+    fn initialize(&mut self, history: &[Option<TickState>]) {
+        for (tick, state) in history.iter().enumerate() {
+            let Some(state) = state else {
+                continue;
+            };
+            let tick = Tick::from_usize(tick);
+            for event in &state.events {
+                match &event.kind {
+                    EventKind::XarpusExhumes(exhumes) => {
+                        for id in &exhumes.despawned {
+                            if let Some(exhumed) = self.exhumes.get_mut(id) {
+                                exhumed.despawn_tick = Some(tick);
+                            }
+                        }
+                        for exhumed in &exhumes.spawned {
+                            self.exhumes.insert(
+                                exhumed.id,
+                                XarpusExhumed {
+                                    position: exhumed.position,
+                                    spawn_tick: tick,
+                                    despawn_tick: None,
+                                    heal_count: 0,
+                                },
+                            );
+                            self.next_exhumed = self.next_exhumed.max(exhumed.id + 1);
+                        }
+                    }
+                    EventKind::XarpusHeal(id) => {
+                        if let Some(exhumed) = self.exhumes.get_mut(id) {
+                            exhumed.heal_count += 1;
+                        }
+                    }
+                    EventKind::XarpusExhumed(event) => self.insert_exhumed_from_event(tick, event),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn tick(&mut self, _ctx: &FinalizeContext, tick: Tick, state: &mut Option<TickState>) {
+        let Some(state) = state else {
+            return;
+        };
+
+        if self.legacy {
+            // Old plugins sent heals in their exhumed events, so they don't
+            // need to be rederived.
+            for event in &state.events {
+                if let EventKind::XarpusExhumed(event) = &event.kind {
+                    self.insert_exhumed_from_event(tick, event);
+                }
+            }
+            return;
+        }
+
+        let mut despawned = Vec::new();
+        for (&id, exhumed) in &mut self.exhumes {
+            if exhumed.despawn_tick.is_none()
+                && !state
+                    .objects
+                    .contains(ObjectKind::XarpusExhumes, exhumed.position)
+            {
+                exhumed.despawn_tick = Some(tick);
+                despawned.push(id);
+            }
+        }
+
+        let mut spawned = Vec::new();
+        for position in state.objects.iter_of(ObjectKind::XarpusExhumes) {
+            if self
+                .exhumes
+                .values()
+                .any(|exhumed| exhumed.despawn_tick.is_none() && exhumed.position == position)
+            {
+                continue;
+            }
+            let id = self.new_exhumed_id();
+            self.exhumes.insert(
+                id,
+                XarpusExhumed {
+                    position,
+                    spawn_tick: tick,
+                    despawn_tick: None,
+                    heal_count: 0,
+                },
+            );
+            spawned.push(Exhumed { id, position });
+        }
+
+        if !spawned.is_empty() || !despawned.is_empty() {
+            state
+                .events
+                .push(Event::synthetic(EventKind::XarpusExhumes(XarpusExhumes {
+                    spawned,
+                    despawned,
+                })));
+        }
+
+        let mut heals = Vec::new();
+        for projectile in &state.raw_projectiles {
+            if projectile.id != Self::HEAL_PROJECTILE {
+                continue;
+            }
+            if let Some((&id, exhumed)) = self.exhumes.iter_mut().find(|(_, exhumed)| {
+                exhumed.despawn_tick.is_none() && exhumed.position == projectile.source_coords
+            }) {
+                exhumed.heal_count += 1;
+                heals.push(Event::synthetic(EventKind::XarpusHeal(id)));
+            }
+        }
+        state.events.extend(heals);
+    }
+
+    fn finish(&mut self, stage_data: &mut StageData) {
+        *stage_data = StageData::Xarpus {
+            exhumes: std::mem::take(&mut self.exhumes),
+        };
     }
 }
 

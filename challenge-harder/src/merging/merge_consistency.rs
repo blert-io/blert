@@ -9,7 +9,9 @@ use blert::{
 
 use crate::lifecycle::core::types::StageExt;
 
-use super::event::{EventType, IdentityKey, event_type, identity_key, stream_config};
+use super::event::{
+    Class, EventType, IdentityKey, classify, event_type, identity_key, stream_config,
+};
 
 /// Issues detected by the post-merge consistency checker.
 /// Each issue is a violation of a game invariant that the plugin enforces on a
@@ -187,10 +189,12 @@ fn check_stream_events(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIss
     let mut previous: Option<(i64, PhaseOccurrence)> = None;
 
     for (tick, event) in timeline.events() {
-        if matches!(
-            event.kind,
-            EventKind::PlayerDeath(_) | EventKind::NpcDeath(_)
-        ) {
+        if classify(&event.kind) != Class::Stream
+            || matches!(
+                event.kind,
+                EventKind::PlayerDeath(_) | EventKind::NpcDeath(_)
+            )
+        {
             continue;
         }
         let kind = event_type(&event.kind);

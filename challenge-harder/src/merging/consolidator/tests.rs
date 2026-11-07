@@ -6,7 +6,7 @@ use blert::proto::Event;
 use blert::proto::event;
 use blert::proto::event::XarpusPhase;
 use blert::proto::event::player::DataSource;
-use blert::{Rsn, SkillLevel, VerzikBounce};
+use blert::{Point, Rsn, SkillLevel, VerzikBounce, XarpusSplat, XarpusSplatSource};
 
 use crate::lifecycle::core::types::{ChallengeMode, ClientId, Stage};
 use crate::merging::ChallengeInfo;
@@ -714,6 +714,100 @@ fn deduplicates_unique_events_regardless_of_tick_gap() {
         result.counters,
         ReconciliationCounters {
             stream_event_pairs: 1,
+            ..Default::default()
+        }
+    );
+}
+
+#[test]
+fn keeps_repeat_xarpus_splats_on_one_tile() {
+    let stage = Stage::TobXarpus;
+    let party = vec![Rsn::try_from("1Ogp").unwrap()];
+    let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
+
+    let splats = || {
+        BTreeMap::from([
+            (
+                Tick(5),
+                vec![
+                    fixtures::xarpus_splat_event(Tick(5), (3166, 4385), None),
+                    fixtures::xarpus_splat_event(Tick(5), (3166, 4385), None),
+                ],
+            ),
+            (
+                Tick(7),
+                vec![fixtures::xarpus_splat_event(
+                    Tick(7),
+                    (3166, 4385),
+                    Some((3172, 4390)),
+                )],
+            ),
+            (
+                Tick(9),
+                vec![fixtures::xarpus_splat_event(Tick(9), (3166, 4385), None)],
+            ),
+        ])
+    };
+    let base = build_recording(
+        BASE_CLIENT_ID,
+        stage,
+        &challenge,
+        15,
+        "1Ogp",
+        DataSource::Secondary,
+        splats(),
+    );
+    let target = build_recording(
+        TARGET_CLIENT_ID,
+        stage,
+        &challenge,
+        15,
+        "1Ogp",
+        DataSource::Primary,
+        splats(),
+    );
+
+    let ctx = test_ctx(
+        &challenge,
+        ClientBuilder::new(BASE_CLIENT_ID.0, base.clone()),
+        ClientBuilder::new(TARGET_CLIENT_ID.0, target.clone()),
+    );
+    let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
+
+    let splats_on = |tick: Tick| {
+        result
+            .recording
+            .get_state(tick)
+            .expect("tick is recorded")
+            .events
+            .iter()
+            .filter_map(|event| match event.kind {
+                EventKind::XarpusSplat(splat) => Some(splat),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let from_xarpus = XarpusSplat {
+        position: Point(3166, 4385),
+        source: XarpusSplatSource::Xarpus,
+        start_tick: None,
+    };
+    assert_eq!(splats_on(Tick(5)), vec![from_xarpus, from_xarpus]);
+    assert_eq!(
+        splats_on(Tick(7)),
+        vec![XarpusSplat {
+            position: Point(3166, 4385),
+            source: XarpusSplatSource::Bounce(Point(3172, 4390)),
+            start_tick: None,
+        }]
+    );
+    assert_eq!(splats_on(Tick(9)), vec![from_xarpus]);
+
+    assert_eq!(result.quality_flags, vec![]);
+    assert_eq!(
+        result.counters,
+        ReconciliationCounters {
+            stream_event_pairs: 4,
             ..Default::default()
         }
     );

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use blert::proto::{Event, event};
-use blert::{RoomId, SkillLevel, Tick, Ticks, Timeline};
+use blert::{RoomId, SkillLevel, Tick, Ticks, Timeline, XarpusExhumed};
 use tokio_postgres::types::Json;
 
 use crate::lifecycle::core::types::{PrimaryMeleeGear, Stage};
@@ -763,6 +763,22 @@ fn to_queryable_event(
             row.custom_short_1 = Some(
                 i16::try_from(exhumed.heal_ticks.len()).expect("heal count fits in a smallint"),
             );
+            row
+        }
+        event::Type::TobXarpusExhumes => {
+            let [exhumed] = event.xarpus_exhumes.as_ref()?.spawned.as_slice() else {
+                return None;
+            };
+            let position = exhumed.position.as_ref()?;
+            let mut row = base();
+            row.x_coord = position.x as i16;
+            row.y_coord = position.y as i16;
+            row
+        }
+        event::Type::TobXarpusHeal => {
+            let mut row = base();
+            row.custom_short_1 =
+                Some(XarpusExhumed::heal_amount(timeline.mode(), timeline.party().len()) as i16);
             row
         }
         event::Type::TobVerzikBounce => {

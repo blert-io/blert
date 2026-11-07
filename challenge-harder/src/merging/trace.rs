@@ -46,7 +46,7 @@ struct StageData {
 impl From<&blert::StageData> for StageData {
     fn from(data: &blert::StageData) -> Self {
         match data {
-            blert::StageData::None => Self {
+            blert::StageData::None | blert::StageData::Xarpus { .. } => Self {
                 sote_pivots: Vec::new(),
                 inferno_wave_start: None,
             },
@@ -240,6 +240,7 @@ impl GraphicsSummary {
                 let r#type = match kind {
                     ObjectKind::MaidenBloodSplats => "TOB_MAIDEN_BLOOD_SPLATS",
                     ObjectKind::SoteMazeTiles => "TOB_SOTE_OVERWORLD_TILES",
+                    ObjectKind::XarpusExhumes => "TOB_XARPUS_EXHUMES",
                     ObjectKind::VerzikYellows => "TOB_VERZIK_YELLOWS",
                     ObjectKind::GuardianShroomSpawning => "TFA_GUARDIAN_SHROOMS_SPAWNING",
                     ObjectKind::GuardianShroomGrown => "TFA_GUARDIAN_SHROOMS_GROWN",

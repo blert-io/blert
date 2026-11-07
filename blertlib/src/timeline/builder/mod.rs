@@ -7,7 +7,7 @@ use crate::actor::{
 use crate::event::{
     BloatDown, Event, EventKind, HandicapChoice, Maze, MokhaiotlLarvaLeak, MokhaiotlOrb,
     NpcAttacked, NpcDeath, NyloWave, PlayerAttacked, PlayerCast, SolDust, SolGrapple, SoteMazeEnd,
-    TotemHeal, VerzikBounce, VerzikDawnHit, VerzikHeal, XarpusExhumed, XarpusSplat,
+    TotemHeal, VerzikBounce, VerzikDawnHit, VerzikHeal, XarpusExhumedEvent, XarpusSplat,
     XarpusSplatSource,
 };
 use crate::item::{EQUIPMENT_SLOTS, EquipmentSlot, Item, ItemDelta};
@@ -890,6 +890,8 @@ impl<'a> TickBuilder<'a> {
             | Type::TobNyloWaveStall
             | Type::TobNyloCleanupEnd
             | Type::TobNyloBossSpawn
+            | Type::TobXarpusExhumes
+            | Type::TobXarpusHeal
             | Type::TfaGuardianDown
             | Type::TfaGuardianUp
             | Type::TfaGuardianRocks
@@ -1270,6 +1272,8 @@ fn extract_npc_state(
                 .map(RawActor::from),
             spot_anims: npc.spot_anims.clone(),
             overheads,
+            orientation: in_domain(npc.orientation, "npc.orientation")?,
+            overhead_text: npc.overhead_text.clone(),
         },
     ))
 }
@@ -1577,7 +1581,7 @@ fn convert_or_reject(party: &[Rsn], event: &proto::Event) -> Result<EventOutcome
                 })
                 .collect::<Result<_, _>>()?;
             Ok(EventOutcome::Accepted(EventKind::XarpusExhumed(
-                XarpusExhumed {
+                XarpusExhumedEvent {
                     position,
                     spawn_tick,
                     heal_ticks,
@@ -1611,8 +1615,18 @@ fn convert_or_reject(party: &[Rsn], event: &proto::Event) -> Result<EventOutcome
                     });
                 }
             };
+            let start_tick = splat.start_tick.map(Tick);
+            if start_tick.is_some_and(|start_tick| start_tick > Tick(event.tick)) {
+                return Err(RejectionReason::Inconsistent(
+                    "xarpus splat started after it landed",
+                ));
+            }
             Ok(EventOutcome::Accepted(EventKind::XarpusSplat(
-                XarpusSplat { position, source },
+                XarpusSplat {
+                    position,
+                    source,
+                    start_tick,
+                },
             )))
         }
 

@@ -163,6 +163,14 @@ pub fn is_xarpus(npc_id: u32) -> bool {
 }
 
 #[must_use]
+pub fn is_xarpus_p1(npc_id: u32) -> bool {
+    matches!(
+        npc_id,
+        id::XARPUS_P1_ENTRY | id::XARPUS_P1_REGULAR | id::XARPUS_P1_HARD
+    )
+}
+
+#[must_use]
 pub fn is_verzik_p1(npc_id: u32) -> bool {
     matches!(
         npc_id,

@@ -1088,6 +1088,15 @@ impl ChallengeProcessor for TheatreProcessor {
                     self.xarpus.healing =
                         Some(self.xarpus.healing.unwrap_or(0) + healing.cast_signed());
                 }
+                EventKind::XarpusExhumes(_) => {
+                    self.xarpus.healing.get_or_insert(0);
+                }
+                EventKind::XarpusHeal(_) => {
+                    let healing =
+                        XarpusExhumed::heal_amount(self.challenge.mode, self.challenge.party.len());
+                    self.xarpus.healing =
+                        Some(self.xarpus.healing.unwrap_or(0) + healing.cast_signed());
+                }
                 EventKind::XarpusPhase(phase) => match phase {
                     XarpusPhase::XarpusP1 => {}
                     XarpusPhase::XarpusP2 => {
