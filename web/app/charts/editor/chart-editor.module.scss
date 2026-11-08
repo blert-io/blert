@@ -224,6 +224,13 @@ $aero-chrome-shadow: rgba(60, 120, 165, 0.25);
   background: rgba(var(--blert-panel-background-color-base), 0.7);
 }
 
+.selection {
+  border-radius: 4px;
+  outline: 1px solid rgba(var(--blert-purple-base), 0.8);
+  outline-offset: 1px;
+  background: rgba(var(--blert-purple-base), 0.15);
+}
+
 .drawer {
   display: flex;
   flex-direction: column;

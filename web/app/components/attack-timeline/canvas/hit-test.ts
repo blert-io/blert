@@ -1,3 +1,5 @@
+import { clamp } from '@/utils/math';
+
 import { TimelineLayout } from './types';
 
 export type CellHit = {
@@ -17,6 +19,9 @@ export type TickHeaderHit = {
 };
 
 export type HitTestResult = CellHit | TickHeaderHit;
+
+/** The cell nearest to a cursor that is not over a cell. */
+export type NearestCellHit = Omit<CellHit, 'type'> & { type: 'nearest-cell' };
 
 /**
  * Determines what element is under the cursor in a tile canvas.
@@ -83,5 +88,43 @@ export function hitTest(
     rowIndex,
     cellX,
     cellY,
+  };
+}
+
+/**
+ * Returns the cell in a tile canvas nearest to the cursor, treating the cursor
+ * as within the cell grid even when it is not on a cell.
+ *
+ * @param cursorX Cursor X relative to the tile canvas element.
+ * @param cursorY Cursor Y relative to the tile canvas element.
+ * @param layout Layout parameters for the tile.
+ * @returns The nearest cell, or `null` if the tile has no cells.
+ */
+export function nearestCell(
+  cursorX: number,
+  cursorY: number,
+  layout: TimelineLayout,
+): NearestCellHit | null {
+  const { cellSize, cellGap, tickHeight, startTick, tickCount, rowOrder } =
+    layout;
+  if (tickCount === 0 || rowOrder.length === 0) {
+    return null;
+  }
+
+  const pitch = cellSize + cellGap;
+  const colIndex = clamp(Math.floor(cursorX / pitch), 0, tickCount - 1);
+  const rowIndex = clamp(
+    Math.floor((cursorY - tickHeight) / pitch),
+    0,
+    rowOrder.length - 1,
+  );
+
+  return {
+    type: 'nearest-cell',
+    tick: startTick + colIndex,
+    rowId: rowOrder[rowIndex],
+    rowIndex,
+    cellX: colIndex * pitch,
+    cellY: tickHeight + rowIndex * pitch,
   };
 }

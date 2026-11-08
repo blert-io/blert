@@ -7,6 +7,7 @@ import {
   currentDocument,
   initialState,
   newPlayer,
+  rangeToRegion,
   reduce,
 } from '../editor-state';
 
@@ -27,6 +28,36 @@ function withHistory(documents: BlertChartFormat[]): EditorState {
     position: documents.length - 1,
   };
 }
+
+describe('rangeToRegion', () => {
+  it('converts a range to the rows and ticks between its ends', () => {
+    const P3: BCFActor = { id: 'p3', type: 'player', name: 'Player 3' };
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1', 'p2', 'p3'] },
+      timeline: { actors: [VERZIK, P1, P2, P3], ticks: [] },
+    };
+
+    expect(
+      rangeToRegion(bcf, {
+        start: { actorId: 'p3', tick: 12 },
+        end: { actorId: 'p1', tick: 4 },
+      }),
+    ).toEqual({ actorIds: ['p1', 'p2', 'p3'], startTick: 4, endTick: 12 });
+    expect(
+      rangeToRegion(bcf, {
+        start: { actorId: 'verzik', tick: 7 },
+        end: { actorId: 'verzik', tick: 7 },
+      }),
+    ).toEqual({ actorIds: ['verzik'], startTick: 7, endTick: 7 });
+    expect(
+      rangeToRegion(bcf, {
+        start: { actorId: 'p1', tick: 2 },
+        end: { actorId: 'p4', tick: 5 },
+      }),
+    ).toEqual({ actorIds: [], startTick: 2, endTick: 5 });
+  });
+});
 
 describe('newPlayer', () => {
   it('numbers the player with the lowest unused id', () => {
@@ -214,6 +245,46 @@ describe('focus', () => {
   });
 });
 
+describe('selection', () => {
+  it('is clamped into the document and cleared if an end leaves the row order', () => {
+    const P3: BCFActor = { id: 'p3', type: 'player', name: 'Player 3' };
+    const current: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 40, rowOrder: ['verzik', 'p1', 'p2', 'p3'] },
+      timeline: { actors: [VERZIK, P1, P2, P3], ticks: [] },
+    };
+    const toP2 = {
+      start: { actorId: 'p1', tick: 3 },
+      end: { actorId: 'p2', tick: 35 },
+    };
+    const toP3 = {
+      start: { actorId: 'p1', tick: 3 },
+      end: { actorId: 'p3', tick: 12 },
+    };
+
+    const shortened = reduce(
+      {
+        ...withHistory([setTotalTicks(current, 30), current]),
+        selection: toP2,
+      },
+      { type: 'undo' },
+    );
+    expect(shortened.selection).toEqual({
+      start: { actorId: 'p1', tick: 3 },
+      end: { actorId: 'p2', tick: 29 },
+    });
+
+    const withoutP2 = withHistory([removeActor(current, 'p2'), current]);
+    expect(
+      reduce({ ...withoutP2, selection: toP2 }, { type: 'undo' }).selection,
+    ).toBeNull();
+    // A removed row between the ends leaves the selection as it is.
+    expect(
+      reduce({ ...withoutP2, selection: toP3 }, { type: 'undo' }).selection,
+    ).toBe(toP3);
+  });
+});
+
 describe('update', () => {
   function resize(
     state: EditorState,
@@ -318,7 +389,7 @@ describe('update', () => {
 });
 
 describe('set-focus', () => {
-  it('focuses the given cell', () => {
+  it('focuses the given cell and clears any selection', () => {
     const hocus = { actorId: 'p1', tick: 4 };
     const initial = {
       ...initialState({
@@ -328,10 +399,19 @@ describe('set-focus', () => {
       }),
       focus: { actorId: 'verzik', tick: 9 },
       focusedBy: 'keyboard' as const,
+      selection: {
+        start: { actorId: 'verzik', tick: 9 },
+        end: { actorId: 'p1', tick: 12 },
+      },
     };
 
     const state = reduce(initial, { type: 'set-focus', focus: hocus });
-    expect(state).toEqual({ ...initial, focus: hocus, focusedBy: 'pointer' });
+    expect(state).toEqual({
+      ...initial,
+      focus: hocus,
+      focusedBy: 'pointer',
+      selection: null,
+    });
   });
 
   it('clears focus on null', () => {
@@ -370,7 +450,7 @@ describe('move-focus', () => {
     expect(up.focus).toEqual({ actorId: 'p1', tick: 3 });
   });
 
-  it('moves focus by ticks', () => {
+  it('moves focus by ticks and clears any selection', () => {
     const state = {
       ...initialState({
         version: '1.0',
@@ -379,6 +459,10 @@ describe('move-focus', () => {
       }),
       focus: { actorId: 'p1', tick: 3 },
       focusedBy: 'pointer' as const,
+      selection: {
+        start: { actorId: 'p1', tick: 3 },
+        end: { actorId: 'p1', tick: 7 },
+      },
     };
 
     let next = reduce(state, { type: 'move-focus', rows: 0, ticks: 5 });
@@ -386,12 +470,14 @@ describe('move-focus', () => {
       ...state,
       focus: { actorId: 'p1', tick: 8 },
       focusedBy: 'keyboard',
+      selection: null,
     });
     next = reduce(next, { type: 'move-focus', rows: 0, ticks: -6 });
     expect(next).toEqual({
       ...state,
       focus: { actorId: 'p1', tick: 2 },
       focusedBy: 'keyboard',
+      selection: null,
     });
   });
 
@@ -440,6 +526,138 @@ describe('move-focus', () => {
   });
 });
 
+describe('set-selection', () => {
+  it('sets or clears the selection', () => {
+    const initial = initialState({
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
+      timeline: { actors: [VERZIK, P1], ticks: [] },
+    });
+    const selection = {
+      start: { actorId: 'p1', tick: 4 },
+      end: { actorId: 'p1', tick: 4 },
+    };
+
+    const selected = reduce(initial, { type: 'set-selection', selection });
+    expect(selected).toEqual({ ...initial, selection });
+    expect(
+      reduce(selected, { type: 'set-selection', selection: null }),
+    ).toEqual(initial);
+  });
+});
+
+describe('extend-selection', () => {
+  it('creates a selection from a focused cell', () => {
+    const state = {
+      ...initialState({
+        version: '1.0',
+        config: {
+          totalTicks: 31,
+          startTick: 1,
+          rowOrder: ['verzik', 'p1', 'p2'],
+        },
+        timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+      }),
+      focus: { actorId: 'verzik', tick: 4 },
+    };
+
+    expect(
+      reduce(state, { type: 'extend-selection', rows: 1, ticks: 2 }),
+    ).toEqual({
+      ...state,
+      focusedBy: 'keyboard',
+      selection: {
+        start: { actorId: 'verzik', tick: 4 },
+        end: { actorId: 'p1', tick: 6 },
+      },
+    });
+  });
+
+  it('extends an existing selection', () => {
+    const state = {
+      ...initialState({
+        version: '1.0',
+        config: {
+          totalTicks: 31,
+          startTick: 1,
+          rowOrder: ['verzik', 'p1', 'p2'],
+        },
+        timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+      }),
+      focus: { actorId: 'verzik', tick: 4 },
+      selection: {
+        start: { actorId: 'verzik', tick: 4 },
+        end: { actorId: 'p1', tick: 6 },
+      },
+    };
+
+    expect(
+      reduce(state, { type: 'extend-selection', rows: 1, ticks: 1 }),
+    ).toEqual({
+      ...state,
+      focusedBy: 'keyboard',
+      selection: {
+        start: { actorId: 'verzik', tick: 4 },
+        end: { actorId: 'p2', tick: 7 },
+      },
+    });
+  });
+
+  it('clamps the selection to the displayed cell range', () => {
+    const state = {
+      ...initialState({
+        version: '1.0',
+        config: {
+          totalTicks: 31,
+          startTick: 1,
+          rowOrder: ['verzik', 'p1', 'p2'],
+        },
+        timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+      }),
+      focus: { actorId: 'verzik', tick: 4 },
+      selection: {
+        start: { actorId: 'verzik', tick: 4 },
+        end: { actorId: 'p1', tick: 6 },
+      },
+    };
+
+    expect(
+      reduce(state, { type: 'extend-selection', rows: 5, ticks: -50 }),
+    ).toEqual({
+      ...state,
+      focusedBy: 'keyboard',
+      selection: {
+        start: { actorId: 'verzik', tick: 4 },
+        end: { actorId: 'p2', tick: 1 },
+      },
+    });
+  });
+
+  it('does nothing if nothing is focused or the range is empty', () => {
+    const state = {
+      ...initialState({
+        version: '1.0',
+        config: {
+          totalTicks: 31,
+          startTick: 1,
+          rowOrder: ['verzik', 'p1', 'p2'],
+        },
+        timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+      }),
+      focus: { actorId: 'verzik', tick: 4 },
+    };
+
+    expect(reduce(state, { type: 'extend-selection', rows: 0, ticks: 0 })).toBe(
+      state,
+    );
+
+    const state2 = { ...state, focus: null };
+    expect(
+      reduce(state2, { type: 'extend-selection', rows: 2, ticks: 1 }),
+    ).toEqual(state2);
+  });
+});
+
 describe('place-slot-at-focus', () => {
   it('sets the focused cell and advances', () => {
     const scythe = {
@@ -463,6 +681,10 @@ describe('place-slot-at-focus', () => {
       slots: [scythe, bgs, veng, null, null, null, null, null, null],
       focus: { actorId: 'p1', tick: 4 },
       focusedBy: 'keyboard' as const,
+      selection: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 6 },
+      },
     };
 
     let state: EditorState = initial;
@@ -482,6 +704,7 @@ describe('place-slot-at-focus', () => {
       coalesce: { key: 'place', position: 1, at: 1200 },
       modified: true,
       focus: { actorId: 'p1', tick: 23 },
+      selection: null,
     });
     expect(currentDocument(reduce(state, { type: 'undo' }))).toBe(chart);
   });
@@ -518,7 +741,7 @@ describe('place-slot-at-focus', () => {
 });
 
 describe('set-brush', () => {
-  it('sets the brush to the given action and deselects an active slot', () => {
+  it('sets the brush to the given action and clears other active state', () => {
     const scythe = {
       type: 'attack' as const,
       attackType: 'SCYTHE',
@@ -538,10 +761,19 @@ describe('set-brush', () => {
       slots: [null, null, scythe, null, null, null, null, null, null],
       activeSlot: 2,
       brush: scythe,
+      selection: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 8 },
+      },
     };
 
     const state = reduce(selected, { type: 'set-brush', brush: bgs });
-    expect(state).toEqual({ ...selected, brush: bgs, activeSlot: null });
+    expect(state).toEqual({
+      ...selected,
+      brush: bgs,
+      activeSlot: null,
+      selection: null,
+    });
   });
 
   it('clears the existing brush on null', () => {
@@ -552,10 +784,14 @@ describe('set-brush', () => {
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
       brush: { type: 'attack' as const, attackType: 'SCYTHE' },
+      selection: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 8 },
+      },
     };
 
     let state = reduce(withBrush, { type: 'set-brush', brush: null });
-    expect(state.brush).toBeNull();
+    expect(state).toEqual({ ...withBrush, brush: null });
     state = reduce(state, { type: 'set-brush', brush: null });
     expect(state.brush).toBeNull();
   });
@@ -680,10 +916,19 @@ describe('select-slot', () => {
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
       slots: [null, null, scythe, null, null, null, null, null, null],
+      selection: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 8 },
+      },
     };
 
     const state = reduce(initial, { type: 'select-slot', slot: 2 });
-    expect(state).toEqual({ ...initial, activeSlot: 2, brush: scythe });
+    expect(state).toEqual({
+      ...initial,
+      activeSlot: 2,
+      brush: scythe,
+      selection: null,
+    });
   });
 
   it('clears the brush if the slot is empty', () => {
@@ -694,6 +939,10 @@ describe('select-slot', () => {
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
       brush: { type: 'attack' as const, attackType: 'SCYTHE' },
+      selection: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 8 },
+      },
     };
 
     const state = reduce(initial, { type: 'select-slot', slot: 4 });

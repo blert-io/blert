@@ -12,10 +12,9 @@ import {
 import { createPortal } from 'react-dom';
 
 import { ActionIcon } from './action-icon';
+import { DRAG_THRESHOLD_PX } from './constants';
 
 import styles from './action-drag.module.scss';
-
-export const DRAG_THRESHOLD_PX = 4;
 
 type Point = { x: number; y: number };
 

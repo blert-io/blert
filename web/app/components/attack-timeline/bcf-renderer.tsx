@@ -417,7 +417,6 @@ export function BcfRenderer({
               tooltipId={effectiveTooltipId}
               interactionHandler={interactionHandler}
               onTickSelect={onTickSelect}
-              scrollContainerRef={scrollableRef}
             />
           </OverlayContext.Provider>
         </HorizontalScrollable>
