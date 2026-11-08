@@ -680,7 +680,7 @@ mod tests {
     #![allow(clippy::too_many_lines)]
 
     use blert::proto::{Event, event};
-    use blert::{Maze, PlayerAttack, Point, RoomId, SoteMazePivots, Source};
+    use blert::{Maze, PlayerAttack, Point, SoteMazePivots, Source};
     use bytes::Bytes;
     use prost::Message;
 
@@ -1138,26 +1138,58 @@ mod tests {
     #[test]
     fn merge_step_failing_consistency_check_is_rejected() {
         let challenge = nylocas_challenge();
-        let boss = |tick: Tick| fixtures::NpcEvent {
-            tick,
-            stage: Stage::TobNylocas,
-            npc_id: blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR,
-            room_id: 1001,
-            ..Default::default()
+        let player_update = |tick: Tick| {
+            fixtures::PlayerUpdateEvent::new(tick, Stage::TobNylocas, "1Ogp", (0, 0)).build()
         };
-        let recording = |client_id: u32, death_tick: Tick| ClientStageStream::Events {
+        let player_attack = |tick: Tick, attack: PlayerAttack, weapon_id: u32| {
+            fixtures::player_attack_event(fixtures::PlayerAttackEvent {
+                tick,
+                stage: Stage::TobNylocas,
+                coords: (0, 0),
+                name: "1Ogp",
+                party_index: None,
+                attack,
+                weapon_id,
+                distance_to_target: 1,
+                target: None,
+            })
+        };
+        let recording = |client_id: u32, events: Vec<Event>| ClientStageStream::Events {
             client_id: ClientId(client_id),
             events: Bytes::from(
                 ChallengeEvents {
-                    events: vec![
-                        fixtures::npc_spawn_event(boss(Tick(0))),
-                        fixtures::npc_death_event(boss(death_tick)),
-                    ],
+                    events,
                     ..Default::default()
                 }
                 .encode_to_vec(),
             ),
         };
+        let base = || {
+            recording(
+                1,
+                vec![
+                    player_update(Tick(0)),
+                    player_attack(
+                        Tick(0),
+                        PlayerAttack::BgsSpec,
+                        blert::item::id::BANDOS_GODSWORD,
+                    ),
+                    player_update(Tick(3)),
+                ],
+            )
+        };
+        let target = recording(
+            2,
+            vec![
+                player_update(Tick(0)),
+                player_update(Tick(3)),
+                player_attack(
+                    Tick(3),
+                    PlayerAttack::Scythe,
+                    blert::item::id::SCYTHE_OF_VITUR,
+                ),
+            ],
+        );
         let end = |client_id: u32| ClientStageStream::End {
             client_id: ClientId(client_id),
             update: StageUpdate {
@@ -1179,29 +1211,23 @@ mod tests {
             runelite_version: "runelite-1.13.2".into(),
             recording_config_version: Some(1),
         };
-        let records = vec![
-            metadata(1),
-            recording(1, Tick(5)),
-            metadata(2),
-            recording(2, Tick(20)),
-            end(1),
-            end(2),
-        ];
+        let records = vec![metadata(1), base(), metadata(2), target, end(1), end(2)];
 
         let (merged, report) = merge(&challenge, Stage::TobNylocas, &records, None);
         let (base_only, _) = merge(
             &challenge,
             Stage::TobNylocas,
-            &[metadata(1), recording(1, Tick(5)), end(1)],
+            &[metadata(1), base(), end(1)],
             None,
         );
+        let merged = merged.expect("stage has client data");
+        let player = merged
+            .timeline()
+            .party_index(&challenge.party[0])
+            .expect("player is in the party");
 
         assert_eq!(
-            merged
-                .expect("stage has client data")
-                .timeline()
-                .to_proto()
-                .collect::<Vec<_>>(),
+            merged.timeline().to_proto().collect::<Vec<_>>(),
             base_only
                 .expect("stage has client data")
                 .timeline()
@@ -1254,23 +1280,20 @@ mod tests {
                         MergeStatus::Rejected {
                             classification: MergeClassification::Matching,
                             reason: report::RejectionReason::PostMergeConsistency {
-                                issues: vec![report::MergeConsistencyIssue::DuplicateNpcDeath {
-                                    room_id: RoomId(1001),
-                                    occurrences: vec![
-                                        report::NpcOccurrence {
-                                            tick: Tick(5),
-                                            npc_id: Some(
-                                                blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR
-                                            ),
+                                issues: vec![
+                                    report::MergeConsistencyIssue::WeaponCooldownViolation {
+                                        player,
+                                        previous: report::PlayerAttackOccurrence {
+                                            tick: Tick(0),
+                                            r#type: PlayerAttack::BgsSpec as i32,
                                         },
-                                        report::NpcOccurrence {
-                                            tick: Tick(20),
-                                            npc_id: Some(
-                                                blert::npc::id::NYLOCAS_VASILIAS_MELEE_REGULAR
-                                            ),
+                                        current: report::PlayerAttackOccurrence {
+                                            tick: Tick(3),
+                                            r#type: PlayerAttack::Scythe as i32,
                                         },
-                                    ],
-                                }],
+                                        cooldown: Ticks(6),
+                                    },
+                                ],
                             },
                             quality_flags: Vec::new(),
                         },

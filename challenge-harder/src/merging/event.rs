@@ -190,6 +190,8 @@ pub(super) struct StreamConfig {
     /// The tick gap between two paired occurrences above which the pair is
     /// flagged, or `None` to disable the signal.
     pub large_gap_threshold: Option<Ticks>,
+    /// Which of two paired occurrences is placed in the merged timeline.
+    pub keep: Occurrence,
 }
 
 impl StreamConfig {
@@ -197,8 +199,15 @@ impl StreamConfig {
         Self {
             temporal_window,
             large_gap_threshold,
+            keep: Occurrence::Earliest,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Occurrence {
+    Earliest,
+    Latest,
 }
 
 /// Tick window within which two deaths for a player are treated as one event in
@@ -226,7 +235,10 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: EventType) -> Option
             Some(Ticks(20)),
         ),
 
-        EventType::NpcDeath => StreamConfig::new(Some(Ticks(10)), Some(Ticks(5))),
+        EventType::NpcDeath => StreamConfig {
+            keep: Occurrence::Latest,
+            ..StreamConfig::new(None, Some(Ticks(5)))
+        },
         EventType::NpcDying => StreamConfig::new(None, Some(Ticks(10))),
 
         EventType::TobMaidenCrabLeak => StreamConfig::new(None, Some(Ticks(10))),

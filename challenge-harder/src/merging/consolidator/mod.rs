@@ -11,7 +11,7 @@ use blert::{
 };
 
 use super::event::{
-    AttackPairing, Class, EventType, IdentityKey, classify, event_type, identity_key,
+    AttackPairing, Class, EventType, IdentityKey, Occurrence, classify, event_type, identity_key,
     normalize_npc_attack, normalize_player_attack, pair_attacks, stream_config,
 };
 use super::trace::{
@@ -1164,7 +1164,8 @@ impl<'a, 't> Consolidator<'a, 't> {
         }
     }
 
-    /// Inserts a paired occurrence of an event to the earliest tick it occurred.
+    /// Inserts a paired occurrence of an event on the tick of the occurrence
+    /// its stream config keeps.
     fn place_paired_stream_event(
         &mut self,
         merged: &mut Recording,
@@ -1172,7 +1173,12 @@ impl<'a, 't> Consolidator<'a, 't> {
         base: &StreamCandidate<'t>,
         target: &StreamCandidate<'t>,
     ) {
-        let (winner, side) = if base.merged_tick <= target.merged_tick {
+        let config = stream_config(self.ctx.challenge.challenge_type, kind);
+        let base_kept = match config.map(|config| config.keep) {
+            Some(Occurrence::Latest) => base.merged_tick >= target.merged_tick,
+            Some(Occurrence::Earliest) | None => base.merged_tick <= target.merged_tick,
+        };
+        let (winner, side) = if base_kept {
             (base, Side::Base)
         } else {
             (target, Side::Target)
@@ -1187,8 +1193,7 @@ impl<'a, 't> Consolidator<'a, 't> {
         self.counters.stream_event_pairs += 1;
 
         let gap = base.merged_tick.abs_diff(target.merged_tick);
-        let large_gap_threshold = stream_config(self.ctx.challenge.challenge_type, kind)
-            .and_then(|config| config.large_gap_threshold);
+        let large_gap_threshold = config.and_then(|config| config.large_gap_threshold);
         if large_gap_threshold.is_some_and(|threshold| gap > threshold) {
             self.quality_flags.push(QualityFlag::LargeTemporalGap {
                 kind,

@@ -174,9 +174,10 @@ impl Interpreter for GuardianInterpreter<'_> {
                     breath_target = target;
                     Some((NpcAttack::TfaGuardianBreathFocus, target))
                 }
-                (Phase::Enraged, _) if target.is_none() && breath_target.is_some() => {
-                    Some((NpcAttack::TfaGuardianBreath, breath_target.take()))
-                }
+                (Phase::Enraged, _) if target.is_none() && breath_target.is_some() => breath_target
+                    .take()
+                    .filter(|&target| state.has_actor(target))
+                    .map(|target| (NpcAttack::TfaGuardianBreath, Some(target))),
                 _ => None,
             };
             if let Some((attack, target)) = attack {
