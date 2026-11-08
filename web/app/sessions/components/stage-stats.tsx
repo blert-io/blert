@@ -5,6 +5,9 @@ import {
   ChallengeType,
   SplitType,
   Stage,
+  TfaChallengeStats,
+  TfaStage,
+  isTfaStage,
   splitName,
   stageName,
   stagesForChallenge,
@@ -48,6 +51,17 @@ interface StageStatistics {
   completionRate: number;
   splits: SplitStatistics[];
 }
+
+const TFA_DEATHS_FIELDS: Record<TfaStage, keyof TfaChallengeStats> = {
+  [Stage.TFA_GUARDIAN]: 'guardianDeaths',
+  [Stage.TFA_EZEKIEL]: 'ezekielDeaths',
+  [Stage.TFA_BORK]: 'borkDeaths',
+  [Stage.TFA_MOIA]: 'moiaDeaths',
+  [Stage.TFA_DREADNOTH]: 'dreadnothDeaths',
+  [Stage.TFA_DAGONHAI]: 'dagonhaiDeaths',
+  [Stage.TFA_XARTH]: 'xarthDeaths',
+  [Stage.TFA_OCELLUS]: 'ocellusDeaths',
+};
 
 function stageIcon(stage: Stage): React.ReactNode {
   switch (stage) {
@@ -310,26 +324,34 @@ export default function StageStats() {
   const stages = stagesForChallenge(session.challengeType);
 
   const stageStatistics: StageStatistics[] = stages.map((stage) => {
-    const stageChallenges = session.challenges.filter((c) => c.stage >= stage);
+    const challengesWithStage = session.challenges.filter((c) => {
+      if (c.type !== ChallengeType.TFA || !isTfaStage(stage)) {
+        return c.stage >= stage;
+      }
+      if (c.stage === stage) {
+        return true;
+      }
+      return (c.tfaStats?.[TFA_DEATHS_FIELDS[stage]] ?? null) !== null;
+    });
 
     // The number of times the team completed the stage (includes resets).
-    const wipes = stageChallenges.filter(
+    const wipes = challengesWithStage.filter(
       (c) => c.stage === stage && c.status === ChallengeStatus.WIPED,
     ).length;
-    const completions = stageChallenges.length - wipes;
+    const completions = challengesWithStage.length - wipes;
 
     const totalDeaths = session.playerStats.reduce(
       (sum, p) => sum + (p.deathsByStage[stage] ?? 0),
       0,
     );
 
-    const attempts = stageChallenges.length;
+    const attempts = challengesWithStage.length;
 
     const relevantSplits = relevantSplitsForStage(stage, session.challengeMode);
 
     const splitStatistics: SplitStatistics[] = relevantSplits.map(
       (splitType) => {
-        const splitData = stageChallenges
+        const splitData = challengesWithStage
           .map((c) => {
             const split = c.splits[splitType];
             if (!split?.accurate) {
