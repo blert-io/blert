@@ -9,7 +9,6 @@ import {
 import { RedisClientType } from 'redis';
 
 import sql from './db';
-import logger from './log';
 
 type Experience = Pick<
   Player,
@@ -156,81 +155,15 @@ export class Players {
   }
 }
 
-type ActivePlayer = {
-  challengeId: string;
-};
-
-type PlayerStatusCallback = (challengeId: string | null) => void;
-
 export class PlayerManager {
-  private redisClient: RedisClientType | null;
-  private activePlayers = new Map<string, ActivePlayer>();
+  private redisClient: RedisClientType;
 
-  private statusUpdateListeners = new Map<string, PlayerStatusCallback[]>();
-
-  public constructor(redisClient: RedisClientType | null) {
+  public constructor(redisClient: RedisClientType) {
     this.redisClient = redisClient;
   }
 
-  public setPlayerActive(username: string, challengeId: string): void {
-    const normalized = normalizeRsn(username);
-    this.activePlayers.set(normalized, { challengeId });
-    this.statusUpdateListeners
-      .get(normalized)
-      ?.forEach((cb) => cb(challengeId));
-  }
-
-  public setPlayerInactive(username: string, challengeId: string): void {
-    const normalized = normalizeRsn(username);
-    const activePlayer = this.activePlayers.get(normalized);
-    if (activePlayer === undefined) {
-      return;
-    }
-    if (activePlayer.challengeId !== challengeId) {
-      logger.warn('player_challenge_mismatch', {
-        username: normalized,
-        expectedChallengeUuid: challengeId,
-        actualChallengeUuid: activePlayer.challengeId,
-      });
-      return;
-    }
-    this.activePlayers.delete(normalized);
-    this.statusUpdateListeners.get(normalized)?.forEach((cb) => cb(null));
-  }
-
   public async getCurrentChallengeId(username: string): Promise<string | null> {
-    if (this.redisClient !== null) {
-      const challengeId = await this.redisClient.get(activePlayerKey(username));
-      return challengeId ?? null;
-    }
-    return this.activePlayers.get(normalizeRsn(username))?.challengeId ?? null;
-  }
-
-  public subscribeToPlayer(
-    username: string,
-    callback: PlayerStatusCallback,
-  ): void {
-    const normalized = normalizeRsn(username);
-    if (!this.statusUpdateListeners.has(normalized)) {
-      this.statusUpdateListeners.set(normalized, []);
-    }
-
-    this.statusUpdateListeners.get(normalized)!.push(callback);
-  }
-
-  public unsubscribeFromPlayer(
-    username: string,
-    callback: PlayerStatusCallback,
-  ): void {
-    const normalized = normalizeRsn(username);
-    if (!this.statusUpdateListeners.has(normalized)) {
-      return;
-    }
-
-    const listeners = this.statusUpdateListeners.get(normalized)!;
-    const index = listeners.indexOf(callback);
-    if (index !== -1) {
-      listeners.splice(index, 1);
-    }
+    const challengeId = await this.redisClient.get(activePlayerKey(username));
+    return challengeId ?? null;
   }
 }
