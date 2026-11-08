@@ -503,6 +503,7 @@ async fn verify_creation(
     client: &Object,
     uuid: Uuid,
     repository: &DataRepository,
+    scale: usize,
 ) -> (i32, Vec<i32>) {
     let challenge_id: i32 = client
         .query_one("SELECT id FROM challenges WHERE uuid = $1", &[&uuid])
@@ -522,11 +523,12 @@ async fn verify_creation(
     assert_eq!(row.get::<_, Option<i32>>(1), None);
     assert_eq!(row.get::<_, Option<i16>>(2), None);
 
+    let party = &GUARDIAN_PARTY[..scale];
     let players = client
         .query(
             "SELECT id, normalized_username, total_recordings FROM players
              WHERE normalized_username = ANY($1) ORDER BY id",
-            &[&GUARDIAN_PARTY.as_slice()],
+            &[&party],
         )
         .await
         .expect("player rows");
@@ -535,10 +537,7 @@ async fn verify_creation(
             .iter()
             .map(|row| (row.get::<_, &str>(1), row.get::<_, i32>(2)))
             .collect::<Vec<_>>(),
-        GUARDIAN_PARTY
-            .iter()
-            .map(|name| (*name, 1))
-            .collect::<Vec<_>>(),
+        party.iter().map(|name| (*name, 1)).collect::<Vec<_>>(),
     );
 
     assert_eq!(
@@ -645,7 +644,7 @@ async fn guardian_test() {
 
     let repository =
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
-    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository).await;
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 5).await;
 
     let payload = pipeline
         .process(ProcessingRequest {
@@ -884,4 +883,167 @@ async fn verify_guardian_stage_rows(
     assert_eq!(row.get::<_, Option<i32>>(2), Some(355));
     row.get::<_, Option<serde_json::Value>>(3)
         .expect("custom data present")
+}
+
+const GUARDIAN_MERGE_CLEAN_UUID: &str = "713a5a42-cdde-428b-984d-d933e4d883a8";
+
+#[tokio::test]
+async fn guardian_merge_clean_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = GUARDIAN_MERGE_CLEAN_UUID.parse().expect("uuid is valid");
+    let party = &GUARDIAN_PARTY[..2];
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+
+    let fixture = load_fixture("tfa_guardian_merge_clean");
+    prepare_fixture(uuid, Stage::TfaGuardian, &fixture.records).await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            unmerged_clients: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tfa,
+        mode: ChallengeMode::NoMode,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(*name).unwrap())
+            .collect(),
+        party_changed: false,
+        stage: Stage::TfaGuardian,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: GUARDIAN_CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 2).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TfaGuardian,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("stage runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Wiped,
+            ticks: 217,
+        },
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Wiped as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(217));
+    let custom_data = row
+        .get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present");
+
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TfaGuardian, None)
+        .await
+        .expect("guardian events");
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TfaGuardian).await;
+    let capture = super::capture_file(&repository, uuid, Stage::TfaGuardian).await;
+    golden::assert_stage_artifacts(
+        "tfa_guardian_merge_clean",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+        &capture,
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
 }

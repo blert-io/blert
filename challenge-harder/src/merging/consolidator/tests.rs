@@ -550,15 +550,15 @@ fn flags_large_temporal_gaps_between_paired_stream_events() {
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    assert_eq!(
-        event_types(&result.recording, Tick(1)),
-        vec![EventType::NpcDeath]
-    );
+    assert_eq!(event_types(&result.recording, Tick(1)), vec![]);
     assert_eq!(
         event_types(&result.recording, Tick(2)),
         vec![EventType::PlayerDeath]
     );
-    assert_eq!(event_types(&result.recording, Tick(7)), vec![]);
+    assert_eq!(
+        event_types(&result.recording, Tick(7)),
+        vec![EventType::NpcDeath]
+    );
     assert_eq!(event_types(&result.recording, Tick(25)), vec![]);
 
     assert_set_eq(
@@ -592,9 +592,9 @@ fn deduplicates_npc_deaths_by_room_id() {
     let stage = Stage::TobVerzik;
     let party = vec![Rsn::try_from("1Ogp").unwrap()];
     let challenge = fixtures::challenge_info(stage, ChallengeMode::TobRegular, &party);
-    let crab_death = |room_id: u64| {
+    let crab_death = |tick: Tick, room_id: u64| {
         fixtures::npc_death_event(NpcEvent {
-            tick: Tick(5),
+            tick,
             stage,
             coords: (10, 10),
             npc_id: npc::id::VERZIK_MATOMENOS_REGULAR,
@@ -607,19 +607,25 @@ fn deduplicates_npc_deaths_by_room_id() {
         BASE_CLIENT_ID,
         stage,
         &challenge,
-        10,
+        30,
         "1Ogp",
         DataSource::Secondary,
-        BTreeMap::from([(Tick(5), vec![crab_death(1), crab_death(2)])]),
+        BTreeMap::from([(
+            Tick(5),
+            vec![crab_death(Tick(5), 1), crab_death(Tick(5), 2)],
+        )]),
     );
     let target = build_recording(
         TARGET_CLIENT_ID,
         stage,
         &challenge,
-        10,
+        30,
         "1Ogp",
         DataSource::Primary,
-        BTreeMap::from([(Tick(5), vec![crab_death(1), crab_death(3)])]),
+        BTreeMap::from([
+            (Tick(5), vec![crab_death(Tick(5), 3)]),
+            (Tick(20), vec![crab_death(Tick(20), 1)]),
+        ]),
     );
 
     let ctx = test_ctx(
@@ -629,30 +635,41 @@ fn deduplicates_npc_deaths_by_room_id() {
     );
     let result = Consolidator::new(&base, &target, &ctx, None).consolidate();
 
-    // Room ID 1 died on both sides and is placed once from the base. Deaths for
-    // 2 and 3 were only observed by one client each and use their own events.
-    let mut deaths: Vec<(RoomId, Source)> = result
+    // Room ID 1 died on both sides and is placed once at the target's later
+    // death. Deaths for 2 and 3 were only observed by one client each and use
+    // their own events.
+    let mut deaths: Vec<(Tick, RoomId, Source)> = result
         .recording
-        .get_state(Tick(5))
-        .expect("tick is recorded")
-        .events
-        .iter()
-        .filter_map(|event| match event.kind {
-            EventKind::NpcDeath(death) => Some((death.npc, event.source)),
-            _ => None,
+        .states()
+        .flat_map(|(tick, state)| {
+            state
+                .events
+                .iter()
+                .filter_map(move |event| match event.kind {
+                    EventKind::NpcDeath(death) => Some((tick, death.npc, event.source)),
+                    _ => None,
+                })
         })
         .collect();
     deaths.sort_unstable();
     assert_eq!(
         deaths,
         vec![
-            (RoomId(1), Source::Client(BASE_CLIENT_ID)),
-            (RoomId(2), Source::Client(BASE_CLIENT_ID)),
-            (RoomId(3), Source::Client(TARGET_CLIENT_ID)),
+            (Tick(5), RoomId(2), Source::Client(BASE_CLIENT_ID)),
+            (Tick(5), RoomId(3), Source::Client(TARGET_CLIENT_ID)),
+            (Tick(20), RoomId(1), Source::Client(TARGET_CLIENT_ID)),
         ]
     );
 
-    assert_eq!(result.quality_flags, vec![]);
+    assert_eq!(
+        result.quality_flags,
+        vec![QualityFlag::LargeTemporalGap {
+            kind: EventType::NpcDeath,
+            gap: Ticks(15),
+            base_tick: Tick(5),
+            target_tick: Tick(20),
+        }]
+    );
     assert_eq!(
         result.counters,
         ReconciliationCounters {
