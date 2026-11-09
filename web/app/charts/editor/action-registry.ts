@@ -25,9 +25,16 @@ export type ActionEntry = {
 /** Groups of attacks that `S` cycles through. */
 const ATTACKS: { type: string; name: string; aliases?: string[] }[][] = [
   [{ type: 'SCYTHE', name: 'Scythe' }],
+  [{ type: 'OBLIGATOR_THRUST', name: 'Obligator' }],
   [{ type: 'TWISTED_BOW', name: 'Twisted bow', aliases: ['tbow'] }],
+  [{ type: 'SHADOW', name: 'Shadow' }],
   [{ type: 'BLOWPIPE', name: 'Blowpipe', aliases: ['bp', 'pipe'] }],
+  [{ type: 'ASCENSION_CROSSBOWS', name: 'Crossbows', aliases: ['acb', 'cb'] }],
   [{ type: 'EYE_OF_AYAK_AUTO', name: 'Ayak' }],
+  [
+    { type: 'DAWN_SPEC', name: 'Dawnbringer' },
+    { type: 'DAWN_AUTO', name: 'Dawn auto' },
+  ],
   [
     { type: 'CLAW_SCRATCH', name: 'Claw scratch' },
     { type: 'CLAW_SPEC', name: 'Claw spec' },
@@ -35,10 +42,6 @@ const ATTACKS: { type: string; name: string; aliases?: string[] }[][] = [
   [{ type: 'ELDER_MAUL_SPEC', name: 'Maul spec' }],
   [{ type: 'BGS_SPEC', name: 'BGS spec' }],
   [{ type: 'TONALZTICS_SPEC', name: 'Ralos spec' }],
-  [
-    { type: 'DAWN_SPEC', name: 'Dawnbringer' },
-    { type: 'DAWN_AUTO', name: 'Dawn auto' },
-  ],
   [{ type: 'CHALLY_SPEC', name: 'Chally' }],
 ];
 

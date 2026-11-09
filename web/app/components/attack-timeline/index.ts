@@ -13,7 +13,10 @@ export {
 } from './attack-metadata';
 export type { HitTestResult } from './canvas/hit-test';
 export { TimelineDisplay } from './display-utils';
-export type { InteractionHandler } from './canvas/timeline-controller';
+export type {
+  InteractionHandler,
+  PointerHit,
+} from './canvas/timeline-controller';
 export {
   CellOverlay,
   type CellOverlayProps,

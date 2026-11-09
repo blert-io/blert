@@ -6,7 +6,8 @@ import { useMemo, useRef, useState } from 'react';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { clamp } from '@/utils/math';
 
-import { DRAG_THRESHOLD_PX, placeOf, swallowNextClick } from './action-drag';
+import { placeOf, swallowNextClick } from './action-drag';
+import { DRAG_THRESHOLD_PX } from './constants';
 
 import styles from './rows-panel.module.scss';
 

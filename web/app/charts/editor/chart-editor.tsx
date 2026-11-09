@@ -2,6 +2,7 @@
 
 import { BCFAction, BCFResolver, BlertChartFormat } from '@blert/bcf';
 import {
+  RefObject,
   SetStateAction,
   useCallback,
   useEffect,
@@ -13,8 +14,8 @@ import { flushSync } from 'react-dom';
 
 import BcfRenderer, {
   CellOverlay,
-  HitTestResult,
   InteractionHandler,
+  PointerHit,
   RegionOverlay,
   TimelineDisplay,
 } from '@/components/attack-timeline';
@@ -31,10 +32,9 @@ import { ActionIcon } from './action-icon';
 import { CooldownConflict, actionFillTicks, deriveState } from './attack-cycle';
 import {
   addActor,
-  clearActions,
+  clearCells,
   duplicateActor,
   placeAction,
-  placeActions,
   removeAction,
   removeActor,
   removeCell,
@@ -52,13 +52,20 @@ import {
   EditorAction,
   EditorState,
   newPlayer,
+  rangeToRegion,
 } from './editor-state';
 import { Hotbar } from './hotbar';
 import {
+  Drag,
   Fill,
   InputContext,
   Keypress,
+  applyFill,
+  autoScrollSpeed,
   canPlace,
+  cellsClearedBy,
+  extendDrag,
+  hasPassedDragThreshold,
   keyIntents,
   pressIntent,
 } from './input';
@@ -163,8 +170,15 @@ export function ChartEditor() {
         derivedDisplay: new TimelineDisplay(derivedResolver),
       };
     }, [bcf]);
-  const { activeSlot, brush, focus, focusedBy, respectCooldowns, slots } =
-    state;
+  const {
+    activeSlot,
+    brush,
+    focus,
+    focusedBy,
+    respectCooldowns,
+    selection,
+    slots,
+  } = state;
 
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridWidth, setGridWidth] = useState<number | null>(null);
@@ -186,16 +200,14 @@ export function ChartEditor() {
     return () => observer.disconnect();
   }, []);
 
-  const focusRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    focusRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [focus]);
+  const focusRef = useScrollIntoView(focus);
+  const selectionEndRef = useScrollIntoView(selection?.end);
 
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   const [hover, setHover] = useState<CellCoord | null>(null);
-  const [fill, setFill] = useState<Fill | null>(null);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const dragging = drag?.dragging === true;
   const [lastHit, setLastHit] = useState<string | null>(null);
   const [rejection, setRejection] = useState<{
     at: number;
@@ -204,7 +216,7 @@ export function ChartEditor() {
     slot: number;
   } | null>(null);
   const altHeld = useModifierKey('Alt');
-  const { capture, drag, release } = useActionDrag();
+  const { capture, drag: actionDrag, release } = useActionDrag();
 
   const place = useCallback(
     (cell: CellCoord, action: BCFAction) => {
@@ -217,33 +229,34 @@ export function ChartEditor() {
   );
 
   useEffect(() => {
-    if (fill === null) {
+    if (drag === null) {
       return;
     }
 
-    const { action, actorId, endTick, startTick } = fill;
     const commit = () => {
+      setDrag(null);
+      if (drag.type === 'marquee') {
+        if (dragging) {
+          dispatch({ type: 'set-selection', selection: drag.range });
+        }
+        return;
+      }
+
+      const { action, range } = drag;
       const ticks = actionFillTicks(
         action,
-        startTick,
-        endTick,
+        range.start.tick,
+        range.end.tick,
         respectCooldowns,
       );
-      const span = {
-        actorIds: [actorId],
-        startTick: Math.min(startTick, endTick),
-        endTick: Math.max(startTick, endTick),
-      };
-      update((doc) => {
-        const cleared =
-          action.type === 'attack' ? clearActions(doc, span, 'attack') : doc;
-        return placeActions(cleared, actorId, ticks, action);
-      });
+      update((doc) => applyFill(doc, drag, respectCooldowns));
       const tick = ticks[ticks.length - 1];
-      dispatch({ type: 'set-focus', focus: { actorId, tick } });
-      setFill(null);
+      dispatch({
+        type: 'set-focus',
+        focus: { actorId: range.end.actorId, tick },
+      });
     };
-    const cancel = () => setFill(null);
+    const cancel = () => setDrag(null);
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -259,7 +272,9 @@ export function ChartEditor() {
       window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [dispatch, fill, respectCooldowns, update]);
+  }, [dispatch, drag, dragging, respectCooldowns, update]);
+
+  const pointerY = useAutoScroll(gridRef, dragging);
 
   const interactionHandler = useMemo<InteractionHandler>(
     () => ({
@@ -272,13 +287,22 @@ export function ChartEditor() {
           { brush, resolver },
           { altKey: e.altKey, cell: { actorId: hit.rowId, tick: hit.tick } },
         );
+        const origin = { x: e.clientX, y: e.clientY };
         if (intent?.type === 'start-fill') {
-          setFill(intent.fill);
+          const { action, cell } = intent;
+          const range = { start: cell, end: cell };
+          setDrag({ type: 'fill', action, dragging: false, origin, range });
+        } else if (intent?.type === 'start-marquee') {
+          const { cell } = intent;
+          const range = { start: cell, end: cell };
+          dispatch({ type: 'set-focus', focus: cell });
+          setDrag({ type: 'marquee', dragging: false, origin, range });
         } else if (intent !== null) {
           dispatch(intent);
         }
       },
-      onPointerMove: (hit) => {
+      onPointerMove: (hit, e) => {
+        pointerY.current = e.clientY;
         setLastHit(describeHit(hit));
         setHover((previous) => {
           if (hit?.type !== 'cell') {
@@ -293,15 +317,21 @@ export function ChartEditor() {
           }
           return { actorId: hit.rowId, tick: hit.tick };
         });
-        if (hit !== null) {
-          setFill((previous) =>
-            previous === null || previous.endTick === hit.tick
-              ? previous
-              : { ...previous, endTick: hit.tick },
-          );
-        }
+        const point = { x: e.clientX, y: e.clientY };
+        setDrag((previous) => {
+          if (previous === null) {
+            return null;
+          }
+          if (previous.dragging) {
+            return extendDrag(resolver, previous, hit);
+          }
+          if (!hasPassedDragThreshold(previous.origin, point)) {
+            return previous;
+          }
+          return extendDrag(resolver, { ...previous, dragging: true }, hit);
+        });
 
-        if (drag === null) {
+        if (actionDrag === null) {
           return;
         }
         if (hit?.type === 'cell') {
@@ -326,7 +356,17 @@ export function ChartEditor() {
         return 'cell';
       },
     }),
-    [altHeld, brush, capture, dispatch, drag, place, release, resolver],
+    [
+      actionDrag,
+      altHeld,
+      brush,
+      capture,
+      dispatch,
+      place,
+      pointerY,
+      release,
+      resolver,
+    ],
   );
 
   const wrapWidth = gridWidth !== null && gridWidth > 0 ? gridWidth : undefined;
@@ -362,6 +402,12 @@ export function ChartEditor() {
 
       for (const intent of intents) {
         switch (intent.type) {
+          case 'clear-cells': {
+            const { range } = intent;
+            update((doc) => clearCells(doc, rangeToRegion(doc, range)));
+            break;
+          }
+
           case 'open-search':
             flushSync(() => setDrawer({ open: true, panel: 'actions' }));
             searchRef.current?.focus({ preventScroll: true });
@@ -485,6 +531,22 @@ export function ChartEditor() {
               startTick={span.startTick}
             />
           ))}
+          {selection !== null && (
+            <RegionOverlay
+              className={styles.selection}
+              endRowId={selection.end.actorId}
+              endTick={selection.end.tick}
+              startRowId={selection.start.actorId}
+              startTick={selection.start.tick}
+            />
+          )}
+          {selection !== null && (
+            <CellOverlay
+              ref={selectionEndRef}
+              rowId={selection.end.actorId}
+              tick={selection.end.tick}
+            />
+          )}
           {focus !== null && (
             <CellOverlay
               className={focusClass}
@@ -494,21 +556,31 @@ export function ChartEditor() {
               tick={focus.tick}
             />
           )}
-          {fill === null ? (
+          {drag === null && (
             <Ghost
               hover={hover}
-              brush={drag?.action ?? brush}
+              brush={actionDrag?.action ?? brush}
               altHeld={altHeld}
               bcf={bcf}
               resolver={resolver}
               cellSize={cellSize}
             />
-          ) : (
+          )}
+          {drag?.type === 'fill' && (
             <FillPreview
+              bcf={bcf}
               cellSize={cellSize}
-              fill={fill}
-              resolver={resolver}
+              fill={drag}
               respectCooldowns={respectCooldowns}
+            />
+          )}
+          {dragging && drag?.type === 'marquee' && (
+            <RegionOverlay
+              className={styles.fillRegion}
+              endRowId={drag.range.end.actorId}
+              endTick={drag.range.end.tick}
+              startRowId={drag.range.start.actorId}
+              startTick={drag.range.start.tick}
             />
           )}
         </BcfRenderer>
@@ -656,61 +728,53 @@ function Ghost({ hover, brush, altHeld, bcf, resolver, cellSize }: GhostProps) {
 }
 
 type FillPreviewProps = {
+  bcf: BlertChartFormat;
   cellSize: number;
   fill: Fill;
-  resolver: BCFResolver;
   respectCooldowns: boolean;
 };
 
 function FillPreview({
+  bcf,
   cellSize,
   fill,
-  resolver,
   respectCooldowns,
 }: FillPreviewProps) {
-  const { action, actorId, endTick, startTick } = fill;
-  const ticks = actionFillTicks(action, startTick, endTick, respectCooldowns);
-
-  // Existing attacks between filled attack ticks that would be removed.
-  const removed: number[] = [];
-  if (action.type === 'attack') {
-    const landing = new Set(ticks);
-    const last = Math.max(startTick, endTick);
-    for (let tick = Math.min(startTick, endTick); tick <= last; tick++) {
-      const actions = resolver.getCell(actorId, tick)?.actions ?? [];
-      if (!landing.has(tick) && actions.some((a) => a.type === 'attack')) {
-        removed.push(tick);
-      }
-    }
-  }
+  const { action, range } = fill;
+  const { end, start } = range;
+  const ticks = actionFillTicks(action, start.tick, end.tick, respectCooldowns);
+  const { actorIds } = rangeToRegion(bcf, range);
+  const cleared = cellsClearedBy(bcf, fill, respectCooldowns);
 
   return (
     <>
       <RegionOverlay
         className={styles.fillRegion}
-        endRowId={actorId}
-        endTick={endTick}
-        startRowId={actorId}
-        startTick={startTick}
+        endRowId={end.actorId}
+        endTick={end.tick}
+        startRowId={start.actorId}
+        startTick={start.tick}
       />
-      {removed.map((tick) => (
+      {cleared.map(({ actorId, tick }) => (
         <CellOverlay
           className={styles.removed}
-          key={tick}
+          key={`${actorId}:${tick}`}
           rowId={actorId}
           tick={tick}
         />
       ))}
-      {ticks.map((tick) => (
-        <CellOverlay
-          className={`${styles.ghost} ${styles.valid}`}
-          key={tick}
-          rowId={actorId}
-          tick={tick}
-        >
-          <ActionIcon action={action} size={cellSize - 2} />
-        </CellOverlay>
-      ))}
+      {actorIds.flatMap((actorId) =>
+        ticks.map((tick) => (
+          <CellOverlay
+            className={`${styles.ghost} ${styles.valid}`}
+            key={`${actorId}:${tick}`}
+            rowId={actorId}
+            tick={tick}
+          >
+            <ActionIcon action={action} size={cellSize - 2} />
+          </CellOverlay>
+        )),
+      )}
     </>
   );
 }
@@ -757,12 +821,64 @@ function EditorDebug({ gridWidth, hit, lastAction, state }: EditorDebugProps) {
   );
 }
 
-function describeHit(hit: HitTestResult | null): string | null {
+/**
+ * Returns a ref whose element is scrolled into view each time `target` changes.
+ */
+function useScrollIntoView(target: unknown): RefObject<HTMLDivElement | null> {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: 'nearest' });
+  }, [target]);
+  return ref;
+}
+
+/**
+ * Scrolls `container` while `active` and the pointer is near its top or bottom
+ * edge. The caller writes the pointer's latest client Y to the returned ref.
+ */
+function useAutoScroll(
+  container: RefObject<HTMLElement | null>,
+  active: boolean,
+): RefObject<number | null> {
+  const pointerY = useRef<number | null>(null);
+
+  useEffect(() => {
+    const element = container.current;
+    if (!active || element === null) {
+      return;
+    }
+
+    let frame = 0;
+    let last: number | null = null;
+    let distance = 0;
+    const scroll = (now: number) => {
+      const y = pointerY.current;
+      const { bottom, top } = element.getBoundingClientRect();
+      const speed = y === null ? 0 : autoScrollSpeed(top, bottom, y);
+      if (last !== null) {
+        distance += (speed * (now - last)) / 1000;
+      }
+      last = now;
+      const pixels = Math.trunc(distance);
+      distance -= pixels;
+      element.scrollTop += pixels;
+      frame = requestAnimationFrame(scroll);
+    };
+
+    frame = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(frame);
+  }, [active, container]);
+
+  return pointerY;
+}
+
+function describeHit(hit: PointerHit | null): string | null {
   if (hit === null) {
     return null;
   }
   if (hit.type === 'tick-header') {
     return `tick header ${hit.tick}`;
   }
-  return `cell ${hit.rowId}:${hit.tick} (row ${hit.rowIndex})`;
+  const cell = `${hit.rowId}:${hit.tick} (row ${hit.rowIndex})`;
+  return hit.type === 'nearest-cell' ? `nearest cell ${cell}` : `cell ${cell}`;
 }

@@ -1,5 +1,7 @@
 import { BCFResolver } from '@blert/bcf';
 
+import { clamp } from '@/utils/math';
+
 import { TimelineDisplay } from '../display-utils';
 import {
   ActionEvaluator,
@@ -8,7 +10,12 @@ import {
   TICK_HEIGHT,
 } from '../types';
 
-import { hitTest, HitTestResult } from './hit-test';
+import {
+  hitTest,
+  HitTestResult,
+  nearestCell,
+  NearestCellHit,
+} from './hit-test';
 import { ImageCache } from './image-cache';
 import { buildTimelinePalette, TimelinePalette } from './palette';
 import { drawTimeline, TimelineDrawData, TileLayout } from './renderer';
@@ -20,17 +27,22 @@ export type TileInfo = {
   logicalWidth: number;
 };
 
+export type PointerHit = HitTestResult | NearestCellHit;
+
 /**
  * Receives pointer events over the timeline, pairing each with the cell or tick
  * header under the pointer.
  *
  * From a press until its release, move events and the release event are
- * delivered even when the pointer leaves the canvas.
+ * delivered even when the pointer leaves the canvas. While the pointer is not
+ * over a cell or tick header in that time, they are invoked with the nearest
+ * cell instead. If the timeline scrolls under the pointer in that time, the
+ * last move event is delivered again.
  */
 export type InteractionHandler = {
-  onPointerDown?: (hit: HitTestResult | null, event: PointerEvent) => void;
-  onPointerMove?: (hit: HitTestResult | null, event: PointerEvent) => void;
-  onPointerUp?: (hit: HitTestResult | null, event: PointerEvent) => void;
+  onPointerDown?: (hit: PointerHit | null, event: PointerEvent) => void;
+  onPointerMove?: (hit: PointerHit | null, event: PointerEvent) => void;
+  onPointerUp?: (hit: PointerHit | null, event: PointerEvent) => void;
   /**
    * Callback invoked on each `hit` target change returning the CSS cursor value
    * to display over it. `undefined` uses the default cursor.
@@ -58,10 +70,35 @@ export type ControllerLayout = {
 };
 
 type ResolvedHit = {
-  hit: HitTestResult | null;
+  hit: PointerHit | null;
   tileIndex: number;
   canvas: HTMLCanvasElement;
 };
+
+/** Returns the distance from `value` to `[min, max]`, or 0 within it. */
+function distanceToRange(value: number, min: number, max: number): number {
+  return Math.max(min - value, 0, value - max);
+}
+
+/** Returns the part of the viewport that `element` can be seen in. */
+function clipAreaOf(element: Element): DOMRect {
+  let left = 0;
+  let top = 0;
+  let right = window.innerWidth;
+  let bottom = window.innerHeight;
+  for (let el = element.parentElement; el !== null; el = el.parentElement) {
+    const { overflowX, overflowY } = getComputedStyle(el);
+    if (overflowX === 'visible' && overflowY === 'visible') {
+      continue;
+    }
+    const rect = el.getBoundingClientRect();
+    left = Math.max(left, rect.left);
+    top = Math.max(top, rect.top);
+    right = Math.min(right, rect.right);
+    bottom = Math.min(bottom, rect.bottom);
+  }
+  return new DOMRect(left, top, right - left, bottom - top);
+}
 
 function isSameHover(hover: TimelineHover, hit: HitTestResult): boolean {
   if (hover.type !== hit.type || hover.tick !== hit.tick) {
@@ -91,8 +128,7 @@ export class TimelineController {
 
   private hover: [HitTestResult, number] | null = null;
   private cursor = 'default';
-  private lastMouseEvent: MouseEvent | null = null;
-  private scrollContainer: HTMLElement | null = null;
+  private lastPointerEvent: PointerEvent | null = null;
   private tooltipAnchors: [HTMLDivElement, HTMLDivElement] | null = null;
   private activeAnchorIndex = 0;
 
@@ -126,25 +162,12 @@ export class TimelineController {
       canvas.addEventListener('pointerup', this.onPointerUp);
       canvas.addEventListener('click', this.onClick);
     }
+    document.addEventListener('scroll', this.onScroll, true);
 
     this.observeTheme();
     this.syncDpr();
     this.resizeCanvases();
     this.drawAllSync();
-  }
-
-  /**
-   * Sets the scrollable timeline container to listen for scroll events.
-   * @param container Scroll container.
-   */
-  setScrollContainer(container: HTMLElement | null): void {
-    if (this.scrollContainer !== null) {
-      this.scrollContainer.removeEventListener('scroll', this.onScroll);
-    }
-    this.scrollContainer = container;
-    if (this.scrollContainer !== null) {
-      this.scrollContainer.addEventListener('scroll', this.onScroll);
-    }
   }
 
   /**
@@ -179,7 +202,7 @@ export class TimelineController {
       this.removeListeners(canvas);
     }
     this.canvases = [];
-    this.setScrollContainer(null);
+    document.removeEventListener('scroll', this.onScroll, true);
     if (this.tooltipAnchors !== null) {
       for (const anchor of this.tooltipAnchors) {
         anchor.remove();
@@ -202,7 +225,7 @@ export class TimelineController {
       this.themeObserver = null;
     }
 
-    this.lastMouseEvent = null;
+    this.lastPointerEvent = null;
   }
 
   private syncDpr(): void {
@@ -474,13 +497,24 @@ export class TimelineController {
   private resolvePointer(e: PointerEvent): ResolvedHit | null {
     const canvas = e.currentTarget as HTMLCanvasElement;
     if (canvas.hasPointerCapture(e.pointerId)) {
-      return this.resolveHitAtPoint(e.clientX, e.clientY);
+      return this.resolveHeldPointer(e.clientX, e.clientY);
     }
     return this.resolveHit(canvas, e.clientX, e.clientY);
   }
 
+  private resolveHeldPointer(
+    clientX: number,
+    clientY: number,
+  ): ResolvedHit | null {
+    const resolved = this.resolveHitAtPoint(clientX, clientY);
+    if (resolved !== null && resolved.hit !== null) {
+      return resolved;
+    }
+    return this.resolveNearestCell(clientX, clientY);
+  }
+
   private onPointerMove = (e: PointerEvent): void => {
-    this.lastMouseEvent = e;
+    this.lastPointerEvent = e;
     const resolved = this.resolvePointer(e);
     if (resolved === null) {
       this.clearHover();
@@ -491,13 +525,13 @@ export class TimelineController {
   };
 
   private handleHitTest(
-    result: HitTestResult | null,
+    result: PointerHit | null,
     tileIndex: number,
     canvas: HTMLCanvasElement,
   ): void {
     const prev = this.hover;
 
-    if (result === null) {
+    if (result === null || result.type === 'nearest-cell') {
       this.clearHover();
       canvas.style.cursor = this.cursor;
       return;
@@ -558,7 +592,7 @@ export class TimelineController {
   }
 
   private onPointerLeave = (e: PointerEvent): void => {
-    this.lastMouseEvent = null;
+    this.lastPointerEvent = null;
     this.clearHover();
     this.data?.interactionHandler?.onPointerMove?.(null, e);
   };
@@ -609,20 +643,82 @@ export class TimelineController {
     return this.resolveHit(el, clientX, clientY);
   }
 
+  /**
+   * Resolves the visible cell nearest to a point, preferring the wrapped line
+   * of tiles level with the point over any line above or below it.
+   */
+  private resolveNearestCell(
+    clientX: number,
+    clientY: number,
+  ): ResolvedHit | null {
+    const first = this.canvases.at(0);
+    if (first === undefined) {
+      return null;
+    }
+    const area = clipAreaOf(first);
+    const x = clamp(clientX, area.left, area.right - 1);
+    const y = clamp(clientY, area.top, area.bottom - 1);
+
+    let nearest: {
+      canvas: HTMLCanvasElement;
+      rect: DOMRect;
+      dx: number;
+      dy: number;
+    } | null = null;
+    for (const canvas of this.canvases) {
+      const rect = canvas.getBoundingClientRect();
+      if (
+        rect.right <= area.left ||
+        rect.left >= area.right ||
+        rect.bottom <= area.top ||
+        rect.top >= area.bottom
+      ) {
+        continue;
+      }
+      const dx = distanceToRange(x, rect.left, rect.right);
+      const dy = distanceToRange(y, rect.top, rect.bottom);
+      if (
+        nearest === null ||
+        dy < nearest.dy ||
+        (dy === nearest.dy && dx < nearest.dx)
+      ) {
+        nearest = { canvas, rect, dx, dy };
+      }
+    }
+    if (nearest === null) {
+      return null;
+    }
+
+    const { canvas, rect } = nearest;
+    const tileIndex = this.tileIndexForCanvas(canvas);
+    const layout = this.tileLayout(tileIndex);
+    if (layout === null) {
+      return null;
+    }
+    const hit = nearestCell(x - rect.left, y - rect.top, layout);
+    return hit === null ? null : { hit, tileIndex, canvas };
+  }
+
   private onScroll = (): void => {
-    if (this.lastMouseEvent === null) {
+    const e = this.lastPointerEvent;
+    if (e === null) {
       return;
     }
 
-    const { clientX, clientY } = this.lastMouseEvent;
-    const resolved = this.resolveHitAtPoint(clientX, clientY);
+    const { clientX, clientY } = e;
+    const held = (e.target as HTMLCanvasElement).hasPointerCapture(e.pointerId);
+    const resolved = held
+      ? this.resolveHeldPointer(clientX, clientY)
+      : this.resolveHitAtPoint(clientX, clientY);
     if (resolved === null) {
       // Cursor is no longer over a canvas tile.
       this.clearHover();
-      return;
+    } else {
+      this.handleHitTest(resolved.hit, resolved.tileIndex, resolved.canvas);
     }
-
-    this.handleHitTest(resolved.hit, resolved.tileIndex, resolved.canvas);
+    if (held) {
+      this.data?.interactionHandler?.onPointerMove?.(resolved?.hit ?? null, e);
+    }
   };
 
   private onClick = (e: MouseEvent): void => {

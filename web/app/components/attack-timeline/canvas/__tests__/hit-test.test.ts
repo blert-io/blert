@@ -1,4 +1,4 @@
-import { hitTest } from '../hit-test';
+import { hitTest, nearestCell } from '../hit-test';
 import { TimelineLayout } from '../types';
 
 const ROW_ORDER = ['npc_1', 'player_a', 'player_b'];
@@ -148,5 +148,87 @@ describe('hitTest', () => {
         cellY: 30,
       });
     });
+  });
+});
+
+describe('nearestCell', () => {
+  const layout = makeLayout();
+
+  it('returns the cell under the cursor when hovering one', () => {
+    expect(nearestCell(75, 70, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 3,
+      rowId: 'player_a',
+      rowIndex: 1,
+      cellX: 70,
+      cellY: 65,
+    });
+  });
+
+  it('returns the nearest cell when the cursor is within the canvas but outside a cell', () => {
+    expect(nearestCell(31, 61, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 1,
+      rowId: 'npc_1',
+      rowIndex: 0,
+      cellX: 0,
+      cellY: 30,
+    });
+    expect(nearestCell(145, 15, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 5,
+      rowId: 'npc_1',
+      rowIndex: 0,
+      cellX: 140,
+      cellY: 30,
+    });
+  });
+
+  it('clamps a cursor outside the grid to the nearest edge cell', () => {
+    expect(nearestCell(-50, 70, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 1,
+      rowId: 'player_a',
+      rowIndex: 1,
+      cellX: 0,
+      cellY: 65,
+    });
+    expect(nearestCell(1000, 70, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 10,
+      rowId: 'player_a',
+      rowIndex: 1,
+      cellX: 315,
+      cellY: 65,
+    });
+    expect(nearestCell(75, 10, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 3,
+      rowId: 'npc_1',
+      rowIndex: 0,
+      cellX: 70,
+      cellY: 30,
+    });
+    expect(nearestCell(75, 500, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 3,
+      rowId: 'player_b',
+      rowIndex: 2,
+      cellX: 70,
+      cellY: 100,
+    });
+    expect(nearestCell(-50, -50, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 1,
+      rowId: 'npc_1',
+      rowIndex: 0,
+      cellX: 0,
+      cellY: 30,
+    });
+  });
+
+  it('returns null for a tile without cells', () => {
+    expect(nearestCell(10, 35, makeLayout({ tickCount: 0 }))).toBeNull();
+    expect(nearestCell(10, 35, makeLayout({ rowOrder: [] }))).toBeNull();
   });
 });

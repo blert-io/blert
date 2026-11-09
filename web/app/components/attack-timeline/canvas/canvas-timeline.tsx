@@ -41,7 +41,6 @@ export type CanvasTimelineProps = {
   tooltipId: string;
   onTickSelect?: (tick: number) => void;
   interactionHandler?: InteractionHandler;
-  scrollContainerRef?: React.RefObject<HTMLElement | null>;
 };
 
 function computeTiles(
@@ -88,7 +87,6 @@ export const CanvasTimeline = memo(function CanvasTimeline({
   tooltipId,
   onTickSelect,
   interactionHandler,
-  scrollContainerRef,
 }: CanvasTimelineProps) {
   const columnWidth = cellSize + CELL_GAP;
   const ticksPerTile = Math.max(1, Math.floor(MAX_TILE_WIDTH / columnWidth));
@@ -155,9 +153,6 @@ export const CanvasTimeline = memo(function CanvasTimeline({
 
   useEffect(() => {
     controllerRef.current?.setCanvases(canvasRefs.current);
-    controllerRef.current?.setScrollContainer(
-      scrollContainerRef?.current ?? null,
-    );
   });
 
   useEffect(() => {

@@ -2,7 +2,18 @@ import { BCFAction, BCFResolver, BlertChartFormat } from '@blert/bcf';
 
 import { deriveState } from '../attack-cycle';
 import { EditorState, currentDocument, initialState } from '../editor-state';
-import { InputContext, Keypress, keyIntents, pressIntent } from '../input';
+import {
+  Fill,
+  InputContext,
+  Keypress,
+  Marquee,
+  applyFill,
+  autoScrollSpeed,
+  cellsClearedBy,
+  extendDrag,
+  keyIntents,
+  pressIntent,
+} from '../input';
 
 const SCYTHE: BCFAction = {
   type: 'attack',
@@ -55,6 +66,252 @@ function keypress(
     key,
   };
 }
+
+describe('applyFill', () => {
+  it('fills every row in its range with an attack, clearing existing attacks', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: {
+        totalTicks: 31,
+        startTick: 1,
+        rowOrder: ['verzik', 'p1', 'p2'],
+      },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+          { type: 'player', id: 'p2', name: 'Player 2' },
+        ],
+        ticks: [
+          {
+            tick: 4,
+            cells: [{ actorId: 'p1', actions: [VENGEANCE, BGS_SPEC] }],
+          },
+          { tick: 5, cells: [{ actorId: 'verzik', actions: [VERZIK_AUTO] }] },
+          { tick: 7, cells: [{ actorId: 'p2', actions: [CLAW_SCRATCH] }] },
+          { tick: 14, cells: [{ actorId: 'p2', actions: [BGS_SPEC] }] },
+        ],
+      },
+    };
+    const scythes: Fill = {
+      type: 'fill',
+      action: SCYTHE,
+      dragging: true,
+      origin: { x: 0, y: 0 },
+      range: {
+        start: { actorId: 'p1', tick: 2 },
+        end: { actorId: 'p2', tick: 12 },
+      },
+    };
+
+    expect(applyFill(bcf, scythes, true)).toEqual({
+      ...bcf,
+      timeline: {
+        ...bcf.timeline,
+        ticks: [
+          {
+            tick: 2,
+            cells: [
+              { actorId: 'p1', actions: [SCYTHE] },
+              { actorId: 'p2', actions: [SCYTHE] },
+            ],
+          },
+          { tick: 4, cells: [{ actorId: 'p1', actions: [VENGEANCE] }] },
+          { tick: 5, cells: [{ actorId: 'verzik', actions: [VERZIK_AUTO] }] },
+          {
+            tick: 7,
+            cells: [
+              { actorId: 'p1', actions: [SCYTHE] },
+              { actorId: 'p2', actions: [SCYTHE] },
+            ],
+          },
+          {
+            tick: 12,
+            cells: [
+              { actorId: 'p1', actions: [SCYTHE] },
+              { actorId: 'p2', actions: [SCYTHE] },
+            ],
+          },
+          { tick: 14, cells: [{ actorId: 'p2', actions: [BGS_SPEC] }] },
+        ],
+      },
+    });
+    expect(cellsClearedBy(bcf, scythes, true)).toEqual([
+      { actorId: 'p1', tick: 4 },
+    ]);
+    expect(cellsClearedBy(bcf, scythes, false)).toEqual([]);
+  });
+
+  it('fills other actions without clearing existing ones', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+        ],
+        ticks: [
+          {
+            tick: 4,
+            cells: [{ actorId: 'p1', actions: [VENGEANCE, BGS_SPEC] }],
+          },
+          { tick: 5, cells: [{ actorId: 'verzik', actions: [VERZIK_AUTO] }] },
+        ],
+      },
+    };
+    const vengeances: Fill = {
+      type: 'fill',
+      action: VENGEANCE,
+      dragging: true,
+      origin: { x: 0, y: 0 },
+      range: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 5 },
+      },
+    };
+
+    expect(applyFill(bcf, vengeances, true)).toEqual({
+      ...bcf,
+      timeline: {
+        ...bcf.timeline,
+        ticks: [
+          {
+            tick: 4,
+            cells: [{ actorId: 'p1', actions: [BGS_SPEC, VENGEANCE] }],
+          },
+          {
+            tick: 5,
+            cells: [
+              { actorId: 'verzik', actions: [VERZIK_AUTO] },
+              { actorId: 'p1', actions: [VENGEANCE] },
+            ],
+          },
+        ],
+      },
+    });
+    expect(cellsClearedBy(bcf, vengeances, true)).toEqual([]);
+  });
+});
+
+describe('autoScrollSpeed', () => {
+  it('is faster nearer each edge and 0 between them', () => {
+    const top = 100;
+    const bottom = 700;
+    expect(autoScrollSpeed(top, bottom, 400)).toBe(0);
+
+    const nearBottom = autoScrollSpeed(top, bottom, 690);
+    const atBottom = autoScrollSpeed(top, bottom, 700);
+    expect(nearBottom).toBeGreaterThan(0);
+    expect(atBottom).toBeGreaterThan(nearBottom);
+    expect(autoScrollSpeed(top, bottom, 900)).toBe(atBottom);
+
+    const nearTop = autoScrollSpeed(top, bottom, 110);
+    const atTop = autoScrollSpeed(top, bottom, 100);
+    expect(nearTop).toBeLessThan(0);
+    expect(atTop).toBeLessThan(nearTop);
+    expect(autoScrollSpeed(top, bottom, -100)).toBe(atTop);
+    expect(atTop).toBe(-atBottom);
+  });
+});
+
+describe('extendDrag', () => {
+  it('moves the end of a drag to the target of a hit', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: {
+        totalTicks: 31,
+        startTick: 1,
+        rowOrder: ['verzik', 'p1', 'p2'],
+      },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+          { type: 'player', id: 'p2', name: 'Player 2' },
+        ],
+        ticks: [],
+      },
+    };
+    const resolver = new BCFResolver(bcf);
+    const start = { actorId: 'verzik', tick: 4 };
+    const marquee: Marquee = {
+      type: 'marquee',
+      dragging: true,
+      origin: { x: 0, y: 0 },
+      range: { start, end: start },
+    };
+
+    const overCell = extendDrag(resolver, marquee, {
+      type: 'cell',
+      tick: 7,
+      rowId: 'p2',
+      rowIndex: 2,
+      cellX: 210,
+      cellY: 100,
+    });
+    expect(overCell).toEqual({
+      ...marquee,
+      range: { start, end: { actorId: 'p2', tick: 7 } },
+    });
+
+    const nearCell = extendDrag(resolver, overCell, {
+      type: 'nearest-cell',
+      tick: 9,
+      rowId: 'p1',
+      rowIndex: 1,
+      cellX: 280,
+      cellY: 65,
+    });
+    expect(nearCell).toEqual({
+      ...marquee,
+      range: { start, end: { actorId: 'p1', tick: 9 } },
+    });
+
+    const overHeader = extendDrag(resolver, nearCell, {
+      type: 'tick-header',
+      tick: 2,
+    });
+    expect(overHeader).toEqual({
+      ...marquee,
+      range: { start, end: { actorId: 'p1', tick: 2 } },
+    });
+
+    expect(extendDrag(resolver, overHeader, null)).toBe(overHeader);
+    expect(
+      extendDrag(resolver, overHeader, {
+        type: 'nearest-cell',
+        tick: 2,
+        rowId: 'p1',
+        rowIndex: 1,
+        cellX: 35,
+        cellY: 65,
+      }),
+    ).toBe(overHeader);
+
+    const fillStart = { actorId: 'p1', tick: 4 };
+    const fill: Fill = {
+      type: 'fill',
+      action: SCYTHE,
+      dragging: true,
+      origin: { x: 0, y: 0 },
+      range: { start: fillStart, end: fillStart },
+    };
+    expect(
+      extendDrag(resolver, fill, {
+        type: 'cell',
+        tick: 6,
+        rowId: 'verzik',
+        rowIndex: 0,
+        cellX: 175,
+        cellY: 30,
+      }),
+    ).toEqual({
+      ...fill,
+      range: { start: fillStart, end: { actorId: 'p1', tick: 6 } },
+    });
+  });
+});
 
 describe('keyIntents', () => {
   it('ignores all keys on text targets and control keys on control targets', () => {
@@ -119,6 +376,12 @@ describe('keyIntents', () => {
     ]);
     expect(intents('ArrowLeft')).toEqual([
       { type: 'move-focus', rows: 0, ticks: -1 },
+    ]);
+    expect(intents('ArrowUp', { shiftKey: true })).toEqual([
+      { type: 'extend-selection', rows: -1, ticks: 0 },
+    ]);
+    expect(intents('ArrowRight', { shiftKey: true })).toEqual([
+      { type: 'extend-selection', rows: 0, ticks: 1 },
     ]);
     expect(intents('ArrowLeft', { altKey: true })).toEqual([]);
     expect(intents('ArrowLeft', { ctrlKey: true })).toEqual([]);
@@ -367,7 +630,8 @@ describe('pressIntent', () => {
       }),
     ).toEqual({
       type: 'start-fill',
-      fill: { action: SCYTHE, actorId: 'p1', endTick: 4, startTick: 4 },
+      action: SCYTHE,
+      cell: { actorId: 'p1', tick: 4 },
     });
     expect(
       pressIntent(withBrush, {
@@ -377,7 +641,7 @@ describe('pressIntent', () => {
     ).toBeNull();
   });
 
-  it('focuses a cell if no brush is set', () => {
+  it('starts a marquee at the pressed cell if no brush is set', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
       config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
@@ -396,13 +660,13 @@ describe('pressIntent', () => {
         altKey: false,
         cell: { actorId: 'p1', tick: 4 },
       }),
-    ).toEqual({ type: 'set-focus', focus: { actorId: 'p1', tick: 4 } });
+    ).toEqual({ type: 'start-marquee', cell: { actorId: 'p1', tick: 4 } });
     expect(
       pressIntent(withoutBrush, {
         altKey: false,
         cell: { actorId: 'p1', tick: 3 },
       }),
-    ).toEqual({ type: 'set-focus', focus: { actorId: 'p1', tick: 3 } });
+    ).toEqual({ type: 'start-marquee', cell: { actorId: 'p1', tick: 3 } });
   });
 
   it("picks a cell's action with alt held, preferring an attack", () => {

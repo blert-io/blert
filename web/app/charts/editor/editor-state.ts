@@ -9,10 +9,17 @@ import {
 import { clamp } from '@/utils/math';
 
 import { attackCooldown } from './attack-cycle';
-import { placeAction, setRowOrder } from './bcf-mutator';
+import { CellRegion, placeAction, setRowOrder } from './bcf-mutator';
 import { HOTBAR_SLOTS } from './constants';
 
 export type CellCoord = { actorId: string; tick: number };
+
+/**
+ * A rectangular block of cells selected by a user action.
+ * `start` and `end` represent how the selection was made, and can be in any
+ * geometric direction.
+ */
+export type CellRange = { start: CellCoord; end: CellCoord };
 
 /** Actions bound to the hotbar slots. */
 export type HotbarSlots = (BCFAction | null)[];
@@ -31,6 +38,7 @@ export type EditorState = {
   focus: CellCoord | null;
   /** How the focus last moved. */
   focusedBy: 'keyboard' | 'pointer';
+  selection: CellRange | null;
   brush: BCFAction | null;
   slots: HotbarSlots;
   activeSlot: number | null;
@@ -53,6 +61,8 @@ export type EditorAction =
   | { type: 'redo' }
   | { type: 'set-focus'; focus: CellCoord | null }
   | { type: 'move-focus'; rows: number; ticks: number }
+  | { type: 'set-selection'; selection: CellRange | null }
+  | { type: 'extend-selection'; rows: number; ticks: number }
   | { type: 'place-slot-at-focus'; slot: number; at: number }
   | { type: 'set-brush'; brush: BCFAction | null }
   | { type: 'set-respect-cooldowns'; respectCooldowns: boolean }
@@ -63,6 +73,7 @@ export type EditorAction =
   | { type: 'swap-slots'; from: number; to: number };
 
 // Maximum temporal gap between coalescing edits to combine them.
+
 const COALESCE_WINDOW_MS = 2500;
 
 export function currentDocument(state: EditorState): BlertChartFormat {
@@ -75,6 +86,34 @@ export function displayWindow(bcf: BlertChartFormat): [number, number] {
     bcf.config.startTick ?? 0,
     bcf.config.endTick ?? bcf.config.totalTicks - 1,
   ];
+}
+
+/**
+ * Converts a selection range to a region in a BCF document.
+ * Returns an empty region if the range extends beyond the bounds of `bcf`.
+ */
+export function rangeToRegion(
+  bcf: BlertChartFormat,
+  range: CellRange,
+): CellRegion {
+  const { end, start } = range;
+  const rowOrder = bcf.config.rowOrder ?? [];
+  const startRow = rowOrder.indexOf(start.actorId);
+  const endRow = rowOrder.indexOf(end.actorId);
+  const startTick = Math.min(start.tick, end.tick);
+  const endTick = Math.max(start.tick, end.tick);
+
+  if (startRow === -1 || endRow === -1) {
+    return { actorIds: [], startTick, endTick };
+  }
+  return {
+    actorIds: rowOrder.slice(
+      Math.min(startRow, endRow),
+      Math.max(startRow, endRow) + 1,
+    ),
+    startTick,
+    endTick,
+  };
 }
 
 /** Returns a new player to add to `bcf`, with a unique actor ID. */
@@ -103,6 +142,7 @@ export function initialState(bcf: BlertChartFormat): EditorState {
     modified: false,
     focus: null,
     focusedBy: 'pointer',
+    selection: null,
     brush: null,
     slots: new Array<BCFAction | null>(HOTBAR_SLOTS).fill(null),
     activeSlot: null,
@@ -114,23 +154,80 @@ export function reduce(state: EditorState, action: EditorAction): EditorState {
   return normalize(apply(state, action));
 }
 
-/** Clamps focus to within the current document. */
+/** Clamps focus and selection to within the current document. */
 function normalize(state: EditorState): EditorState {
-  if (state.focus === null) {
+  const bcf = currentDocument(state);
+  const focus = normalizeFocus(bcf, state.focus);
+  const selection = normalizeSelection(bcf, state.selection);
+  if (focus === state.focus && selection === state.selection) {
     return state;
   }
+  return { ...state, focus, selection };
+}
 
-  const bcf = currentDocument(state);
-  if (!bcf.timeline.actors.some((a) => a.id === state.focus!.actorId)) {
-    return { ...state, focus: null };
+function normalizeFocus(
+  bcf: BlertChartFormat,
+  focus: CellCoord | null,
+): CellCoord | null {
+  if (
+    focus === null ||
+    !bcf.timeline.actors.some((a) => a.id === focus.actorId)
+  ) {
+    return null;
+  }
+  return clampToWindow(bcf, focus);
+}
+
+/** Drops a selection with an end outside the row order. */
+function normalizeSelection(
+  bcf: BlertChartFormat,
+  selection: CellRange | null,
+): CellRange | null {
+  if (selection === null) {
+    return null;
+  }
+
+  const rowOrder = bcf.config.rowOrder ?? [];
+  if (
+    !rowOrder.includes(selection.start.actorId) ||
+    !rowOrder.includes(selection.end.actorId)
+  ) {
+    return null;
+  }
+
+  const start = clampToWindow(bcf, selection.start);
+  const end = clampToWindow(bcf, selection.end);
+  return start === selection.start && end === selection.end
+    ? selection
+    : { start, end };
+}
+
+function clampToWindow(bcf: BlertChartFormat, cell: CellCoord): CellCoord {
+  const [first, last] = displayWindow(bcf);
+  const tick = clamp(cell.tick, first, last);
+  return tick === cell.tick ? cell : { actorId: cell.actorId, tick };
+}
+
+/**
+ * Returns `cell` moved by `delta`, clamped to the bounds of `bcf`.
+ */
+function offsetCell(
+  bcf: BlertChartFormat,
+  cell: CellCoord,
+  delta: { rows: number; ticks: number },
+): CellCoord {
+  const rowOrder = bcf.config.rowOrder ?? [];
+  const row = rowOrder.indexOf(cell.actorId);
+  if (row === -1) {
+    return cell;
   }
 
   const [first, last] = displayWindow(bcf);
-  const tick = clamp(state.focus.tick, first, last);
-  if (tick === state.focus.tick) {
-    return state;
-  }
-  return { ...state, focus: { actorId: state.focus.actorId, tick } };
+  const nextRow = clamp(row + delta.rows, 0, rowOrder.length - 1);
+  const tick = clamp(cell.tick + delta.ticks, first, last);
+  return nextRow === row && tick === cell.tick
+    ? cell
+    : { actorId: rowOrder[nextRow], tick };
 }
 
 function apply(state: EditorState, action: EditorAction): EditorState {
@@ -189,36 +286,54 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       };
 
     case 'set-focus':
-      return { ...state, focus: action.focus, focusedBy: 'pointer' };
+      return {
+        ...state,
+        focus: action.focus,
+        focusedBy: 'pointer',
+        selection: null,
+      };
 
     case 'move-focus': {
       const bcf = currentDocument(state);
       const rowOrder = bcf.config.rowOrder ?? [];
-      const [first, last] = displayWindow(bcf);
 
       if (state.focus === null) {
         if (rowOrder.length === 0) {
           return state;
         }
+        const [first] = displayWindow(bcf);
         return {
           ...state,
           focus: { actorId: rowOrder[0], tick: first },
           focusedBy: 'keyboard',
+          selection: null,
         };
       }
 
-      const row = rowOrder.indexOf(state.focus.actorId);
-      if (row === -1) {
+      const focus = offsetCell(bcf, state.focus, action);
+      return { ...state, focus, focusedBy: 'keyboard', selection: null };
+    }
+
+    case 'set-selection':
+      return { ...state, selection: action.selection };
+
+    case 'extend-selection': {
+      const { focus, selection } = state;
+      const range =
+        selection ?? (focus === null ? null : { start: focus, end: focus });
+      if (range === null) {
         return state;
       }
 
-      const nextRow = clamp(row + action.rows, 0, rowOrder.length - 1);
-      const tick = clamp(state.focus.tick + action.ticks, first, last);
-      const focus =
-        nextRow === row && tick === state.focus.tick
-          ? state.focus
-          : { actorId: rowOrder[nextRow], tick };
-      return { ...state, focus, focusedBy: 'keyboard' };
+      const end = offsetCell(currentDocument(state), range.end, action);
+      if (end === range.end) {
+        return state;
+      }
+      return {
+        ...state,
+        focusedBy: 'keyboard',
+        selection: { start: range.start, end },
+      };
     }
 
     case 'place-slot-at-focus': {
@@ -238,12 +353,15 @@ function apply(state: EditorState, action: EditorAction): EditorState {
         return state;
       }
 
-      const placed = apply(state, {
-        type: 'update',
-        mutate: (bcf) => placeAction(bcf, focus.actorId, focus.tick, bound),
-        coalesce: 'place',
-        at: action.at,
-      });
+      const placed = apply(
+        { ...state, selection: null },
+        {
+          type: 'update',
+          mutate: (bcf) => placeAction(bcf, focus.actorId, focus.tick, bound),
+          coalesce: 'place',
+          at: action.at,
+        },
+      );
       if (bound.type !== 'attack') {
         return placed;
       }
@@ -252,7 +370,12 @@ function apply(state: EditorState, action: EditorAction): EditorState {
     }
 
     case 'set-brush':
-      return { ...state, brush: action.brush, activeSlot: null };
+      return {
+        ...state,
+        brush: action.brush,
+        activeSlot: null,
+        selection: action.brush === null ? state.selection : null,
+      };
 
     case 'set-respect-cooldowns':
       return { ...state, respectCooldowns: action.respectCooldowns };
@@ -265,12 +388,15 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       return apply(state, { type: 'set-slot', slot, action: action.action });
     }
 
-    case 'select-slot':
+    case 'select-slot': {
+      const brush = state.slots[action.slot] ?? null;
       return {
         ...state,
         activeSlot: action.slot,
-        brush: state.slots[action.slot] ?? null,
+        brush,
+        selection: brush === null ? state.selection : null,
       };
+    }
 
     case 'set-slot': {
       const slots = state.slots.with(action.slot, action.action);
