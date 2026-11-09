@@ -76,7 +76,6 @@ export default function NetworkContent() {
   );
 
   const [filters, setFilters] = useState<NetworkFilters>({
-    type: ChallengeType.TOB,
     limit: 10_000,
     minConnections: 5,
   });

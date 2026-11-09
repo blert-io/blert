@@ -27,7 +27,7 @@ const DEFAULT_MIN_CONNECTIONS = 5;
 const MIN_CONNECTIONS_FLOOR = 2;
 const MIN_CONNECTIONS_CAP = 1_000;
 
-const VALID_SCALES = new Set([1, 2, 3, 4, 5]);
+const VALID_SCALES = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
 
 // Network pairs are bucketed by UTC date so cache keys are truncated to days.
 const EARLIEST_DAY = Date.UTC(2024, 0, 1);

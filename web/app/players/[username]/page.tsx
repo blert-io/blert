@@ -1,4 +1,4 @@
-import { ChallengeStatus, ChallengeType } from '@blert/common';
+import { ChallengeStatus } from '@blert/common';
 
 import {
   aggregateChallenges,
@@ -40,7 +40,7 @@ export default async function PlayerOverview({
       {},
       'startTime',
     ),
-    topPartnersForPlayer(username, { limit: 8, type: ChallengeType.TOB }),
+    topPartnersForPlayer(username, { limit: 8 }),
   ]);
 
   const statusData = Object.entries(challengeStatuses ?? {}).flatMap(

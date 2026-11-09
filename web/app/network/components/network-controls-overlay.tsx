@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ChallengeMode } from '@blert/common';
+import { ChallengeMode, ChallengeType } from '@blert/common';
 
 import Checkbox from '@/components/checkbox';
 import PlayerSearch from '@/components/player-search';
 import RadioInput from '@/components/radio-input';
 import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
-import { scaleNameAndColor } from '@/utils/challenge';
+import { modeName, scaleNameAndColor } from '@/utils/challenge';
 
 import { NetworkFilters } from '../network-content';
 
@@ -23,11 +23,40 @@ type NetworkControlsOverlayProps = {
   onFocusPlayer: (username: string | null) => void;
 };
 
-function scaleDisplay(scales?: number[]) {
-  if (!scales || scales.length === 0 || scales.length === 5) {
+const NETWORK_TYPES = [
+  { type: ChallengeType.TOB, label: 'ToB' },
+  { type: ChallengeType.TFA, label: 'TFA' },
+];
+
+const TOB_MODES = [ChallengeMode.TOB_REGULAR, ChallengeMode.TOB_HARD];
+
+function teamSizes(type?: ChallengeType): number[] {
+  const maxScale = type === ChallengeType.TOB ? 5 : 8;
+  return Array.from({ length: maxScale - 1 }, (_, i) => i + 2);
+}
+
+function scaleDisplay(type?: ChallengeType, scales?: number[]) {
+  if (
+    scales === undefined ||
+    scales.length === 0 ||
+    scales.length === teamSizes(type).length
+  ) {
     return 'All scales';
   }
   return scales.map((scale) => scaleNameAndColor(scale)[0]).join(', ');
+}
+
+function typeDisplay(
+  type?: ChallengeType,
+  mode?: ChallengeMode,
+): string | null {
+  if (type === undefined) {
+    return null;
+  }
+  if (mode !== undefined) {
+    return modeName(type, mode);
+  }
+  return NETWORK_TYPES.find((t) => t.type === type)?.label ?? null;
 }
 
 export default function NetworkControlsOverlay({
@@ -42,6 +71,22 @@ export default function NetworkControlsOverlay({
   const [searchValue, setSearchValue] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
 
+  const handleTypeChange = useCallback(
+    (value: string | number) => {
+      const type: ChallengeType | undefined =
+        value === 'all' ? undefined : parseInt(value.toString());
+      const sizes = teamSizes(type);
+      const scale = filters.scale?.filter((s) => sizes.includes(s));
+      onFiltersChange({
+        ...filters,
+        type,
+        mode: type === ChallengeType.TOB ? filters.mode : undefined,
+        scale: scale !== undefined && scale.length > 0 ? scale : undefined,
+      });
+    },
+    [filters, onFiltersChange],
+  );
+
   const handleModeChange = useCallback(
     (value: string | number) => {
       const mode: ChallengeMode | undefined =
@@ -55,8 +100,7 @@ export default function NetworkControlsOverlay({
   );
 
   const handleScaleChange = useCallback(
-    (scaleValue: string, checked: boolean) => {
-      const scale = parseInt(scaleValue);
+    (scale: number, checked: boolean) => {
       const currentScales = filters.scale ?? [];
 
       let newScales: number[];
@@ -103,19 +147,7 @@ export default function NetworkControlsOverlay({
     onFocusPlayer(null);
   }, [onFocusPlayer]);
 
-  const getModeDisplayName = (mode?: ChallengeMode) => {
-    if (!mode) {
-      return 'All Modes';
-    }
-    switch (mode) {
-      case ChallengeMode.TOB_REGULAR:
-        return 'Regular';
-      case ChallengeMode.TOB_HARD:
-        return 'Hard Mode';
-      default:
-        return 'Unknown';
-    }
-  };
+  const typeLabel = typeDisplay(filters.type, filters.mode);
 
   return (
     <div className={styles.controlsOverlay}>
@@ -127,16 +159,16 @@ export default function NetworkControlsOverlay({
           </div>
 
           <div className={styles.filterSummary}>
-            <span className={styles.filterItem}>
-              <i className="fas fa-users" />
-              {scaleDisplay(filters.scale)}
-            </span>
-            {filters.mode && (
+            {typeLabel !== null && (
               <span className={styles.filterItem}>
                 <i className="fas fa-trophy" />
-                {getModeDisplayName(filters.mode)}
+                {typeLabel}
               </span>
             )}
+            <span className={styles.filterItem}>
+              <i className="fas fa-users" />
+              {scaleDisplay(filters.type, filters.scale)}
+            </span>
             {focusedPlayer && (
               <span className={styles.filterItem}>
                 <i className="fas fa-crosshairs" />
@@ -186,31 +218,35 @@ export default function NetworkControlsOverlay({
 
       {isExpanded && (
         <div className={styles.expandedContent}>
-          <div className={styles.controlsGrid}>
-            <div className={styles.searchSection}>
-              <label className={`${styles.controlLabel} ${styles.focusLabel}`}>
-                Focus on Player
-              </label>
-              <form onSubmit={handleSearchSubmit} className={styles.searchForm}>
-                <PlayerSearch
-                  id="player-search-overlay"
-                  label=""
-                  value={searchValue}
-                  onChange={(value) => setSearchValue(value)}
-                  fluid
+          <div className={styles.control}>
+            <span className={styles.controlLabel}>Type</span>
+            <RadioInput.Group
+              name="challenge-type-overlay"
+              onChange={handleTypeChange}
+              compact
+              joined
+            >
+              <RadioInput.Option
+                value="all"
+                id="type-all-overlay"
+                label="All"
+                checked={filters.type === undefined}
+              />
+              {NETWORK_TYPES.map(({ type, label }) => (
+                <RadioInput.Option
+                  key={type}
+                  value={type}
+                  id={`type-${type}-overlay`}
+                  label={label}
+                  checked={filters.type === type}
                 />
-                <button
-                  type="submit"
-                  className={styles.searchButton}
-                  disabled={loading}
-                >
-                  <i className="fas fa-search" />
-                </button>
-              </form>
-            </div>
+              ))}
+            </RadioInput.Group>
+          </div>
 
-            <div className={styles.modeSelector}>
-              <label className={styles.controlLabel}>Mode</label>
+          {filters.type === ChallengeType.TOB && (
+            <div className={styles.control}>
+              <span className={styles.controlLabel}>Mode</span>
               <RadioInput.Group
                 name="challenge-mode-overlay"
                 onChange={handleModeChange}
@@ -223,58 +259,79 @@ export default function NetworkControlsOverlay({
                   label="All"
                   checked={filters.mode === undefined}
                 />
-                <RadioInput.Option
-                  value={ChallengeMode.TOB_REGULAR}
-                  id="mode-regular-overlay"
-                  label="Regular"
-                  checked={filters.mode === ChallengeMode.TOB_REGULAR}
-                />
-                <RadioInput.Option
-                  value={ChallengeMode.TOB_HARD}
-                  id="mode-hard-overlay"
-                  label="Hard"
-                  checked={filters.mode === ChallengeMode.TOB_HARD}
-                />
-              </RadioInput.Group>
-            </div>
-
-            <div className={styles.scaleSelector}>
-              <label className={styles.controlLabel}>Team Size</label>
-              <div className={styles.checkboxGroup}>
-                {[2, 3, 4, 5].map((scale) => (
-                  <Checkbox
-                    key={scale}
-                    label={
-                      scale === 2 ? 'Duo' : scale === 3 ? 'Trio' : `${scale}s`
-                    }
-                    checked={filters.scale?.includes(scale) ?? false}
-                    onChange={(checked) =>
-                      handleScaleChange(scale.toString(), checked)
-                    }
+                {TOB_MODES.map((mode) => (
+                  <RadioInput.Option
+                    key={mode}
+                    value={mode}
+                    id={`mode-${mode}-overlay`}
+                    label={modeName(ChallengeType.TOB, mode, false)}
+                    checked={filters.mode === mode}
                   />
                 ))}
-              </div>
+              </RadioInput.Group>
             </div>
+          )}
 
-            <div className={styles.connectionThreshold}>
-              <label className={styles.controlLabel}>
-                Min. Raids Together: {filters.minConnections ?? 5}
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="5"
-                value={filters.minConnections ?? 5}
-                onChange={(e) => handleMinConnectionsChange(e.target.value)}
-                className={styles.slider}
+          <div className={styles.control}>
+            <span className={styles.controlLabel}>Size</span>
+            {teamSizes(filters.type).map((scale) => (
+              <Checkbox
+                key={scale}
+                label={scaleNameAndColor(scale)[0]}
+                checked={filters.scale?.includes(scale) ?? false}
+                onChange={(checked) => handleScaleChange(scale, checked)}
+                simple
               />
-              <div className={styles.sliderLabels}>
-                <span>5</span>
-                <span>50+</span>
-              </div>
-            </div>
+            ))}
           </div>
+
+          <div className={styles.control}>
+            <label
+              className={styles.controlLabel}
+              htmlFor="min-connections-overlay"
+            >
+              Min. raids
+            </label>
+            <input
+              id="min-connections-overlay"
+              type="range"
+              min="5"
+              max="50"
+              step="5"
+              value={filters.minConnections ?? 5}
+              onChange={(e) => handleMinConnectionsChange(e.target.value)}
+              className={styles.slider}
+            />
+            <span className={styles.sliderValue}>
+              {filters.minConnections ?? 5}
+            </span>
+          </div>
+
+          <form
+            onSubmit={handleSearchSubmit}
+            className={`${styles.control} ${styles.searchForm}`}
+          >
+            <label
+              className={styles.controlLabel}
+              htmlFor="player-search-overlay"
+            >
+              Focus
+            </label>
+            <PlayerSearch
+              id="player-search-overlay"
+              label=""
+              value={searchValue}
+              onChange={(value) => setSearchValue(value)}
+              width={180}
+            />
+            <button
+              type="submit"
+              className={styles.searchButton}
+              disabled={loading}
+            >
+              <i className="fas fa-search" />
+            </button>
+          </form>
         </div>
       )}
     </div>
