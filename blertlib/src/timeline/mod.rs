@@ -1,12 +1,12 @@
 //! State representation and operations on a recording of a challenge stage.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use crate::actor::{Actor, NpcProperties, NpcState, PartyIndex, Players, RoomId, Rsn};
-use crate::event::{Event, Maze};
+use crate::event::{Event, EventKind, Maze, PlayerAttacked};
 use crate::objects::TickObjects;
 use crate::tick::{Tick, Ticks};
-use crate::{ChallengeMode, PlayerAttack, Point, Stage, proto};
+use crate::{ChallengeMode, Point, Stage, npc, proto};
 
 mod builder;
 mod config;
@@ -283,7 +283,18 @@ impl Timeline {
 
 /// Tracks the cooldowns of players in a party.
 pub struct PlayerCooldowns {
-    cooldowns: Vec<Tick>,
+    players: Vec<PlayerCooldown>,
+}
+
+#[derive(Clone)]
+struct PlayerCooldown {
+    off_cooldown_tick: Tick,
+    recent_attacks: VecDeque<(Tick, PlayerAttacked)>,
+    next_attack_ignores_cooldown: bool,
+}
+
+impl PlayerCooldown {
+    const RECENT_ATTACKS: usize = 4;
 }
 
 impl PlayerCooldowns {
@@ -291,62 +302,97 @@ impl PlayerCooldowns {
     #[must_use]
     pub fn new(party_size: usize) -> Self {
         Self {
-            cooldowns: vec![Tick(0); party_size],
+            players: vec![
+                PlayerCooldown {
+                    off_cooldown_tick: Tick(0),
+                    recent_attacks: VecDeque::with_capacity(PlayerCooldown::RECENT_ATTACKS),
+                    next_attack_ignores_cooldown: false,
+                };
+                party_size
+            ],
         }
     }
 
-    /// Returns `true` if `player` can perform `attack` on `target` on the given tick.
-    #[must_use]
-    pub fn can_attack(
-        &self,
-        player: PartyIndex,
-        tick: Tick,
-        state: &TickState,
-        attack: PlayerAttack,
-        target: Option<Actor>,
-    ) -> bool {
-        let checks_cooldown = match target {
-            _ if state.npcs.values().any(|npc| {
-                matches!(
-                    &npc.properties,
-                    Some(NpcProperties::Ocellus(OcellusProperties::P4(p4)))
-                        if p4.attacks_ignore_cooldown(tick)
-                )
-            }) =>
-            {
-                false
-            }
-            Some(Actor::Npc(room_id)) => state
+    /// Observes the state of the world on the given tick.
+    /// Must be called before processing any attacks for the tick.
+    pub fn observe(&mut self, tick: Tick, state: &TickState) {
+        for event in &state.events {
+            let EventKind::NpcDying(room_id) = event.kind else {
+                continue;
+            };
+
+            // TODO(frolv): This is a workaround for not knowing who killed the
+            // rift. If damage attribution is implemented in the future, this
+            // mechanic could be properly implemented by clearing that player's
+            // cooldown.
+            if state
                 .npcs
                 .get(&room_id)
-                .is_none_or(|target| target.attack_checks_cooldown(attack)),
-            _ => true,
-        };
-        !checks_cooldown || tick >= self.off_cooldown_tick(player)
+                .is_none_or(|npc| npc.id != npc::id::VOID_RIFT)
+            {
+                continue;
+            }
+
+            for player in &mut self.players {
+                if player.recent_attacks.iter().any(|(attack_tick, attack)| {
+                    attack.target == Some(Actor::Npc(room_id))
+                        && (Ticks(1)..=Ticks(4)).contains(&(tick - *attack_tick))
+                }) {
+                    player.next_attack_ignores_cooldown = true;
+                }
+            }
+        }
     }
 
-    /// Updates the cooldown of `player` following them performing `attack` on `target`.
-    pub fn track_attack(
-        &mut self,
-        player: PartyIndex,
-        tick: Tick,
-        state: &TickState,
-        attack: PlayerAttack,
-        target: Option<Actor>,
-    ) {
-        if let Some(Actor::Npc(room_id)) = target
+    /// Returns `true` if `attack` can be performed on the given tick.
+    #[must_use]
+    pub fn can_attack(&self, tick: Tick, state: &TickState, attack: &PlayerAttacked) -> bool {
+        let player = &self.players[attack.player.as_usize()];
+        if tick >= player.off_cooldown_tick || player.next_attack_ignores_cooldown {
+            return true;
+        }
+        if state.npcs.values().any(|npc| {
+            matches!(
+                &npc.properties,
+                Some(NpcProperties::Ocellus(OcellusProperties::P4(p4)))
+                    if p4.attacks_ignore_cooldown(tick)
+            )
+        }) {
+            return true;
+        }
+
+        let Some(Actor::Npc(room_id)) = attack.target else {
+            return false;
+        };
+        state
+            .npcs
+            .get(&room_id)
+            .is_some_and(|target| !target.attack_checks_cooldown(attack.attack))
+    }
+
+    /// Updates the cooldown of the attacking player following `attack`.
+    pub fn track_attack(&mut self, tick: Tick, state: &TickState, attack: &PlayerAttacked) {
+        let player = &mut self.players[attack.player.as_usize()];
+        if player.recent_attacks.len() == PlayerCooldown::RECENT_ATTACKS {
+            player.recent_attacks.pop_front();
+        }
+        player.recent_attacks.push_back((tick, attack.clone()));
+        player.next_attack_ignores_cooldown = false;
+
+        if let Some(Actor::Npc(room_id)) = attack.target
             && let Some(target) = state.npcs.get(&room_id)
-            && !target.attack_applies_cooldown(attack)
+            && !target.attack_applies_cooldown(attack.attack)
         {
             return;
         }
-        self.cooldowns[player.as_usize()] = tick + attack.cooldown();
+
+        player.off_cooldown_tick = tick + attack.attack.cooldown();
     }
 
     /// Returns the tick on which `player` will be off cooldown.
     #[must_use]
     pub fn off_cooldown_tick(&self, player: PartyIndex) -> Tick {
-        self.cooldowns[player.as_usize()]
+        self.players[player.as_usize()].off_cooldown_tick
     }
 }
 

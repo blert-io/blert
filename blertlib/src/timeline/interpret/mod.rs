@@ -89,6 +89,9 @@ const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 4] = [
             npc::id::GUARDIAN_BATTERY,
             npc::id::GUARDIAN_BATTERY_DESTROYED,
             npc::id::GUARDIAN_VINE,
+            npc::id::VOID_RIFT,
+            npc::id::VOID_SIPHON,
+            npc::id::VOID_AUGMENTER,
         ],
     ),
 ];

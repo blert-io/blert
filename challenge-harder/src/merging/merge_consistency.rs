@@ -253,29 +253,33 @@ fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistency
     let mut last_attack: BTreeMap<PartyIndex, PlayerAttackOccurrence> = BTreeMap::new();
     let mut cooldowns = PlayerCooldowns::new(timeline.party().len());
 
-    for (tick, event) in timeline.events() {
-        let EventKind::PlayerAttack(attack) = &event.kind else {
-            continue;
-        };
+    for tick in Tick(0).through(timeline.last_tick()) {
         let Some(state) = timeline.get_state(tick) else {
             continue;
         };
-        let current = PlayerAttackOccurrence {
-            tick,
-            kind: attack.attack,
-        };
-        if !cooldowns.can_attack(attack.player, tick, state, attack.attack, attack.target)
-            && let Some(&previous) = last_attack.get(&attack.player)
-        {
-            issues.push(MergeConsistencyIssue::WeaponCooldownViolation {
-                player: attack.player,
-                previous,
-                current,
-                cooldown: previous.kind.cooldown(),
-            });
+
+        cooldowns.observe(tick, state);
+        for event in &state.events {
+            let EventKind::PlayerAttack(attack) = &event.kind else {
+                continue;
+            };
+            let current = PlayerAttackOccurrence {
+                tick,
+                kind: attack.attack,
+            };
+            if !cooldowns.can_attack(tick, state, attack)
+                && let Some(&previous) = last_attack.get(&attack.player)
+            {
+                issues.push(MergeConsistencyIssue::WeaponCooldownViolation {
+                    player: attack.player,
+                    previous,
+                    current,
+                    cooldown: previous.kind.cooldown(),
+                });
+            }
+            cooldowns.track_attack(tick, state, attack);
+            last_attack.insert(attack.player, current);
         }
-        cooldowns.track_attack(attack.player, tick, state, attack.attack, attack.target);
-        last_attack.insert(attack.player, current);
     }
 }
 

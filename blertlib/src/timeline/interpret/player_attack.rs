@@ -106,11 +106,12 @@ impl Interpreter for PlayerAttackInterpreter<'_> {
         let mut cooldowns = PlayerCooldowns::new(recording.party().len());
         let mut buffs = PlayerBuffs::new(recording.party().len());
         for (tick, state) in recording.states() {
+            cooldowns.observe(tick, state);
             for event in &state.events {
                 let EventKind::PlayerAttack(attack) = &event.kind else {
                     continue;
                 };
-                if !cooldowns.can_attack(attack.player, tick, state, attack.attack, attack.target) {
+                if !cooldowns.can_attack(tick, state, attack) {
                     self.attacks_to_drop.push((tick, attack.player));
                     continue;
                 }
@@ -120,7 +121,14 @@ impl Interpreter for PlayerAttackInterpreter<'_> {
                     self.attacks_to_relabel
                         .push((tick, attack.player, resolved));
                 }
-                cooldowns.track_attack(attack.player, tick, state, resolved, attack.target);
+                cooldowns.track_attack(
+                    tick,
+                    state,
+                    &PlayerAttacked {
+                        attack: resolved,
+                        ..attack.clone()
+                    },
+                );
             }
         }
     }
