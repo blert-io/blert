@@ -53,6 +53,7 @@ impl<'a> Encoder<'a> {
         };
 
         self.stage.tick(state);
+        self.cooldowns.observe(tick, state);
 
         for (index, player) in state.players.iter() {
             if self.dead_players.contains(&index) {
@@ -62,8 +63,7 @@ impl<'a> Encoder<'a> {
                 EventKind::PlayerAttack(attack) if attack.player == index => Some(attack),
                 _ => None,
             }) {
-                self.cooldowns
-                    .track_attack(index, tick, state, attack.attack, attack.target);
+                self.cooldowns.track_attack(tick, state, attack);
             }
             if encode_events {
                 events.push(self.player_update_event(tick, index, player));
