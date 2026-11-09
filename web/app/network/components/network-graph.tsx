@@ -364,7 +364,9 @@ export default function NetworkGraph({
   return (
     <Card className={styles.graphCard}>
       {controlsOverlay}
-      <div className={styles.sigmaContainer} ref={containerRef} />
+      {/* Keyed so React never reuses this node for other content.
+          Sigma's kill() empties its container, including any React elements. */}
+      <div key="sigma" className={styles.sigmaContainer} ref={containerRef} />
 
       {loading && (
         <div className={styles.loadingOverlay}>

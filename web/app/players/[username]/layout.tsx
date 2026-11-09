@@ -1,6 +1,6 @@
 'use server';
 
-import { PrimaryMeleeGear, SplitType } from '@blert/common';
+import { challengeName, ChallengeType, PrimaryMeleeGear } from '@blert/common';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { ResolvingMetadata } from 'next';
@@ -14,9 +14,8 @@ import {
 } from '@/actions/challenge';
 import { isFollowing } from '@/actions/feed';
 import { getSession } from '@/auth';
-import { scaleNameAndColor } from '@/utils/challenge';
-import { withIndefiniteArticle } from '@/utils/copy';
-import { ticksToFormattedSeconds } from '@/utils/tick';
+import { challengeTerm } from '@/utils/challenge';
+import { oxford } from '@/utils/copy';
 
 import FollowButton from './follow-button';
 import RecentChallengeCard, { RecentChallenge } from './recent-challenge-card';
@@ -31,6 +30,62 @@ type PlayerLayoutProps = {
   children: React.ReactNode;
   params: PlayerLayoutParams;
 };
+
+type ChallengeCounts = {
+  type: ChallengeType;
+  completions: number;
+  total: number;
+};
+
+function challengeCountsByType(
+  stats: PlayerWithStats['stats'],
+): ChallengeCounts[] {
+  const counts = (
+    type: ChallengeType,
+    completions: number,
+    wipes: number,
+    resets: number,
+  ): ChallengeCounts => ({
+    type,
+    completions,
+    total: completions + wipes + resets,
+  });
+
+  return [
+    counts(
+      ChallengeType.TOB,
+      stats.tobCompletions,
+      stats.tobWipes,
+      stats.tobResets,
+    ),
+    counts(
+      ChallengeType.COLOSSEUM,
+      stats.colosseumCompletions,
+      stats.colosseumWipes,
+      stats.colosseumResets,
+    ),
+    counts(
+      ChallengeType.INFERNO,
+      stats.infernoCompletions,
+      stats.infernoWipes,
+      stats.infernoResets,
+    ),
+    counts(
+      ChallengeType.MOKHAIOTL,
+      stats.mokhaiotlCompletions,
+      stats.mokhaiotlWipes,
+      stats.mokhaiotlResets,
+    ),
+    counts(
+      ChallengeType.TFA,
+      stats.tfaCompletions,
+      stats.tfaWipes,
+      stats.tfaResets,
+    ),
+  ]
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total);
+}
 
 function PlayerInfo({
   player,
@@ -47,17 +102,11 @@ function PlayerInfo({
 }) {
   const totalHoursPlayed = (totalRecordedTicks / 6000).toFixed(1);
 
-  const totalRaids =
-    player.stats.tobCompletions +
-    player.stats.tobWipes +
-    player.stats.tobResets;
+  const counts = challengeCountsByType(player.stats);
+  const completions = counts.reduce((sum, c) => sum + c.completions, 0);
+  const total = counts.reduce((sum, c) => sum + c.total, 0);
   const completionRate =
-    totalRaids > 0
-      ? ((player.stats.tobCompletions / totalRaids) * 100).toFixed(1)
-      : '0.0';
-
-  const deathsPerRaid =
-    totalRaids > 0 ? (player.stats.deathsTotal / totalRaids).toFixed(1) : '0.0';
+    total > 0 ? ((completions / total) * 100).toFixed(1) : '0.0';
 
   return (
     <div className={styles.playerInfo}>
@@ -88,14 +137,8 @@ function PlayerInfo({
               <i className="fa-solid fa-chart-simple" /> Completion rate
             </span>
             <span className={styles.value}>
-              {completionRate}% ({player.stats.tobCompletions}/{totalRaids})
+              {completionRate}% ({completions}/{total})
             </span>
-          </div>
-          <div className={styles.statRow}>
-            <span className={styles.label}>
-              <i className="fa-solid fa-skull" /> Deaths per raid
-            </span>
-            <span className={styles.value}>{deathsPerRaid}</span>
           </div>
           <div className={styles.statRow}>
             <span className={styles.label}>
@@ -193,9 +236,8 @@ export async function generateMetadata(
   parent: ResolvingMetadata,
 ) {
   const username = await params.then((p) => decodeURIComponent(p.username));
-  const [player, personalBests, metadata] = await Promise.all([
+  const [player, metadata] = await Promise.all([
     loadPlayerWithStats(username),
-    loadPbsForPlayer(username),
     parent,
   ]);
 
@@ -203,36 +245,29 @@ export async function generateMetadata(
     return { title: 'Player not found' };
   }
 
-  let bestTobTime: number | null = null;
-  let bestTobScale: number | null = null;
-  for (const pb of personalBests) {
-    if (pb.type === SplitType.TOB_REG_CHALLENGE) {
-      if (bestTobTime === null || pb.ticks < bestTobTime) {
-        bestTobTime = pb.ticks;
-        bestTobScale = pb.scale;
-      }
-    }
-  }
-
-  const stats = player.stats;
-  const totalRaids = stats.tobCompletions + stats.tobWipes + stats.tobResets;
-  const completionRate =
-    totalRaids > 0 ? Math.round((stats.tobCompletions / totalRaids) * 100) : 0;
+  const counts = challengeCountsByType(player.stats);
 
   const since =
     player.firstRecorded !== null
       ? ` since ${player.firstRecorded.toLocaleDateString()}`
       : '';
 
+  const summary = `${player.username}'s PvM statistics on Blert${since}`;
   const description =
-    `${player.username}'s Theatre of Blood statistics on Blert${since}: ` +
-    `${stats.tobCompletions} completion${stats.tobCompletions === 1 ? '' : 's'} ` +
-    `out of ${totalRaids} raid${totalRaids === 1 ? '' : 's'}, ` +
-    `with ${withIndefiniteArticle(`${completionRate}% success rate`)}. ` +
-    (bestTobTime !== null
-      ? `Best time: ${ticksToFormattedSeconds(bestTobTime)} (${scaleNameAndColor(bestTobScale!)[0]}). `
-      : '') +
-    `${stats.deathsTotal} total deaths.`;
+    counts.length > 0
+      ? `${summary}: ` +
+        oxford(
+          counts.map(({ type, completions, total }) => {
+            const rate = Math.round((completions / total) * 100);
+            return (
+              `${total} ${challengeName(type)} ` +
+              `${challengeTerm(type, total !== 1).toLowerCase()} ` +
+              `(${rate}% completed)`
+            );
+          }),
+        ) +
+        '.'
+      : `${summary}.`;
 
   const images = [
     {
@@ -275,11 +310,9 @@ export async function generateMetadata(
     keywords: [
       'OSRS',
       'Old School RuneScape',
-      'Theatre of Blood',
-      'ToB',
       'PvM',
+      ...counts.map((c) => challengeName(c.type)),
       player.username,
-      'raid statistics',
     ],
     authors: [{ name: player.username }],
     category: 'Gaming',
