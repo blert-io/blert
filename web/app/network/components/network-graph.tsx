@@ -2,7 +2,7 @@
 
 import Graph from 'graphology';
 import { useEffect, useRef, useCallback, useState } from 'react';
-import Sigma from 'sigma';
+import Sigma, { DEFAULT_STYLES } from 'sigma';
 
 import Card from '@/components/card';
 
@@ -281,16 +281,20 @@ export default function NetworkGraph({
         graphRef.current = basicGraph;
 
         sigma = new Sigma(basicGraph, containerRef.current!, {
-          defaultNodeColor: '#8b95a5',
-          defaultEdgeColor: '#3d4450',
-          enableEdgeEvents: true,
-          renderEdgeLabels: false,
-          labelColor: { attribute: 'labelColor' },
-          labelSize: 14,
-          labelWeight: 'normal',
-          labelFont: 'Arial, sans-serif',
-          labelDensity: 1,
-          renderLabels: true,
+          styles: {
+            nodes: [
+              DEFAULT_STYLES.nodes,
+              {
+                labelColor: { attribute: 'labelColor' },
+                labelSize: 14,
+                labelFont: 'Arial, sans-serif',
+              },
+            ],
+          },
+          settings: {
+            enableEdgeEvents: true,
+            enableCameraMouseRotation: false,
+          },
         });
 
         sigma.on('clickNode', handleNodeClick);
