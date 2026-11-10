@@ -29,7 +29,6 @@ type BossReplayProps = {
   height: number;
   currentTick: number;
   advanceTick: () => void;
-  setUseLegacy?: () => void;
   /** Custom controls to render above the map. */
   customControls?: React.ReactNode;
 };
