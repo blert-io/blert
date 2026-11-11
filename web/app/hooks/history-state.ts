@@ -31,7 +31,7 @@ function useHistoryEntryKey(): string | null {
   return key;
 }
 
-type HistoryStateOptions<T> = {
+type RestorableScrollStateOptions<T> = {
   /** Namespace for the stored state. */
   scope: string;
   /** The state value to persist. */
@@ -43,73 +43,17 @@ type HistoryStateOptions<T> = {
 };
 
 /**
- * Persists a `T` to `sessionStorage` keyed by the current history entry. Each
- * history entry owns its own isolated snapshot, so forward/back navigation
- * restores per-entry state instead of sharing one value by URL.
+ * Persists a `T` to `sessionStorage` keyed by the current history entry, along
+ * with the scroll offset of a scroll container. Each history entry owns its own
+ * isolated snapshot, so forward/back navigation restores per-entry state
+ * instead of sharing one value by URL.
  *
  * This should be used instead of raw history APIs because Next.js internally
  * owns and clobbers those, providing no guarantees about state persistence.
  *
- * The `T` must be JSON-serializable.
- * `onRestore` fires once on mount if a valid saved snapshot exists.
- */
-export function useHistoryState<T>({
-  scope,
-  state,
-  validate,
-  onRestore,
-}: HistoryStateOptions<T>): void {
-  const historyEntryKey = useHistoryEntryKey();
-  const storageKey =
-    historyEntryKey !== null
-      ? `${STORAGE_PREFIX}${scope}:${historyEntryKey}`
-      : null;
-
-  const restoredRef = useRef(false);
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  const validateRef = useRef(validate);
-  validateRef.current = validate;
-  const onRestoreRef = useRef(onRestore);
-  onRestoreRef.current = onRestore;
-
-  useEffect(() => {
-    if (restoredRef.current || storageKey === null) {
-      return;
-    }
-    restoredRef.current = true;
-    const raw = window.sessionStorage.getItem(storageKey);
-    if (raw === null) {
-      return;
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return;
-    }
-    const validated = validateRef.current(parsed);
-    if (validated !== null) {
-      onRestoreRef.current(validated);
-    }
-  }, [storageKey]);
-
-  const serializedState = JSON.stringify(state);
-  useEffect(() => {
-    if (!restoredRef.current || storageKey === null) {
-      return;
-    }
-    window.sessionStorage.setItem(storageKey, JSON.stringify(stateRef.current));
-  }, [storageKey, serializedState]);
-}
-
-type RestorableScrollStateOptions<T> = HistoryStateOptions<T>;
-
-/**
- * Extended variant of `useHistoryState` that also preserves the scroll offset
- * of a scroll container. Attach the returned `scrollRef` to the element whose
- * scroll position should be preserved (typically an `overflow: auto`
- * container).
+ * The `T` must be JSON-serializable. Attach the returned `scrollRef` to the
+ * element whose scroll position should be preserved (typically an
+ * `overflow: auto` container).
  */
 export function useRestorableScrollState<
   T,
