@@ -1277,6 +1277,114 @@ describe('NameChangeProcessor.processBatch', () => {
     expect(updated.status).toBe(NameChangeStatus.DEFERRED);
   });
 
+  it('retries an erroring name change after a delay up to max attempts', async () => {
+    const [{ id: otherPlayerId }] = await sql<[{ id: number }]>`
+      INSERT INTO players (username, normalized_username, total_recordings, overall_experience)
+      VALUES ('BatchPlayer2', ${normalizeRsn('BatchPlayer2')}, 0, 100000000)
+      RETURNING id
+    `;
+    const [{ id: failingId }] = await sql<[{ id: number }]>`
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+      VALUES (${playerId}, 'BatchPlayer', 'NewBatch', ${NameChangeStatus.PENDING}, NOW(), NOW())
+      RETURNING id
+    `;
+    const [{ id: queuedId }] = await sql<[{ id: number }]>`
+      INSERT INTO name_changes (player_id, old_name, new_name, status, submitted_at, effective_from)
+      VALUES (${otherPlayerId}, 'BatchPlayer2', 'NewBatch2', ${NameChangeStatus.PENDING}, NOW(), NOW())
+      RETURNING id
+    `;
+
+    type ChangeRow = {
+      id: number;
+      status: NameChangeStatus;
+      attempts: number;
+      next_attempt_at: Date | null;
+      processed_at: Date | null;
+    };
+    const loadChanges = () => sql<ChangeRow[]>`
+      SELECT id, status, attempts, next_attempt_at, processed_at
+      FROM name_changes
+      WHERE id = ANY(${[failingId, queuedId]})
+      ORDER BY id
+    `;
+
+    // Redis drops the first change's active challenge check.
+    const mockMulti = {
+      get: jest.fn().mockReturnThis(),
+      exec: jest
+        .fn()
+        .mockRejectedValueOnce(new Error('The client is closed'))
+        .mockResolvedValue([null, null]),
+    };
+    mockRedisClient.multi.mockReturnValue(mockMulti);
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ status: 404 })
+      .mockResolvedValueOnce({
+        text: () => Promise.resolve(mockedHiscoresPayload(arbitraryExperience)),
+      });
+
+    const batchStart = Date.now();
+    expect(await processor.processBatch()).toEqual({
+      processed: 1,
+      deferred: 0,
+      promoted: 0,
+    });
+
+    const [failing, queued] = await loadChanges();
+    expect(failing).toEqual({
+      id: failingId,
+      status: NameChangeStatus.PENDING,
+      attempts: 1,
+      next_attempt_at: expect.any(Date),
+      processed_at: null,
+    });
+    expect(failing.next_attempt_at!.getTime()).toBeGreaterThanOrEqual(
+      batchStart + 60_000,
+    );
+    expect(queued).toEqual({
+      id: queuedId,
+      status: NameChangeStatus.ACCEPTED,
+      attempts: 0,
+      next_attempt_at: null,
+      processed_at: expect.any(Date),
+    });
+
+    // The failing change is not retried before its delay elapses.
+    expect(await processor.processBatch()).toEqual({
+      processed: 0,
+      deferred: 0,
+      promoted: 0,
+    });
+    expect(await loadChanges()).toEqual([failing, queued]);
+
+    // Redis stays down through the remaining attempts.
+    mockMulti.exec.mockRejectedValue(new Error('The client is closed'));
+    for (let attempt = 2; attempt <= 5; attempt++) {
+      await sql`
+        UPDATE name_changes
+        SET next_attempt_at = NOW() - INTERVAL '1 second'
+        WHERE id = ${failingId}
+      `;
+      await processor.processBatch();
+    }
+
+    expect(await loadChanges()).toEqual([
+      {
+        id: failingId,
+        status: NameChangeStatus.FAILED,
+        attempts: 5,
+        next_attempt_at: expect.any(Date),
+        processed_at: expect.any(Date),
+      },
+      queued,
+    ]);
+
+    await sql`DELETE FROM name_changes WHERE player_id = ${otherPlayerId}`;
+    await sql`DELETE FROM players WHERE id = ${otherPlayerId}`;
+  });
+
   it('respects batchSize configuration', async () => {
     const smallBatchProcessor = new NameChangeProcessor({
       autoStart: false,
@@ -1402,6 +1510,51 @@ describe('updatePlayerStats', () => {
     expect(oldRows[1].deaths_total).toBe(5);
     expect(oldRows[2].tob_completions).toBe(14);
     expect(oldRows[2].deaths_total).toBe(6);
+  });
+
+  it("merges source rows into the target's rows on the same date", async () => {
+    // The old player's last challenge started before midnight and ended after
+    // it, so the stats from its later stages are dated the next day.
+    await seedStats(oldPlayerId, [
+      { date: '2026-11-07', tobCompletions: 40, deathsTotal: 6 },
+      { date: '2026-11-08', tobCompletions: 42, deathsTotal: 6 },
+      { date: '2026-11-09', tobCompletions: 43, deathsTotal: 6 },
+    ]);
+    await seedStats(newPlayerId, [
+      { date: '2026-11-09', tobCompletions: 1, deathsTotal: 1 },
+      { date: '2026-11-10', tobCompletions: 3, deathsTotal: 1 },
+    ]);
+
+    const moved = await updatePlayerStats(
+      oldPlayerId,
+      newPlayerId,
+      new Date('2026-11-08T23:50:00Z'),
+    );
+    expect(moved).toBe(2);
+
+    expect(await loadStats(newPlayerId)).toEqual([]);
+    expect(await loadStats(oldPlayerId)).toEqual([
+      {
+        date: new Date('2026-11-07'),
+        tob_completions: 40,
+        deaths_total: 6,
+      },
+      {
+        date: new Date('2026-11-08'),
+        tob_completions: 42,
+        deaths_total: 6,
+      },
+      {
+        date: new Date('2026-11-09'),
+        tob_completions: 44,
+        deaths_total: 7,
+      },
+      {
+        date: new Date('2026-11-10'),
+        tob_completions: 46,
+        deaths_total: 7,
+      },
+    ]);
   });
 
   it('moves all rows up to toDate when fromDate is null', async () => {
