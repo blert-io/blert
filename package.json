@@ -28,7 +28,7 @@
     "patch-package": "^8.0.1",
     "prettier": "^3.9.10",
     "protoc": "36.2.0",
-    "semver": "^7.8.5",
+    "semver": "^7.8.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "~8.72.1"
   },
