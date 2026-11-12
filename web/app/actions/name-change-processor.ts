@@ -73,6 +73,43 @@ async function lastStatsAtOrBefore(
   return row;
 }
 
+/** Returns each stat's gain in `stats` over `baseline`. */
+function statsGainedSince(
+  stats: PlayerStatsRow,
+  baseline: PlayerStatsRow | undefined,
+): Record<string, number> {
+  const gains: Record<string, number> = {};
+  for (const [key, value] of Object.entries(stats)) {
+    if (key === 'id' || key === 'player_id' || typeof value !== 'number') {
+      continue;
+    }
+    const base = baseline?.[key as keyof PlayerStatsRow] as number | undefined;
+    gains[key] = value - (base ?? 0);
+  }
+  return gains;
+}
+
+/** Returns `stats` with `gains` added to each gained stat. */
+function addStatGains(
+  stats: PlayerStatsRow | undefined,
+  gains: Record<string, number>,
+): Record<string, number> {
+  const sum: Record<string, number> = {};
+  for (const [key, gain] of Object.entries(gains)) {
+    const value = stats?.[key as keyof PlayerStatsRow] as number | undefined;
+    sum[key] = (value ?? 0) + gain;
+  }
+  return sum;
+}
+
+/**
+ * Moves the source player's stats rows dated within (fromDate, toDate] to the
+ * target player, adding the source's stat gains over the window to the target.
+ * If both players have a row on the same date, the source's row is merged into
+ * the target's and deleted.
+ *
+ * @returns The number of source rows moved or merged.
+ */
 export async function updatePlayerStats(
   targetPlayerId: number,
   sourcePlayerId: number,
@@ -80,52 +117,76 @@ export async function updatePlayerStats(
   toDate: Date | null = null,
   db: Db = sql,
 ): Promise<number> {
-  const targetPlayerLastStats = await lastStatsAtOrBefore(
+  const targetBaseline = await lastStatsAtOrBefore(
     targetPlayerId,
     fromDate,
     db,
   );
-  const sourcePlayerLastStats = await lastStatsAtOrBefore(
+  const sourceBaseline = await lastStatsAtOrBefore(
     sourcePlayerId,
     fromDate,
     db,
   );
 
-  const statsToMigrate = await db<PlayerStatsRow[]>`
+  const statsInWindow = (playerId: number) => db<PlayerStatsRow[]>`
     SELECT *
     FROM player_stats
-    WHERE player_id = ${sourcePlayerId}
+    WHERE player_id = ${playerId}
     ${fromDate !== null ? sql`AND date > ${fromDate}` : sql``}
     ${toDate !== null ? sql`AND date <= ${toDate}` : sql``}
     ORDER BY date ASC
   `;
+  const statsToMigrate = await statsInWindow(sourcePlayerId);
+  const targetStatsInWindow = await statsInWindow(targetPlayerId);
 
-  // Reassign the new player's stats to the old player, adjusting the values by
-  // the difference accumulated since the fromDate.
-  let lastInWindowDeltas: Record<string, number> = {};
-  for (const stats of statsToMigrate) {
-    const newStats: Record<string, number> = {
-      player_id: targetPlayerId,
-    };
-    const deltas: Record<string, number> = {};
+  // Walk both players' rows by date, adding the source's latest gains to the
+  // target.
+  // The target can have rows within the migration window, e.g. from a challenge
+  // occurring around midnight whose start and end times fall on different days.
+  const rowsByDate = new Map<
+    number,
+    { target?: PlayerStatsRow; source?: PlayerStatsRow }
+  >();
+  for (const row of targetStatsInWindow) {
+    rowsByDate.set(row.date.getTime(), { target: row });
+  }
+  for (const row of statsToMigrate) {
+    const entry = rowsByDate.get(row.date.getTime());
+    if (entry !== undefined) {
+      entry.source = row;
+    } else {
+      rowsByDate.set(row.date.getTime(), { source: row });
+    }
+  }
 
-    Object.entries(stats).forEach(([key, value]) => {
-      if (key === 'id' || key === 'player_id' || typeof value !== 'number') {
-        return;
+  let targetStats = targetBaseline;
+  let gains: Record<string, number> | null = null;
+  const entries = [...rowsByDate.entries()].sort(([a], [b]) => a - b);
+  for (const [, { target, source }] of entries) {
+    if (target !== undefined) {
+      targetStats = target;
+    }
+    if (source !== undefined) {
+      gains = statsGainedSince(source, sourceBaseline);
+    }
+    if (gains === null) {
+      continue;
+    }
+
+    const merged = addStatGains(targetStats, gains);
+    if (target !== undefined) {
+      await db`
+        UPDATE player_stats SET ${sql(merged)} WHERE id = ${target.id}
+      `;
+      if (source !== undefined) {
+        await db`DELETE FROM player_stats WHERE id = ${source.id}`;
       }
-      const k = key as keyof PlayerStatsRow;
-      const base = (sourcePlayerLastStats?.[k] as number | undefined) ?? 0;
-      const delta = value - base;
-      deltas[key] = delta;
-      const old = (targetPlayerLastStats?.[k] as number | undefined) ?? 0;
-      newStats[key] = old + delta;
-    });
-
-    lastInWindowDeltas = deltas;
-
-    await db`
-      UPDATE player_stats SET ${sql(newStats)} WHERE id = ${stats.id}
-    `;
+    } else if (source !== undefined) {
+      const moved = { ...merged, player_id: targetPlayerId };
+      await db`
+        UPDATE player_stats SET ${sql(moved)} WHERE id = ${source.id}
+      `;
+    }
   }
 
   // Per-player activity counters need symmetric adjustment for any rows that
@@ -136,10 +197,8 @@ export async function updatePlayerStats(
   // - target player's post-window rows never saw the in-window activity (it was
   //   credited to the source): add the window delta.
   //
-  if (toDate !== null && statsToMigrate.length > 0) {
-    const nonZero = Object.entries(lastInWindowDeltas).filter(
-      ([, v]) => v !== 0,
-    );
+  if (toDate !== null && gains !== null) {
+    const nonZero = Object.entries(gains).filter(([, v]) => v !== 0);
     if (nonZero.length > 0) {
       const [firstCol, firstDelta] = nonZero[0];
 
@@ -1782,6 +1841,10 @@ type NameChangeProcessorConfig = {
   period: number;
   /** Maximum number of name changes to process per batch. */
   batchSize: number;
+  /** Delay before retrying a name change that errored, in milliseconds. */
+  retryDelay: number;
+  /** Number of errored attempts after which a name change is failed. */
+  maxAttempts: number;
   /** Whether to automatically start processing on construction. */
   autoStart: boolean;
 };
@@ -1789,6 +1852,8 @@ type NameChangeProcessorConfig = {
 const DEFAULT_CONFIG: NameChangeProcessorConfig = {
   period: 1000 * 5,
   batchSize: 5,
+  retryDelay: 1000 * 60,
+  maxAttempts: 5,
   autoStart: process.env.NODE_ENV === 'production',
 };
 
@@ -1833,38 +1898,80 @@ export class NameChangeProcessor {
 
     for (let i = 0; i < this.config.batchSize; i++) {
       try {
-        const txResult = await sql.begin(async (tx) => {
+        const outcome = await sql.begin(async (tx) => {
           await tx`SET LOCAL statement_timeout = 0`;
 
-          const [row]: [{ id: number }?] = await tx`
-            SELECT id
+          const [row]: [{ id: number; attempts: number }?] = await tx`
+            SELECT id, attempts
             FROM name_changes
             WHERE status = ${NameChangeStatus.PENDING}
               AND kind = ${NameChangeKind.STANDARD}
+              AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
             ORDER BY id
             FOR UPDATE SKIP LOCKED
             LIMIT 1
           `;
 
-          if (!row) {
-            return { processed: false, update: null };
+          if (row === undefined) {
+            return { kind: 'empty' } as const;
           }
 
-          const update = await processNameChange(row.id, tx);
-          return { processed: true, update };
+          try {
+            const update = await tx.savepoint((sp) =>
+              processNameChange(row.id, sp),
+            );
+            return { kind: 'processed', update } as const;
+          } catch (e) {
+            if (e instanceof PlayerInActiveChallengeError) {
+              throw e;
+            }
+
+            const attempts = row.attempts + 1;
+            const failed = attempts >= this.config.maxAttempts;
+            logger.error('name_change_error', {
+              changeId: row.id,
+              attempts,
+              failed,
+              error: e instanceof Error ? e.message : String(e),
+              stack: e instanceof Error ? e.stack : undefined,
+            });
+
+            if (failed) {
+              await tx`
+                UPDATE name_changes
+                SET
+                  attempts = ${attempts},
+                  status = ${NameChangeStatus.FAILED},
+                  processed_at = ${new Date()}
+                WHERE id = ${row.id}
+              `;
+            } else {
+              await tx`
+                UPDATE name_changes
+                SET
+                  attempts = ${attempts},
+                  next_attempt_at = ${new Date(Date.now() + this.config.retryDelay)}
+                WHERE id = ${row.id}
+              `;
+            }
+            return { kind: 'errored' } as const;
+          }
         });
 
-        if (!txResult.processed) {
+        if (outcome.kind === 'empty') {
           break;
+        }
+        if (outcome.kind === 'errored') {
+          continue;
         }
 
         result.processed += 1;
-        if (txResult.update) {
-          const { oldName, newName } = txResult.update;
+        if (outcome.update !== null) {
+          const { oldName, newName } = outcome.update;
           logger.info('name_change_accepted', { oldName, newName });
 
           // Notify other services of the name change.
-          await publishNameChangeUpdate(txResult.update);
+          await publishNameChangeUpdate(outcome.update);
         }
       } catch (e) {
         if (e instanceof PlayerInActiveChallengeError) {
