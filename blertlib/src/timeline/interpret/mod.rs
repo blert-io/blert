@@ -10,6 +10,7 @@ mod player_attack;
 mod sotetseg;
 mod verzik;
 mod xarpus;
+mod xarth;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -23,6 +24,7 @@ use player_attack::PlayerAttackInterpreter;
 use sotetseg::SotetsegInterpreter;
 use verzik::VerzikInterpreter;
 use xarpus::XarpusInterpreter;
+use xarth::XarthInterpreter;
 
 pub(crate) use ocellus::OcellusProperties;
 
@@ -89,6 +91,9 @@ const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 4] = [
             npc::id::GUARDIAN_BATTERY,
             npc::id::GUARDIAN_BATTERY_DESTROYED,
             npc::id::GUARDIAN_VINE,
+            npc::id::XARTH,
+            npc::id::XARTH_CORPSE,
+            npc::id::XARTH_CORPSE_DOUSED,
             npc::id::VOID_RIFT,
             npc::id::VOID_SIPHON,
             npc::id::VOID_AUGMENTER,
@@ -178,6 +183,9 @@ pub(super) fn interpret(
         }
         Stage::TfaGuardian => GuardianInterpreter::new(&ctx, recording)
             .and_then(|guardian| guardian.interpret(recording)),
+        Stage::TfaXarth => {
+            XarthInterpreter::new(&ctx, recording).and_then(|xarth| xarth.interpret(recording))
+        }
         Stage::TfaOcellus => {
             OcellusInterpreter::new(recording).and_then(|ocellus| ocellus.interpret(recording))
         }
@@ -352,18 +360,16 @@ struct HitpointsVarbits {
     room_id: RoomId,
     current_varbit: u32,
     max_varbit: u32,
-    death_animation: u32,
     start_value: Option<(Tick, SkillLevel)>,
     death_tick: Option<Tick>,
 }
 
 impl HitpointsVarbits {
-    fn new(room_id: RoomId, current_varbit: u32, max_varbit: u32, death_animation: u32) -> Self {
+    fn new(room_id: RoomId, current_varbit: u32, max_varbit: u32) -> Self {
         Self {
             room_id,
             current_varbit,
             max_varbit,
-            death_animation,
             start_value: None,
             death_tick: None,
         }
@@ -376,10 +382,11 @@ impl HitpointsVarbits {
                 .filter(|hitpoints| hitpoints.current > 0)
                 .map(|hitpoints| (tick, hitpoints));
         }
-        let dying = state
-            .raw_npcs
-            .get(&self.room_id)
-            .is_some_and(|npc| npc.animation_id == Some(self.death_animation));
+        let dying = state.generic_npc(self.room_id).is_some_and(|(npc, raw)| {
+            let death_animation =
+                npc::definition(npc.id).and_then(|definition| definition.death_animation);
+            death_animation.is_some() && raw.animation_id == death_animation
+        });
         if self.start_value.is_some() && self.death_tick.is_none() && dying {
             self.death_tick = Some(tick);
         }
@@ -388,7 +395,7 @@ impl HitpointsVarbits {
     fn hitpoints(&self, tick: Tick, vars: &Vars) -> Option<SkillLevel> {
         let (start, hitpoints) = self.start_value?;
         if tick < start {
-            return Some(hitpoints);
+            return (hitpoints.current == hitpoints.base).then_some(hitpoints);
         }
         let hitpoints = self.read(vars)?;
         if self.death_tick.is_some_and(|death| tick >= death) {

@@ -1,11 +1,11 @@
 //! Conversions from working state to a complete timeline.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::actor::{Guardian, NpcProperties, PartyIndex, RoomId, Rsn};
 use crate::event::{
     Event, EventKind, Exhumed, GuardianShrooms, NyloWave, Shroom, ShroomState, XarpusExhumedEvent,
-    XarpusExhumes,
+    XarpusExhumes, XarthBlast, XarthBombs, XarthFires,
 };
 use crate::objects::ObjectKind;
 use crate::tick::{Tick, Ticks};
@@ -52,6 +52,7 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
             finalizers.push(Box::new(XarpusFinalizer::new(legacy)));
         }
         Stage::TfaGuardian => finalizers.push(Box::new(GuardianFinalizer::default())),
+        Stage::TfaXarth => finalizers.push(Box::new(XarthFinalizer::default())),
         _ => {}
     }
 
@@ -549,5 +550,104 @@ impl Finalizer for GuardianFinalizer {
                     GuardianShrooms { updated, removed },
                 )));
         }
+    }
+}
+
+#[derive(Default)]
+struct XarthFinalizer {
+    fires: BTreeSet<Point>,
+}
+
+impl XarthFinalizer {
+    const BOMB_PROJECTILE: u32 = 4378;
+    const CORPSE_LEAK_ANIMATION: u32 = 15005;
+}
+
+impl Finalizer for XarthFinalizer {
+    fn initialize(&mut self, history: &[Option<TickState>]) {
+        if let Some(state) = history.iter().rev().flatten().next() {
+            self.fires = state.objects.iter_of(ObjectKind::XarthFire).collect();
+        }
+    }
+
+    fn tick(&mut self, _ctx: &FinalizeContext, tick: Tick, state: &mut Option<TickState>) {
+        let Some(state) = state else {
+            return;
+        };
+
+        let full = state
+            .objects
+            .iter_of(ObjectKind::XarthBlastFull)
+            .collect::<Vec<_>>();
+        let partial = state
+            .objects
+            .iter_of(ObjectKind::XarthBlastPartial)
+            .collect::<Vec<_>>();
+        if !full.is_empty() || !partial.is_empty() {
+            state
+                .events
+                .push(Event::synthetic(EventKind::XarthBlast(XarthBlast {
+                    full,
+                    partial,
+                })));
+        }
+
+        let fires = state
+            .objects
+            .iter_of(ObjectKind::XarthFire)
+            .collect::<BTreeSet<_>>();
+        let added = fires.difference(&self.fires).copied().collect::<Vec<_>>();
+        let removed = self.fires.difference(&fires).copied().collect::<Vec<_>>();
+        if !added.is_empty() || !removed.is_empty() {
+            state
+                .events
+                .push(Event::synthetic(EventKind::XarthFires(XarthFires {
+                    added,
+                    removed,
+                })));
+        }
+        self.fires = fires;
+
+        let leaks = state
+            .npcs
+            .iter()
+            .filter(|&(room_id, npc)| {
+                npc::is_xarth_corpse(npc.id)
+                    && state
+                        .raw_npcs
+                        .get(room_id)
+                        .and_then(|raw| raw.animation(tick))
+                        == Some(Self::CORPSE_LEAK_ANIMATION)
+            })
+            .map(|(&room_id, _)| Event::synthetic(EventKind::XarthCorpseLeak(room_id)))
+            .collect::<Vec<_>>();
+        state.events.extend(leaks);
+
+        if !state.events.iter().any(|event| {
+            matches!(
+                &event.kind,
+                EventKind::NpcAttack(attack) if attack.attack == NpcAttack::TfaXarthBind
+            )
+        }) {
+            return;
+        }
+
+        let bombs = state
+            .raw_projectiles
+            .iter()
+            .filter(|projectile| projectile.id == Self::BOMB_PROJECTILE)
+            .collect::<Vec<_>>();
+        let Some(landing_tick) = bombs.first().map(|projectile| projectile.landing_tick) else {
+            return;
+        };
+        state
+            .events
+            .push(Event::synthetic(EventKind::XarthBombs(XarthBombs {
+                tiles: bombs
+                    .iter()
+                    .map(|projectile| projectile.target_coords)
+                    .collect(),
+                landing_tick,
+            })));
     }
 }

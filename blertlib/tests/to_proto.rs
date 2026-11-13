@@ -300,3 +300,10 @@ fn tfa_guardian() {
     assert_golden_output(&fixture);
     assert_refresh_matches_snapshot(&fixture);
 }
+
+#[test]
+fn tfa_xarth() {
+    let fixture = Fixture::load("tfa_xarth");
+    assert_golden_output(&fixture);
+    assert_refresh_matches_snapshot(&fixture);
+}

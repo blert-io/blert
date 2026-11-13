@@ -70,6 +70,10 @@ export type TfaChallengeStats = {
   dreadnothDeaths: number | null;
   dagonhaiDeaths: number | null;
   xarthDeaths: number | null;
+  xarthCorpsesLeaked: number | null;
+  xarthCorpsesIgnored: number | null;
+  xarthCorpsesDoused: number | null;
+  xarthP2Blasts: number | null;
   ocellusDeaths: number | null;
 };
 

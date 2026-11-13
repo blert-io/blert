@@ -868,7 +868,7 @@ async fn follow_inbox<C, E>(
             };
 
             let keys = match reply {
-                Ok(reply) => reply.map(|reply| reply.keys).unwrap_or_default(),
+                Ok(reply) => reply.map_or_default(|reply| reply.keys),
                 Err(error) => {
                     tracing::warn!(%uuid, %error, "inbox_read_failed");
                     tokio::time::sleep(RECONNECT_DELAY).await;

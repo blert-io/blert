@@ -114,6 +114,11 @@ pub enum EventKind {
     GuardianShrooms(GuardianShrooms),
     /// A brazier was destroyed.
     GuardianBrazier(RoomId),
+
+    XarthBombs(XarthBombs),
+    XarthBlast(XarthBlast),
+    XarthFires(XarthFires),
+    XarthCorpseLeak(RoomId),
 }
 
 impl EventKind {
@@ -135,6 +140,7 @@ impl EventKind {
                 orb.end_tick = remap(orb.end_tick);
             }
             Self::XarpusSplat(splat) => splat.start_tick = splat.start_tick.map(remap),
+            Self::XarthBombs(bombs) => bombs.landing_tick = remap(bombs.landing_tick),
             Self::PlayerDeath(_)
             | Self::PlayerAttack(_)
             | Self::PlayerSpell(_)
@@ -169,7 +175,10 @@ impl EventKind {
             | Self::GuardianUp
             | Self::GuardianRocks(_)
             | Self::GuardianShrooms(_)
-            | Self::GuardianBrazier(_) => {}
+            | Self::GuardianBrazier(_)
+            | Self::XarthBlast(_)
+            | Self::XarthFires(_)
+            | Self::XarthCorpseLeak(_) => {}
         }
     }
 }
@@ -429,6 +438,24 @@ pub struct Shroom {
     pub id: u32,
     pub position: Point,
     pub state: ShroomState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XarthBombs {
+    pub tiles: Vec<Point>,
+    pub landing_tick: Tick,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XarthBlast {
+    pub full: Vec<Point>,
+    pub partial: Vec<Point>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XarthFires {
+    pub added: Vec<Point>,
+    pub removed: Vec<Point>,
 }
 
 #[cfg(test)]

@@ -392,8 +392,7 @@ fn print_census(name: &str, census: &Census) {
     println!("  hosts {hosts}");
     let spread = census
         .announce_spread_ms
-        .map(|ms| format!("   copy spread {ms}ms"))
-        .unwrap_or_default();
+        .map_or_default(|ms| format!("   copy spread {ms}ms"));
     println!(
         "  announces FINISH={} STAGE_END={}{spread}",
         census.finish_announces, census.stage_end_announces,

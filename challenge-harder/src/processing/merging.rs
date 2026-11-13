@@ -129,13 +129,12 @@ impl CaptureRates {
 
 const LOW_CONFIDENCE_CAPTURE_BOUND: f64 = 0.85;
 
-const TFA_CAPTURE_STAGES: [Stage; 7] = [
+const TFA_CAPTURE_STAGES: [Stage; 6] = [
     Stage::TfaEzekiel,
     Stage::TfaBork,
     Stage::TfaMoia,
     Stage::TfaDreadnoth,
     Stage::TfaDagonhai,
-    Stage::TfaXarth,
     Stage::TfaOcellus,
 ];
 

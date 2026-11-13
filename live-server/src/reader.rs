@@ -1125,8 +1125,8 @@ impl ChallengeReader {
         if tail_start < self.broadcast_cursor {
             let tick_count = self.broadcast_cursor - tail_start;
             let mut data = BytesMut::new();
-            for i in tail_start..self.broadcast_cursor {
-                data.extend_from_slice(&self.tick_buffer[i].data);
+            for entry in self.tick_buffer.range(tail_start..self.broadcast_cursor) {
+                data.extend_from_slice(&entry.data);
             }
             messages.push(SseMessage::ReplayChunk {
                 generation,

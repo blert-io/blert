@@ -27,7 +27,6 @@ const BLAST_ANIMATION: u32 = 12411;
 const MELEE_ANIMATION: u32 = 12416;
 const RACECAR_ANIMATION: u32 = 12417;
 const EMERGE_ANIMATION: u32 = 12418;
-const DEATH_ANIMATION: u32 = 12422;
 
 const ORB_PROJECTILES: [(u32, CombatStyle); 3] = [
     (3378, CombatStyle::Melee),
@@ -81,12 +80,7 @@ impl<'a> MokhaiotlInterpreter<'a> {
         Some(Self {
             ctx,
             room_id,
-            varbits: HitpointsVarbits::new(
-                room_id,
-                HITPOINTS_VARBIT,
-                MAX_HITPOINTS_VARBIT,
-                DEATH_ANIMATION,
-            ),
+            varbits: HitpointsVarbits::new(room_id, HITPOINTS_VARBIT, MAX_HITPOINTS_VARBIT),
             events: BTreeMap::new(),
             charging: false,
             hitpoints: None,

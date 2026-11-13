@@ -305,7 +305,10 @@ impl<'a> Encoder<'a> {
                 ObjectKind::XarpusExhumes
                 | ObjectKind::GuardianShroomSpawning
                 | ObjectKind::GuardianShroomGrown
-                | ObjectKind::GuardianShroomPopped => {}
+                | ObjectKind::GuardianShroomPopped
+                | ObjectKind::XarthBlastFull
+                | ObjectKind::XarthBlastPartial
+                | ObjectKind::XarthFire => {}
             }
         }
     }
@@ -480,13 +483,13 @@ impl<'a> Encoder<'a> {
 
             EventKind::BloatHandsDrop(hands) => {
                 let mut event = self.event(proto::event::Type::TobBloatHandsDrop, tick, None);
-                event.bloat_hands = hands.iter().copied().map(proto::Coords::from).collect();
+                event.bloat_hands = coords(hands);
                 Some(event)
             }
 
             EventKind::BloatHandsSplat(hands) => {
                 let mut event = self.event(proto::event::Type::TobBloatHandsSplat, tick, None);
-                event.bloat_hands = hands.iter().copied().map(proto::Coords::from).collect();
+                event.bloat_hands = coords(hands);
                 Some(event)
             }
 
@@ -718,7 +721,7 @@ impl<'a> Encoder<'a> {
             EventKind::SolPools(pools) => {
                 let mut event = self.event(proto::event::Type::ColosseumSolPools, tick, None);
                 event.colosseum_sol_pools = Some(proto::event::ColosseumSolPools {
-                    pools: pools.iter().copied().map(proto::Coords::from).collect(),
+                    pools: coords(pools),
                 });
                 Some(event)
             }
@@ -804,6 +807,40 @@ impl<'a> Encoder<'a> {
                     room_id: room_id.0,
                     position: properties.position as i32,
                 });
+                Some(event)
+            }
+
+            EventKind::XarthBombs(bombs) => {
+                let mut event = self.event(proto::event::Type::TfaXarthBombs, tick, None);
+                event.tfa_xarth_bombs = Some(proto::event::TfaXarthBombs {
+                    tiles: coords(&bombs.tiles),
+                    landing_tick: bombs.landing_tick.0,
+                });
+                Some(event)
+            }
+
+            EventKind::XarthBlast(blast) => {
+                let mut event = self.event(proto::event::Type::TfaXarthBlast, tick, None);
+                event.tfa_xarth_blast = Some(proto::event::TfaXarthBlast {
+                    full: coords(&blast.full),
+                    partial: coords(&blast.partial),
+                });
+                Some(event)
+            }
+
+            EventKind::XarthFires(fires) => {
+                let mut event = self.event(proto::event::Type::TfaXarthFires, tick, None);
+                event.tfa_xarth_fires = Some(proto::event::TfaXarthFires {
+                    added: coords(&fires.added),
+                    removed: coords(&fires.removed),
+                });
+                Some(event)
+            }
+
+            EventKind::XarthCorpseLeak(room_id) => {
+                let mut event = self.event(proto::event::Type::TfaXarthCorpseLeak, tick, None);
+                event.tfa_xarth_corpse_leak =
+                    Some(proto::event::TfaXarthCorpseLeak { room_id: room_id.0 });
                 Some(event)
             }
 
@@ -915,4 +952,8 @@ fn diff_objects(
         .map(proto::Coords::from)
         .collect();
     (spawned, despawned)
+}
+
+fn coords(points: &[Point]) -> Vec<proto::Coords> {
+    points.iter().copied().map(proto::Coords::from).collect()
 }

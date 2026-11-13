@@ -271,6 +271,16 @@ pub fn is_guardian_brazier(npc_id: u32) -> bool {
 }
 
 #[must_use]
+pub fn is_xarth_pillar(npc_id: u32) -> bool {
+    matches!(npc_id, id::XARTH_PILLAR | id::XARTH_PILLAR_BREAKING)
+}
+
+#[must_use]
+pub fn is_xarth_corpse(npc_id: u32) -> bool {
+    matches!(npc_id, id::XARTH_CORPSE | id::XARTH_CORPSE_DOUSED)
+}
+
+#[must_use]
 pub fn is_ocellus(npc_id: u32) -> bool {
     matches!(npc_id, id::OCELLUS_P1 | id::OCELLUS_P2 | id::OCELLUS_P3)
 }
