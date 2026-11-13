@@ -54,7 +54,11 @@ pub const fn classify(kind: &EventKind) -> Class {
         | EventKind::GuardianUp
         | EventKind::GuardianRocks(_)
         | EventKind::GuardianShrooms(_)
-        | EventKind::GuardianBrazier(_) => Class::Derived,
+        | EventKind::GuardianBrazier(_)
+        | EventKind::XarthBombs(_)
+        | EventKind::XarthBlast(_)
+        | EventKind::XarthFires(_)
+        | EventKind::XarthCorpseLeak(_) => Class::Derived,
 
         EventKind::PlayerAttack(_) | EventKind::PlayerSpell(_) | EventKind::NpcAttack(_) => {
             Class::TickState
@@ -177,7 +181,11 @@ pub(super) const fn event_type(kind: &EventKind) -> EventType {
         | EventKind::GuardianUp
         | EventKind::GuardianRocks(_)
         | EventKind::GuardianShrooms(_)
-        | EventKind::GuardianBrazier(_) => panic!("derived events are never merged"),
+        | EventKind::GuardianBrazier(_)
+        | EventKind::XarthBombs(_)
+        | EventKind::XarthBlast(_)
+        | EventKind::XarthFires(_)
+        | EventKind::XarthCorpseLeak(_) => panic!("derived events are never merged"),
     }
 }
 

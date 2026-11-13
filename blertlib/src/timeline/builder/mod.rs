@@ -338,24 +338,7 @@ impl RecordingBuilder {
 
         let mut modified = Modified::default();
         let mut pending = self.events.split_off(&start);
-        self.last_seen_actors.retain(|actor, last| {
-            if *last < start {
-                return true;
-            }
-            let last_seen = start.up_to().rev().find(|tick| {
-                recording.get_state(*tick).is_some_and(|state| match actor {
-                    Actor::Player(index) => state.players.get(*index).is_some(),
-                    Actor::Npc(room_id) => state.npcs.contains_key(room_id),
-                })
-            });
-            match last_seen {
-                Some(tick) => {
-                    *last = tick;
-                    true
-                }
-                None => false,
-            }
-        });
+        self.truncate_last_seen(&recording, start);
         for (&tick, events) in &pending {
             self.rejections.remove(&tick);
             self.warnings.remove(&tick);
@@ -379,6 +362,20 @@ impl RecordingBuilder {
             InterpretMode::Write,
         ) {
             modified.update_tick(tick);
+            self.truncate_last_seen(&recording, tick);
+            for (state_tick, state) in recording
+                .states()
+                .skip_while(|&(state_tick, _)| state_tick < tick)
+            {
+                for (index, _) in state.players.iter() {
+                    self.last_seen_actors
+                        .insert(Actor::Player(index), state_tick);
+                }
+                for &room_id in state.npcs.keys() {
+                    self.last_seen_actors
+                        .insert(Actor::Npc(room_id), state_tick);
+                }
+            }
         }
         // TODO(frolv): Temporary until bespoke object events are removed.
         let mut interpretation = recording.clone();
@@ -400,6 +397,27 @@ impl RecordingBuilder {
         self.recording = Some(recording);
 
         modified
+    }
+
+    fn truncate_last_seen(&mut self, recording: &Recording, start: Tick) {
+        self.last_seen_actors.retain(|actor, last| {
+            if *last < start {
+                return true;
+            }
+            let last_seen = start.up_to().rev().find(|tick| {
+                recording.get_state(*tick).is_some_and(|state| match actor {
+                    Actor::Player(index) => state.players.get(*index).is_some(),
+                    Actor::Npc(room_id) => state.npcs.contains_key(room_id),
+                })
+            });
+            match last_seen {
+                Some(tick) => {
+                    *last = tick;
+                    true
+                }
+                None => false,
+            }
+        });
     }
 }
 
@@ -896,7 +914,11 @@ impl<'a> TickBuilder<'a> {
             | Type::TfaGuardianUp
             | Type::TfaGuardianRocks
             | Type::TfaGuardianShrooms
-            | Type::TfaGuardianBrazier => {
+            | Type::TfaGuardianBrazier
+            | Type::TfaXarthBombs
+            | Type::TfaXarthBlast
+            | Type::TfaXarthFires
+            | Type::TfaXarthCorpseLeak => {
                 // Deliberately ignored.
             }
         }
@@ -1176,7 +1198,7 @@ fn extract_npc_state(
     event: &proto::Event,
 ) -> Result<(RoomId, NpcState, RawNpc), RejectionReason> {
     let npc = expect_npc(event)?;
-    let room_id = RoomId(npc.room_id);
+    let room_id = recording.npc_room_id(RoomId(npc.room_id));
     let prior = last_seen_actors
         .get(&Actor::Npc(room_id))
         .and_then(|last| recording.get_state(*last))

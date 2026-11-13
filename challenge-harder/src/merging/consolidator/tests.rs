@@ -81,16 +81,13 @@ fn build_recording(
 }
 
 fn event_types(recording: &Recording, tick: Tick) -> Vec<EventType> {
-    let mut types: Vec<EventType> = recording
-        .get_state(tick)
-        .map(|state| {
-            state
-                .events
-                .iter()
-                .map(|event| event_type(&event.kind))
-                .collect()
-        })
-        .unwrap_or_default();
+    let mut types: Vec<EventType> = recording.get_state(tick).map_or_default(|state| {
+        state
+            .events
+            .iter()
+            .map(|event| event_type(&event.kind))
+            .collect()
+    });
     types.sort_unstable();
     types
 }

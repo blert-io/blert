@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::actor::{PartyIndex, Rsn};
 use crate::event::Event;
 use crate::tick::{Tick, Ticks};
-use crate::{ChallengeMode, Stage};
+use crate::{ChallengeMode, RoomId, Stage};
 
 use super::{StageData, TickState, Timeline, finalize};
 
@@ -22,6 +22,7 @@ pub struct Recording {
     party: Vec<Rsn>,
     states: Vec<Option<TickState>>,
     stage_data: StageData,
+    room_id_map: BTreeMap<RoomId, RoomId>,
 }
 
 impl Recording {
@@ -34,6 +35,7 @@ impl Recording {
             party,
             states: vec![None; last_tick.as_usize() + 1],
             stage_data: StageData::None,
+            room_id_map: BTreeMap::new(),
         }
     }
 
@@ -71,6 +73,17 @@ impl Recording {
     #[must_use]
     pub fn stage_data_mut(&mut self) -> &mut StageData {
         &mut self.stage_data
+    }
+
+    /// Makes the recording use `to` for the NPC that arrives as `room_id`.
+    pub fn map_room_id(&mut self, room_id: RoomId, to: RoomId) {
+        self.room_id_map.insert(room_id, to);
+    }
+
+    /// Returns the room ID the recording uses for the NPC that arrives as `room_id`.
+    #[must_use]
+    pub fn npc_room_id(&self, room_id: RoomId) -> RoomId {
+        self.room_id_map.get(&room_id).copied().unwrap_or(room_id)
     }
 
     /// Returns the highest recorded tick number.

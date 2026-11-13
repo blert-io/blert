@@ -1,7 +1,14 @@
 //! Fractured Archive challenge processing.
 
+use std::collections::BTreeMap;
+
 use async_trait::async_trait;
-use blert::{EventKind, NpcProperties, Tick, TickState, Ticks, Timeline};
+use blert::npc::id::XARTH_CORPSE_DOUSED;
+use blert::npc::is_xarth_corpse;
+use blert::{
+    EventKind, NpcAttack, NpcAttacked, NpcProperties, Point, RoomId, Tick, TickState, Ticks,
+    Timeline,
+};
 use serde::{Deserialize, Serialize};
 
 use super::StoredState;
@@ -121,10 +128,27 @@ struct GuardianState {
 }
 
 #[derive(Debug)]
+struct CorpseState {
+    last_move: (Point, Tick),
+    stopped: bool,
+    doused: bool,
+}
+
+#[derive(Debug, Default)]
+struct XarthState {
+    corpses: BTreeMap<RoomId, CorpseState>,
+    leaked: u8,
+    ignored: u8,
+    doused: u8,
+    p2_blasts: u8,
+}
+
+#[derive(Debug)]
 pub struct ArchiveProcessor {
     challenge: ChallengeInfo,
     data: CustomData,
     guardian: GuardianState,
+    xarth: XarthState,
 }
 
 impl ArchiveProcessor {
@@ -154,6 +178,7 @@ impl ArchiveProcessor {
             challenge,
             data,
             guardian: GuardianState::default(),
+            xarth: XarthState::default(),
         })
     }
 
@@ -174,6 +199,49 @@ impl ArchiveProcessor {
             }
         }
     }
+
+    fn process_xarth_tick(&mut self, tick: Tick, state: &TickState) {
+        for (&room_id, npc) in &state.npcs {
+            if !is_xarth_corpse(npc.id) {
+                continue;
+            }
+            let position = npc.position.point;
+            let corpse = self.xarth.corpses.entry(room_id).or_insert(CorpseState {
+                last_move: (position, tick),
+                stopped: false,
+                doused: false,
+            });
+            if corpse.last_move.0 != position {
+                if tick - corpse.last_move.1 >= Ticks(2) {
+                    corpse.stopped = true;
+                }
+                corpse.last_move = (position, tick);
+            }
+            if npc.id == XARTH_CORPSE_DOUSED && !corpse.doused {
+                corpse.doused = true;
+                self.xarth.doused += 1;
+            }
+        }
+
+        for event in &state.events {
+            match event.kind {
+                EventKind::XarthCorpseLeak(room_id) => {
+                    self.xarth.leaked += 1;
+                    if let Some(corpse) = self.xarth.corpses.get(&room_id)
+                        && !corpse.stopped
+                        && tick - corpse.last_move.1 <= Ticks(2)
+                    {
+                        self.xarth.ignored += 1;
+                    }
+                }
+                EventKind::NpcAttack(NpcAttacked {
+                    attack: NpcAttack::TfaXarthBlast,
+                    ..
+                }) if self.xarth.leaked > 0 => self.xarth.p2_blasts += 1,
+                _ => {}
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -185,8 +253,10 @@ impl ChallengeProcessor for ArchiveProcessor {
         state: &TickState,
         _timeline: &Timeline,
     ) {
-        if ctx.stage() == Stage::TfaGuardian {
-            self.process_guardian_tick(ctx, tick, state);
+        match ctx.stage() {
+            Stage::TfaGuardian => self.process_guardian_tick(ctx, tick, state),
+            Stage::TfaXarth => self.process_xarth_tick(tick, state),
+            _ => {}
         }
     }
 
@@ -276,6 +346,25 @@ impl ChallengeProcessor for ArchiveProcessor {
             txn.execute(
                 "UPDATE tfa_challenge_stats SET guardian_down_count = $1 WHERE challenge_id = $2",
                 &[&i16::from(self.guardian.downs), &txn.challenge_id()],
+            )
+            .await?;
+        }
+
+        if stage == Stage::TfaXarth {
+            txn.execute(
+                "UPDATE tfa_challenge_stats
+                SET xarth_corpses_leaked = $1,
+                    xarth_corpses_ignored = $2,
+                    xarth_corpses_doused = $3,
+                    xarth_p2_blasts = $4
+                WHERE challenge_id = $5",
+                &[
+                    &i16::from(self.xarth.leaked),
+                    &i16::from(self.xarth.ignored),
+                    &i16::from(self.xarth.doused),
+                    &i16::from(self.xarth.p2_blasts),
+                    &txn.challenge_id(),
+                ],
             )
             .await?;
         }

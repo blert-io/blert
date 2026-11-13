@@ -214,8 +214,7 @@ impl Timeline {
     #[must_use]
     pub fn events_for_tick(&self, tick: Tick) -> &[Event] {
         self.get_state(tick)
-            .map(|state| state.events.as_slice())
-            .unwrap_or_default()
+            .map_or_default(|state| state.events.as_slice())
     }
 
     /// Returns stage-level information about an NPC.

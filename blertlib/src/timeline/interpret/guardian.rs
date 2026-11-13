@@ -18,7 +18,6 @@ const AUTO_ANIMATION: u32 = 14751;
 const MELEE_ANIMATION: u32 = 14752;
 const SHROOMS_ANIMATION: u32 = 14753;
 const BREATH_ANIMATION: u32 = 14754;
-const DEATH_ANIMATION: u32 = 14749;
 
 const ENRAGE_PERCENT: f32 = 1f32 / 3f32;
 
@@ -71,12 +70,7 @@ impl<'a> GuardianInterpreter<'a> {
 
         Some(Self {
             ctx,
-            varbits: HitpointsVarbits::new(
-                room_id,
-                HITPOINTS_VARBIT,
-                MAX_HITPOINTS_VARBIT,
-                DEATH_ANIMATION,
-            ),
+            varbits: HitpointsVarbits::new(room_id, HITPOINTS_VARBIT, MAX_HITPOINTS_VARBIT),
             room_id,
             enraged: None,
             events: BTreeMap::new(),

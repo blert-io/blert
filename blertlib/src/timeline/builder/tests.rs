@@ -4302,6 +4302,24 @@ fn extract_npc_state_update_last_seen_tick() {
                 position: Rect::square(Point(3283, 4248), 1),
                 hitpoints: SkillLevel::from_raw(524_296),
                 prayers: PrayerSet::from_raw(0),
+                properties: Some(nylo.clone()),
+            },
+            RawNpc::default(),
+        ))
+    );
+
+    recording.map_room_id(RoomId(48420), RoomId(48416));
+    update.npc.as_mut().unwrap().room_id = 48420;
+    assert_eq!(
+        extract_npc_state(ClientId(3), &recording, &last_seen_actors, &update),
+        Ok((
+            RoomId(48416),
+            NpcState {
+                source: Source::Client(ClientId(3)),
+                id: 8343,
+                position: Rect::square(Point(3283, 4248), 1),
+                hitpoints: SkillLevel::from_raw(524_296),
+                prayers: PrayerSet::from_raw(0),
                 properties: Some(nylo),
             },
             RawNpc::default(),

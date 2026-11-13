@@ -22,6 +22,10 @@ pub enum ObjectKind {
     GuardianShroomSpawning,
     GuardianShroomGrown,
     GuardianShroomPopped,
+
+    XarthBlastFull,
+    XarthBlastPartial,
+    XarthFire,
 }
 
 /// The set of objects present in the world on a tick.
@@ -62,8 +66,7 @@ impl TickObjects {
     pub fn iter_of(&self, kind: ObjectKind) -> impl Iterator<Item = Point> + '_ {
         self.0
             .get(&kind)
-            .map(|points| points.keys().copied())
-            .unwrap_or_default()
+            .map_or_default(|points| points.keys().copied())
     }
 
     /// Returns `true` if an object of `kind` is present at `point`.
