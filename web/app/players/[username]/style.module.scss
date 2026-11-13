@@ -2,10 +2,7 @@
 @use '../../mixins.scss' as *;
 
 $IMAGE_SIZE: 180px;
-$INFO_PADDING: 20px;
-$INFO_HEIGHT: $IMAGE_SIZE + $INFO_PADDING * 2;
 $NAV_HEIGHT: 50px;
-$NAV_MARGIN: 10px;
 
 .playerPage {
   width: 100%;
