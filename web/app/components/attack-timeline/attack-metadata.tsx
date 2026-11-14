@@ -1408,6 +1408,30 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
       <span>Breathed fire{target ? <> towards {target}</> : ''}</span>
     ),
   },
+  [NpcAttack.TFA_XARTH_MAGE]: {
+    imageUrl: '/images/tfa/xarth/mage.png',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.TFA_XARTH_RANGE]: {
+    imageUrl: '/images/tfa/xarth/range.png',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.TFA_XARTH_MELEE]: {
+    imageUrl: '/images/tfa/xarth/melee.png',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.TFA_XARTH_BIND]: {
+    imageUrl: '/images/tfa/xarth/bind.png',
+    description: () => <span>Bound all players</span>,
+  },
+  [NpcAttack.TFA_XARTH_BLAST]: {
+    imageUrl: '/images/tfa/xarth/blast.png',
+    description: () => <span>Unleashed a fire blast</span>,
+  },
+  [NpcAttack.TFA_XARTH_CORPSE]: {
+    imageUrl: '/images/tfa/xarth/corpse.png',
+    description: () => <span>Spawned a corpse</span>,
+  },
 };
 
 const DEFAULT_WEAPON_IDS = new Map<PlayerAttack, number>(

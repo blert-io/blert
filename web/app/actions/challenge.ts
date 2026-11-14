@@ -565,7 +565,11 @@ export type TobQueryableField = `tob:${keyof Pick<
 >}`;
 export type TfaQueryableField = `tfa:${keyof Pick<
   TfaChallengeStats,
-  'guardianDownCount'
+  | 'guardianDownCount'
+  | 'xarthCorpsesLeaked'
+  | 'xarthCorpsesIgnored'
+  | 'xarthCorpsesDoused'
+  | 'xarthP2Blasts'
 >}`;
 export type MokhaiotlQueryableField = `mok:${keyof Pick<
   MokhaiotlChallengeStats,
@@ -592,6 +596,10 @@ export type TobQuery = {
 export type TfaQuery = {
   route?: Stage[];
   guardianDownCount?: Comparator<number>;
+  xarthCorpsesLeaked?: Comparator<number>;
+  xarthCorpsesIgnored?: Comparator<number>;
+  xarthCorpsesDoused?: Comparator<number>;
+  xarthP2Blasts?: Comparator<number>;
 };
 
 export type ColosseumQuery = {
@@ -881,14 +889,23 @@ function applyTfaFilters(
     }
   }
 
-  if (tfa.guardianDownCount !== undefined) {
-    statsConditions.push(
-      comparatorToSql(
-        sql('tfa_challenge_stats'),
-        'guardian_down_count',
-        tfa.guardianDownCount,
-      ),
-    );
+  const statsColumns: Record<keyof Omit<TfaQuery, 'route'>, string> = {
+    guardianDownCount: 'guardian_down_count',
+    xarthCorpsesLeaked: 'xarth_corpses_leaked',
+    xarthCorpsesIgnored: 'xarth_corpses_ignored',
+    xarthCorpsesDoused: 'xarth_corpses_doused',
+    xarthP2Blasts: 'xarth_p2_blasts',
+  };
+  for (const [field, column] of Object.entries(statsColumns) as [
+    keyof typeof statsColumns,
+    string,
+  ][]) {
+    const comparator = tfa[field];
+    if (comparator !== undefined) {
+      statsConditions.push(
+        comparatorToSql(sql('tfa_challenge_stats'), column, comparator),
+      );
+    }
   }
 
   if (statsConditions.length > 0) {

@@ -145,6 +145,7 @@ describe('challenges filter URL round-trip', () => {
           Stage.TFA_DREADNOTH,
         ],
         guardianDownCount: [Comparator.LESS_THAN_OR_EQUAL, 2],
+        xarthCorpsesLeaked: [Comparator.GREATER_THAN_OR_EQUAL, 1],
       },
     };
     const params = filtersToUrlParams(filters);
@@ -156,6 +157,7 @@ describe('challenges filter URL round-trip', () => {
       'ocellus',
     ]);
     expect(params['tfa.guardianDownCount']).toBe('le2');
+    expect(params['tfa.xarthCorpsesLeaked']).toBe('ge1');
     expect(roundTrip(filters).tfa).toEqual({
       route: [
         Stage.TFA_GUARDIAN,
@@ -165,6 +167,7 @@ describe('challenges filter URL round-trip', () => {
         Stage.TFA_OCELLUS,
       ],
       guardianDownCount: [Comparator.LESS_THAN_OR_EQUAL, 2],
+      xarthCorpsesLeaked: [Comparator.GREATER_THAN_OR_EQUAL, 1],
     });
   });
 
@@ -281,9 +284,10 @@ describe('countActiveFilters', () => {
       tfa: {
         route: [Stage.TFA_BORK, Stage.TFA_MOIA, Stage.TFA_XARTH],
         guardianDownCount: [Comparator.EQUAL, 3],
+        xarthCorpsesLeaked: [Comparator.EQUAL, 0],
       },
     };
-    expect(countActiveFilters(filters)).toBe(3);
+    expect(countActiveFilters(filters)).toBe(4);
   });
 
   it('counts Mokhaiotl sub-filters individually', () => {

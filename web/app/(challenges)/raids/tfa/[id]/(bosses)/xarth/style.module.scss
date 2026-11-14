@@ -1,0 +1,26 @@
+.stats {
+  display: flex;
+  flex-direction: column;
+  padding-top: 12px;
+  gap: 16px;
+  min-width: 300px;
+
+  .stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .statLabel {
+      font-weight: 500;
+      color: var(--blert-font-color-secondary);
+    }
+
+    .statValue {
+      font-family: var(--font-roboto-mono), monospace;
+      font-size: 1.1em;
+      font-weight: 500;
+      color: var(--blert-font-color-primary);
+      padding: 4px 10px;
+    }
+  }
+}

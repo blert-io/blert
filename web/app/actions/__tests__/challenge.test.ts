@@ -1190,7 +1190,7 @@ describe('challenges', () => {
       });
     });
 
-    describe('tfa guardian down count filter', () => {
+    describe('tfa guardian down filters', () => {
       const EZEKIEL = 'b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1';
       const BORK = 'b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2';
       const GUARDIAN_WIPE = 'b3b3b3b3-b3b3-b3b3-b3b3-b3b3b3b3b3b3';
@@ -1262,6 +1262,93 @@ describe('challenges', () => {
           tfa: { route: [Stage.TFA_BORK], guardianDownCount: ['==', 3] },
         });
         expect(challenges.map((c) => c.uuid)).toEqual([BORK]);
+      });
+    });
+
+    describe('tfa xarth stat filters', () => {
+      const LEAKS = 'e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1';
+      const NO_LEAKS = 'e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2';
+      const DAGONHAI = 'e3e3e3e3-e3e3-e3e3-e3e3-e3e3e3e3e3e3';
+
+      beforeEach(async () => {
+        const raids = [
+          [LEAKS, 0b100, 3, 1, 2, 4],
+          [NO_LEAKS, 0b100, 0, 0, 0, 0],
+          [DAGONHAI, 0b000, null, null, null, null],
+        ] as const;
+
+        const rows = await sql`
+          INSERT INTO challenges ${sql(
+            raids.map(([uuid], i) => ({
+              session_id: sessionId,
+              uuid,
+              type: ChallengeType.TFA,
+              status: ChallengeStatus.COMPLETED,
+              stage: Stage.TFA_OCELLUS,
+              start_time: new Date(`2026-11-13T${14 + i}:00:00Z`),
+              scale: 4,
+            })),
+            [
+              'session_id',
+              'uuid',
+              'type',
+              'status',
+              'stage',
+              'start_time',
+              'scale',
+            ],
+          )} RETURNING id
+        `;
+
+        await sql`
+          INSERT INTO tfa_challenge_stats ${sql(
+            raids.map(([, route, leaked, ignored, doused, p2Blasts], i) => ({
+              challenge_id: rows[i].id,
+              route,
+              xarth_corpses_leaked: leaked,
+              xarth_corpses_ignored: ignored,
+              xarth_corpses_doused: doused,
+              xarth_p2_blasts: p2Blasts,
+            })),
+            [
+              'challenge_id',
+              'route',
+              'xarth_corpses_leaked',
+              'xarth_corpses_ignored',
+              'xarth_corpses_doused',
+              'xarth_p2_blasts',
+            ],
+          )}
+        `;
+      });
+
+      it('matches raids by each xarth stat', async () => {
+        const [leaked] = await findChallenges(10, {
+          tfa: { xarthCorpsesLeaked: ['==', 3] },
+        });
+        expect(leaked.map((c) => c.uuid)).toEqual([LEAKS]);
+
+        const [ignored] = await findChallenges(10, {
+          tfa: { xarthCorpsesIgnored: ['==', 1] },
+        });
+        expect(ignored.map((c) => c.uuid)).toEqual([LEAKS]);
+
+        const [doused] = await findChallenges(10, {
+          tfa: { xarthCorpsesDoused: ['==', 2] },
+        });
+        expect(doused.map((c) => c.uuid)).toEqual([LEAKS]);
+
+        const [p2Blasts] = await findChallenges(10, {
+          tfa: { xarthP2Blasts: ['==', 4] },
+        });
+        expect(p2Blasts.map((c) => c.uuid)).toEqual([LEAKS]);
+      });
+
+      it('excludes raids without xarth stats', async () => {
+        const [challenges] = await findChallenges(10, {
+          tfa: { xarthCorpsesLeaked: ['>=', 0] },
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([LEAKS, NO_LEAKS]);
       });
     });
 

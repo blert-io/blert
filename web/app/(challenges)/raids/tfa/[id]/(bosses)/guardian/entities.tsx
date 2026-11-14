@@ -12,20 +12,24 @@ import { ComponentRef, RefObject, Suspense, useRef } from 'react';
 import * as THREE from 'three';
 
 import {
-  anchorOffset,
+  cellAt,
   CustomEntity,
+  CYCLES_PER_TICK,
+  isInterpolating,
   NpcEntity,
   osrsToThreePosition,
   PlayerEntity,
+  replayCycle,
+  SheetSprite,
   showCell,
+  SpriteFrame,
+  spriteFrames,
   SpriteSheet,
   useEntityPositions,
   useReplayContext,
   useSheetTexture,
 } from '@/components/map-renderer';
 import { EnhancedRoomNpc, PlayerStateMap } from '@/utils/boss-room-state';
-
-const CYCLES_PER_TICK = 30;
 
 const LEAP_BASE_CYCLES = 31;
 const LEAP_CYCLES_PER_TILE = 1.74;
@@ -47,15 +51,10 @@ const ROCK_HEIGHT_OFFSET =
 const ROCK_WIDTH = 1.1;
 const ROCK_TURNS_PER_TICK = 1;
 
-type SpriteFrame = {
-  sheet: SpriteSheet;
-  cell: number;
-  cycles: number;
-};
-
 type ShroomAnimation = {
+  sheet: SpriteSheet;
   frames: SpriteFrame[];
-  held: SpriteFrame[];
+  held: number[];
 };
 
 const SHROOM_SHEET: SpriteSheet = {
@@ -78,29 +77,21 @@ const SHROOM_BURST_SHEET: SpriteSheet = {
   anchorY: 0.9515,
 };
 
-const SHROOM_SPAWNING_FRAMES = spriteFrames(SHROOM_SHEET, 0, 30, 3);
-const SHROOM_GROWN_FRAMES = spriteFrames(SHROOM_SHEET, 30, 1, 60);
-const SHROOM_POPPED_FRAMES = [
-  ...spriteFrames(SHROOM_BURST_SHEET, 0, 9, 4),
-  ...spriteFrames(SHROOM_BURST_SHEET, 9, 8, 3),
-];
-
 const SHROOM_ANIMATIONS: Record<TfaGuardianShroomState, ShroomAnimation> = {
   [TfaGuardianShroomState.SPAWNING]: {
-    frames: SHROOM_SPAWNING_FRAMES,
-    held: [
-      SHROOM_SPAWNING_FRAMES[9],
-      SHROOM_SPAWNING_FRAMES[19],
-      SHROOM_SPAWNING_FRAMES[29],
-    ],
+    sheet: SHROOM_SHEET,
+    frames: spriteFrames(0, 30, 3),
+    held: [9, 19, 29],
   },
   [TfaGuardianShroomState.GROWN]: {
-    frames: SHROOM_GROWN_FRAMES,
-    held: SHROOM_GROWN_FRAMES,
+    sheet: SHROOM_SHEET,
+    frames: spriteFrames(30, 1, 60),
+    held: [30],
   },
   [TfaGuardianShroomState.POPPED]: {
-    frames: SHROOM_POPPED_FRAMES,
-    held: [SHROOM_POPPED_FRAMES[6]],
+    sheet: SHROOM_BURST_SHEET,
+    frames: [...spriteFrames(0, 9, 4), ...spriteFrames(9, 8, 3)],
+    held: [6],
   },
 };
 
@@ -274,37 +265,27 @@ function GuardianRockRenderer({
 }: {
   entity: CustomEntity<GuardianRockData>;
 }) {
-  const { config, playing } = useReplayContext();
+  const replay = useReplayContext();
   const { positions } = useEntityPositions();
 
   const groupRef = useRef<THREE.Group>(null);
   const materialRef = useRef<THREE.SpriteMaterial>(null);
-  const tickStartRef = useRef({ tick: -1, time: 0 });
 
-  useFrame(({ camera, clock }) => {
+  useFrame(({ camera }) => {
     const group = groupRef.current;
     if (group === null) {
       return;
     }
 
-    const { targetPlayerId, ticksSinceAuto } = entity.data;
-    const currentTime = clock.getElapsedTime() * 1000;
-    const interpolating = playing && config.interpolationEnabled;
-    if (!interpolating || tickStartRef.current.tick !== ticksSinceAuto) {
-      tickStartRef.current = { tick: ticksSinceAuto, time: currentTime };
-    }
-
-    if (!interpolating) {
+    if (!isInterpolating(replay)) {
       group.visible = false;
       return;
     }
 
-    const tickProgress = Math.min(
-      (currentTime - tickStartRef.current.time) / config.tickDuration,
-      1,
-    );
+    const { targetPlayerId, ticksSinceAuto } = entity.data;
+    const autoTick = replay.currentTick - ticksSinceAuto;
     const cycle =
-      (ticksSinceAuto + tickProgress) * CYCLES_PER_TICK - ROCK_LAUNCH_CYCLE;
+      replayCycle(replay) - autoTick * CYCLES_PER_TICK - ROCK_LAUNCH_CYCLE;
     const target = positions.get(targetPlayerId);
     if (cycle < 0 || cycle > ROCK_FLIGHT_CYCLES || target === undefined) {
       group.visible = false;
@@ -433,68 +414,49 @@ function GuardianShroomRenderer({
 }
 
 function ShroomSprite({ data }: { data: GuardianShroomData }) {
-  const { config, playing } = useReplayContext();
+  const replay = useReplayContext();
   const shroomTexture = useSheetTexture(SHROOM_SHEET);
   const burstTexture = useSheetTexture(SHROOM_BURST_SHEET);
 
-  const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const tickStartRef = useRef({
-    state: data.state,
-    ticksInState: -1,
-    time: 0,
-  });
+  const shroomRef = useRef<THREE.Mesh>(null);
+  const burstRef = useRef<THREE.Mesh>(null);
 
-  useFrame(({ clock }) => {
-    const mesh = meshRef.current;
-    const material = materialRef.current;
-    if (mesh === null || material === null) {
+  useFrame(() => {
+    const shroom = shroomRef.current;
+    const burst = burstRef.current;
+    if (shroom === null || burst === null) {
       return;
     }
 
     const { state, ticksInState } = data;
-    const currentTime = clock.getElapsedTime() * 1000;
-    const interpolating = playing && config.interpolationEnabled;
-    if (
-      !interpolating ||
-      tickStartRef.current.state !== state ||
-      tickStartRef.current.ticksInState !== ticksInState
-    ) {
-      tickStartRef.current = { state, ticksInState, time: currentTime };
-    }
+    const { sheet, frames, held } = SHROOM_ANIMATIONS[state];
+    const stateTick = replay.currentTick - ticksInState;
+    const cell = isInterpolating(replay)
+      ? (cellAt(frames, replayCycle(replay) - stateTick * CYCLES_PER_TICK) ??
+        frames[frames.length - 1].cell)
+      : held[Math.min(ticksInState, held.length - 1)];
 
-    const animation = SHROOM_ANIMATIONS[state];
-    let frame: SpriteFrame;
-    if (interpolating) {
-      const tickProgress = Math.min(
-        (currentTime - tickStartRef.current.time) / config.tickDuration,
-        1,
-      );
-      frame = frameAt(
-        animation,
-        (ticksInState + tickProgress) * CYCLES_PER_TICK,
-      );
-    } else {
-      frame = animation.held[Math.min(ticksInState, animation.held.length - 1)];
-    }
-
-    const { sheet, cell } = frame;
-    const texture = sheet === SHROOM_BURST_SHEET ? burstTexture : shroomTexture;
-    showCell(texture, sheet, cell);
-    if (material.map !== texture) {
-      material.map = texture;
-      material.needsUpdate = true;
-    }
-    mesh.scale.set(sheet.cellWidth, sheet.cellHeight, 1);
-    mesh.position.set(...anchorOffset(sheet), 0);
-    mesh.visible = true;
+    const bursting = sheet === SHROOM_BURST_SHEET;
+    showCell(bursting ? burstTexture : shroomTexture, sheet, cell);
+    shroom.visible = !bursting;
+    burst.visible = bursting;
   });
 
   return (
-    <mesh ref={meshRef} visible={false}>
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial ref={materialRef} transparent alphaTest={0.01} />
-    </mesh>
+    <>
+      <SheetSprite
+        ref={shroomRef}
+        sheet={SHROOM_SHEET}
+        texture={shroomTexture}
+        visible={false}
+      />
+      <SheetSprite
+        ref={burstRef}
+        sheet={SHROOM_BURST_SHEET}
+        texture={burstTexture}
+        visible={false}
+      />
+    </>
   );
 }
 
@@ -678,33 +640,23 @@ function BreathAim({ data }: { data: GuardianBreathData }) {
 }
 
 function BreathGlow({ data }: { data: GuardianBreathData }) {
-  const { config, playing } = useReplayContext();
+  const replay = useReplayContext();
   const { positions } = useEntityPositions();
   const texture = useSheetTexture(BREATH_GLOW_SHEET);
 
   const groupRef = useRef<THREE.Group>(null);
-  const tickStartRef = useRef({ tick: -1, time: 0 });
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     const group = groupRef.current;
     if (group === null) {
       return;
     }
 
     const { guardianId, ticksSinceFocus } = data;
-    const currentTime = clock.getElapsedTime() * 1000;
-    const interpolating = playing && config.interpolationEnabled;
-    if (!interpolating || tickStartRef.current.tick !== ticksSinceFocus) {
-      tickStartRef.current = { tick: ticksSinceFocus, time: currentTime };
-    }
-
     let cell: number | undefined;
-    if (interpolating) {
-      const tickProgress = Math.min(
-        (currentTime - tickStartRef.current.time) / config.tickDuration,
-        1,
-      );
-      const cycle = (ticksSinceFocus + tickProgress) * CYCLES_PER_TICK;
+    if (isInterpolating(replay)) {
+      const focusTick = replay.currentTick - ticksSinceFocus;
+      const cycle = replayCycle(replay) - focusTick * CYCLES_PER_TICK;
       if (cycle >= BREATH_GLOW_START_CYCLE && cycle < BREATH_GLOW_END_CYCLE) {
         cell = Math.floor(
           (cycle - BREATH_GLOW_START_CYCLE) / BREATH_GLOW_CYCLES_PER_CELL,
@@ -725,53 +677,37 @@ function BreathGlow({ data }: { data: GuardianBreathData }) {
     group.visible = true;
   });
 
-  const [offsetX, offsetY] = anchorOffset(BREATH_GLOW_SHEET);
-
   return (
     <Billboard ref={groupRef} visible={false}>
-      <mesh
+      <group
         position={[
-          BREATH_MOUTH_OFFSET.x + offsetX,
-          BREATH_MOUTH_OFFSET.y + offsetY,
+          BREATH_MOUTH_OFFSET.x,
+          BREATH_MOUTH_OFFSET.y,
           BREATH_GLOW_NUDGE,
         ]}
-        scale={[BREATH_GLOW_SHEET.cellWidth, BREATH_GLOW_SHEET.cellHeight, 1]}
       >
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={texture} transparent alphaTest={0.01} />
-      </mesh>
+        <SheetSprite sheet={BREATH_GLOW_SHEET} texture={texture} />
+      </group>
     </Billboard>
   );
 }
 
 function BreathBeam({ origin, tile }: { origin: Coords; tile: Coords }) {
-  const { config, playing } = useReplayContext();
+  const replay = useReplayContext();
   const texture = useSheetTexture(BREATH_SHEET);
 
   const meshRef = useRef<THREE.Mesh>(null);
-  const tickStartRef = useRef<number | null>(null);
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     const mesh = meshRef.current;
     if (mesh === null) {
       return;
     }
 
-    const currentTime = clock.getElapsedTime() * 1000;
-    const interpolating = playing && config.interpolationEnabled;
-    if (!interpolating || tickStartRef.current === null) {
-      tickStartRef.current = currentTime;
-    }
-
     let cell: number | undefined;
-    if (interpolating) {
-      const tickProgress = Math.min(
-        (currentTime - tickStartRef.current) / config.tickDuration,
-        1,
-      );
-      const index = Math.floor(
-        (tickProgress * CYCLES_PER_TICK) / BREATH_CYCLES_PER_CELL,
-      );
+    if (isInterpolating(replay)) {
+      const cycle = replayCycle(replay) - replay.currentTick * CYCLES_PER_TICK;
+      const index = Math.floor(cycle / BREATH_CYCLES_PER_CELL);
       if (index < BREATH_SHEET.columns * BREATH_SHEET.rows) {
         cell = index;
       }
@@ -789,47 +725,20 @@ function BreathBeam({ origin, tile }: { origin: Coords; tile: Coords }) {
   });
 
   const angle = Math.atan2(tile.x - origin.x, origin.y - tile.y);
-  const [offsetX, offsetY] = anchorOffset(BREATH_SHEET);
 
   return (
     <group
       position={osrsToThreePosition(origin, BREATH_HEIGHT)}
       rotation={[0, angle, 0]}
     >
-      <mesh
-        ref={meshRef}
-        visible={false}
-        position={[offsetX, 0, -offsetY]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        scale={[BREATH_SHEET.cellWidth, BREATH_SHEET.cellHeight, 1]}
-      >
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial map={texture} transparent alphaTest={0.01} />
-      </mesh>
+      <group rotation={[-Math.PI / 2, 0, 0]}>
+        <SheetSprite
+          ref={meshRef}
+          sheet={BREATH_SHEET}
+          texture={texture}
+          visible={false}
+        />
+      </group>
     </group>
   );
-}
-
-function spriteFrames(
-  sheet: SpriteSheet,
-  first: number,
-  count: number,
-  cycles: number,
-): SpriteFrame[] {
-  return Array.from({ length: count }, (_, i) => ({
-    sheet,
-    cell: first + i,
-    cycles,
-  }));
-}
-
-function frameAt(animation: ShroomAnimation, cycle: number): SpriteFrame {
-  let elapsed = 0;
-  for (const frame of animation.frames) {
-    elapsed += frame.cycles;
-    if (cycle < elapsed) {
-      return frame;
-    }
-  }
-  return animation.frames[animation.frames.length - 1];
 }

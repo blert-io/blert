@@ -38,6 +38,10 @@ import {
   TfaGuardianDownEvent,
   TfaGuardianRocksEvent,
   TfaGuardianShroomsEvent,
+  TfaXarthBlastEvent,
+  TfaXarthBombsEvent,
+  TfaXarthCorpseLeakEvent,
+  TfaXarthFiresEvent,
   VerzikAttackStyleEvent,
   VerzikBounceEvent,
   VerzikDawnDropEvent,
@@ -461,6 +465,44 @@ export function protoToJsonEvent(evt: EventProto): Event {
       e.tfaGuardianBrazier = {
         roomId: brazier.getRoomId(),
         position: brazier.getPosition(),
+      };
+      break;
+    }
+
+    case EventType.TFA_XARTH_BOMBS: {
+      const e = event as TfaXarthBombsEvent;
+      const bombs = evt.getTfaXarthBombs()!;
+      e.tfaXarthBombs = {
+        tiles: bombs.getTilesList().map((tile) => tile.toObject()),
+        landingTick: bombs.getLandingTick(),
+      };
+      break;
+    }
+
+    case EventType.TFA_XARTH_BLAST: {
+      const e = event as TfaXarthBlastEvent;
+      const blast = evt.getTfaXarthBlast()!;
+      e.tfaXarthBlast = {
+        full: blast.getFullList().map((tile) => tile.toObject()),
+        partial: blast.getPartialList().map((tile) => tile.toObject()),
+      };
+      break;
+    }
+
+    case EventType.TFA_XARTH_FIRES: {
+      const e = event as TfaXarthFiresEvent;
+      const fires = evt.getTfaXarthFires()!;
+      e.tfaXarthFires = {
+        added: fires.getAddedList().map((tile) => tile.toObject()),
+        removed: fires.getRemovedList().map((tile) => tile.toObject()),
+      };
+      break;
+    }
+
+    case EventType.TFA_XARTH_CORPSE_LEAK: {
+      const e = event as TfaXarthCorpseLeakEvent;
+      e.tfaXarthCorpseLeak = {
+        roomId: evt.getTfaXarthCorpseLeak()!.getRoomId(),
       };
       break;
     }

@@ -4,6 +4,9 @@ import { TICK_MS } from '@/utils/tick';
 
 import { MapDefinition, ReplayConfig } from './types';
 
+/** Number of client cycles in a tick. */
+export const CYCLES_PER_TICK = 30;
+
 export const DEFAULT_REPLAY_CONFIG: ReplayConfig = {
   interpolationEnabled: false,
   tickDuration: TICK_MS,
@@ -57,4 +60,26 @@ export function useReplayContext(): ReplayContextType {
     throw new Error('useReplayContext must be used within a ReplayProvider');
   }
   return context;
+}
+
+/** Returns whether the replay is animating between ticks. */
+export function isInterpolating({
+  config,
+  playing,
+}: ReplayContextType): boolean {
+  return playing && config.interpolationEnabled;
+}
+
+/**
+ * Returns the replay's current position in client cycles from the start of the
+ * stage. When the replay is not interpolating, this is the start of the current
+ * tick.
+ */
+export function replayCycle(replay: ReplayContextType): number {
+  const { config, currentTick, replayTime } = replay;
+  if (!isInterpolating(replay)) {
+    return currentTick * CYCLES_PER_TICK;
+  }
+  const progress = replayTime.current / config.tickDuration - currentTick;
+  return (currentTick + Math.min(Math.max(progress, 0), 1)) * CYCLES_PER_TICK;
 }

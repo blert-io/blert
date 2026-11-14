@@ -222,6 +222,7 @@ const COLUMN_GROUPS: ColumnGroup[] = [
       Column.TFA_ROW_3_ENTRY,
       Column.TFA_DAGONHAI,
       Column.TFA_XARTH,
+      Column.TFA_XARTH_CORPSES_LEAKED,
       Column.TFA_FINAL_ENTRY,
       Column.TFA_OCELLUS,
     ],
@@ -903,6 +904,15 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     100,
     'Xarth Time',
   ),
+  [Column.TFA_XARTH_CORPSES_LEAKED]: {
+    name: 'Corpses leaked',
+    fullName: 'Xarth corpses leaked',
+    align: 'right',
+    renderer: (challenge) => challenge.tfaStats?.xarthCorpsesLeaked ?? '-',
+    field: 'tfa:xarthCorpsesLeaked',
+    aggregate: { renderer: aggregateNumber },
+    toggleFields: includeStats,
+  },
   [Column.TFA_FINAL_ENTRY]: splitColumn(
     'Ocellus entry',
     SplitType.TFA_FINAL_START,
