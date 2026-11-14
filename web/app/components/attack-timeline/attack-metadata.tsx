@@ -362,6 +362,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MELEE,
     verb: 'pummeled',
   },
+  [PlayerAttack.EARTH_SURGE]: {
+    tagColor: TagColor.BLUE,
+    letter: 'ES',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'surged',
+  },
   [PlayerAttack.EARTHBOUND_TECPATL]: {
     tagColor: TagColor.RED,
     letter: 'ET',
@@ -417,6 +425,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     special: true,
     style: CombatStyle.MAGIC,
     verb: 'ayak specced',
+  },
+  [PlayerAttack.FIRE_SURGE]: {
+    tagColor: TagColor.BLUE,
+    letter: 'FS',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'surged',
   },
   [PlayerAttack.FANG_STAB]: {
     tagColor: TagColor.RED,
@@ -898,6 +914,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.MAGIC,
     verb: 'volatiled',
   },
+  [PlayerAttack.WATER_SURGE]: {
+    tagColor: TagColor.BLUE,
+    letter: 'WaS',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'surged',
+  },
   [PlayerAttack.WEBWEAVER_AUTO]: {
     tagColor: TagColor.GREEN,
     letter: 'ww',
@@ -913,6 +937,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     special: true,
     style: CombatStyle.RANGED,
     verb: 'webweavered',
+  },
+  [PlayerAttack.WIND_SURGE]: {
+    tagColor: TagColor.BLUE,
+    letter: 'WiS',
+    ranged: true,
+    special: false,
+    style: CombatStyle.MAGIC,
+    verb: 'surged',
   },
   [PlayerAttack.XGS_SPEC]: {
     tagColor: TagColor.YELLOW,
@@ -1517,12 +1549,20 @@ export function getAttackBadgeUrl(attack: BCFAttackAction): string | undefined {
   switch (type) {
     case PlayerAttack.DARK_DEMONBANE:
       return '/images/combat/dark-demonbane.webp';
+    case PlayerAttack.EARTH_SURGE:
+      return '/images/combat/earth-surge.webp';
+    case PlayerAttack.FIRE_SURGE:
+      return '/images/combat/fire-surge.webp';
     case PlayerAttack.ICE_RUSH:
       return '/images/combat/ice-rush.png';
     case PlayerAttack.OBLIGATOR_SMASH:
       return '/images/combat/smash.webp';
     case PlayerAttack.UNDEAD_GRASP:
       return '/images/combat/undead-grasp.webp';
+    case PlayerAttack.WATER_SURGE:
+      return '/images/combat/water-surge.webp';
+    case PlayerAttack.WIND_SURGE:
+      return '/images/combat/wind-surge.webp';
     case PlayerAttack.ZORYAS_TOME_BUFFED:
       return '/images/combat/zoryas-tome-buffed.webp';
   }

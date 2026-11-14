@@ -274,7 +274,7 @@ fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistency
                     player: attack.player,
                     previous,
                     current,
-                    cooldown: previous.kind.cooldown(),
+                    cooldown: cooldowns.off_cooldown_tick(attack.player) - previous.tick,
                 });
             }
             cooldowns.track_attack(tick, state, attack);

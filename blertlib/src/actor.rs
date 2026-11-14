@@ -273,6 +273,7 @@ impl NpcState {
                     | PlayerAttack::ToxicTridentBarrage
                     | PlayerAttack::TridentBarrage
                     | PlayerAttack::IceRush
+                    | PlayerAttack::WaterSurge
                     | PlayerAttack::UndeadGrasp
             ),
             _ => match self.properties {
@@ -574,6 +575,8 @@ mod tests {
         assert!(!corpse.attack_checks_cooldown(PlayerAttack::SceptreBarrage));
         assert!(corpse.attack_applies_cooldown(PlayerAttack::UndeadGrasp));
         assert!(!corpse.attack_checks_cooldown(PlayerAttack::UndeadGrasp));
+        assert!(corpse.attack_applies_cooldown(PlayerAttack::WaterSurge));
+        assert!(!corpse.attack_checks_cooldown(PlayerAttack::WaterSurge));
         assert!(corpse.attack_applies_cooldown(PlayerAttack::Blowpipe));
         assert!(corpse.attack_checks_cooldown(PlayerAttack::Blowpipe));
     }
