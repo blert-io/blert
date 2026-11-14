@@ -275,6 +275,54 @@
       "tags": ["tfa", "guardian"]
     },
     {
+      "id": "TFA_XARTH_MAGE",
+      "status": "active",
+      "summary": "Xarth magic attack",
+      "introduced": "2026-11-10",
+      "details": "Xarth performs a magic attack.",
+      "tags": ["tfa", "xarth"]
+    },
+    {
+      "id": "TFA_XARTH_RANGE",
+      "status": "active",
+      "summary": "Xarth ranged attack",
+      "introduced": "2026-11-10",
+      "details": "Xarth performs a ranged attack.",
+      "tags": ["tfa", "xarth"]
+    },
+    {
+      "id": "TFA_XARTH_MELEE",
+      "status": "active",
+      "summary": "Xarth melee attack",
+      "introduced": "2026-11-10",
+      "details": "Xarth performs a melee attack.",
+      "tags": ["tfa", "xarth"]
+    },
+    {
+      "id": "TFA_XARTH_BIND",
+      "status": "active",
+      "summary": "Xarth bind",
+      "introduced": "2026-11-10",
+      "details": "Xarth binds all players.",
+      "tags": ["tfa", "xarth"]
+    },
+    {
+      "id": "TFA_XARTH_BLAST",
+      "status": "active",
+      "summary": "Xarth fire blast",
+      "introduced": "2026-11-10",
+      "details": "Xarth unleashes a fire blast.",
+      "tags": ["tfa", "xarth"]
+    },
+    {
+      "id": "TFA_XARTH_CORPSE",
+      "status": "active",
+      "summary": "Xarth corpse",
+      "introduced": "2026-11-10",
+      "details": "Xarth spawns a corpse.",
+      "tags": ["tfa", "xarth"]
+    },
+    {
       "id": "COLOSSEUM_BERSERKER_AUTO",
       "status": "active",
       "summary": "Fremennik Berserker auto attack",

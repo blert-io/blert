@@ -107,6 +107,7 @@ export const enum Column {
 
   TFA_GUARDIAN_ENRAGE,
   TFA_GUARDIAN_DOWN_COUNT,
+  TFA_XARTH_CORPSES_LEAKED,
 }
 
 export type SelectedColumn = {

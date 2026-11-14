@@ -626,6 +626,19 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
           },
         ],
       },
+      {
+        label: 'Xarth',
+        subMenu: [
+          {
+            label: 'Corpses leaked',
+            value: def('Xarth corpses leaked', {
+              path: 'tfa.xarthCorpsesLeaked',
+              inputKind: 'number',
+              min: 0,
+            }).id,
+          },
+        ],
+      },
     ],
   },
   {

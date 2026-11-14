@@ -319,14 +319,18 @@ export function parseChallengeQuery(
     (query.tfa ??= {}).route = bosses;
   }
 
-  const guardianDownCount = integerComparatorParam(
-    searchParams,
-    'tfa.guardianDownCount',
-    0,
-    9001,
-  );
-  if (guardianDownCount !== undefined) {
-    (query.tfa ??= {}).guardianDownCount = guardianDownCount;
+  const tfaScalarParams = [
+    'guardianDownCount',
+    'xarthCorpsesLeaked',
+    'xarthCorpsesIgnored',
+    'xarthCorpsesDoused',
+    'xarthP2Blasts',
+  ] as const;
+  for (const field of tfaScalarParams) {
+    const value = integerComparatorParam(searchParams, `tfa.${field}`, 0, 9001);
+    if (value !== undefined) {
+      (query.tfa ??= {})[field] = value;
+    }
   }
 
   const mokhaiotlScalarParams = [

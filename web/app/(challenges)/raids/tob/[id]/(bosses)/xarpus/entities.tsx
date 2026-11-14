@@ -5,10 +5,16 @@ import { useEffect, useRef, Suspense } from 'react';
 import * as THREE from 'three';
 
 import {
-  anchorOffset,
+  cellAt,
   CustomEntity,
+  CYCLES_PER_TICK,
+  isInterpolating,
   osrsToThreePosition,
+  replayCycle,
+  SheetSprite,
   showCell,
+  SpriteFrame,
+  spriteFrames,
   SpriteSheet,
   useReplayContext,
   useSheetTexture,
@@ -61,8 +67,6 @@ const POISON_COLOR = '#c7e917';
 const DANGER_COLOR = '#ef4444';
 const DANGER_QUADRANT_HEIGHT = 0.0005;
 
-const CYCLES_PER_TICK = 30;
-
 export const ACID_BALL: SpriteSheet = {
   url: '/images/objects/xarpus-acid-ball.webp',
   columns: 6,
@@ -94,11 +98,13 @@ export const ACID_SPLASH: SpriteSheet = {
 };
 
 const ACID_BALL_CYCLES = 5;
-const ACID_POOL_FORM_CYCLES = [3, 3, 3, 3, 3];
-const ACID_POOL_END_CELL = 6;
-const ACID_POOL_END_CYCLES = [4, 4, 4];
+const ACID_POOL_FORM_FRAMES = spriteFrames(0, 5, 3);
+const ACID_POOL_FORMED_CELL = 5;
+const ACID_POOL_END_FRAMES = spriteFrames(6, 3, 4);
 const ACID_POOL_HEIGHT = 0.001;
-const ACID_SPLASH_CYCLES = [10, 2, 2, 2, 3, 3, 3, 2, 2, 2];
+const ACID_SPLASH_FRAMES: SpriteFrame[] = [10, 2, 2, 2, 3, 3, 3, 2, 2, 2].map(
+  (cycles, cell) => ({ cell, cycles }),
+);
 
 const ACID_SLOPE_PER_CYCLE = 1 / 8;
 const ACID_MIN_SLOPE = 4;
@@ -133,30 +139,6 @@ function getParabolicPosition(
   const z = from.y + (to.y - from.y) * progress;
   const y = height * Math.sin(Math.PI * progress);
   return new THREE.Vector3(x, y, -z);
-}
-
-function replayCycle({
-  config,
-  playing,
-  currentTick,
-  replayTime,
-}: ReturnType<typeof useReplayContext>): number {
-  if (!playing || !config.interpolationEnabled) {
-    return currentTick * CYCLES_PER_TICK;
-  }
-  const progress = replayTime.current / config.tickDuration - currentTick;
-  return (currentTick + Math.min(Math.max(progress, 0), 1)) * CYCLES_PER_TICK;
-}
-
-function frameAt(cycles: number[], elapsed: number): number {
-  let end = 0;
-  for (let frame = 0; frame < cycles.length; frame++) {
-    end += cycles[frame];
-    if (elapsed < end) {
-      return frame;
-    }
-  }
-  return cycles.length;
 }
 
 export class ExhumedEntity extends CustomEntity<ExhumedData> {
@@ -582,10 +564,7 @@ function AcidBall({ data }: { data: AcidBallData }) {
     const flightCycles = (landingTick - launchTick) * CYCLES_PER_TICK;
     const cycle = replayCycle(replay) - launchTick * CYCLES_PER_TICK;
     const flying =
-      replay.playing &&
-      replay.config.interpolationEnabled &&
-      cycle >= 0 &&
-      cycle < flightCycles;
+      isInterpolating(replay) && cycle >= 0 && cycle < flightCycles;
     ball.visible = flying;
     shadow.visible = flying;
     if (!flying) {
@@ -620,13 +599,7 @@ function AcidBall({ data }: { data: AcidBallData }) {
     <>
       <group ref={ballRef} visible={false}>
         <Billboard>
-          <mesh
-            position={[...anchorOffset(ACID_BALL), 0]}
-            scale={[ACID_BALL.cellWidth, ACID_BALL.cellHeight, 1]}
-          >
-            <planeGeometry args={[1, 1]} />
-            <meshBasicMaterial map={texture} transparent alphaTest={0.01} />
-          </mesh>
+          <SheetSprite sheet={ACID_BALL} texture={texture} />
         </Billboard>
       </group>
       <mesh ref={shadowRef} visible={false} rotation={[-Math.PI / 2, 0, 0]}>
@@ -667,24 +640,23 @@ function AcidSplash({ data }: { data: AcidSplashData }) {
       return;
     }
 
-    const frame = frameAt(
-      ACID_SPLASH_CYCLES,
+    const cell = cellAt(
+      ACID_SPLASH_FRAMES,
       replayCycle(replay) - data.tick * CYCLES_PER_TICK,
     );
-    mesh.visible = frame < ACID_SPLASH_CYCLES.length;
-    showCell(texture, ACID_SPLASH, frame);
+    mesh.visible = cell !== undefined;
+    if (cell !== undefined) {
+      showCell(texture, ACID_SPLASH, cell);
+    }
   });
 
   return (
-    <mesh
+    <SheetSprite
       ref={meshRef}
+      sheet={ACID_SPLASH}
+      texture={texture}
       visible={false}
-      position={[...anchorOffset(ACID_SPLASH), 0]}
-      scale={[ACID_SPLASH.cellWidth, ACID_SPLASH.cellHeight, 1]}
-    >
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial map={texture} transparent alphaTest={0.01} />
-    </mesh>
+    />
   );
 }
 
@@ -714,32 +686,23 @@ function AcidPool({ data }: { data: AcidPoolData }) {
 
     const { formTick, despawnTick } = data;
     const cycle = replayCycle(replay);
-    if (despawnTick !== null && cycle >= despawnTick * CYCLES_PER_TICK) {
-      const frame = frameAt(
-        ACID_POOL_END_CYCLES,
-        cycle - despawnTick * CYCLES_PER_TICK,
-      );
-      mesh.visible = frame < ACID_POOL_END_CYCLES.length;
-      showCell(texture, ACID_POOL, ACID_POOL_END_CELL + frame);
-    } else {
-      mesh.visible = true;
-      showCell(
-        texture,
-        ACID_POOL,
-        frameAt(ACID_POOL_FORM_CYCLES, cycle - formTick * CYCLES_PER_TICK),
-      );
+    const cell =
+      despawnTick !== null && cycle >= despawnTick * CYCLES_PER_TICK
+        ? cellAt(ACID_POOL_END_FRAMES, cycle - despawnTick * CYCLES_PER_TICK)
+        : (cellAt(ACID_POOL_FORM_FRAMES, cycle - formTick * CYCLES_PER_TICK) ??
+          ACID_POOL_FORMED_CELL);
+    mesh.visible = cell !== undefined;
+    if (cell !== undefined) {
+      showCell(texture, ACID_POOL, cell);
     }
   });
 
   return (
-    <mesh
+    <SheetSprite
       ref={meshRef}
+      sheet={ACID_POOL}
+      texture={texture}
       visible={false}
-      position={[...anchorOffset(ACID_POOL), 0]}
-      scale={[ACID_POOL.cellWidth, ACID_POOL.cellHeight, 1]}
-    >
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial map={texture} transparent alphaTest={0.01} />
-    </mesh>
+    />
   );
 }

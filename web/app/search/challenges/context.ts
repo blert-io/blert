@@ -69,6 +69,7 @@ export type TobFilters = {
 export type TfaFilters = {
   route: Stage[];
   guardianDownCount: [Comparator, number] | null;
+  xarthCorpsesLeaked: [Comparator, number] | null;
 };
 
 export type MokhaiotlFilters = {
@@ -100,6 +101,28 @@ function parseTobParam(tob: TobFilters, key: string, value: string): void {
     const parsed = parseComparatorParam(value);
     if (parsed !== null) {
       tob[field] = parsed;
+    }
+  }
+}
+
+function parseTfaParam(tfa: TfaFilters, key: string, value: string): void {
+  if (key === 'route') {
+    const route = value.split(',').map(tfaBossFromToken);
+    if (route.every((stage) => stage !== null)) {
+      tfa.route = route;
+    }
+    return;
+  }
+
+  const scalarFields: Exclude<keyof TfaFilters, 'route'>[] = [
+    'guardianDownCount',
+    'xarthCorpsesLeaked',
+  ];
+  const field = scalarFields.find((f) => f === key);
+  if (field !== undefined) {
+    const parsed = parseComparatorParam(value);
+    if (parsed !== null) {
+      tfa[field] = parsed;
     }
   }
 }
@@ -169,6 +192,7 @@ export function emptyTfaFilters(): TfaFilters {
   return {
     route: [],
     guardianDownCount: null,
+    xarthCorpsesLeaked: null,
   };
 }
 
@@ -178,6 +202,9 @@ function countTfaFilters(tfa: TfaFilters): number {
     count++;
   }
   if (tfa.guardianDownCount !== null) {
+    count++;
+  }
+  if (tfa.xarthCorpsesLeaked !== null) {
     count++;
   }
   return count;
@@ -359,10 +386,16 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
       .map((stage) => stagePath(stage));
   }
 
-  if (filters.tfa.guardianDownCount !== null) {
-    const [comparator, value] = filters.tfa.guardianDownCount;
-    params['tfa.guardianDownCount'] =
-      `${serializeComparator(comparator)}${value}`;
+  const tfaScalarFields: Exclude<keyof TfaFilters, 'route'>[] = [
+    'guardianDownCount',
+    'xarthCorpsesLeaked',
+  ];
+  for (const field of tfaScalarFields) {
+    const v = filters.tfa[field];
+    if (v !== null) {
+      const [comparator, value] = v;
+      params[`tfa.${field}`] = `${serializeComparator(comparator)}${value}`;
+    }
   }
 
   const mokhaiotlScalarFields: (keyof MokhaiotlFilters)[] = [
@@ -451,22 +484,6 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
         context.filters.passthrough.spawns = Array.isArray(v) ? v : [value];
         break;
 
-      case 'tfa.route': {
-        const route = value.split(',').map(tfaBossFromToken);
-        if (route.every((stage) => stage !== null)) {
-          context.filters.tfa.route = route;
-        }
-        break;
-      }
-
-      case 'tfa.guardianDownCount': {
-        const parsed = parseComparatorParam(value);
-        if (parsed !== null) {
-          context.filters.tfa.guardianDownCount = parsed;
-        }
-        break;
-      }
-
       case 'options': {
         const options = value.split(',');
         for (const option of options) {
@@ -509,6 +526,8 @@ export function contextFromUrlParams(params: NextSearchParams): SearchContext {
           }
         } else if (key.startsWith('tob.')) {
           parseTobParam(context.filters.tob, key.slice(4), value);
+        } else if (key.startsWith('tfa.')) {
+          parseTfaParam(context.filters.tfa, key.slice(4), value);
         } else if (key.startsWith('mok.')) {
           parseMokhaiotlParam(context.filters.mokhaiotl, key.slice(4), value);
         }

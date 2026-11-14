@@ -23,8 +23,21 @@ export {
 } from './easing';
 
 export { useEntityPositions } from './entity-position-context';
-export { useReplayContext } from './replay-context';
-export { anchorOffset, showCell, useSheetTexture } from './sprite-sheet';
+export {
+  CYCLES_PER_TICK,
+  isInterpolating,
+  replayCycle,
+  useReplayContext,
+} from './replay-context';
+export {
+  anchorOffset,
+  cellAt,
+  SheetSprite,
+  showCell,
+  type SpriteFrame,
+  spriteFrames,
+  useSheetTexture,
+} from './sprite-sheet';
 export {
   type AnyEntity,
   CustomEntity,

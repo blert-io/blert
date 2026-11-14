@@ -58,6 +58,10 @@ export enum EventType {
   TFA_GUARDIAN_ROCKS = EventProto.Type.TFA_GUARDIAN_ROCKS,
   TFA_GUARDIAN_SHROOMS = EventProto.Type.TFA_GUARDIAN_SHROOMS,
   TFA_GUARDIAN_BRAZIER = EventProto.Type.TFA_GUARDIAN_BRAZIER,
+  TFA_XARTH_BOMBS = EventProto.Type.TFA_XARTH_BOMBS,
+  TFA_XARTH_BLAST = EventProto.Type.TFA_XARTH_BLAST,
+  TFA_XARTH_FIRES = EventProto.Type.TFA_XARTH_FIRES,
+  TFA_XARTH_CORPSE_LEAK = EventProto.Type.TFA_XARTH_CORPSE_LEAK,
   COLOSSEUM_HANDICAP_CHOICE = EventProto.Type.COLOSSEUM_HANDICAP_CHOICE,
   COLOSSEUM_DOOM_APPLIED = EventProto.Type.COLOSSEUM_DOOM_APPLIED,
   COLOSSEUM_TOTEM_HEAL = EventProto.Type.COLOSSEUM_TOTEM_HEAL,
@@ -320,6 +324,37 @@ export enum TfaGuardianShroomState {
   POPPED = EventProto.TfaGuardianShrooms.State.POPPED,
 }
 
+export interface TfaXarthBombsEvent extends BaseEvent {
+  type: EventType.TFA_XARTH_BOMBS;
+  tfaXarthBombs: {
+    tiles: Coords[];
+    landingTick: number;
+  };
+}
+
+export interface TfaXarthBlastEvent extends BaseEvent {
+  type: EventType.TFA_XARTH_BLAST;
+  tfaXarthBlast: {
+    full: Coords[];
+    partial: Coords[];
+  };
+}
+
+export interface TfaXarthFiresEvent extends BaseEvent {
+  type: EventType.TFA_XARTH_FIRES;
+  tfaXarthFires: {
+    added: Coords[];
+    removed: Coords[];
+  };
+}
+
+export interface TfaXarthCorpseLeakEvent extends BaseEvent {
+  type: EventType.TFA_XARTH_CORPSE_LEAK;
+  tfaXarthCorpseLeak: {
+    roomId: number;
+  };
+}
+
 export interface HandicapChoiceEvent extends BaseEvent {
   type: EventType.COLOSSEUM_HANDICAP_CHOICE;
   handicap: Handicap;
@@ -471,6 +506,10 @@ export type Event =
   | TfaGuardianRocksEvent
   | TfaGuardianShroomsEvent
   | TfaGuardianBrazierEvent
+  | TfaXarthBombsEvent
+  | TfaXarthBlastEvent
+  | TfaXarthFiresEvent
+  | TfaXarthCorpseLeakEvent
   | HandicapChoiceEvent
   | ColosseumDoomAppliedEvent
   | ColosseumTotemHealEvent
