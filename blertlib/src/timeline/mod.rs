@@ -6,7 +6,7 @@ use crate::actor::{Actor, NpcProperties, NpcState, PartyIndex, Players, RoomId, 
 use crate::event::{Event, EventKind, Maze, PlayerAttacked};
 use crate::objects::TickObjects;
 use crate::tick::{Tick, Ticks};
-use crate::{ChallengeMode, Point, Stage, npc, proto};
+use crate::{ChallengeMode, PlayerAttack, Point, Stage, item, npc, proto};
 
 mod builder;
 mod config;
@@ -385,7 +385,23 @@ impl PlayerCooldowns {
             return;
         }
 
-        player.off_cooldown_tick = tick + attack.attack.cooldown();
+        let mut cooldown = attack.attack.cooldown();
+        let is_standard_spell = matches!(
+            attack.attack,
+            PlayerAttack::WindSurge
+                | PlayerAttack::WaterSurge
+                | PlayerAttack::EarthSurge
+                | PlayerAttack::FireSurge
+        );
+        if is_standard_spell && let Some(weapon) = attack.weapon {
+            if weapon.id == item::id::HARMONISED_NIGHTMARE_STAFF {
+                cooldown = Ticks(4);
+            } else if weapon.id == item::id::TWINFLAME_STAFF {
+                cooldown = Ticks(6);
+            }
+        }
+
+        player.off_cooldown_tick = tick + cooldown;
     }
 
     /// Returns the tick on which `player` will be off cooldown.
