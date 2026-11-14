@@ -10,21 +10,6 @@
   }
 }
 
-.splits {
-  margin: 10px 0;
-  display: flex;
-
-  @media (max-width: $COMPACT_WIDTH_THRESHOLD) {
-    flex-wrap: wrap;
-    justify-content: space-between;
-
-    .split {
-      margin: 4px 0 0 0;
-      width: 49%;
-    }
-  }
-}
-
 .phaseTimes {
   display: flex;
   flex-direction: column;
