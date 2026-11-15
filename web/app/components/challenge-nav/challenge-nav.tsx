@@ -796,7 +796,7 @@ const STAGE_TRANSITION_DELAY = 8000;
 
 function StageTransitionPopup({ name, href }: { name: string; href: string }) {
   return (
-    <Link href={href} className={styles.stageTransitionPopup}>
+    <Link href={href} prefetch={false} className={styles.stageTransitionPopup}>
       The team has started {name}. Click to watch!
     </Link>
   );
@@ -900,6 +900,7 @@ function NavItemComponent({
                 <Link
                   key={child.stage}
                   href={isChildAccessible ? path : '#'}
+                  prefetch={false}
                   className={`${styles.dropdownItem} ${
                     isActive ? styles.active : ''
                   } ${!isChildAccessible ? styles.disabled : ''}`}
@@ -935,6 +936,7 @@ function NavItemComponent({
         <Link
           key={item.stage}
           href={isAccessible ? path : '#'}
+          prefetch={false}
           className={`${styles.navItem} ${isActive ? styles.active : ''} ${
             !isAccessible ? styles.disabled : ''
           }`}

@@ -189,6 +189,7 @@ function WaveGroupOverview({
             <Link
               key={num}
               href={`${challengeUrl(ChallengeType.INFERNO, challengeId)}/waves/${num}`}
+              prefetch={false}
               className={`${styles.waveLink} ${num === liveWave ? styles.liveWaveLink : ''}`}
             >
               {num}

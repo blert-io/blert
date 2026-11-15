@@ -148,7 +148,12 @@ export function LeftNav() {
     <LeftNavWrapper>
       <nav className={`${styles.nav} ${collapsed ? styles.collapsed : ''}`}>
         <div className={styles.header}>
-          <Link className={styles.logo} href="/home" aria-label="Home">
+          <Link
+            className={styles.logo}
+            href="/home"
+            prefetch={false}
+            aria-label="Home"
+          >
             <Image
               src={MAIN_LOGO}
               alt="Blert"
@@ -195,6 +200,7 @@ export function LeftNav() {
           <Link
             className={`${styles.item} ${isUnder(pathname, '/') ? styles.active : ''}`}
             href="/"
+            prefetch={false}
           >
             <span className={styles.itemIcon}>
               <i className={`fa-solid fa-newspaper ${styles.faIcon}`} />
@@ -213,6 +219,7 @@ export function LeftNav() {
                 hasPlayerList ? styles.withToggle : ''
               } ${onOwnProfile ? styles.active : ''}`}
               href={playerUrl(defaultPlayer.username)}
+              prefetch={false}
               title={defaultPlayer.username}
             >
               <span className={styles.itemIcon}>
@@ -253,6 +260,7 @@ export function LeftNav() {
                     : ''
                 }`}
                 href={playerUrl(player.username)}
+                prefetch={false}
               >
                 {player.username}
               </Link>
@@ -267,6 +275,7 @@ export function LeftNav() {
           <Link
             className={`${styles.tile} ${styles.featured} ${isUnder(pathname, '/raids/tfa') ? styles.active : ''}`}
             href="/raids/tfa"
+            prefetch={false}
             title="The Fractured Archive"
           >
             <span className={styles.tileIcon}>
@@ -285,6 +294,7 @@ export function LeftNav() {
               key={challenge.type}
               className={`${styles.tile} ${isUnder(pathname, challenge.href) ? styles.active : ''}`}
               href={challenge.href}
+              prefetch={false}
               title={challenge.label}
             >
               <span className={styles.tileIcon}>
@@ -302,6 +312,7 @@ export function LeftNav() {
           <Link
             className={`${styles.browse} ${isUnder(pathname, '/search/challenges') ? styles.active : ''}`}
             href="/search/challenges"
+            prefetch={false}
             title="Browse runs"
           >
             <span>Browse runs</span>
@@ -317,6 +328,7 @@ export function LeftNav() {
               key={link.href}
               className={`${styles.item} ${isUnder(pathname, link.match ?? link.href) ? styles.active : ''}`}
               href={link.href}
+              prefetch={false}
             >
               <span className={styles.itemIcon}>
                 <i className={`${link.icon} ${styles.faIcon}`} />

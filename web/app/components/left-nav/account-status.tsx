@@ -79,6 +79,7 @@ export default function AccountStatus({
         <Link
           className={styles.collapsedAvatar}
           href="/settings"
+          prefetch={false}
           title="Account"
           aria-label="Account"
         >
@@ -105,6 +106,7 @@ export default function AccountStatus({
             <Link
               className={styles.iconAction}
               href="/settings"
+              prefetch={false}
               title="Settings"
               aria-label="Settings"
             >
@@ -142,6 +144,7 @@ export default function AccountStatus({
         <Link
           className={styles.collapsedAvatar}
           href={`/login${redirectParams}`}
+          prefetch={false}
           title="Log in"
           aria-label="Log in"
         >
@@ -150,6 +153,7 @@ export default function AccountStatus({
         <Link
           className={styles.collapsedAvatar}
           href={`/register${redirectParams}`}
+          prefetch={false}
           title="Sign up"
           aria-label="Sign up"
         >
@@ -166,6 +170,7 @@ export default function AccountStatus({
           className={styles.authButton}
           simple
           href={`/login${redirectParams}`}
+          prefetch={false}
         >
           <i className="fa-solid fa-right-to-bracket" />
           <span>Log In</span>
@@ -173,6 +178,7 @@ export default function AccountStatus({
         <ButtonLink
           className={styles.authButton}
           href={`/register${redirectParams}`}
+          prefetch={false}
         >
           <i className="fa-solid fa-user-plus" />
           <span>Sign Up</span>
