@@ -10,6 +10,7 @@ export type ButtonLinkProps = ButtonStyleProps & {
   onClick?: () => void;
   target?: string;
   rel?: string;
+  prefetch?: boolean;
   'data-tooltip-id'?: string;
   'data-tooltip-content'?: string;
 };
@@ -28,6 +29,7 @@ export function ButtonLink(props: ButtonLinkProps) {
       onClick={props.onClick}
       target={props.target}
       rel={props.rel}
+      prefetch={props.prefetch}
       data-tooltip-id={props['data-tooltip-id']}
       data-tooltip-content={props['data-tooltip-content']}
     >

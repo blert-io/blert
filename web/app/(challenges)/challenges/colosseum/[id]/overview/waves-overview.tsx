@@ -30,6 +30,7 @@ function Wave({ challengeId, ticks, wave, waveNumber, live }: WaveProps) {
   return (
     <Link
       href={`${challengeUrl(ChallengeType.COLOSSEUM, challengeId)}/waves/${waveNumber}`}
+      prefetch={false}
       className={styles.wave}
     >
       <div className={styles.waveImg}>
