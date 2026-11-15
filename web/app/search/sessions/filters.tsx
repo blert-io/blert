@@ -29,6 +29,8 @@ const STATUS_OPTIONS = [
   { value: SessionStatus.ACTIVE, label: 'Active' },
 ];
 
+const RANGE_INPUT_WIDTH = 90;
+
 type RangeFilterProps = {
   label: string;
   id: string;
@@ -36,7 +38,6 @@ type RangeFilterProps = {
   maxValue: number | null;
   minField: keyof SessionSearchFilters;
   maxField: keyof SessionSearchFilters;
-  inputWidth?: number;
   setContext: FiltersProps['setContext'];
   loading: boolean;
 };
@@ -48,7 +49,6 @@ function RangeFilter({
   maxValue,
   minField,
   maxField,
-  inputWidth = 90,
   setContext,
   loading,
 }: RangeFilterProps) {
@@ -94,7 +94,7 @@ function RangeFilter({
           labelBg="var(--blert-filter-surface)"
           type="number"
           value={minText}
-          width={inputWidth}
+          width={RANGE_INPUT_WIDTH}
           onChange={(e) => setMinText(e.target.value)}
           onBlur={() => commit(minField, minText)}
           onKeyDown={(e) => handleKeyDown(e, minField, minText)}
@@ -107,7 +107,7 @@ function RangeFilter({
           labelBg="var(--blert-filter-surface)"
           type="number"
           value={maxText}
-          width={inputWidth}
+          width={RANGE_INPUT_WIDTH}
           onChange={(e) => setMaxText(e.target.value)}
           onBlur={() => commit(maxField, maxText)}
           onKeyDown={(e) => handleKeyDown(e, maxField, maxText)}
