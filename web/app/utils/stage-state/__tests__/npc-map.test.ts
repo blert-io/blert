@@ -1,6 +1,6 @@
 import { Event, EventType, RoomNpcType } from '@blert/common';
 
-import { NpcMapBuilder, buildNpcMapFromEvents } from '../npc-map';
+import { NpcMapBuilder } from '../npc-map';
 
 function spawnEvent(roomId: number, npcId: number, tick: number): Event {
   return {
@@ -22,6 +22,12 @@ function deathEvent(roomId: number, tick: number): Event {
     yCoord: 40 + roomId,
     npc: { roomId, id: 0, hitpoints: 0, prayers: 0 },
   } as Event;
+}
+
+function buildNpcMapFromEvents(events: Event[]) {
+  const builder = new NpcMapBuilder();
+  builder.append(events);
+  return builder.npcMap;
 }
 
 describe('buildNpcMapFromEvents', () => {

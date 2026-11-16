@@ -78,12 +78,3 @@ export class NpcMapBuilder {
     this.map = {};
   }
 }
-
-/**
- * Builds a `RawRoomNpcMap` from NPC_SPAWN and NPC_DEATH events.
- */
-export function buildNpcMapFromEvents(events: Event[]): RawRoomNpcMap {
-  const builder = new NpcMapBuilder();
-  builder.append(events);
-  return builder.npcMap;
-}
