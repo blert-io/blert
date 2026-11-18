@@ -28,6 +28,8 @@ const DISABLEABLE_MODES: readonly (readonly [
   [ChallengeType.TOB, ChallengeMode.TOB_ENTRY, 'entry'],
   [ChallengeType.TOB, ChallengeMode.TOB_REGULAR, 'regular'],
   [ChallengeType.TOB, ChallengeMode.TOB_HARD, 'hard'],
+  [ChallengeType.TFA, ChallengeMode.TFA_NORMAL, 'normal'],
+  [ChallengeType.TFA, ChallengeMode.TFA_PRACTICE, 'practice'],
 ];
 
 const MODE_KEYS: ReadonlyMap<ChallengeMode, string> = new Map(
