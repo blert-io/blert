@@ -1256,7 +1256,7 @@ fn builder_ingest_vars() {
         PluginVersion::new(0, 10, 5),
         ConfigVersion::LATEST,
         Stage::TfaXarth,
-        ChallengeMode::NoMode,
+        ChallengeMode::TfaNormal,
         vec![
             Rsn::try_from("Sacolyn").unwrap(),
             Rsn::try_from("1Ogp").unwrap(),
@@ -1346,7 +1346,7 @@ fn builder_ingest_vars_rejects_malformed_events() {
         PluginVersion::new(0, 10, 5),
         ConfigVersion::LATEST,
         Stage::TfaXarth,
-        ChallengeMode::NoMode,
+        ChallengeMode::TfaNormal,
         vec![
             Rsn::try_from("Sacolyn").unwrap(),
             Rsn::try_from("1Ogp").unwrap(),
@@ -1755,7 +1755,7 @@ fn builder_ingest_spot_anims() {
         PluginVersion::new(0, 10, 7),
         ConfigVersion::LATEST,
         Stage::TfaGuardian,
-        ChallengeMode::NoMode,
+        ChallengeMode::TfaNormal,
         vec![Rsn::try_from("1Ogp").unwrap()],
         None,
     );
@@ -4331,7 +4331,7 @@ fn extract_npc_state_update_last_seen_tick() {
 fn extract_npc_state_generic_update() {
     let recording = Recording::vacant(
         Stage::TfaOcellus,
-        ChallengeMode::NoMode,
+        ChallengeMode::TfaNormal,
         vec![Rsn::try_from("1Ogp").unwrap()],
         Tick(116),
     );

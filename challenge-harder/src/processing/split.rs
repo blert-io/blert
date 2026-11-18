@@ -56,6 +56,8 @@ impl SplitExt for SplitType {
             ChallengeMode::TobHard => 2,
             ChallengeMode::NoMode
             | ChallengeMode::TobEntry
+            | ChallengeMode::TfaNormal
+            | ChallengeMode::TfaPractice
             | ChallengeMode::CoxRegular
             | ChallengeMode::CoxChallenge
             | ChallengeMode::ToaEntry

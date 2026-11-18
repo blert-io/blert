@@ -118,7 +118,7 @@ export default function RecentChallengeCard({
           {challengeName(challenge.type)}{' '}
           <span className={styles.recentMeta}>
             ({scaleString}
-            {challenge.mode !== ChallengeMode.NO_MODE && `, ${modeString}`})
+            {challenge.type === ChallengeType.TOB && `, ${modeString}`})
           </span>
         </div>
         <div className={styles.recentStatus}>

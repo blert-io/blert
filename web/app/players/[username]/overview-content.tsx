@@ -543,7 +543,7 @@ export default function PlayerOverviewContent({
           <PbTable
             title="Fractured Archive"
             challengeType={ChallengeType.TFA}
-            mode={ChallengeMode.NO_MODE}
+            mode={ChallengeMode.TFA_NORMAL}
             pbs={tfaPbs}
           />
         </div>

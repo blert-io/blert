@@ -447,7 +447,7 @@ async fn reported_overall_time_without_challenge_time_keeps_the_recorded_ticks()
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::TfaOcellus,

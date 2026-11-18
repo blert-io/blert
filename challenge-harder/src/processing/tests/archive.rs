@@ -48,7 +48,7 @@ async fn route_sets_row_bits_at_stage_start() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::TfaGuardian,
@@ -170,7 +170,7 @@ async fn route_is_set_for_challenge_that_started_recording_late() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::TfaBork,
@@ -242,7 +242,7 @@ async fn route_is_null_for_a_recording_starting_past_the_second_row() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::TfaMoia,
@@ -314,7 +314,7 @@ async fn route_is_null_after_a_row_without_a_start() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::TfaGuardian,
@@ -436,7 +436,7 @@ async fn stage_start_writes_the_reported_overall_ticks() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: vec![Rsn::try_from(player.clone()).unwrap()],
         party_changed: false,
         stage: Stage::TfaGuardian,
@@ -620,7 +620,7 @@ async fn guardian_test() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: GUARDIAN_PARTY
             .iter()
             .map(|name| Rsn::try_from(*name).unwrap())
@@ -738,7 +738,7 @@ async fn verify_guardian_stage_rows(
         .await
         .expect("challenge row");
     assert_eq!(row.get::<_, i16>(0), ChallengeType::Tfa as i16);
-    assert_eq!(row.get::<_, i16>(1), ChallengeMode::NoMode as i16);
+    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TfaNormal as i16);
     assert_eq!(row.get::<_, i16>(2), 5);
     assert_eq!(row.get::<_, i16>(3), Stage::TfaGuardian as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
@@ -942,7 +942,7 @@ async fn guardian_merge_clean_test() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: party
             .iter()
             .map(|name| Rsn::try_from(*name).unwrap())
@@ -1111,7 +1111,7 @@ async fn xarth_test() {
         uuid,
         session_uuid: Uuid::new_v4(),
         challenge_type: ChallengeType::Tfa,
-        mode: ChallengeMode::NoMode,
+        mode: ChallengeMode::TfaNormal,
         party: party
             .iter()
             .map(|name| Rsn::try_from(*name).unwrap())
@@ -1229,7 +1229,7 @@ async fn verify_xarth_stage_rows(
         .await
         .expect("challenge row");
     assert_eq!(row.get::<_, i16>(0), ChallengeType::Tfa as i16);
-    assert_eq!(row.get::<_, i16>(1), ChallengeMode::NoMode as i16);
+    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TfaNormal as i16);
     assert_eq!(row.get::<_, i16>(2), 4);
     assert_eq!(row.get::<_, i16>(3), Stage::TfaXarth as i16);
     assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);

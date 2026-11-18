@@ -88,8 +88,11 @@ fn join(state: &ChallengeState, join: &Join) -> Vec<LifecycleEvent> {
 
 #[allow(clippy::too_many_lines)]
 fn update(state: &ChallengeState, update: &Update) -> Vec<LifecycleEvent> {
-    // Entry mode tracking is disabled.
-    if update.mode == Some(ChallengeMode::TobEntry) {
+    // Entry and practice mode tracking is disabled.
+    if matches!(
+        update.mode,
+        Some(ChallengeMode::TobEntry | ChallengeMode::TfaPractice)
+    ) {
         // The open stage is left unsealed so that nothing recorded is kept.
         let mut events: Vec<LifecycleEvent> = state
             .clients
@@ -645,7 +648,7 @@ mod tests {
     fn stage_started_takes_overall_ticks_from_the_start_report() {
         let state = ChallengeState {
             challenge_type: ChallengeType::Tfa,
-            mode: ChallengeMode::NoMode,
+            mode: ChallengeMode::TfaNormal,
             stage: Stage::TfaGuardian,
             stage_status: StageStatus::Completed,
             stage_state: StageState::Complete {
