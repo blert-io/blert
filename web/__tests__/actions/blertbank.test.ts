@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 
-import { getUserBalance, getUserAccount } from '@/actions/blertbank';
+import { getUserAccount } from '@/actions/blertbank';
 import {
   BlertbankClient,
   BlertbankError,
@@ -62,109 +62,6 @@ describe('Blertbank actions', () => {
     delete process.env.BLERTBANK_SERVICE_TOKEN;
   });
 
-  describe('getUserBalance', () => {
-    it('should return balance for authenticated user', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      mockClient.getOrCreateBalance.mockResolvedValue(5000);
-
-      const balance = await getUserBalance();
-
-      expect(balance).toBe(5000);
-      expect(mockClient.getOrCreateBalance).toHaveBeenCalledWith(123);
-    });
-
-    it('should create account and return 0 balance for new user', async () => {
-      mockGetSignedInUserId.mockResolvedValue(456);
-
-      mockClient.getOrCreateBalance.mockResolvedValue(0);
-
-      const balance = await getUserBalance();
-
-      expect(balance).toBe(0);
-      expect(mockClient.getOrCreateBalance).toHaveBeenCalledWith(456);
-    });
-
-    it('should throw error when user is not authenticated', async () => {
-      mockGetSignedInUserId.mockResolvedValue(null);
-
-      await expect(getUserBalance()).rejects.toThrow('Not authenticated');
-      expect(mockClient.getOrCreateBalance).not.toHaveBeenCalled();
-    });
-
-    it('should throw error when BLERTBANK_BASE_URL is not configured', async () => {
-      delete process.env.BLERTBANK_BASE_URL;
-
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      await expect(getUserBalance()).rejects.toThrow(
-        'BLERTBANK_BASE_URL is not configured',
-      );
-      expect(mockClient.getOrCreateBalance).not.toHaveBeenCalled();
-    });
-
-    it('should throw error when BLERTBANK_SERVICE_TOKEN is not configured', async () => {
-      delete process.env.BLERTBANK_SERVICE_TOKEN;
-
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      await expect(getUserBalance()).rejects.toThrow(
-        'BLERTBANK_SERVICE_TOKEN is not configured',
-      );
-      expect(mockClient.getOrCreateBalance).not.toHaveBeenCalled();
-    });
-
-    it('should throw error when service token is unauthorized', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      mockClient.getOrCreateBalance.mockRejectedValue(
-        new UnauthorizedError('Invalid service token'),
-      );
-
-      await expect(getUserBalance()).rejects.toThrow(
-        'Service configuration error',
-      );
-    });
-
-    it('should return 0 when Blertbank service is unavailable', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      mockClient.getOrCreateBalance.mockRejectedValue(
-        new BlertbankError('Service unavailable'),
-      );
-
-      const balance = await getUserBalance();
-
-      expect(balance).toBe(0);
-    });
-
-    it('should return 0 when network error occurs', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      mockClient.getOrCreateBalance.mockRejectedValue(
-        new Error('Network error'),
-      );
-
-      const balance = await getUserBalance();
-
-      expect(balance).toBe(0);
-    });
-
-    it('should initialize BlertbankClient with correct config', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      mockClient.getOrCreateBalance.mockResolvedValue(1000);
-
-      await getUserBalance();
-
-      expect(MockedBlertbankClient).toHaveBeenCalledWith({
-        baseUrl: 'http://localhost:3013',
-        serviceToken: 'test-token',
-        serviceName: 'web-app',
-      });
-    });
-  });
-
   describe('getUserAccount', () => {
     const mockAccount = {
       accountId: 789,
@@ -211,6 +108,28 @@ describe('Blertbank actions', () => {
       expect(mockClient.getOrCreateAccountForUser).not.toHaveBeenCalled();
     });
 
+    it('should throw error when BLERTBANK_BASE_URL is not configured', async () => {
+      delete process.env.BLERTBANK_BASE_URL;
+
+      mockGetSignedInUserId.mockResolvedValue(123);
+
+      await expect(getUserAccount()).rejects.toThrow(
+        'BLERTBANK_BASE_URL is not configured',
+      );
+      expect(mockClient.getOrCreateAccountForUser).not.toHaveBeenCalled();
+    });
+
+    it('should throw error when BLERTBANK_SERVICE_TOKEN is not configured', async () => {
+      delete process.env.BLERTBANK_SERVICE_TOKEN;
+
+      mockGetSignedInUserId.mockResolvedValue(123);
+
+      await expect(getUserAccount()).rejects.toThrow(
+        'BLERTBANK_SERVICE_TOKEN is not configured',
+      );
+      expect(mockClient.getOrCreateAccountForUser).not.toHaveBeenCalled();
+    });
+
     it('should throw error when service token is unauthorized', async () => {
       mockGetSignedInUserId.mockResolvedValue(123);
 
@@ -247,6 +166,20 @@ describe('Blertbank actions', () => {
       expect(account).toBeNull();
     });
 
+    it('should initialize BlertbankClient with correct config', async () => {
+      mockGetSignedInUserId.mockResolvedValue(123);
+
+      mockClient.getOrCreateAccountForUser.mockResolvedValue(mockAccount);
+
+      await getUserAccount();
+
+      expect(MockedBlertbankClient).toHaveBeenCalledWith({
+        baseUrl: 'http://localhost:3013',
+        serviceToken: 'test-token',
+        serviceName: 'web-app',
+      });
+    });
+
     it('should handle large balance values correctly', async () => {
       const largeBalanceAccount = {
         ...mockAccount,
@@ -262,49 +195,6 @@ describe('Blertbank actions', () => {
       const account = await getUserAccount();
 
       expect(account?.balance).toBe(9999999);
-    });
-  });
-
-  describe('error handling and logging', () => {
-    let consoleErrorSpy: jest.SpyInstance;
-
-    beforeEach(() => {
-      consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-    });
-
-    afterEach(() => {
-      consoleErrorSpy.mockRestore();
-    });
-
-    it('should return 0 for BlertbankError', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      const error = new BlertbankError('Service unavailable');
-      mockClient.getOrCreateBalance.mockRejectedValue(error);
-
-      const balance = await getUserBalance();
-      expect(balance).toBe(0);
-    });
-
-    it('should throw for UnauthorizedError', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      const error = new UnauthorizedError('Invalid token');
-      mockClient.getOrCreateBalance.mockRejectedValue(error);
-
-      await expect(getUserBalance()).rejects.toThrow(
-        'Service configuration error',
-      );
-    });
-
-    it('should return 0 for unexpected errors', async () => {
-      mockGetSignedInUserId.mockResolvedValue(123);
-
-      const error = new Error('Unexpected error');
-      mockClient.getOrCreateBalance.mockRejectedValue(error);
-
-      const balance = await getUserBalance();
-      expect(balance).toBe(0);
     });
   });
 });

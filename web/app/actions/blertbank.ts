@@ -47,49 +47,6 @@ function getBlertbankClient(): BlertbankClient {
 }
 
 /**
- * Gets the Blertcoin balance for the current user.
- * Creates an account with 0 balance if the user doesn't have one yet.
- *
- * @returns The user's current Blertcoin balance.
- * @throws Error no user is authenticated or the request fails.
- */
-export async function getUserBalance(): Promise<number> {
-  return withServerAction('getUserBalance', async () => {
-    const userId = await ensureAuthenticated();
-    const client = getBlertbankClient();
-
-    try {
-      const balance = await client.getOrCreateBalance(userId);
-      return balance;
-    } catch (error) {
-      if (error instanceof UnauthorizedError) {
-        logger.error('blertbank_auth_failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error('Service configuration error');
-      }
-
-      if (error instanceof BlertbankError) {
-        logger.error('blertbank_error', {
-          userId,
-          method: 'getOrCreateBalance',
-          error: error instanceof Error ? error.message : String(error),
-        });
-        // Return 0 for non-critical errors to degrade gracefully.
-        return 0;
-      }
-
-      logger.error('blertbank_unexpected_error', {
-        userId,
-        method: 'getOrCreateBalance',
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return 0;
-    }
-  });
-}
-
-/**
  * Gets the full account information for the current user.
  * Creates an account if the user doesn't have one yet.
  *
