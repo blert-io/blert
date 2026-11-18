@@ -419,7 +419,7 @@ mod tests {
             &json!({
                 "userId": 1, "clientId": 10, "sessionToken": "tok",
                 "pluginVersion": "0.9.14", "runeLiteVersion": "1.12.31.1",
-                "type": 7, "mode": 0, "party": ["WWWWWWWWWWQQ"], "stage": 60,
+                "type": 7, "mode": 40, "party": ["WWWWWWWWWWQQ"], "stage": 60,
                 "recordingType": 1,
             }),
         )

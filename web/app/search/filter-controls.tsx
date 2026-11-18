@@ -7,6 +7,7 @@ import {
   stageName,
   TFA_ROWS,
 } from '@blert/common';
+import { Fragment } from 'react';
 
 import Checkbox from '@/components/checkbox';
 import DatePicker from '@/components/date-picker';
@@ -22,12 +23,16 @@ import styles from './filter-controls.module.scss';
 const DATE_INPUT_WIDTH = 132;
 const MAX_PARTY_SIZE = 8;
 
-const NO_MODE_CHALLENGE_TYPES = new Set<ChallengeType>([
-  ChallengeType.TFA,
-  ChallengeType.COLOSSEUM,
-  ChallengeType.INFERNO,
-  ChallengeType.MOKHAIOTL,
-]);
+const TYPE_CHECKBOXES: readonly (readonly [
+  ChallengeType,
+  ChallengeMode,
+  string,
+])[] = [
+  [ChallengeType.TFA, ChallengeMode.TFA_NORMAL, 'TFA'],
+  [ChallengeType.INFERNO, ChallengeMode.NO_MODE, 'Inferno'],
+  [ChallengeType.COLOSSEUM, ChallengeMode.NO_MODE, 'Colosseum'],
+  [ChallengeType.MOKHAIOTL, ChallengeMode.NO_MODE, 'Mokhaiotl'],
+];
 
 function isTobMode(mode: ChallengeMode): boolean {
   return mode >= ChallengeMode.TOB_ENTRY && mode <= ChallengeMode.TOB_HARD;
@@ -221,25 +226,29 @@ export function toggleTobMode(
   };
 }
 
-export function toggleNoModeType(
+export function toggleType(
   type: ChallengeType[],
   mode: ChallengeMode[],
   targetType: ChallengeType,
 ): { type: ChallengeType[]; mode: ChallengeMode[] } {
+  const targetMode = TYPE_CHECKBOXES.find(([t]) => t === targetType)?.[1];
+  if (targetMode === undefined) {
+    return { type, mode };
+  }
+
   const remove = type.includes(targetType);
   if (remove) {
-    const keepNoMode = type.some(
-      (t) => t !== targetType && NO_MODE_CHALLENGE_TYPES.has(t),
+    const keepMode = TYPE_CHECKBOXES.some(
+      ([t, m]) => t !== targetType && m === targetMode && type.includes(t),
     );
     return {
       type: type.filter((t) => t !== targetType),
-      mode: keepNoMode ? mode : mode.filter((m) => m !== ChallengeMode.NO_MODE),
+      mode: keepMode ? mode : mode.filter((m) => m !== targetMode),
     };
   }
-  const hasNoMode = mode.includes(ChallengeMode.NO_MODE);
   return {
     type: [...type, targetType],
-    mode: hasNoMode ? mode : [...mode, ChallengeMode.NO_MODE],
+    mode: mode.includes(targetMode) ? mode : [...mode, targetMode],
   };
 }
 
@@ -309,9 +318,9 @@ export function TypeFilter({
     );
   }
 
-  function noModeCheckbox(target: ChallengeType, label: string) {
+  function typeCheckbox(target: ChallengeType, label: string) {
     const checked = type.includes(target);
-    const next = toggleNoModeType(type, mode, target);
+    const next = toggleType(type, mode, target);
     const isDisabled =
       (isRestricted(target) && !checked) ||
       (checked && !isAllowedTypeSelection(next.type, allowedTypes));
@@ -336,10 +345,9 @@ export function TypeFilter({
           tobRegularChecked,
         )}
         {tobModeCheckbox(ChallengeMode.TOB_HARD, 'ToB Hard', tobHardChecked)}
-        {noModeCheckbox(ChallengeType.TFA, 'TFA')}
-        {noModeCheckbox(ChallengeType.INFERNO, 'Inferno')}
-        {noModeCheckbox(ChallengeType.COLOSSEUM, 'Colosseum')}
-        {noModeCheckbox(ChallengeType.MOKHAIOTL, 'Mokhaiotl')}
+        {TYPE_CHECKBOXES.map(([target, , label]) => (
+          <Fragment key={target}>{typeCheckbox(target, label)}</Fragment>
+        ))}
       </div>
     </FilterField>
   );

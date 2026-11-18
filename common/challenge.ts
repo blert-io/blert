@@ -438,6 +438,9 @@ export enum ChallengeMode {
   TOB_ENTRY = ChallengeModeProto.TOB_ENTRY,
   TOB_REGULAR = ChallengeModeProto.TOB_REGULAR,
   TOB_HARD = ChallengeModeProto.TOB_HARD,
+
+  TFA_NORMAL = ChallengeModeProto.TFA_NORMAL,
+  TFA_PRACTICE = ChallengeModeProto.TFA_PRACTICE,
 }
 
 export enum StageStatus {

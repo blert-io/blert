@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  ChallengeMode,
   ChallengeStatus,
+  ChallengeType,
   SessionStatus,
   challengeName,
 } from '@blert/common';
@@ -88,8 +88,7 @@ export default function SessionFeedCard({ item }: SessionFeedCardProps) {
           <div className={styles.sessionTitle}>
             <h3>
               {challengeName(session.challengeType)} ({scaleString}
-              {session.challengeMode !== ChallengeMode.NO_MODE &&
-                `, ${modeString}`}
+              {session.challengeType === ChallengeType.TOB && `, ${modeString}`}
               )
             </h3>
             <div className={styles.sessionMeta}>

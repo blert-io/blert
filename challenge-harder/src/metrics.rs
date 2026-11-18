@@ -457,6 +457,8 @@ fn mode_label(mode: ChallengeMode) -> &'static str {
         ChallengeMode::TobEntry => "tob_entry",
         ChallengeMode::TobRegular => "tob_regular",
         ChallengeMode::TobHard => "tob_hard",
+        ChallengeMode::TfaNormal => "tfa_normal",
+        ChallengeMode::TfaPractice => "tfa_practice",
         _ => unimplemented!("unsupported mode: {mode:?}"),
     }
 }

@@ -339,7 +339,7 @@ mod tests {
 
         let mut recording = Recording::vacant(
             Stage::TfaGuardian,
-            ChallengeMode::NoMode,
+            ChallengeMode::TfaNormal,
             vec![Rsn::try_from("1Ogp").unwrap()],
             Tick(3017),
         );
@@ -420,7 +420,7 @@ mod tests {
 
         let mut recording = Recording::vacant(
             Stage::TfaGuardian,
-            ChallengeMode::NoMode,
+            ChallengeMode::TfaNormal,
             vec![Rsn::try_from("1Ogp").unwrap()],
             Tick(113),
         );

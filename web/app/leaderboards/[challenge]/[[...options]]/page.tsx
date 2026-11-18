@@ -125,6 +125,7 @@ export default async function LeaderboardsPage(props: LeaderboardsPageProps) {
 
     case 'tfa': {
       challengeType = ChallengeType.TFA;
+      mode = ChallengeMode.TFA_NORMAL;
       if (options?.length !== 1) {
         redirect('/leaderboards/tfa/8');
       }

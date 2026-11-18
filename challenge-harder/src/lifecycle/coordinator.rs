@@ -305,8 +305,11 @@ impl Coordinator {
         &self,
         request: CreateRequest,
     ) -> Result<Snapshot, StartError> {
-        // Entry mode raids are not recorded.
-        if request.mode == ChallengeMode::TobEntry {
+        // Entry and practice mode raids are not recorded.
+        if matches!(
+            request.mode,
+            ChallengeMode::TobEntry | ChallengeMode::TfaPractice
+        ) {
             metrics::record_challenge_request(
                 RequestAction::Create,
                 request.challenge_type,

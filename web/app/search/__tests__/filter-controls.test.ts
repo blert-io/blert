@@ -2,8 +2,8 @@ import { ChallengeMode, ChallengeType } from '@blert/common';
 
 import {
   isAllowedTypeSelection,
-  toggleNoModeType,
   toggleTobMode,
+  toggleType,
 } from '../filter-controls';
 
 describe('toggleTobMode', () => {
@@ -57,15 +57,21 @@ describe('toggleTobMode', () => {
   });
 });
 
-describe('toggleNoModeType', () => {
+describe('toggleType', () => {
   it('adds the type and NO_MODE when neither is present', () => {
-    const result = toggleNoModeType([], [], ChallengeType.INFERNO);
+    const result = toggleType([], [], ChallengeType.INFERNO);
     expect(result.type).toEqual([ChallengeType.INFERNO]);
     expect(result.mode).toEqual([ChallengeMode.NO_MODE]);
   });
 
+  it('adds TFA and TFA_NORMAL when neither is present', () => {
+    const result = toggleType([], [], ChallengeType.TFA);
+    expect(result.type).toEqual([ChallengeType.TFA]);
+    expect(result.mode).toEqual([ChallengeMode.TFA_NORMAL]);
+  });
+
   it('does not duplicate NO_MODE if another no-mode type already set it', () => {
-    const result = toggleNoModeType(
+    const result = toggleType(
       [ChallengeType.INFERNO],
       [ChallengeMode.NO_MODE],
       ChallengeType.COLOSSEUM,
@@ -78,7 +84,7 @@ describe('toggleNoModeType', () => {
   });
 
   it('removes the type and NO_MODE when it was the only no-mode type', () => {
-    const result = toggleNoModeType(
+    const result = toggleType(
       [ChallengeType.INFERNO],
       [ChallengeMode.NO_MODE],
       ChallengeType.INFERNO,
@@ -88,7 +94,7 @@ describe('toggleNoModeType', () => {
   });
 
   it('keeps NO_MODE set if another no-mode type exists', () => {
-    const result = toggleNoModeType(
+    const result = toggleType(
       [ChallengeType.INFERNO, ChallengeType.COLOSSEUM],
       [ChallengeMode.NO_MODE],
       ChallengeType.INFERNO,
@@ -97,18 +103,18 @@ describe('toggleNoModeType', () => {
     expect(result.mode).toEqual([ChallengeMode.NO_MODE]);
   });
 
-  it('keeps NO_MODE set if TFA exists', () => {
-    const result = toggleNoModeType(
+  it('sets mode to TFA_NORMAL if TFA exists', () => {
+    const result = toggleType(
       [ChallengeType.TFA, ChallengeType.INFERNO],
-      [ChallengeMode.NO_MODE],
+      [ChallengeMode.TFA_NORMAL, ChallengeMode.NO_MODE],
       ChallengeType.INFERNO,
     );
     expect(result.type).toEqual([ChallengeType.TFA]);
-    expect(result.mode).toEqual([ChallengeMode.NO_MODE]);
+    expect(result.mode).toEqual([ChallengeMode.TFA_NORMAL]);
   });
 
   it('leaves other modes (e.g. TOB) untouched', () => {
-    const result = toggleNoModeType(
+    const result = toggleType(
       [ChallengeType.TOB, ChallengeType.INFERNO],
       [ChallengeMode.TOB_REGULAR, ChallengeMode.NO_MODE],
       ChallengeType.INFERNO,

@@ -553,7 +553,7 @@ mod tests {
     fn stage_start_trigger_takes_overall_ticks_from_stage_started() {
         let mut state = created_state(
             ChallengeType::Tfa,
-            ChallengeMode::NoMode,
+            ChallengeMode::TfaNormal,
             Stage::TfaGuardian,
         );
         state.processing = Processing::new(ProcessingConfig {

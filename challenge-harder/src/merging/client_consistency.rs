@@ -1474,7 +1474,7 @@ mod tests {
         for (stage, start, end) in cases {
             let timeline = fixtures::timeline(
                 stage,
-                ChallengeMode::NoMode,
+                ChallengeMode::TfaNormal,
                 &party,
                 Tick(2),
                 vec![
@@ -1501,7 +1501,7 @@ mod tests {
         for (stage, start, end) in cases {
             let timeline = fixtures::timeline(
                 stage,
-                ChallengeMode::NoMode,
+                ChallengeMode::TfaNormal,
                 &party,
                 Tick(2),
                 vec![
@@ -1523,7 +1523,7 @@ mod tests {
         for (stage, start, end) in cases {
             let timeline = fixtures::timeline(
                 stage,
-                ChallengeMode::NoMode,
+                ChallengeMode::TfaNormal,
                 &party,
                 Tick(2),
                 vec![

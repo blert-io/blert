@@ -454,7 +454,7 @@ impl ActiveChallenge {
         }
 
         if let Command::Update(update) = cmd
-            && let Some(mode @ ChallengeMode::TobEntry) = update.mode
+            && let Some(mode @ (ChallengeMode::TobEntry | ChallengeMode::TfaPractice)) = update.mode
         {
             tracing::info!(
                 uuid = %self.state.uuid,

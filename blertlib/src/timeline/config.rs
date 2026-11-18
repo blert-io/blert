@@ -25,7 +25,7 @@ impl ConfigVersion {
     pub const NONE: Self = Self(0);
 
     /// The most current supported config version.
-    pub const LATEST: Self = Self(9);
+    pub const LATEST: Self = Self(10);
 
     /// Attempts to parse a config version from an integer value.
     ///

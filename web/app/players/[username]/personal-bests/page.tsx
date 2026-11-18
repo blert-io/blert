@@ -414,7 +414,7 @@ function typeParamToSelection(
     case 'hmt':
       return [ChallengeType.TOB, ChallengeMode.TOB_HARD];
     case 'tfa':
-      return [ChallengeType.TFA, ChallengeMode.NO_MODE];
+      return [ChallengeType.TFA, ChallengeMode.TFA_NORMAL];
     case 'inf':
       return [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
     case 'colo':
@@ -693,7 +693,7 @@ export default function PlayerPersonalBests() {
                   newSelection = [ChallengeType.TOB, ChallengeMode.TOB_HARD];
                   break;
                 case 'tfa':
-                  newSelection = [ChallengeType.TFA, ChallengeMode.NO_MODE];
+                  newSelection = [ChallengeType.TFA, ChallengeMode.TFA_NORMAL];
                   break;
                 case 'inf':
                   newSelection = [ChallengeType.INFERNO, ChallengeMode.NO_MODE];
