@@ -33,6 +33,7 @@ import {
   AnyEntity,
   CustomEntity,
   EntityType,
+  InteractiveEntity,
   MapDefinition,
   NpcEntity,
   ObjectEntity,
@@ -83,7 +84,7 @@ const PARTY_COLORS = [
 ];
 
 type StackEntity = {
-  entity: AnyEntity;
+  entity: InteractiveEntity;
   fanOutIndex: number;
 };
 

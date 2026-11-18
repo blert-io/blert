@@ -1,3 +1,4 @@
+import { Coords } from '@blert/common';
 import { shaderMaterial } from '@react-three/drei';
 import { extend, useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
@@ -13,6 +14,7 @@ import {
 import { hash } from '@/utils/math';
 
 export type DustCloudData = {
+  tile: Coords;
   age: number;
   delay: number;
 };
@@ -112,13 +114,11 @@ export default function DustCloudRenderer({
   entity: CustomEntity<DustCloudData>;
 }) {
   const { config, playing } = useReplayContext();
-  const { age, delay } = entity.data;
+  const { tile, age, delay } = entity.data;
 
-  const seed =
-    Math.abs(entity.position.x * 374.761 + entity.position.y * 668.265) %
-    1000.0;
+  const seed = Math.abs(tile.x * 374.761 + tile.y * 668.265) % 1000.0;
 
-  const position = osrsToThreePosition(entity.position, 0.01);
+  const position = osrsToThreePosition(tile, 0.01);
   const puffs = useMemo(() => generatePuffs(seed), [seed]);
 
   const groupRef = useRef<THREE.Group>(null);

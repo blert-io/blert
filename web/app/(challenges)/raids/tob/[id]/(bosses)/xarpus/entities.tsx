@@ -28,6 +28,7 @@ export enum ExhumedState {
 }
 
 export type ExhumedData = {
+  position: Coords;
   state: ExhumedState;
   healCount: number;
 };
@@ -54,10 +55,12 @@ export type AcidBallData = {
 };
 
 export type AcidSplashData = {
+  position: Coords;
   tick: number;
 };
 
 export type AcidPoolData = {
+  position: Coords;
   formTick: number;
   despawnTick: number | null;
   quarterTurns: number;
@@ -144,11 +147,10 @@ function getParabolicPosition(
 export class ExhumedEntity extends CustomEntity<ExhumedData> {
   constructor(position: Coords, state: ExhumedState, healCount: number) {
     super(
-      position,
       'Exhumed',
       1,
       ExhumedRenderer,
-      { state, healCount },
+      { position, state, healCount },
       `exhumed-${position.x}-${position.y}`,
     );
   }
@@ -157,7 +159,6 @@ export class ExhumedEntity extends CustomEntity<ExhumedData> {
 export class PoisonBallEntity extends CustomEntity<PoisonBallData> {
   constructor(from: Coords, to: Coords) {
     super(
-      from,
       'Poison Ball',
       1,
       PoisonBallRenderer,
@@ -173,7 +174,6 @@ export class PoisonBallEntity extends CustomEntity<PoisonBallData> {
 export class DangerQuadrantEntity extends CustomEntity<DangerQuadrantData> {
   constructor(center: Coords, corner: Coords) {
     super(
-      center,
       'Danger Quadrant',
       1,
       DangerQuadrantRenderer,
@@ -209,7 +209,6 @@ export class AcidBallEntity extends CustomEntity<AcidBallData> {
     const acceleration =
       (-2 * (fromHeight + velocity * flightCycles)) / flightCycles ** 2;
     super(
-      from,
       'Acid Ball',
       1,
       AcidBallRenderer,
@@ -230,18 +229,18 @@ export class AcidBallEntity extends CustomEntity<AcidBallData> {
 
 export class AcidSplashEntity extends CustomEntity<AcidSplashData> {
   constructor(position: Coords, tick: number, uniqueId: string) {
-    super(position, 'Acid Splash', 1, AcidSplashRenderer, { tick }, uniqueId);
+    super('Acid Splash', 1, AcidSplashRenderer, { position, tick }, uniqueId);
   }
 }
 
 export class AcidPoolEntity extends CustomEntity<AcidPoolData> {
   constructor(position: Coords, formTick: number, despawnTick: number | null) {
     super(
-      position,
       'Acid Pool',
       1,
       AcidPoolRenderer,
       {
+        position,
         formTick,
         despawnTick,
         quarterTurns: Math.floor(
@@ -363,7 +362,7 @@ function ExhumedRenderer({ entity }: { entity: CustomEntity<ExhumedData> }) {
     }
   });
 
-  const position = osrsToThreePosition(entity.position, 0.01);
+  const position = osrsToThreePosition(entity.data.position, 0.01);
 
   return (
     <group ref={groupRef} position={position}>
@@ -621,7 +620,7 @@ function AcidSplashRenderer({
   entity: CustomEntity<AcidSplashData>;
 }) {
   return (
-    <Billboard position={osrsToThreePosition(entity.position, 0)}>
+    <Billboard position={osrsToThreePosition(entity.data.position, 0)}>
       <Suspense fallback={null}>
         <AcidSplash data={entity.data} />
       </Suspense>
@@ -663,7 +662,7 @@ function AcidSplash({ data }: { data: AcidSplashData }) {
 function AcidPoolRenderer({ entity }: { entity: CustomEntity<AcidPoolData> }) {
   return (
     <group
-      position={osrsToThreePosition(entity.position, ACID_POOL_HEIGHT)}
+      position={osrsToThreePosition(entity.data.position, ACID_POOL_HEIGHT)}
       rotation={[-Math.PI / 2, 0, (entity.data.quarterTurns * Math.PI) / 2]}
     >
       <Suspense fallback={null}>

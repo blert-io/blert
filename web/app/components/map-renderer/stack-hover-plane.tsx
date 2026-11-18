@@ -5,11 +5,11 @@ import { ThreeEvent } from '@react-three/fiber';
 import { useMemo } from 'react';
 
 import { calculateFanOutOffset, osrsToThreePosition } from './animation';
-import { AnyEntity } from './types';
+import { InteractiveEntity } from './types';
 
 interface StackHoverPlaneProps {
   /** The entities in the stack. */
-  entities: AnyEntity[];
+  entities: InteractiveEntity[];
   /** Base tile position of the stack. */
   basePosition: { x: number; y: number };
   /** Callback when mouse leaves the entire stack area. */

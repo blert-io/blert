@@ -1,8 +1,18 @@
-import { useTexture } from '@react-three/drei';
-import { Ref, useEffect, useMemo } from 'react';
+import { Coords } from '@blert/common';
+import { Billboard, useTexture } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
+import { Ref, Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-import { SpriteSheet } from './types';
+import { osrsToThreePosition } from './animation';
+import { useEntityPositions } from './entity-position-context';
+import {
+  cycleToTick,
+  isInterpolating,
+  replayCycle,
+  useReplayContext,
+} from './replay-context';
+import { CustomEntity, SpriteSheet } from './types';
 
 export type SpriteFrame = {
   cell: number;
@@ -112,4 +122,167 @@ export function anchorOffset(sheet: SpriteSheet): [number, number] {
     (0.5 - sheet.anchorX) * sheet.cellWidth,
     (sheet.anchorY - 0.5) * sheet.cellHeight,
   ];
+}
+
+export type SpriteSheetAnimation = {
+  sheet: SpriteSheet;
+  frames: SpriteFrame[];
+  /** When not interpolating, the frame to use for each tick. */
+  staticFramesByTick: number[];
+  layFlat: boolean;
+  height: number;
+};
+
+export function spriteAnimationPlaysOnTick(
+  tick: number,
+  startCycle: number,
+  animation: SpriteSheetAnimation,
+): boolean {
+  const cycles = animation.frames.reduce((sum, f) => sum + f.cycles, 0);
+  return (
+    cycleToTick(startCycle) <= tick &&
+    tick <= cycleToTick(startCycle + cycles - 1)
+  );
+}
+
+function pathPointAt(
+  frames: SpriteFrame[],
+  path: Coords[],
+  cycle: number,
+): Coords | undefined {
+  if (cycle < 0) {
+    return undefined;
+  }
+  let start = 0;
+  for (let i = 0; i < frames.length; i++) {
+    const end = start + frames[i].cycles;
+    if (cycle < end) {
+      const from = path[i];
+      const to = i + 1 < path.length ? path[i + 1] : from;
+      const t = (cycle - start) / frames[i].cycles;
+      return {
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+      };
+    }
+    start = end;
+  }
+  return undefined;
+}
+
+type SpriteAnimationEntityData = {
+  position: Coords;
+  animation: SpriteSheetAnimation;
+  startCycle: number;
+  scale: number;
+  quarterTurns: number;
+  followId: string | null;
+  path: Coords[] | null;
+};
+
+export class SpriteAnimationEntity extends CustomEntity<SpriteAnimationEntityData> {
+  constructor(
+    position: Coords,
+    animation: SpriteSheetAnimation,
+    startCycle: number,
+    uniqueId: string,
+    {
+      scale = 1,
+      quarterTurns = 0,
+      followId = null,
+      path = null,
+    }: {
+      scale?: number;
+      quarterTurns?: number;
+      followId?: string | null;
+      path?: Coords[] | null;
+    } = {},
+  ) {
+    super(
+      'Effect',
+      1,
+      SpriteAnimationEntityRenderer,
+      { position, animation, startCycle, scale, quarterTurns, followId, path },
+      uniqueId,
+    );
+  }
+}
+
+function SpriteAnimationEntityRenderer({
+  entity,
+}: {
+  entity: CustomEntity<SpriteAnimationEntityData>;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <SpriteAnimationEntitySprite entity={entity} />
+    </Suspense>
+  );
+}
+
+function SpriteAnimationEntitySprite({
+  entity,
+}: {
+  entity: CustomEntity<SpriteAnimationEntityData>;
+}) {
+  const { animation, startCycle, scale, quarterTurns, followId, path } =
+    entity.data;
+  const { sheet, layFlat, height } = animation;
+  const replay = useReplayContext();
+  const texture = useSheetTexture(sheet);
+  const { positions } = useEntityPositions();
+
+  const groupRef = useRef<THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(() => {
+    const group = groupRef.current;
+    const mesh = meshRef.current;
+    if (group === null || mesh === null) {
+      return;
+    }
+
+    const cycle = replayCycle(replay) - startCycle;
+    const cell = isInterpolating(replay)
+      ? cellAt(animation.frames, cycle)
+      : animation.staticFramesByTick[
+          replay.currentTick - cycleToTick(startCycle)
+        ];
+    let position: Coords | undefined;
+    if (path !== null) {
+      position = pathPointAt(animation.frames, path, cycle);
+    } else if (followId !== null) {
+      position = positions.get(followId);
+    } else {
+      position = entity.data.position;
+    }
+    if (cell === undefined || position === undefined) {
+      mesh.visible = false;
+      return;
+    }
+
+    showCell(texture, sheet, cell);
+    group.position.set(...osrsToThreePosition(position, height));
+    mesh.visible = true;
+  });
+
+  const sprite = (
+    <SheetSprite
+      ref={meshRef}
+      sheet={sheet}
+      texture={texture}
+      scale={scale}
+      visible={false}
+    />
+  );
+
+  return layFlat ? (
+    <group ref={groupRef}>
+      <group rotation={[-Math.PI / 2, 0, (quarterTurns * Math.PI) / 2]}>
+        {sprite}
+      </group>
+    </group>
+  ) : (
+    <Billboard ref={groupRef}>{sprite}</Billboard>
+  );
 }

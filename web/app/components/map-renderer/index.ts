@@ -25,6 +25,7 @@ export {
 export { useEntityPositions } from './entity-position-context';
 export {
   CYCLES_PER_TICK,
+  cycleToTick,
   isInterpolating,
   replayCycle,
   useReplayContext,
@@ -34,8 +35,11 @@ export {
   cellAt,
   SheetSprite,
   showCell,
+  SpriteAnimationEntity,
+  spriteAnimationPlaysOnTick,
   type SpriteFrame,
   spriteFrames,
+  type SpriteSheetAnimation,
   useSheetTexture,
 } from './sprite-sheet';
 export {

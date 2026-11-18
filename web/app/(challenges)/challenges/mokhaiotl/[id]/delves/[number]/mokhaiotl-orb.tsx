@@ -14,6 +14,7 @@ import {
 import { clamp } from '@/utils/math';
 
 export type MokhaiotlOrbData = {
+  sourcePosition: Coords;
   /** The style of the orb. */
   style: AttackStyle;
   /** Entity ID of the player being targeted. */
@@ -34,11 +35,11 @@ export class MokhaiotlOrb extends CustomEntity<MokhaiotlOrbData> {
     uniqueId: string,
   ) {
     super(
-      sourcePosition,
       'Mokhaiotl Orb',
       1,
       MokhaiotlOrbRenderer,
       {
+        sourcePosition,
         style,
         targetPlayerId,
         totalTravelTicks,
@@ -112,7 +113,7 @@ function MokhaiotlOrbRenderer({
     start: new THREE.Vector3(),
     end: new THREE.Vector3(),
   });
-  const orbPosOsrs = useRef<Coords>({ ...entity.position });
+  const orbPosOsrs = useRef<Coords>({ ...entity.data.sourcePosition });
 
   useEffect(() => {
     animationStartTimeRef.current = null;
@@ -133,7 +134,9 @@ function MokhaiotlOrbRenderer({
       const newStart =
         lastTickRef.current === undefined
           ? // For the very first tick, start at the entity's initial position.
-            new THREE.Vector3().fromArray(osrsToThreePosition(entity.position))
+            new THREE.Vector3().fromArray(
+              osrsToThreePosition(entity.data.sourcePosition),
+            )
           : // For subsequent ticks, start where the last animation segment ended.
             animationSegmentRef.current.end.clone();
 
@@ -236,7 +239,7 @@ function MokhaiotlOrbRenderer({
   });
 
   // Initial position is set based on entity.position, useFrame will update it.
-  const initialPosition = osrsToThreePosition(entity.position);
+  const initialPosition = osrsToThreePosition(entity.data.sourcePosition);
 
   return (
     <group ref={groupRef} position={initialPosition}>

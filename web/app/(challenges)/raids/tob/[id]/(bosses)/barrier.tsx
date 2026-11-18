@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { CustomEntity, useReplayContext } from '@/components/map-renderer';
 
 type BarrierData = {
+  position: Coords;
   length: number;
   rotation: number;
 };
@@ -20,11 +21,10 @@ export default class BarrierEntity extends CustomEntity<BarrierData> {
     };
 
     super(
-      pos,
       'Barrier',
       length,
       BarrierRenderer,
-      { length, rotation },
+      { position: pos, length, rotation },
       `barrier-${position.x}-${position.y}`,
     );
   }
@@ -93,7 +93,7 @@ function BarrierRenderer({ entity }: { entity: CustomEntity<BarrierData> }) {
 
   return (
     <mesh
-      position={[entity.position.x, 0.01, -entity.position.y]}
+      position={[entity.data.position.x, 0.01, -entity.data.position.y]}
       rotation={[0, entity.data.rotation, 0]}
     >
       <planeGeometry args={[entity.data.length, 1.25]} />

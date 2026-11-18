@@ -83,3 +83,7 @@ export function replayCycle(replay: ReplayContextType): number {
   const progress = replayTime.current / config.tickDuration - currentTick;
   return (currentTick + Math.min(Math.max(progress, 0), 1)) * CYCLES_PER_TICK;
 }
+
+export function cycleToTick(cycle: number): number {
+  return Math.floor(cycle / CYCLES_PER_TICK);
+}

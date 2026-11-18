@@ -15,6 +15,7 @@ import {
   cellAt,
   CustomEntity,
   CYCLES_PER_TICK,
+  cycleToTick,
   isInterpolating,
   NpcEntity,
   osrsToThreePosition,
@@ -22,10 +23,11 @@ import {
   replayCycle,
   SheetSprite,
   showCell,
-  SpriteFrame,
+  SpriteAnimationEntity,
+  spriteAnimationPlaysOnTick,
   spriteFrames,
   SpriteSheet,
-  useEntityPositions,
+  SpriteSheetAnimation,
   useReplayContext,
   useSheetTexture,
 } from '@/components/map-renderer';
@@ -34,14 +36,6 @@ import {
   PlayerStateMap,
   RoomNpcMap,
 } from '@/utils/boss-room-state';
-
-type SpriteAnimation = {
-  sheet: SpriteSheet;
-  frames: SpriteFrame[];
-  held: number[];
-  ground: boolean;
-  height: number;
-};
 
 const BIND_CHAINS_SHEET: SpriteSheet = {
   url: '/images/objects/xarth-bind-chains.webp',
@@ -153,22 +147,22 @@ const RUBBLE_FLAMES_SHEET: SpriteSheet = {
   anchorY: 0.9277,
 };
 
-const BIND_CHAINS: SpriteAnimation = {
+const BIND_CHAINS: SpriteSheetAnimation = {
   sheet: BIND_CHAINS_SHEET,
   frames: [...spriteFrames(0, 12, 3), ...spriteFrames(12, 27, 2)],
-  held: [9, 23, 38],
-  ground: false,
+  staticFramesByTick: [9],
+  layFlat: false,
   height: 0.51,
 };
 
-const BIND_SHADOW: SpriteAnimation = {
+const BIND_SHADOW: SpriteSheetAnimation = {
   sheet: BIND_SHADOW_SHEET,
   frames: [5, 5, 5, 5, 5, 5, 7, 7, 7, 7, 9, 10, 13].map((cycles, cell) => ({
     cell,
     cycles,
   })),
-  held: [5, 10, 12],
-  ground: true,
+  staticFramesByTick: [5, 10, 12],
+  layFlat: true,
   height: 0.01,
 };
 const BIND_SHADOW_START_CYCLE = 30;
@@ -177,37 +171,33 @@ const BOMB_FLIGHT_CYCLES = 60;
 const BOMB_CYCLES_PER_CELL = 4;
 const BOMB_LIFT = 1.2;
 const BOMB_HEIGHT = 0.5;
-const BOMB_HELD = [
-  { cell: 7, progress: 0.5 },
-  { cell: 15, progress: 1 },
-];
 
-const BOMB_HIT: SpriteAnimation = {
+const BOMB_HIT: SpriteSheetAnimation = {
   sheet: BOMB_HIT_SHEET,
   frames: spriteFrames(0, 10, 3),
-  held: [9],
-  ground: false,
+  staticFramesByTick: [9],
+  layFlat: false,
   height: 0,
 };
 
-const BLAST: SpriteAnimation = {
+const BLAST: SpriteSheetAnimation = {
   sheet: BLAST_SHEET,
   frames: [...spriteFrames(0, 10, 2), ...spriteFrames(10, 10, 3)],
-  held: [13],
-  ground: false,
+  staticFramesByTick: [13],
+  layFlat: false,
   height: 0.02,
 };
 const PARTIAL_BLAST_SCALE = 70 / 128;
 
-const FLAME_BLAST: SpriteAnimation = {
+const FLAME_BLAST: SpriteSheetAnimation = {
   sheet: FLAME_BLAST_SHEET,
   frames: [
     { cell: 0, cycles: 60 },
     ...spriteFrames(1, 6, 3),
     ...spriteFrames(7, 18, 4),
   ],
-  held: [0, 0, 9, 17, 24],
-  ground: true,
+  staticFramesByTick: [0, 0, 9, 17, 24],
+  layFlat: true,
   height: 0.03,
 };
 const FLAME_BLAST_START_CYCLE = -60;
@@ -218,19 +208,19 @@ const FIRE_FRAMES = [2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3].map(
 const FIRE_LOOP_CYCLES = FIRE_FRAMES.reduce((sum, f) => sum + f.cycles, 0);
 const FIRE_HELD_CELL = 0;
 
-const ABSORB_CORPSE_FIRE: SpriteAnimation = {
+const ABSORB_CORPSE_FIRE: SpriteSheetAnimation = {
   sheet: ABSORB_CORPSE_FIRE_SHEET,
   frames: [...spriteFrames(0, 22, 8), { cell: 22, cycles: 4 }],
-  held: [3],
-  ground: false,
+  staticFramesByTick: [3],
+  layFlat: false,
   height: 0,
 };
 
-const CORPSE_ABSORBED: SpriteAnimation = {
+const CORPSE_ABSORBED: SpriteSheetAnimation = {
   sheet: CORPSE_ABSORBED_SHEET,
   frames: spriteFrames(0, 15, 4),
-  held: [],
-  ground: false,
+  staticFramesByTick: [],
+  layFlat: false,
   height: 0,
 };
 
@@ -254,7 +244,7 @@ const CORPSE_ABSORBED_OFFSETS = [
 
 const RUBBLE_STANDING_CELL = 0;
 const RUBBLE_COLLAPSE_FRAMES = spriteFrames(1, 24, 3);
-const RUBBLE_COLLAPSE_HELD = [10, 20, 24];
+const RUBBLE_COLLAPSE_HELD = [10];
 const RUBBLE_FLAMES_FRAMES = spriteFrames(0, 25, 3);
 const RUBBLE_FLAMES_HELD = [9, 19];
 const RUBBLE_FLAMES_NUDGE = 0.01;
@@ -287,14 +277,14 @@ export function bindsOnTick(
     const landingCycle = landingTick * CYCLES_PER_TICK;
     const launchCycle = landingCycle - BOMB_FLIGHT_CYCLES;
 
-    if (playsOnTick(tick, bindCycle, BIND_CHAINS)) {
+    if (spriteAnimationPlaysOnTick(tick, bindCycle, BIND_CHAINS)) {
       for (const [username, player] of playerState) {
         const state = player.stateByTick[event.tick] ?? null;
         if (state === null || state.isDead) {
           continue;
         }
         entities.push(
-          new SpriteEffect(
+          new SpriteAnimationEntity(
             { x: state.xCoord, y: state.yCoord },
             BIND_CHAINS,
             bindCycle,
@@ -309,20 +299,31 @@ export function bindsOnTick(
 
     for (const tile of tiles) {
       const key = `${event.tick}-${tile.x}-${tile.y}`;
-      if (playsOnTick(tick, shadowCycle, BIND_SHADOW)) {
+      if (spriteAnimationPlaysOnTick(tick, shadowCycle, BIND_SHADOW)) {
         entities.push(
-          new SpriteEffect(tile, BIND_SHADOW, shadowCycle, `shadow-${key}`),
+          new SpriteAnimationEntity(
+            tile,
+            BIND_SHADOW,
+            shadowCycle,
+            `shadow-${key}`,
+          ),
         );
       }
       if (
         source !== null &&
-        activeOnTick(tick, launchCycle, BOMB_FLIGHT_CYCLES)
+        cycleToTick(launchCycle) <= tick &&
+        tick <= cycleToTick(landingCycle - 1)
       ) {
         entities.push(new XarthBomb(source, tile, launchCycle, `bomb-${key}`));
       }
-      if (playsOnTick(tick, landingCycle, BOMB_HIT)) {
+      if (spriteAnimationPlaysOnTick(tick, landingCycle, BOMB_HIT)) {
         entities.push(
-          new SpriteEffect(tile, BOMB_HIT, landingCycle, `bomb-hit-${key}`),
+          new SpriteAnimationEntity(
+            tile,
+            BOMB_HIT,
+            landingCycle,
+            `bomb-hit-${key}`,
+          ),
         );
       }
     }
@@ -345,9 +346,9 @@ export function blastsOnTick(
     const entities: AnyEntity[] = [];
     const blastCycle = event.tick * CYCLES_PER_TICK;
     const flameBlastCycle = blastCycle + FLAME_BLAST_START_CYCLE;
-    if (playsOnTick(tick, flameBlastCycle, FLAME_BLAST)) {
+    if (spriteAnimationPlaysOnTick(tick, flameBlastCycle, FLAME_BLAST)) {
       entities.push(
-        new SpriteEffect(
+        new SpriteAnimationEntity(
           center,
           FLAME_BLAST,
           flameBlastCycle,
@@ -367,9 +368,9 @@ export function blastsOnTick(
         Math.abs(tile.y - center.y),
       );
       const blastTileCycle = blastCycle + distance - 1;
-      if (playsOnTick(tick, blastTileCycle, BLAST)) {
+      if (spriteAnimationPlaysOnTick(tick, blastTileCycle, BLAST)) {
         entities.push(
-          new SpriteEffect(
+          new SpriteAnimationEntity(
             tile,
             BLAST,
             blastTileCycle,
@@ -412,18 +413,21 @@ export function corpseLeaksByTick(
   npcs: RoomNpcMap,
   events: TfaXarthCorpseLeakEvent[],
   totalTicks: number,
-): SpriteEffect[][] {
-  const byTick: SpriteEffect[][] = Array.from({ length: totalTicks }, () => []);
+): SpriteAnimationEntity[][] {
+  const byTick: SpriteAnimationEntity[][] = Array.from(
+    { length: totalTicks },
+    () => [],
+  );
 
   for (const event of events) {
     const { roomId } = event.tfaXarthCorpseLeak;
     const leakCycle = event.tick * CYCLES_PER_TICK;
-    const effects: SpriteEffect[] = [];
+    const effects: SpriteAnimationEntity[] = [];
 
     const xarthCenter = centerOf(xarth, event.tick);
     if (xarthCenter !== null) {
       effects.push(
-        new SpriteEffect(
+        new SpriteAnimationEntity(
           xarthCenter,
           ABSORB_CORPSE_FIRE,
           leakCycle,
@@ -446,7 +450,7 @@ export function corpseLeaksByTick(
         y: corpseCenter.y + offset.forward * forward.y + offset.right * right.y,
       }));
       effects.push(
-        new SpriteEffect(
+        new SpriteAnimationEntity(
           corpseCenter,
           CORPSE_ABSORBED,
           leakCycle,
@@ -458,11 +462,10 @@ export function corpseLeaksByTick(
 
     for (const effect of effects) {
       const { animation, startCycle } = effect.data;
-      const endCycle =
-        startCycle + animation.frames.reduce((sum, f) => sum + f.cycles, 0);
       for (
-        let tick = startTickOf(startCycle);
-        tick < totalTicks && tick * CYCLES_PER_TICK < endCycle;
+        let tick = cycleToTick(startCycle);
+        tick < totalTicks &&
+        spriteAnimationPlaysOnTick(tick, startCycle, animation);
         tick++
       ) {
         byTick[tick].push(effect);
@@ -471,30 +474,6 @@ export function corpseLeaksByTick(
   }
 
   return byTick;
-}
-
-function startTickOf(startCycle: number): number {
-  return Math.floor(startCycle / CYCLES_PER_TICK);
-}
-
-function activeOnTick(
-  tick: number,
-  startCycle: number,
-  cycles: number,
-): boolean {
-  return (
-    tick >= startTickOf(startCycle) &&
-    tick * CYCLES_PER_TICK < startCycle + cycles
-  );
-}
-
-function playsOnTick(
-  tick: number,
-  startCycle: number,
-  animation: SpriteAnimation,
-): boolean {
-  const cycles = animation.frames.reduce((sum, f) => sum + f.cycles, 0);
-  return activeOnTick(tick, startCycle, cycles);
 }
 
 function centerOf(npc: EnhancedRoomNpc, tick: number): Coords | null {
@@ -506,141 +485,8 @@ function centerOf(npc: EnhancedRoomNpc, tick: number): Coords | null {
   return { x: state.position.x + offset, y: state.position.y + offset };
 }
 
-function pathPointAt(
-  frames: SpriteFrame[],
-  path: Coords[],
-  cycle: number,
-): Coords | undefined {
-  if (cycle < 0) {
-    return undefined;
-  }
-  let start = 0;
-  for (let i = 0; i < frames.length; i++) {
-    const end = start + frames[i].cycles;
-    if (cycle < end) {
-      const from = path[i];
-      const to = i + 1 < path.length ? path[i + 1] : from;
-      const t = (cycle - start) / frames[i].cycles;
-      return {
-        x: from.x + (to.x - from.x) * t,
-        y: from.y + (to.y - from.y) * t,
-      };
-    }
-    start = end;
-  }
-  return undefined;
-}
-
-type SpriteEffectData = {
-  animation: SpriteAnimation;
-  startCycle: number;
-  scale: number;
-  followId: string | null;
-  path: Coords[] | null;
-};
-
-class SpriteEffect extends CustomEntity<SpriteEffectData> {
-  constructor(
-    position: Coords,
-    animation: SpriteAnimation,
-    startCycle: number,
-    uniqueId: string,
-    {
-      scale = 1,
-      followId = null,
-      path = null,
-    }: {
-      scale?: number;
-      followId?: string | null;
-      path?: Coords[] | null;
-    } = {},
-  ) {
-    super(
-      position,
-      'Effect',
-      1,
-      SpriteEffectRenderer,
-      { animation, startCycle, scale, followId, path },
-      uniqueId,
-    );
-  }
-}
-
-function SpriteEffectRenderer({
-  entity,
-}: {
-  entity: CustomEntity<SpriteEffectData>;
-}) {
-  return (
-    <Suspense fallback={null}>
-      <SpriteEffectSprite entity={entity} />
-    </Suspense>
-  );
-}
-
-function SpriteEffectSprite({
-  entity,
-}: {
-  entity: CustomEntity<SpriteEffectData>;
-}) {
-  const { animation, startCycle, scale, followId, path } = entity.data;
-  const { sheet, ground, height } = animation;
-  const replay = useReplayContext();
-  const texture = useSheetTexture(sheet);
-  const { positions } = useEntityPositions();
-
-  const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  useFrame(() => {
-    const group = groupRef.current;
-    const mesh = meshRef.current;
-    if (group === null || mesh === null) {
-      return;
-    }
-
-    const cycle = replayCycle(replay) - startCycle;
-    const cell = isInterpolating(replay)
-      ? cellAt(animation.frames, cycle)
-      : animation.held[replay.currentTick - startTickOf(startCycle)];
-    let position: Coords | undefined;
-    if (path !== null) {
-      position = pathPointAt(animation.frames, path, cycle);
-    } else if (followId !== null) {
-      position = positions.get(followId);
-    } else {
-      position = entity.position;
-    }
-    if (cell === undefined || position === undefined) {
-      mesh.visible = false;
-      return;
-    }
-
-    showCell(texture, sheet, cell);
-    group.position.set(...osrsToThreePosition(position, height));
-    mesh.visible = true;
-  });
-
-  const sprite = (
-    <SheetSprite
-      ref={meshRef}
-      sheet={sheet}
-      texture={texture}
-      scale={scale}
-      visible={false}
-    />
-  );
-
-  return ground ? (
-    <group ref={groupRef}>
-      <group rotation={[-Math.PI / 2, 0, 0]}>{sprite}</group>
-    </group>
-  ) : (
-    <Billboard ref={groupRef}>{sprite}</Billboard>
-  );
-}
-
 type XarthBombData = {
+  source: Coords;
   target: Coords;
   launchCycle: number;
 };
@@ -653,11 +499,10 @@ class XarthBomb extends CustomEntity<XarthBombData> {
     uniqueId: string,
   ) {
     super(
-      source,
       'Bomb',
       1,
       XarthBombRenderer,
-      { target, launchCycle },
+      { source, target, launchCycle },
       uniqueId,
     );
   }
@@ -676,7 +521,7 @@ function XarthBombRenderer({
 }
 
 function XarthBombSprite({ entity }: { entity: CustomEntity<XarthBombData> }) {
-  const { target, launchCycle } = entity.data;
+  const { source, target, launchCycle } = entity.data;
   const replay = useReplayContext();
   const texture = useSheetTexture(BOMB_SHEET);
 
@@ -690,27 +535,16 @@ function XarthBombSprite({ entity }: { entity: CustomEntity<XarthBombData> }) {
       return;
     }
 
-    let cell: number | undefined;
-    let flight: number | undefined;
-    if (!isInterpolating(replay)) {
-      ({ cell, progress: flight } =
-        BOMB_HELD[replay.currentTick - startTickOf(launchCycle)] ?? {});
-    } else {
-      const cycle = replayCycle(replay) - launchCycle;
-      if (cycle >= 0 && cycle <= BOMB_FLIGHT_CYCLES) {
-        cell =
-          Math.floor(cycle / BOMB_CYCLES_PER_CELL) %
-          (BOMB_SHEET.columns * BOMB_SHEET.rows - 1);
-        flight = cycle / BOMB_FLIGHT_CYCLES;
-      }
-    }
-
-    if (cell === undefined || flight === undefined) {
+    const cycle = replayCycle(replay) - launchCycle;
+    if (!isInterpolating(replay) || cycle < 0 || cycle > BOMB_FLIGHT_CYCLES) {
       mesh.visible = false;
       return;
     }
 
-    const source = entity.position;
+    const cell =
+      Math.floor(cycle / BOMB_CYCLES_PER_CELL) %
+      (BOMB_SHEET.columns * BOMB_SHEET.rows - 1);
+    const flight = cycle / BOMB_FLIGHT_CYCLES;
     showCell(texture, BOMB_SHEET, cell);
     group.position.set(
       ...osrsToThreePosition(
@@ -737,17 +571,17 @@ function XarthBombSprite({ entity }: { entity: CustomEntity<XarthBombData> }) {
 }
 
 type XarthFireData = {
+  tile: Coords;
   spawnTick: number;
 };
 
 class XarthFire extends CustomEntity<XarthFireData> {
   constructor(tile: Coords, spawnTick: number) {
     super(
-      tile,
       'Fire',
       1,
       XarthFireRenderer,
-      { spawnTick },
+      { tile, spawnTick },
       `fire-${spawnTick}-${tile.x}-${tile.y}`,
     );
   }
@@ -759,7 +593,7 @@ function XarthFireRenderer({
   entity: CustomEntity<XarthFireData>;
 }) {
   return (
-    <Billboard position={osrsToThreePosition(entity.position, 0)}>
+    <Billboard position={osrsToThreePosition(entity.data.tile, 0)}>
       <Suspense fallback={null}>
         <XarthFireSprite spawnTick={entity.data.spawnTick} />
       </Suspense>
@@ -788,6 +622,7 @@ function XarthFireSprite({ spawnTick }: { spawnTick: number }) {
 }
 
 type XarthPillarData = {
+  center: Coords;
   breakTick: number | null;
 };
 
@@ -795,11 +630,16 @@ export class XarthPillar extends CustomEntity<XarthPillarData> {
   constructor(pillar: NpcEntity, breakTick: number, tick: number) {
     const offset = (pillar.size - 1) / 2;
     super(
-      { x: pillar.position.x + offset, y: pillar.position.y + offset },
       'Rubble',
       pillar.size,
       XarthPillarRenderer,
-      { breakTick: breakTick !== 0 && tick >= breakTick ? breakTick : null },
+      {
+        center: {
+          x: pillar.position.x + offset,
+          y: pillar.position.y + offset,
+        },
+        breakTick: breakTick !== 0 && tick >= breakTick ? breakTick : null,
+      },
       `pillar-${pillar.roomId}`,
     );
   }
@@ -811,7 +651,7 @@ function XarthPillarRenderer({
   entity: CustomEntity<XarthPillarData>;
 }) {
   return (
-    <Billboard position={osrsToThreePosition(entity.position, 0)}>
+    <Billboard position={osrsToThreePosition(entity.data.center, 0)}>
       <Suspense fallback={null}>
         <XarthPillarSprite data={entity.data} />
       </Suspense>
@@ -825,21 +665,24 @@ function XarthPillarSprite({ data }: { data: XarthPillarData }) {
   const rubbleTexture = useSheetTexture(RUBBLE_SHEET);
   const flamesTexture = useSheetTexture(RUBBLE_FLAMES_SHEET);
 
+  const rubbleRef = useRef<THREE.Mesh>(null);
   const flamesRef = useRef<THREE.Mesh>(null);
 
   useFrame(() => {
+    const rubble = rubbleRef.current;
     const flames = flamesRef.current;
-    if (flames === null) {
+    if (rubble === null || flames === null) {
       return;
     }
 
     if (breakTick === null) {
       showCell(rubbleTexture, RUBBLE_SHEET, RUBBLE_STANDING_CELL);
+      rubble.visible = true;
       flames.visible = false;
       return;
     }
 
-    let rubbleCell: number;
+    let rubbleCell: number | undefined;
     let flamesCell: number | undefined;
     if (isInterpolating(replay)) {
       const cycle = replayCycle(replay) - breakTick * CYCLES_PER_TICK;
@@ -849,14 +692,16 @@ function XarthPillarSprite({ data }: { data: XarthPillarData }) {
       flamesCell = cellAt(RUBBLE_FLAMES_FRAMES, cycle);
     } else {
       const ticksSinceBreak = replay.currentTick - breakTick;
-      rubbleCell =
-        RUBBLE_COLLAPSE_HELD[
-          Math.min(ticksSinceBreak, RUBBLE_COLLAPSE_HELD.length - 1)
-        ];
+      rubbleCell = RUBBLE_COLLAPSE_HELD[ticksSinceBreak];
       flamesCell = RUBBLE_FLAMES_HELD[ticksSinceBreak];
     }
 
-    showCell(rubbleTexture, RUBBLE_SHEET, rubbleCell);
+    if (rubbleCell === undefined) {
+      rubble.visible = false;
+    } else {
+      showCell(rubbleTexture, RUBBLE_SHEET, rubbleCell);
+      rubble.visible = true;
+    }
     if (flamesCell === undefined) {
       flames.visible = false;
       return;
@@ -867,7 +712,11 @@ function XarthPillarSprite({ data }: { data: XarthPillarData }) {
 
   return (
     <>
-      <SheetSprite sheet={RUBBLE_SHEET} texture={rubbleTexture} />
+      <SheetSprite
+        ref={rubbleRef}
+        sheet={RUBBLE_SHEET}
+        texture={rubbleTexture}
+      />
       <group position={[0, 0, RUBBLE_FLAMES_NUDGE]}>
         <SheetSprite
           ref={flamesRef}
