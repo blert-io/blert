@@ -1,3 +1,4 @@
+import { Coords } from '@blert/common';
 import { useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
@@ -18,6 +19,7 @@ export enum BloatHandState {
 export const BLOAT_HAND_VARIANTS = 4;
 
 export type BloatHandData = {
+  position: Coords;
   state: BloatHandState;
   dropProgress: number;
   dropTicks: number;
@@ -113,7 +115,7 @@ export default function BloatHandRenderer({
     }
   });
 
-  const position = osrsToThreePosition(entity.position, 0.02);
+  const position = osrsToThreePosition(entity.data.position, 0.02);
 
   return (
     <group ref={groupRef} position={position}>

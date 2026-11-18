@@ -10,17 +10,17 @@ import {
 } from '@/components/map-renderer';
 
 type MazeTileData = {
+  position: Coords;
   active: boolean;
 };
 
 export default class MazeTileEntity extends CustomEntity<MazeTileData> {
   constructor(position: Coords, active: boolean) {
     super(
-      position,
       'MazeTile',
       1,
       MazeTileRenderer,
-      { active },
+      { position, active },
       `maze-tile-${position.x}-${position.y}`,
     );
   }
@@ -170,7 +170,7 @@ function MazeTileWalls({
 
 function MazeTileRenderer({ entity }: { entity: CustomEntity<MazeTileData> }) {
   const { playing } = useReplayContext();
-  const position = osrsToThreePosition(entity.position, 0.0);
+  const position = osrsToThreePosition(entity.data.position, 0.0);
 
   return (
     <group position={position} rotation={[-Math.PI / 2, 0, 0]}>

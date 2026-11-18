@@ -407,11 +407,10 @@ export function useSolMechanics(
           for (const tile of entry.tiles) {
             entities.push(
               new CustomEntity<DustCloudData>(
-                tile.coords,
                 'Dust',
                 1,
                 DustCloudRenderer,
-                { age: entry.age, delay: tile.delay },
+                { tile: tile.coords, age: entry.age, delay: tile.delay },
                 `dust-${tile.coords.x}-${tile.coords.y}`,
               ),
             );
@@ -427,11 +426,10 @@ export function useSolMechanics(
         const age = tick - spawnTick;
         entities.push(
           new CustomEntity<SolPoolData>(
-            { x, y },
             'Sol Pool',
             1,
             SolPoolRenderer,
-            { settled: age >= 3, age },
+            { tile: { x, y }, settled: age >= 3, age },
             `sol-pool-${key}`,
           ),
         );
@@ -440,15 +438,8 @@ export function useSolMechanics(
       const laserBeams = laserBeamsByTick.get(tick);
       if (laserBeams !== undefined) {
         for (const beam of laserBeams) {
-          const midVar = Math.floor((beam.startVar + beam.endVar) / 2);
-          const position: Coords =
-            beam.axis === 'x'
-              ? { x: beam.fixedCoord, y: midVar }
-              : { x: midVar, y: beam.fixedCoord };
-
           entities.push(
             new CustomEntity<LaserBeamData>(
-              position,
               'Laser Beam',
               1,
               LaserBeamRenderer,

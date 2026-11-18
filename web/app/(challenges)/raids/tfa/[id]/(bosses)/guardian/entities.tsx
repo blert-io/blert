@@ -235,6 +235,7 @@ export function guardianRocks(
 }
 
 type GuardianRockData = {
+  source: Coords;
   targetPlayerId: string;
   ticksSinceAuto: number;
 };
@@ -247,11 +248,10 @@ class GuardianRock extends CustomEntity<GuardianRockData> {
     uniqueId: string,
   ) {
     super(
-      source,
       'Rock',
       1,
       GuardianRockRenderer,
-      { targetPlayerId, ticksSinceAuto },
+      { source, targetPlayerId, ticksSinceAuto },
       uniqueId,
     );
   }
@@ -282,7 +282,7 @@ function GuardianRockRenderer({
       return;
     }
 
-    const { targetPlayerId, ticksSinceAuto } = entity.data;
+    const { source, targetPlayerId, ticksSinceAuto } = entity.data;
     const autoTick = replay.currentTick - ticksSinceAuto;
     const cycle =
       replayCycle(replay) - autoTick * CYCLES_PER_TICK - ROCK_LAUNCH_CYCLE;
@@ -300,8 +300,8 @@ function GuardianRockRenderer({
     group.position.set(
       ...osrsToThreePosition(
         {
-          x: entity.position.x + (target.x - entity.position.x) * progress,
-          y: entity.position.y + (target.y - entity.position.y) * progress,
+          x: source.x + (target.x - source.x) * progress,
+          y: source.y + (target.y - source.y) * progress,
         },
         height + ROCK_HEIGHT_OFFSET,
       ),
@@ -309,7 +309,7 @@ function GuardianRockRenderer({
     group.visible = true;
 
     if (materialRef.current !== null) {
-      screenSource.set(...osrsToThreePosition(entity.position)).project(camera);
+      screenSource.set(...osrsToThreePosition(source)).project(camera);
       screenTarget.set(...osrsToThreePosition(target)).project(camera);
       const direction = screenTarget.x < screenSource.x ? 1 : -1;
       materialRef.current.rotation =
@@ -377,6 +377,7 @@ export function shroomsByTick(
 }
 
 type GuardianShroomData = {
+  position: Coords;
   state: TfaGuardianShroomState;
   ticksInState: number;
 };
@@ -389,11 +390,10 @@ export class GuardianShroom extends CustomEntity<GuardianShroomData> {
     ticksInState,
   }: TfaGuardianShroom & { ticksInState: number }) {
     super(
-      position,
       'Shroom',
       1,
       GuardianShroomRenderer,
-      { state, ticksInState },
+      { position, state, ticksInState },
       `shroom-${id}`,
     );
   }
@@ -405,7 +405,7 @@ function GuardianShroomRenderer({
   entity: CustomEntity<GuardianShroomData>;
 }) {
   return (
-    <Billboard position={osrsToThreePosition(entity.position, 0)}>
+    <Billboard position={osrsToThreePosition(entity.data.position, 0)}>
       <Suspense fallback={null}>
         <ShroomSprite data={entity.data} />
       </Suspense>
@@ -523,6 +523,7 @@ export function breathsOnTick(
 }
 
 type GuardianBreathData = {
+  origin: Coords;
   guardianId: string;
   targetId: string;
   ticksSinceFocus: number;
@@ -538,11 +539,11 @@ class GuardianBreath extends CustomEntity<GuardianBreathData> {
     tick: number,
   ) {
     super(
-      origin,
       'Breath',
       1,
       GuardianBreathRenderer,
       {
+        origin,
         guardianId: NpcEntity.uniqueId(guardianRoomId),
         targetId: PlayerEntity.uniqueId(target),
         ticksSinceFocus: tick - focusTick,
@@ -559,7 +560,7 @@ function GuardianBreathRenderer({
 }: {
   entity: CustomEntity<GuardianBreathData>;
 }) {
-  const { ticksSinceFocus, focusTicks, tile } = entity.data;
+  const { origin, ticksSinceFocus, focusTicks, tile } = entity.data;
   if (tile === null || ticksSinceFocus < focusTicks) {
     return (
       <>
@@ -573,7 +574,7 @@ function GuardianBreathRenderer({
 
   return (
     <Suspense fallback={null}>
-      <BreathBeam origin={entity.position} tile={tile} />
+      <BreathBeam origin={origin} tile={tile} />
     </Suspense>
   );
 }

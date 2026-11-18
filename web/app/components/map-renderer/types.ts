@@ -67,12 +67,6 @@ export interface Entity {
   /** Type of entity being rendered. */
   readonly type: EntityType;
 
-  /** Current position of the entity. */
-  position: Coords;
-
-  /** Position at the next tick. */
-  nextPosition?: Coords;
-
   /** Entity's size in tiles. */
   readonly size: number;
 
@@ -86,12 +80,20 @@ export interface Entity {
   getUniqueId(): string;
 }
 
+/** An `Entity` which can be interacted with on the map. */
+export interface InteractiveEntity extends Entity {
+  readonly interactive: true;
+
+  /** Current position of the entity. */
+  readonly position: Coords;
+}
+
 type HitpointsState = {
   current: SkillLevel;
   next?: SkillLevel;
 };
 
-export class PlayerEntity implements Entity {
+export class PlayerEntity implements InteractiveEntity {
   /**
    * Returns the entity ID of the player with the given username.
    *
@@ -104,7 +106,7 @@ export class PlayerEntity implements Entity {
 
   type: EntityType = EntityType.PLAYER;
   size: number = 1;
-  interactive: boolean = true;
+  readonly interactive = true;
   hitpoints: HitpointsState | null;
   readonly maxSpeed: number = 2;
 
@@ -180,7 +182,7 @@ type NpcOptions = {
   };
 };
 
-export class NpcEntity implements Entity {
+export class NpcEntity implements InteractiveEntity {
   /**
    * Returns the entity ID of the NPC with the given room ID.
    *
@@ -192,7 +194,7 @@ export class NpcEntity implements Entity {
   }
 
   type: EntityType = EntityType.NPC;
-  interactive: boolean = true;
+  readonly interactive = true;
   readonly name: string;
   readonly size: number;
   imageUrl: string;
@@ -242,7 +244,7 @@ export class NpcEntity implements Entity {
 
 export class ObjectEntity implements Entity {
   type: EntityType = EntityType.OBJECT;
-  interactive: boolean = false;
+  readonly interactive = false;
   readonly name: string;
   readonly size: number;
   readonly imageUrl: string;
@@ -275,20 +277,19 @@ export class ObjectEntity implements Entity {
  */
 export class CustomEntity<T = any> implements Entity {
   readonly type: EntityType = EntityType.CUSTOM;
-  readonly interactive: boolean = false;
+  readonly interactive = false;
 
   readonly renderer: React.ComponentType<{ entity: CustomEntity<T> }>;
   readonly data: T;
 
-  readonly uniqueId: string | null;
+  readonly uniqueId: string;
 
   public constructor(
-    public readonly position: Coords,
     public readonly name: string,
     public readonly size: number,
     renderer: React.ComponentType<{ entity: CustomEntity<T> }>,
     data: T,
-    uniqueId: string | null = null,
+    uniqueId: string,
   ) {
     this.renderer = renderer;
     this.data = data;
@@ -296,9 +297,7 @@ export class CustomEntity<T = any> implements Entity {
   }
 
   public getUniqueId(): string {
-    return (
-      this.uniqueId ?? `${this.type}-${this.position.x}-${this.position.y}`
-    );
+    return this.uniqueId;
   }
 }
 
@@ -307,7 +306,7 @@ export class CustomEntity<T = any> implements Entity {
  */
 export type AnyEntity = PlayerEntity | NpcEntity | ObjectEntity | CustomEntity;
 
-export interface InteractiveEntityProps<T extends Entity> {
+export interface InteractiveEntityProps<T extends InteractiveEntity> {
   /** Entity data. */
   entity: T;
 

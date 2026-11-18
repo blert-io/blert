@@ -294,11 +294,11 @@ export default function BloatPage() {
         ...handsForTick.hands.map(
           (hand) =>
             new CustomEntity<BloatHandData>(
-              { x: hand.x, y: hand.y },
               'Bloat hand',
               1,
               BloatHandRenderer,
               {
+                position: { x: hand.x, y: hand.y },
                 state,
                 dropProgress: handsForTick.intensity / BLOAT_HAND_DROP_TICKS,
                 dropTicks: BLOAT_HAND_DROP_TICKS,

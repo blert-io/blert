@@ -1,3 +1,4 @@
+import { Coords } from '@blert/common';
 import { shaderMaterial } from '@react-three/drei';
 import { extend, useFrame } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
@@ -12,6 +13,7 @@ import {
 } from '@/components/map-renderer';
 
 export type SolPoolData = {
+  tile: Coords;
   settled: boolean;
   age: number;
 };
@@ -128,7 +130,7 @@ export default function SolPoolRenderer({
   const centerColor = settled ? SETTLED_CENTER : NEW_CENTER;
   const edgeColor = settled ? SETTLED_EDGE : NEW_EDGE;
 
-  const position = osrsToThreePosition(entity.position, 0.015);
+  const position = osrsToThreePosition(entity.data.tile, 0.015);
 
   return (
     <group position={position}>
