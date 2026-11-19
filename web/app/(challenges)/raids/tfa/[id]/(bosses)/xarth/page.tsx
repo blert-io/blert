@@ -12,7 +12,8 @@ import {
   TfaXarthCorpseLeakEvent,
   TfaXarthFiresEvent,
 } from '@blert/common';
-import { useCallback, useContext, useMemo } from 'react';
+import { useGLTF } from '@react-three/drei';
+import { useCallback, useContext, useEffect, useMemo } from 'react';
 
 import { ActorContext } from '@/(challenges)/raids/tfa/context';
 import BossFightOverview, {
@@ -49,6 +50,7 @@ import {
   bindsOnTick,
   blastsOnTick,
   corpseLeaksByTick,
+  ENTITY_MODELS,
   ENTITY_TEXTURES,
   firesByTick,
   XarthPillar,
@@ -277,6 +279,10 @@ export default function XarthPage() {
     () => [...npcPreloads, ...ENTITY_TEXTURES],
     [npcPreloads],
   );
+
+  useEffect(() => {
+    useGLTF.preload(ENTITY_MODELS);
+  }, []);
 
   if (loading || challenge === null) {
     return <Loading />;

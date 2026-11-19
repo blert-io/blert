@@ -10,8 +10,9 @@ import {
   NpcAttack,
   Stage,
 } from '@blert/common';
+import { useGLTF } from '@react-three/drei';
 import Image from 'next/image';
-import { use, useCallback, useContext, useMemo } from 'react';
+import { use, useCallback, useContext, useEffect, useMemo } from 'react';
 
 import BossFightOverview, {
   BossFightOverviewSection,
@@ -28,7 +29,6 @@ import {
   AnyEntity,
   ObjectEntity,
   MapDefinition,
-  PlayerEntity,
 } from '@/components/map-renderer';
 import { useDisplay } from '@/display';
 import {
@@ -40,7 +40,7 @@ import {
 } from '@/utils/boss-room-state';
 
 import { ActorContext } from '../../../context';
-import { MokhaiotlOrb } from './mokhaiotl-orb';
+import { ENTITY_MODELS, orbsOnTick } from './mokhaiotl-orb';
 
 import styles from './style.module.scss';
 
@@ -336,36 +336,18 @@ export default function DelvePage({ params }: DelvePageProps) {
         }
       }
 
-      const orbs = (
-        (eventsByType[EventType.MOKHAIOTL_ORB] as MokhaiotlOrbEvent[]) ?? []
-      ).filter(
-        ({ mokhaiotlOrb }) =>
-          tick >= mokhaiotlOrb.startTick && tick <= mokhaiotlOrb.endTick,
-      );
-
       entities.push(
-        ...orbs.map(({ mokhaiotlOrb: orb }) => {
-          const uniqueId = `orb-${orb.sourcePoint.x}-${orb.sourcePoint.y}-${orb.style}-${orb.startTick}`;
-          const targetPlayerId = PlayerEntity.uniqueId(
-            challenge.party[0].username,
-          );
-          const totalTravelTicks = orb.endTick - orb.startTick;
-          const currentTravelTick = tick - orb.startTick;
-
-          return new MokhaiotlOrb(
-            orb.sourcePoint,
-            orb.style,
-            targetPlayerId,
-            totalTravelTicks,
-            currentTravelTick,
-            uniqueId,
-          );
-        }),
+        ...orbsOnTick(
+          npcState,
+          challenge.party[0].username,
+          tick,
+          (eventsByType[EventType.MOKHAIOTL_ORB] as MokhaiotlOrbEvent[]) ?? [],
+        ),
       );
 
       return entities;
     },
-    [challenge, eventsByType, rocksByTick, splatsByTick],
+    [challenge, eventsByType, npcState, rocksByTick, splatsByTick],
   );
 
   const getEntities = useMapEntities(
@@ -376,6 +358,10 @@ export default function DelvePage({ params }: DelvePageProps) {
     { customEntitiesForTick },
   );
   const preloads = usePreloads(npcState, isLive);
+
+  useEffect(() => {
+    useGLTF.preload(ENTITY_MODELS);
+  }, []);
 
   const idleTickCounts = useMemo(
     () => computeIdleTickCounts(playerState),

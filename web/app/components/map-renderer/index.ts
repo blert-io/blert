@@ -24,6 +24,12 @@ export {
 
 export { useEntityPositions } from './entity-position-context';
 export {
+  type ProjectileDefinition,
+  type ProjectileEndpoint,
+  ProjectileEntity,
+  projectilePlaysOnTick,
+} from './projectile';
+export {
   CYCLES_PER_TICK,
   cycleToTick,
   isInterpolating,

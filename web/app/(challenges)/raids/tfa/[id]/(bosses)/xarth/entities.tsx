@@ -20,6 +20,9 @@ import {
   NpcEntity,
   osrsToThreePosition,
   PlayerEntity,
+  ProjectileDefinition,
+  ProjectileEntity,
+  projectilePlaysOnTick,
   replayCycle,
   SheetSprite,
   showCell,
@@ -55,16 +58,6 @@ const BIND_SHADOW_SHEET: SpriteSheet = {
   cellHeight: 0.8906,
   anchorX: 0.5,
   anchorY: 0.5,
-};
-
-const BOMB_SHEET: SpriteSheet = {
-  url: '/images/objects/xarth-skull.webp',
-  columns: 8,
-  rows: 3,
-  cellWidth: 0.625,
-  cellHeight: 1.3516,
-  anchorX: 0.5,
-  anchorY: 0.5607,
 };
 
 const BOMB_HIT_SHEET: SpriteSheet = {
@@ -168,9 +161,13 @@ const BIND_SHADOW: SpriteSheetAnimation = {
 const BIND_SHADOW_START_CYCLE = 30;
 
 const BOMB_FLIGHT_CYCLES = 60;
-const BOMB_CYCLES_PER_CELL = 4;
-const BOMB_LIFT = 1.2;
-const BOMB_HEIGHT = 0.5;
+const XARTH_BOMB: ProjectileDefinition = {
+  modelUrl: '/models/xarth-skull.glb',
+  startHeight: 470,
+  endHeight: 0,
+  slope: 30,
+  startDistance: 128,
+};
 
 const BOMB_HIT: SpriteSheetAnimation = {
   sheet: BOMB_HIT_SHEET,
@@ -252,7 +249,6 @@ const RUBBLE_FLAMES_NUDGE = 0.01;
 export const ENTITY_TEXTURES = [
   BIND_CHAINS_SHEET.url,
   BIND_SHADOW_SHEET.url,
-  BOMB_SHEET.url,
   BOMB_HIT_SHEET.url,
   BLAST_SHEET.url,
   FLAME_BLAST_SHEET.url,
@@ -262,6 +258,8 @@ export const ENTITY_TEXTURES = [
   RUBBLE_SHEET.url,
   RUBBLE_FLAMES_SHEET.url,
 ];
+
+export const ENTITY_MODELS = [XARTH_BOMB.modelUrl];
 
 export function bindsOnTick(
   xarth: EnhancedRoomNpc,
@@ -295,8 +293,6 @@ export function bindsOnTick(
       }
     }
 
-    const source = centerOf(xarth, event.tick);
-
     for (const tile of tiles) {
       const key = `${event.tick}-${tile.x}-${tile.y}`;
       if (spriteAnimationPlaysOnTick(tick, shadowCycle, BIND_SHADOW)) {
@@ -309,12 +305,17 @@ export function bindsOnTick(
           ),
         );
       }
-      if (
-        source !== null &&
-        cycleToTick(launchCycle) <= tick &&
-        tick <= cycleToTick(landingCycle - 1)
-      ) {
-        entities.push(new XarthBomb(source, tile, launchCycle, `bomb-${key}`));
+      if (projectilePlaysOnTick(tick, launchCycle, landingCycle)) {
+        entities.push(
+          new ProjectileEntity(
+            { kind: 'entity', id: NpcEntity.uniqueId(xarth.roomId) },
+            { kind: 'tile', tile },
+            XARTH_BOMB,
+            launchCycle,
+            landingCycle,
+            `bomb-${key}`,
+          ),
+        );
       }
       if (spriteAnimationPlaysOnTick(tick, landingCycle, BOMB_HIT)) {
         entities.push(
@@ -483,91 +484,6 @@ function centerOf(npc: EnhancedRoomNpc, tick: number): Coords | null {
   }
   const offset = Math.floor(state.size / 2);
   return { x: state.position.x + offset, y: state.position.y + offset };
-}
-
-type XarthBombData = {
-  source: Coords;
-  target: Coords;
-  launchCycle: number;
-};
-
-class XarthBomb extends CustomEntity<XarthBombData> {
-  constructor(
-    source: Coords,
-    target: Coords,
-    launchCycle: number,
-    uniqueId: string,
-  ) {
-    super(
-      'Bomb',
-      1,
-      XarthBombRenderer,
-      { source, target, launchCycle },
-      uniqueId,
-    );
-  }
-}
-
-function XarthBombRenderer({
-  entity,
-}: {
-  entity: CustomEntity<XarthBombData>;
-}) {
-  return (
-    <Suspense fallback={null}>
-      <XarthBombSprite entity={entity} />
-    </Suspense>
-  );
-}
-
-function XarthBombSprite({ entity }: { entity: CustomEntity<XarthBombData> }) {
-  const { source, target, launchCycle } = entity.data;
-  const replay = useReplayContext();
-  const texture = useSheetTexture(BOMB_SHEET);
-
-  const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  useFrame(() => {
-    const group = groupRef.current;
-    const mesh = meshRef.current;
-    if (group === null || mesh === null) {
-      return;
-    }
-
-    const cycle = replayCycle(replay) - launchCycle;
-    if (!isInterpolating(replay) || cycle < 0 || cycle > BOMB_FLIGHT_CYCLES) {
-      mesh.visible = false;
-      return;
-    }
-
-    const cell =
-      Math.floor(cycle / BOMB_CYCLES_PER_CELL) %
-      (BOMB_SHEET.columns * BOMB_SHEET.rows - 1);
-    const flight = cycle / BOMB_FLIGHT_CYCLES;
-    showCell(texture, BOMB_SHEET, cell);
-    group.position.set(
-      ...osrsToThreePosition(
-        {
-          x: source.x + (target.x - source.x) * flight,
-          y: source.y + (target.y - source.y) * flight,
-        },
-        BOMB_HEIGHT + BOMB_LIFT * Math.sin(Math.PI * flight),
-      ),
-    );
-    mesh.visible = true;
-  });
-
-  return (
-    <Billboard ref={groupRef}>
-      <SheetSprite
-        ref={meshRef}
-        sheet={BOMB_SHEET}
-        texture={texture}
-        visible={false}
-      />
-    </Billboard>
-  );
 }
 
 type XarthFireData = {
