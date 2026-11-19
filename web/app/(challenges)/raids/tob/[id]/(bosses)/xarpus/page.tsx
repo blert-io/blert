@@ -16,7 +16,8 @@ import {
   XarpusSplatEvent,
   XarpusSplatSource,
 } from '@blert/common';
-import { useCallback, useContext, useMemo } from 'react';
+import { useGLTF } from '@react-three/drei';
+import { useCallback, useContext, useEffect, useMemo } from 'react';
 
 import { TimelineSplit } from '@/components/attack-timeline';
 import BossFightOverview from '@/components/boss-fight-overview';
@@ -31,9 +32,13 @@ import BossPageReplay from '@/components/boss-page-replay';
 import Card from '@/components/card';
 import {
   AnyEntity,
+  CYCLES_PER_TICK,
   EntityType,
   MapDefinition,
   NpcEntity,
+  type ProjectileDefinition,
+  ProjectileEntity,
+  projectilePlaysOnTick,
   SpriteSheet,
 } from '@/components/map-renderer';
 import Loading from '@/components/loading';
@@ -52,16 +57,16 @@ import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import BarrierEntity from '../barrier';
 import {
-  ACID_BALL,
+  ACID_BALL_FROM_BOUNCE,
+  ACID_BALL_FROM_XARPUS,
   ACID_POOL,
   ACID_SPLASH,
-  AcidBallEntity,
   AcidPoolEntity,
   AcidSplashEntity,
   DangerQuadrantEntity,
   ExhumedEntity,
-  PoisonBallEntity,
   ExhumedState,
+  POISON_BALL,
 } from './entities';
 
 import bossStyles from '../style.module.scss';
@@ -112,8 +117,9 @@ const TURN_ORIENTATIONS = new Map<NpcAttack, number>([
 
 const TURN_PER_TICK = 32 * 30;
 
-const XARPUS_MID_HEIGHT =
-  (XARPUS_FACINGS.anchorY * XARPUS_FACINGS.cellHeight) / 2;
+const ACID_BALL_FROM_XARPUS_LAUNCH_CYCLES = 30;
+const ACID_BALL_FROM_BOUNCE_LAUNCH_CYCLES = 15;
+const POISON_BALL_CYCLES_PER_TILE = 10;
 
 const DANGER_QUADRANT_CORNERS = new Map<NpcAttack, Coords>([
   [NpcAttack.TOB_XARPUS_TURN_NORTHEAST, { x: 3177, y: 4394 }],
@@ -359,21 +365,23 @@ export default function XarpusPage() {
       }
 
       let from: Coords;
-      let fromHeight: number;
-      let launchTick: number;
+      let definition: ProjectileDefinition;
+      let startCycle: number;
       switch (source) {
         case XarpusSplatSource.XARPUS:
           from = MAP_CENTER;
-          fromHeight = XARPUS_MID_HEIGHT;
-          launchTick = startTick + 1;
+          definition = ACID_BALL_FROM_XARPUS;
+          startCycle =
+            startTick * CYCLES_PER_TICK + ACID_BALL_FROM_XARPUS_LAUNCH_CYCLES;
           break;
         case XarpusSplatSource.BOUNCE:
           if (bounceFrom === null) {
             return [];
           }
           from = bounceFrom;
-          fromHeight = 0;
-          launchTick = startTick + 0.5;
+          definition = ACID_BALL_FROM_BOUNCE;
+          startCycle =
+            startTick * CYCLES_PER_TICK + ACID_BALL_FROM_BOUNCE_LAUNCH_CYCLES;
           break;
         case XarpusSplatSource.UNKNOWN:
           return [];
@@ -383,21 +391,44 @@ export default function XarpusPage() {
         }
       }
 
-      if (launchTick >= evt.tick) {
+      const endCycle = evt.tick * CYCLES_PER_TICK;
+      if (startCycle >= endCycle) {
         return [];
       }
       return [
-        new AcidBallEntity(
-          from,
-          fromHeight,
-          { x: evt.xCoord, y: evt.yCoord },
-          launchTick,
-          evt.tick,
+        new ProjectileEntity(
+          { kind: 'tile', tile: from },
+          { kind: 'tile', tile: { x: evt.xCoord, y: evt.yCoord } },
+          definition,
+          startCycle,
+          endCycle,
           `acid-ball-${i}`,
         ),
       ];
     });
   }, [isLive, isLegacy, splatEvents]);
+
+  const poisonBalls = useMemo(
+    () =>
+      exhumes.flatMap(({ position, healTicks }) =>
+        healTicks.map((tick) => {
+          const distance = Math.max(
+            Math.abs(MAP_CENTER.x - position.x),
+            Math.abs(MAP_CENTER.y - position.y),
+          );
+          const startCycle = tick * CYCLES_PER_TICK;
+          return new ProjectileEntity(
+            { kind: 'tile', tile: position },
+            { kind: 'tile', tile: MAP_CENTER },
+            POISON_BALL,
+            startCycle,
+            startCycle + distance * POISON_BALL_CYCLES_PER_TILE,
+            `poison-ball-${position.x}-${position.y}-${tick}`,
+          );
+        }),
+      ),
+    [exhumes],
+  );
 
   const customEntitiesForTick = useCallback(
     (tick: number) => {
@@ -439,10 +470,8 @@ export default function XarpusPage() {
       });
 
       entities.push(
-        ...acidBalls.filter(
-          (ball) =>
-            Math.floor(ball.data.launchTick) <= tick &&
-            tick < ball.data.landingTick,
+        ...acidBalls.filter((ball) =>
+          projectilePlaysOnTick(tick, ball.data.startCycle, ball.data.endCycle),
         ),
       );
 
@@ -469,17 +498,23 @@ export default function XarpusPage() {
         }
       }
 
-      const balls = exhumes.flatMap((exhumed) => {
-        return exhumed.healTicks
-          .filter((t) => t === tick)
-          .map((_) => new PoisonBallEntity(exhumed.position, MAP_CENTER));
-      });
-
-      entities.push(...balls);
+      entities.push(
+        ...poisonBalls.filter((ball) =>
+          projectilePlaysOnTick(tick, ball.data.startCycle, ball.data.endCycle),
+        ),
+      );
 
       return entities;
     },
-    [dangerQuadrants, xarpus, pools, splatEvents, acidBalls, exhumes],
+    [
+      dangerQuadrants,
+      xarpus,
+      pools,
+      splatEvents,
+      acidBalls,
+      exhumes,
+      poisonBalls,
+    ],
   );
 
   const facings = useMemo((): ({ start: number; target: number } | null)[] => {
@@ -567,12 +602,16 @@ export default function XarpusPage() {
       ...npcPreloads,
       XARPUS_FACINGS.url,
       XARPUS_P1_FACINGS.url,
-      ACID_BALL.url,
       ACID_POOL.url,
       ACID_SPLASH.url,
     ],
     [npcPreloads],
   );
+
+  useEffect(() => {
+    useGLTF.preload(ACID_BALL_FROM_XARPUS.modelUrl);
+    useGLTF.preload(POISON_BALL.modelUrl);
+  }, []);
 
   if (loading || challenge === null) {
     return <Loading />;

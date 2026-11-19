@@ -6,9 +6,9 @@ import {
   TfaGuardianShroomsEvent,
   TfaGuardianShroomState,
 } from '@blert/common';
-import { Billboard, Line, useTexture } from '@react-three/drei';
+import { Billboard, Line } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { ComponentRef, RefObject, Suspense, useRef } from 'react';
+import { ComponentRef, Suspense, useRef } from 'react';
 import * as THREE from 'three';
 
 import {
@@ -19,6 +19,9 @@ import {
   NpcEntity,
   osrsToThreePosition,
   PlayerEntity,
+  ProjectileDefinition,
+  ProjectileEntity,
+  projectilePlaysOnTick,
   replayCycle,
   SheetSprite,
   showCell,
@@ -35,21 +38,15 @@ const LEAP_BASE_CYCLES = 31;
 const LEAP_CYCLES_PER_TILE = 1.74;
 const LEAP_MAX_CYCLES = 60;
 
-const ROCK_TEXTURE = '/images/tfa/guardian/rocks.png';
 const ROCK_LAUNCH_CYCLE = 48;
 const ROCK_FLIGHT_CYCLES = 68;
-const ROCK_APEX_CYCLE = 22.6;
-const ROCK_APEX_HEIGHT = 8.531;
-const ROCK_CURVATURE = 0.0033;
-const ROCK_FALL_CYCLE = 52;
-const ROCK_FALL_HEIGHT = 5.68;
-const ROCK_FALL_SPEED = 0.194;
-const ROCK_LANDING_HEIGHT = 0.5;
-const ROCK_HEIGHT_OFFSET =
-  ROCK_LANDING_HEIGHT -
-  (ROCK_FALL_HEIGHT - ROCK_FALL_SPEED * (ROCK_FLIGHT_CYCLES - ROCK_FALL_CYCLE));
-const ROCK_WIDTH = 1.1;
-const ROCK_TURNS_PER_TICK = 1;
+const GUARDIAN_ROCK: ProjectileDefinition = {
+  modelUrl: '/models/guardian-rock.glb',
+  startHeight: 0,
+  endHeight: 0,
+  slope: 127,
+  startDistance: 0,
+};
 
 type ShroomAnimation = {
   sheet: SpriteSheet;
@@ -145,12 +142,13 @@ const BREATH_AIM_POINTS: [number, number, number][] = [
 ];
 
 export const ENTITY_TEXTURES = [
-  ROCK_TEXTURE,
   SHROOM_SHEET.url,
   SHROOM_BURST_SHEET.url,
   BREATH_SHEET.url,
   BREATH_GLOW_SHEET.url,
 ];
+
+export const ENTITY_MODELS = [GUARDIAN_ROCK.modelUrl];
 
 export function leapInterpolation(
   npc: EnhancedRoomNpc,
@@ -201,150 +199,26 @@ export function guardianRocks(
   guardian: EnhancedRoomNpc,
   tick: number,
   events: TfaGuardianRocksEvent[],
-): GuardianRock[] {
+): ProjectileEntity[] {
   return events.flatMap((event) => {
-    const ticksSinceAuto = tick - event.tick;
-    const tickStartCycle = ticksSinceAuto * CYCLES_PER_TICK - ROCK_LAUNCH_CYCLE;
-    if (
-      tickStartCycle + CYCLES_PER_TICK <= 0 ||
-      tickStartCycle > ROCK_FLIGHT_CYCLES
-    ) {
+    const launchCycle = event.tick * CYCLES_PER_TICK + ROCK_LAUNCH_CYCLE;
+    const landingCycle = launchCycle + ROCK_FLIGHT_CYCLES;
+    if (!projectilePlaysOnTick(tick, launchCycle, landingCycle)) {
       return [];
     }
 
-    const state = guardian.stateByTick[event.tick] ?? null;
-    if (state === null) {
-      return [];
-    }
-
-    const centerOffset = (state.size - 1) / 2;
-    const source = {
-      x: state.position.x + centerOffset,
-      y: state.position.y + centerOffset,
-    };
     return event.tfaGuardianRocks.targets.map(
       (target) =>
-        new GuardianRock(
-          source,
-          PlayerEntity.uniqueId(target),
-          ticksSinceAuto,
+        new ProjectileEntity(
+          { kind: 'entity', id: NpcEntity.uniqueId(guardian.roomId) },
+          { kind: 'entity', id: PlayerEntity.uniqueId(target) },
+          GUARDIAN_ROCK,
+          launchCycle,
+          landingCycle,
           `rock-${event.tick}-${target}`,
         ),
     );
   });
-}
-
-type GuardianRockData = {
-  source: Coords;
-  targetPlayerId: string;
-  ticksSinceAuto: number;
-};
-
-class GuardianRock extends CustomEntity<GuardianRockData> {
-  constructor(
-    source: Coords,
-    targetPlayerId: string,
-    ticksSinceAuto: number,
-    uniqueId: string,
-  ) {
-    super(
-      'Rock',
-      1,
-      GuardianRockRenderer,
-      { source, targetPlayerId, ticksSinceAuto },
-      uniqueId,
-    );
-  }
-}
-
-const screenSource = new THREE.Vector3();
-const screenTarget = new THREE.Vector3();
-
-function GuardianRockRenderer({
-  entity,
-}: {
-  entity: CustomEntity<GuardianRockData>;
-}) {
-  const replay = useReplayContext();
-  const { positions } = useEntityPositions();
-
-  const groupRef = useRef<THREE.Group>(null);
-  const materialRef = useRef<THREE.SpriteMaterial>(null);
-
-  useFrame(({ camera }) => {
-    const group = groupRef.current;
-    if (group === null) {
-      return;
-    }
-
-    if (!isInterpolating(replay)) {
-      group.visible = false;
-      return;
-    }
-
-    const { source, targetPlayerId, ticksSinceAuto } = entity.data;
-    const autoTick = replay.currentTick - ticksSinceAuto;
-    const cycle =
-      replayCycle(replay) - autoTick * CYCLES_PER_TICK - ROCK_LAUNCH_CYCLE;
-    const target = positions.get(targetPlayerId);
-    if (cycle < 0 || cycle > ROCK_FLIGHT_CYCLES || target === undefined) {
-      group.visible = false;
-      return;
-    }
-
-    const progress = cycle / ROCK_FLIGHT_CYCLES;
-    const height =
-      cycle <= ROCK_FALL_CYCLE
-        ? ROCK_APEX_HEIGHT - ROCK_CURVATURE * (cycle - ROCK_APEX_CYCLE) ** 2
-        : ROCK_FALL_HEIGHT - ROCK_FALL_SPEED * (cycle - ROCK_FALL_CYCLE);
-    group.position.set(
-      ...osrsToThreePosition(
-        {
-          x: source.x + (target.x - source.x) * progress,
-          y: source.y + (target.y - source.y) * progress,
-        },
-        height + ROCK_HEIGHT_OFFSET,
-      ),
-    );
-    group.visible = true;
-
-    if (materialRef.current !== null) {
-      screenSource.set(...osrsToThreePosition(source)).project(camera);
-      screenTarget.set(...osrsToThreePosition(target)).project(camera);
-      const direction = screenTarget.x < screenSource.x ? 1 : -1;
-      materialRef.current.rotation =
-        direction *
-        (cycle / CYCLES_PER_TICK) *
-        ROCK_TURNS_PER_TICK *
-        2 *
-        Math.PI;
-    }
-  });
-
-  return (
-    <group ref={groupRef} visible={false}>
-      <Suspense fallback={null}>
-        <RockSprite materialRef={materialRef} />
-      </Suspense>
-    </group>
-  );
-}
-
-function RockSprite({
-  materialRef,
-}: {
-  materialRef: RefObject<THREE.SpriteMaterial | null>;
-}) {
-  const texture = useTexture(ROCK_TEXTURE);
-  const { naturalWidth, naturalHeight } = texture.image as HTMLImageElement;
-
-  return (
-    <sprite
-      scale={[ROCK_WIDTH, (ROCK_WIDTH * naturalHeight) / naturalWidth, 1]}
-    >
-      <spriteMaterial ref={materialRef} map={texture} transparent />
-    </sprite>
-  );
 }
 
 export function shroomsByTick(
