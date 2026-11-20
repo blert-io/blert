@@ -91,7 +91,7 @@
     font-weight: 500;
   }
 
-  .time {
+  .stat {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -100,6 +100,11 @@
 
     i {
       color: var(--blert-purple);
+    }
+
+    &.tooltip .value {
+      text-decoration: underline dotted rgba(var(--blert-purple-base), 0.6);
+      text-underline-offset: 4px;
     }
   }
 }

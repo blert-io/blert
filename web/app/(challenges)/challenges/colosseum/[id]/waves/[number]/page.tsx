@@ -8,6 +8,7 @@ import {
   EventType,
   HANDICAP_LEVEL_VALUE_INCREMENT,
   Handicap,
+  Skill,
   Stage,
 } from '@blert/common';
 import { notFound, useRouter } from 'next/navigation';
@@ -35,6 +36,8 @@ import {
 import { useDisplay } from '@/display';
 import {
   computeIdleTickCounts,
+  Nullable,
+  PlayerState,
   useMapEntities,
   usePreloads,
   usePlayingState,
@@ -79,6 +82,24 @@ const PILLARS = [
 // Sol Heredit is not clickable until tick 6 and spawns four tiles away, so the
 // player's first melee attack occurs on tick 8.
 const FIRST_ATTACK_ON_SOL_TICK = 8;
+
+function computeHitpointsLost(states: Nullable<PlayerState>[]): number {
+  let total = 0;
+  let previousHitpoints: number | null = null;
+
+  for (const state of states) {
+    const hitpoints = state?.skills[Skill.HITPOINTS]?.getCurrent();
+    if (hitpoints === undefined) {
+      continue;
+    }
+    if (previousHitpoints !== null && hitpoints < previousHitpoints) {
+      total += previousHitpoints - hitpoints;
+    }
+    previousHitpoints = hitpoints;
+  }
+
+  return total;
+}
 
 export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
   const router = useRouter();
@@ -300,6 +321,15 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     [playerState, waveNumber],
   );
 
+  const hitpointsLost = useMemo(() => {
+    const player =
+      playerName !== undefined ? playerState.get(playerName) : undefined;
+    if (player === undefined) {
+      return null;
+    }
+    return computeHitpointsLost(player.stateByTick);
+  }, [playerName, playerState]);
+
   if (challenge === null || loading) {
     return <Loading />;
   }
@@ -395,6 +425,18 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
     });
   }
 
+  const stats = [];
+  if (hitpointsLost !== null) {
+    stats.push({
+      faIcon: 'fas fa-heart',
+      value: `${hitpointsLost > 0 ? '~' : ''}${hitpointsLost} HP lost`,
+      tooltip:
+        hitpointsLost > 0
+          ? 'Approximation from HP changes between ticks'
+          : undefined,
+    });
+  }
+
   return (
     <div className={styles.wavePage}>
       <div className={styles.overview}>
@@ -402,6 +444,7 @@ export default function ColosseumWavePage({ params }: ColosseumWavePageProps) {
           name={title}
           image={imageForWave(waveNumber)}
           time={totalTicks}
+          stats={stats}
           sections={sections}
         />
       </div>
