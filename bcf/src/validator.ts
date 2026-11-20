@@ -633,12 +633,12 @@ export function validate(
 export function validate(
   data: unknown,
   options?: ValidateOptions,
-): ValidationResultStrict | ValidationResultLax;
+): ValidationResult;
 
 export function validate(
   data: unknown,
   options?: ValidateOptions,
-): ValidationResultStrict | ValidationResultLax {
+): ValidationResult {
   const strict = options?.strict ?? options?.version !== undefined;
 
   const documentVersion = getDocumentVersion(data);
@@ -745,12 +745,12 @@ export function parseAndValidate(
 export function parseAndValidate(
   json: string,
   options?: ValidateOptions,
-): ValidationResultLax | ValidationResultStrict;
+): ValidationResult;
 
 export function parseAndValidate(
   json: string,
   options?: ValidateOptions,
-): ValidationResultStrict | ValidationResultLax {
+): ValidationResult {
   let data: unknown;
   try {
     data = JSON.parse(json);
