@@ -1,6 +1,6 @@
 {
   "category": "attackType",
-  "updatedAt": "2026-10-25",
+  "updatedAt": "2026-11-21",
   "items": [
     {
       "id": "UNKNOWN",
@@ -616,6 +616,14 @@
       "introduced": "2026-10-25",
       "details": "A special attack with the Rosewood blowpipe.",
       "tags": ["ranged", "spec"]
+    },
+    {
+      "id": "RUNE_CROSSBOW",
+      "status": "active",
+      "summary": "Rune crossbow",
+      "introduced": "2026-11-21",
+      "details": "An attack with the Rune crossbow.",
+      "tags": ["ranged"]
     },
     {
       "id": "SAELDOR",

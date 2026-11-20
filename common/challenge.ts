@@ -671,6 +671,7 @@ export enum PlayerAttack {
   RAPIER = PlayerAttackProto.RAPIER,
   ROSEWOOD_BLOWPIPE = PlayerAttackProto.ROSEWOOD_BLOWPIPE,
   ROSEWOOD_BLOWPIPE_SPEC = PlayerAttackProto.ROSEWOOD_BLOWPIPE_SPEC,
+  RUNE_CROSSBOW = PlayerAttackProto.RUNE_CROSSBOW,
   SAELDOR = PlayerAttackProto.SAELDOR,
   SANG = PlayerAttackProto.SANG,
   SANG_BARRAGE = PlayerAttackProto.SANG_BARRAGE,
