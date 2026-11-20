@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { CSSProperties, ReactNode } from 'react';
 
+import { GLOBAL_TOOLTIP_ID } from '@/components/tooltip';
 import { ticksToFormattedSeconds } from '@/utils/tick';
 
 import styles from './style.module.scss';
@@ -11,11 +12,19 @@ export type BossFightOverviewSection = {
   span?: number;
 };
 
+/** An additional stat displayed under the stage duration. */
+export type BossFightOverviewStat = {
+  faIcon: string;
+  value: ReactNode;
+  tooltip?: string;
+};
+
 interface BossFightOverviewProps {
   name: string;
   className?: string;
   image: string;
   time: number;
+  stats?: BossFightOverviewStat[];
   sections?: BossFightOverviewSection[];
 }
 
@@ -24,6 +33,7 @@ export function BossFightOverview({
   className,
   image,
   time,
+  stats = [],
   sections = [],
 }: BossFightOverviewProps) {
   return (
@@ -35,10 +45,23 @@ export function BossFightOverview({
           </div>
           <div className={styles.titleSection}>
             <h1>{name}</h1>
-            <div className={styles.time}>
+            <div className={styles.stat}>
               <i className="far fa-clock" />
               {ticksToFormattedSeconds(time)}
             </div>
+            {stats.map(({ faIcon, value, tooltip }, index) => (
+              <div
+                key={index}
+                className={`${styles.stat} ${tooltip !== undefined ? styles.tooltip : ''}`}
+                data-tooltip-id={
+                  tooltip !== undefined ? GLOBAL_TOOLTIP_ID : undefined
+                }
+                data-tooltip-content={tooltip}
+              >
+                <i className={faIcon} />
+                <span className={styles.value}>{value}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
