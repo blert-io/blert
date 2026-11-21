@@ -23,6 +23,7 @@ export {
 } from './easing';
 
 export { useEntityPositions } from './entity-position-context';
+export { overheadTextByTick } from './npc';
 export {
   type ProjectileDefinition,
   type ProjectileEndpoint,

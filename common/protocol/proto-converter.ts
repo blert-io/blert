@@ -34,6 +34,12 @@ import {
   SoteMazePathEvent,
   Spell,
   SpellTarget,
+  TfaBorkBombEvent,
+  TfaBorkCannonAutoEvent,
+  TfaBorkDustEvent,
+  TfaBorkNapalmEvent,
+  TfaBorkSpeedupEvent,
+  TfaBorkStunEvent,
   TfaGuardianBrazierEvent,
   TfaGuardianDownEvent,
   TfaGuardianRocksEvent,
@@ -206,6 +212,10 @@ export function protoToJsonEvent(evt: EventProto): Event {
         e.npc.guardian = npc.getGuardian()!.toObject();
       } else if (npc.hasGuardianBrazier()) {
         e.npc.guardianBrazier = npc.getGuardianBrazier()!.toObject();
+      } else if (npc.hasBork()) {
+        e.npc.bork = npc.getBork()!.toObject();
+      } else if (npc.hasSmorks()) {
+        e.npc.smorks = npc.getSmorks()!.toObject();
       }
       break;
     }
@@ -465,6 +475,63 @@ export function protoToJsonEvent(evt: EventProto): Event {
       e.tfaGuardianBrazier = {
         roomId: brazier.getRoomId(),
         position: brazier.getPosition(),
+      };
+      break;
+    }
+
+    case EventType.TFA_BORK_DUST: {
+      const e = event as TfaBorkDustEvent;
+      e.tfaBorkDust = {
+        tiles: evt
+          .getTfaBorkDust()!
+          .getTilesList()
+          .map((tile) => tile.toObject()),
+      };
+      break;
+    }
+
+    case EventType.TFA_BORK_NAPALM: {
+      const e = event as TfaBorkNapalmEvent;
+      const napalm = evt.getTfaBorkNapalm()!;
+      e.tfaBorkNapalm = {
+        added: napalm.getAddedList().map((tile) => tile.toObject()),
+        removed: napalm.getRemovedList().map((tile) => tile.toObject()),
+      };
+      break;
+    }
+
+    case EventType.TFA_BORK_CANNON_AUTO: {
+      const e = event as TfaBorkCannonAutoEvent;
+      const auto = evt.getTfaBorkCannonAuto()!;
+      e.tfaBorkCannonAuto = {
+        targets: auto.getTargetsList(),
+        landingTick: auto.getLandingTick(),
+      };
+      break;
+    }
+
+    case EventType.TFA_BORK_BOMB: {
+      const e = event as TfaBorkBombEvent;
+      const bomb = evt.getTfaBorkBomb()!;
+      e.tfaBorkBomb = {
+        target: bomb.getTarget()!.toObject(),
+        landingTick: bomb.getLandingTick(),
+      };
+      break;
+    }
+
+    case EventType.TFA_BORK_STUN: {
+      const e = event as TfaBorkStunEvent;
+      e.tfaBorkStun = {
+        bombTick: evt.getTfaBorkStun()!.getBombTick(),
+      };
+      break;
+    }
+
+    case EventType.TFA_BORK_SPEEDUP: {
+      const e = event as TfaBorkSpeedupEvent;
+      e.tfaBorkSpeedup = {
+        speed: evt.getTfaBorkSpeedup()!.getSpeed(),
       };
       break;
     }

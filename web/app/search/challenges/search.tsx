@@ -77,6 +77,13 @@ function getSortKeyValue(challenge: ChallengeOverview, key: SortableFields) {
     return (challenge.tobStats?.[field] as number | null | undefined) ?? null;
   }
 
+  if (key.startsWith('tfa:')) {
+    const field = key.slice(4) as keyof NonNullable<
+      ChallengeOverview['tfaStats']
+    >;
+    return challenge.tfaStats?.[field] ?? null;
+  }
+
   if (key.startsWith('mok:')) {
     const field = key.slice(4) as keyof NonNullable<
       ChallengeOverview['mokhaiotlStats']

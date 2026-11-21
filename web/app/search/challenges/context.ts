@@ -69,6 +69,8 @@ export type TobFilters = {
 export type TfaFilters = {
   route: Stage[];
   guardianDownCount: [Comparator, number] | null;
+  borkCannonballsHit: [Comparator, number] | null;
+  borkCannonballsMissed: [Comparator, number] | null;
   xarthCorpsesLeaked: [Comparator, number] | null;
 };
 
@@ -116,6 +118,8 @@ function parseTfaParam(tfa: TfaFilters, key: string, value: string): void {
 
   const scalarFields: Exclude<keyof TfaFilters, 'route'>[] = [
     'guardianDownCount',
+    'borkCannonballsHit',
+    'borkCannonballsMissed',
     'xarthCorpsesLeaked',
   ];
   const field = scalarFields.find((f) => f === key);
@@ -192,6 +196,8 @@ export function emptyTfaFilters(): TfaFilters {
   return {
     route: [],
     guardianDownCount: null,
+    borkCannonballsHit: null,
+    borkCannonballsMissed: null,
     xarthCorpsesLeaked: null,
   };
 }
@@ -202,6 +208,12 @@ function countTfaFilters(tfa: TfaFilters): number {
     count++;
   }
   if (tfa.guardianDownCount !== null) {
+    count++;
+  }
+  if (tfa.borkCannonballsHit !== null) {
+    count++;
+  }
+  if (tfa.borkCannonballsMissed !== null) {
     count++;
   }
   if (tfa.xarthCorpsesLeaked !== null) {
@@ -388,6 +400,8 @@ export function filtersToUrlParams(filters: SearchFilters): UrlParams {
 
   const tfaScalarFields: Exclude<keyof TfaFilters, 'route'>[] = [
     'guardianDownCount',
+    'borkCannonballsHit',
+    'borkCannonballsMissed',
     'xarthCorpsesLeaked',
   ];
   for (const field of tfaScalarFields) {

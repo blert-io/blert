@@ -627,6 +627,27 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
         ],
       },
       {
+        label: 'Bork',
+        subMenu: [
+          {
+            label: 'Bombs hit',
+            value: def('Bork bombs hit', {
+              path: 'tfa.borkCannonballsHit',
+              inputKind: 'number',
+              min: 0,
+            }).id,
+          },
+          {
+            label: 'Bombs missed',
+            value: def('Bork bombs missed', {
+              path: 'tfa.borkCannonballsMissed',
+              inputKind: 'number',
+              min: 0,
+            }).id,
+          },
+        ],
+      },
+      {
         label: 'Xarth',
         subMenu: [
           {

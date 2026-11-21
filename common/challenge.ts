@@ -66,6 +66,8 @@ export type TfaChallengeStats = {
   guardianDownCount: number | null;
   ezekielDeaths: number | null;
   borkDeaths: number | null;
+  borkCannonballsHit: number | null;
+  borkCannonballsMissed: number | null;
   moiaDeaths: number | null;
   dreadnothDeaths: number | null;
   dagonhaiDeaths: number | null;
@@ -459,6 +461,8 @@ export enum RoomNpcType {
   MOKHAIOTL = 15,
   GUARDIAN = 16,
   GUARDIAN_BRAZIER = 17,
+  BORK = 18,
+  SMORKS = 19,
 }
 
 export interface RoomNpc {
@@ -787,6 +791,13 @@ export enum NpcAttack {
   TFA_GUARDIAN_BREATH_FOCUS = NpcAttackProto.TFA_GUARDIAN_BREATH_FOCUS,
   TFA_GUARDIAN_BREATH = NpcAttackProto.TFA_GUARDIAN_BREATH,
 
+  TFA_BORK_MELEE = NpcAttackProto.TFA_BORK_MELEE,
+  TFA_BORK_STOMP = NpcAttackProto.TFA_BORK_STOMP,
+  TFA_SMORKS_RANGE = NpcAttackProto.TFA_SMORKS_RANGE,
+  TFA_SMORKS_MAGE = NpcAttackProto.TFA_SMORKS_MAGE,
+  TFA_SMORKS_NAPALM = NpcAttackProto.TFA_SMORKS_NAPALM,
+  TFA_SMORKS_CANNONBALL = NpcAttackProto.TFA_SMORKS_CANNONBALL,
+
   TFA_XARTH_MAGE = NpcAttackProto.TFA_XARTH_MAGE,
   TFA_XARTH_RANGE = NpcAttackProto.TFA_XARTH_RANGE,
   TFA_XARTH_MELEE = NpcAttackProto.TFA_XARTH_MELEE,
@@ -917,6 +928,14 @@ export enum VerzikPhase {
   P1 = EventProto.VerzikPhase.VERZIK_P1,
   P2 = EventProto.VerzikPhase.VERZIK_P2,
   P3 = EventProto.VerzikPhase.VERZIK_P3,
+}
+
+export enum BorkSpeed {
+  REGULAR = EventProto.BorkSpeed.BORK_REGULAR,
+  FAST = EventProto.BorkSpeed.BORK_FAST,
+  FASTER = EventProto.BorkSpeed.BORK_FASTER,
+  FASTEST = EventProto.BorkSpeed.BORK_FASTEST,
+  ENRAGE = EventProto.BorkSpeed.BORK_ENRAGE,
 }
 
 export enum EquipmentSlot {

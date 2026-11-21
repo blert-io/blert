@@ -1448,6 +1448,30 @@ export const NPC_ATTACK_METADATA: Record<NpcAttack, NpcAttackMetadata> = {
       <span>Breathed fire{target ? <> towards {target}</> : ''}</span>
     ),
   },
+  [NpcAttack.TFA_BORK_MELEE]: {
+    imageUrl: '/images/tfa/bork/melee.png',
+    description: basicDescription('a melee attack'),
+  },
+  [NpcAttack.TFA_BORK_STOMP]: {
+    imageUrl: '/images/tfa/bork/stomp.png',
+    description: () => <span>Stomped</span>,
+  },
+  [NpcAttack.TFA_SMORKS_RANGE]: {
+    imageUrl: '/images/tfa/bork/range.png',
+    description: basicDescription('a ranged attack'),
+  },
+  [NpcAttack.TFA_SMORKS_MAGE]: {
+    imageUrl: '/images/tfa/bork/mage.png',
+    description: basicDescription('a magic attack'),
+  },
+  [NpcAttack.TFA_SMORKS_NAPALM]: {
+    imageUrl: '/images/tfa/bork/napalm.png',
+    description: () => <span>Fired an incendiary cannonball</span>,
+  },
+  [NpcAttack.TFA_SMORKS_CANNONBALL]: {
+    imageUrl: '/images/tfa/bork/cannonball.png',
+    description: () => <span>Fired a heavy cannonball</span>,
+  },
   [NpcAttack.TFA_XARTH_MAGE]: {
     imageUrl: '/images/tfa/xarth/mage.png',
     description: basicDescription('a magic attack'),

@@ -51,7 +51,7 @@ const BIND_CHAINS_SHEET: SpriteSheet = {
 };
 
 const BIND_SHADOW_SHEET: SpriteSheet = {
-  url: '/images/objects/xarth-bind-shadow.webp',
+  url: '/images/objects/debris-shadow.webp',
   columns: 5,
   rows: 3,
   cellWidth: 0.8906,

@@ -335,6 +335,10 @@ export class DataRepository {
       if (e.hasTfaGuardianRocks()) {
         e.getTfaGuardianRocks()!.clearTargetsList();
       }
+
+      if (e.hasTfaBorkCannonAuto()) {
+        e.getTfaBorkCannonAuto()!.clearTargetsList();
+      }
     });
 
     challengeEvents.setEventsList(events);
@@ -389,6 +393,15 @@ export class DataRepository {
         if (rocks.getTargetsList().length === 0) {
           rocks.setTargetsList(
             rocks.getTargetPartyIndicesList().map((index) => party[index]),
+          );
+        }
+      }
+
+      if (e.hasTfaBorkCannonAuto()) {
+        const auto = e.getTfaBorkCannonAuto()!;
+        if (auto.getTargetsList().length === 0) {
+          auto.setTargetsList(
+            auto.getTargetPartyIndicesList().map((index) => party[index]),
           );
         }
       }

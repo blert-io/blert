@@ -1265,6 +1265,93 @@ describe('challenges', () => {
       });
     });
 
+    describe('tfa bork stat filters', () => {
+      const HITS = 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1';
+      const MISSES = 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2';
+      const EZEKIEL = 'f3f3f3f3-f3f3-f3f3-f3f3-f3f3f3f3f3f3';
+
+      beforeEach(async () => {
+        const raids = [
+          [HITS, 0b001, 3, 0],
+          [MISSES, 0b001, 0, 2],
+          [EZEKIEL, 0b000, null, null],
+        ] as const;
+
+        const rows = await sql`
+          INSERT INTO challenges ${sql(
+            raids.map(([uuid], i) => ({
+              session_id: sessionId,
+              uuid,
+              type: ChallengeType.TFA,
+              status: ChallengeStatus.COMPLETED,
+              stage: Stage.TFA_OCELLUS,
+              start_time: new Date(`2026-11-21T${14 + i}:00:00Z`),
+              scale: 4,
+            })),
+            [
+              'session_id',
+              'uuid',
+              'type',
+              'status',
+              'stage',
+              'start_time',
+              'scale',
+            ],
+          )} RETURNING id
+        `;
+
+        await sql`
+          INSERT INTO tfa_challenge_stats ${sql(
+            raids.map(([, route, hit, missed], i) => ({
+              challenge_id: rows[i].id,
+              route,
+              bork_cannonballs_hit: hit,
+              bork_cannonballs_missed: missed,
+            })),
+            [
+              'challenge_id',
+              'route',
+              'bork_cannonballs_hit',
+              'bork_cannonballs_missed',
+            ],
+          )}
+        `;
+      });
+
+      it('matches raids by each bork stat', async () => {
+        const [hit] = await findChallenges(10, {
+          tfa: { borkCannonballsHit: ['==', 3] },
+        });
+        expect(hit.map((c) => c.uuid)).toEqual([HITS]);
+
+        const [missed] = await findChallenges(10, {
+          tfa: { borkCannonballsMissed: ['==', 2] },
+        });
+        expect(missed.map((c) => c.uuid)).toEqual([MISSES]);
+      });
+
+      it('excludes raids without bork stats', async () => {
+        const [challenges] = await findChallenges(10, {
+          tfa: { borkCannonballsHit: ['>=', 0] },
+        });
+        expect(challenges.map((c) => c.uuid).sort()).toEqual([HITS, MISSES]);
+      });
+
+      it('sorts by a bork stat with raids without it last', async () => {
+        const [descending] = await findChallenges(10, {
+          type: ['==', ChallengeType.TFA],
+          sort: '-tfa:borkCannonballsHit#nl',
+        });
+        expect(descending.map((c) => c.uuid)).toEqual([HITS, MISSES, EZEKIEL]);
+
+        const [ascending] = await findChallenges(10, {
+          type: ['==', ChallengeType.TFA],
+          sort: '+tfa:borkCannonballsHit#nl',
+        });
+        expect(ascending.map((c) => c.uuid)).toEqual([MISSES, HITS, EZEKIEL]);
+      });
+    });
+
     describe('tfa xarth stat filters', () => {
       const LEAKS = 'e1e1e1e1-e1e1-e1e1-e1e1-e1e1e1e1e1e1';
       const NO_LEAKS = 'e2e2e2e2-e2e2-e2e2-e2e2-e2e2e2e2e2e2';
