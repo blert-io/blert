@@ -161,7 +161,7 @@ export function AttackInfo({
       {children ?? (
         <>
           {verb && <span className={styles.attackVerb}>{verb}</span>}
-          {target}
+          {target ?? 'unknown target'}
           {distance !== undefined && (
             <span className={styles.distanceInfo}>
               from {distance} tile{distance === 1 ? '' : 's'} away

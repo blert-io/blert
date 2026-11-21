@@ -545,6 +545,13 @@ export type BasicSortableFields = keyof Omit<
 export type SplitSortableFields = `splits:${SplitType}`;
 export type TobSortableFields =
   `tob:${keyof Pick<TobChallengeStats, 'xarpusHealing'>}`;
+export type TfaSortableFields = `tfa:${keyof Pick<
+  TfaChallengeStats,
+  | 'guardianDownCount'
+  | 'borkCannonballsHit'
+  | 'borkCannonballsMissed'
+  | 'xarthCorpsesLeaked'
+>}`;
 export type MokhaiotlSortableFields = `mok:${keyof Pick<
   MokhaiotlChallengeStats,
   'maxCompletedDelve' | 'avgDeepDelveTicks'
@@ -553,6 +560,7 @@ export type SortableFields =
   | BasicSortableFields
   | SplitSortableFields
   | TobSortableFields
+  | TfaSortableFields
   | MokhaiotlSortableFields;
 
 export type TobQueryableField = `tob:${keyof Pick<
@@ -566,6 +574,8 @@ export type TobQueryableField = `tob:${keyof Pick<
 export type TfaQueryableField = `tfa:${keyof Pick<
   TfaChallengeStats,
   | 'guardianDownCount'
+  | 'borkCannonballsHit'
+  | 'borkCannonballsMissed'
   | 'xarthCorpsesLeaked'
   | 'xarthCorpsesIgnored'
   | 'xarthCorpsesDoused'
@@ -596,6 +606,8 @@ export type TobQuery = {
 export type TfaQuery = {
   route?: Stage[];
   guardianDownCount?: Comparator<number>;
+  borkCannonballsHit?: Comparator<number>;
+  borkCannonballsMissed?: Comparator<number>;
   xarthCorpsesLeaked?: Comparator<number>;
   xarthCorpsesIgnored?: Comparator<number>;
   xarthCorpsesDoused?: Comparator<number>;
@@ -891,6 +903,8 @@ function applyTfaFilters(
 
   const statsColumns: Record<keyof Omit<TfaQuery, 'route'>, string> = {
     guardianDownCount: 'guardian_down_count',
+    borkCannonballsHit: 'bork_cannonballs_hit',
+    borkCannonballsMissed: 'bork_cannonballs_missed',
     xarthCorpsesLeaked: 'xarth_corpses_leaked',
     xarthCorpsesIgnored: 'xarth_corpses_ignored',
     xarthCorpsesDoused: 'xarth_corpses_doused',
@@ -1172,6 +1186,15 @@ function applyFilters(
           on: sql`${sqlChallenges}.id = tob_challenge_stats.challenge_id`,
           type: 'left',
           tableName: 'tob_challenge_stats',
+        });
+      }
+
+      if (sortKey.startsWith('tfa:')) {
+        joins.push({
+          table: sql`tfa_challenge_stats`,
+          on: sql`${sqlChallenges}.id = tfa_challenge_stats.challenge_id`,
+          type: 'left',
+          tableName: 'tfa_challenge_stats',
         });
       }
 

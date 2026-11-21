@@ -7,9 +7,9 @@ import {
   PrayerBook,
   PrayerSet,
 } from '@blert/common';
-import { Billboard, Plane, Text, useTexture } from '@react-three/drei';
+import { Billboard, Html, Plane, Text, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useRef, useMemo, useEffect, useState } from 'react';
+import { CSSProperties, useRef, useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 // @ts-expect-error - troika-three-text has no type declarations
 import { Text as TroikaText } from 'troika-three-text';
@@ -22,16 +22,54 @@ import {
 } from './animation';
 import { useEntityPositions } from './entity-position-context';
 import HealthBar from './health-bar';
-import { useReplayContext } from './replay-context';
+import {
+  cycleToTick,
+  isInterpolating,
+  replayCycle,
+  useReplayContext,
+} from './replay-context';
 import RenderBoundary from './render-boundary';
+import { cellAt, SheetSprite, showCell, useSheetTexture } from './sprite-sheet';
 import {
   EntityType,
   InteractiveEntityProps,
   InterpolationState,
   NpcEntity,
+  NpcSpotAnim,
 } from './types';
 
 export type NpcComponentProps = InteractiveEntityProps<NpcEntity>;
+
+const OVERHEAD_TEXT_STYLE: CSSProperties = {
+  color: '#ffff00',
+  fontFamily: 'var(--font-runescape)',
+  fontWeight: 700,
+  fontSize: 16,
+  lineHeight: 1,
+  textShadow: '1px 1px 0 #000000',
+  whiteSpace: 'nowrap',
+  pointerEvents: 'none',
+  userSelect: 'none',
+};
+
+const OVERHEAD_TEXT_TICKS = 3;
+
+export function overheadTextByTick(
+  lines: { tick: number; text: string }[],
+  totalTicks: number,
+): (string | null)[] {
+  const byTick: (string | null)[] = Array.from(
+    { length: totalTicks },
+    () => null,
+  );
+  for (const { tick, text } of lines.toSorted((a, b) => a.tick - b.tick)) {
+    const end = Math.min(tick + OVERHEAD_TEXT_TICKS, totalTicks);
+    for (let t = Math.max(tick, 0); t < end; t++) {
+      byTick[t] = text;
+    }
+  }
+  return byTick;
+}
 
 const vertexShader = `
   uniform vec2 u_uvOffset;
@@ -358,6 +396,52 @@ function overheadPrayerSprite(prayers: PrayerSet): string {
   return '/images/huh.png';
 }
 
+function SpotAnimSprite({
+  spotAnim,
+  imageBottom,
+}: {
+  spotAnim: NpcSpotAnim;
+  imageBottom: number;
+}) {
+  const { animation, startCycle, scale } = spotAnim;
+  const replay = useReplayContext();
+  const texture = useSheetTexture(animation.sheet);
+
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  useFrame(() => {
+    const mesh = meshRef.current;
+    if (mesh === null) {
+      return;
+    }
+
+    const cell = isInterpolating(replay)
+      ? cellAt(animation.frames, replayCycle(replay) - startCycle)
+      : animation.staticFramesByTick[
+          replay.currentTick - cycleToTick(startCycle)
+        ];
+    if (cell === undefined) {
+      mesh.visible = false;
+      return;
+    }
+
+    showCell(texture, animation.sheet, cell);
+    mesh.visible = true;
+  });
+
+  return (
+    <group position={[0, imageBottom + animation.height, 0.01]}>
+      <SheetSprite
+        ref={meshRef}
+        sheet={animation.sheet}
+        texture={texture}
+        scale={scale}
+        visible={false}
+      />
+    </group>
+  );
+}
+
 export default function Npc({
   entity,
   onClicked,
@@ -583,6 +667,18 @@ export default function Npc({
           </RenderBoundary>
         </group>
 
+        {npcEntity.spotAnims.map((spotAnim) => (
+          <RenderBoundary
+            key={`${spotAnim.animation.sheet.url}-${spotAnim.startCycle}`}
+            fallback={null}
+          >
+            <SpotAnimSprite
+              spotAnim={spotAnim}
+              imageBottom={-spriteHeight / 2}
+            />
+          </RenderBoundary>
+        ))}
+
         {!isDimmed && (
           <>
             <Text
@@ -612,6 +708,16 @@ export default function Npc({
               >
                 {npcEntity.label}
               </Text>
+            )}
+
+            {npcEntity.overheadText !== null && (
+              <Html
+                position={[0, 2.5 + (entity.size - 1) * 0.5, 0]}
+                center
+                style={OVERHEAD_TEXT_STYLE}
+              >
+                {npcEntity.overheadText}
+              </Html>
             )}
 
             {!npcEntity.prayers.isEmpty() && (

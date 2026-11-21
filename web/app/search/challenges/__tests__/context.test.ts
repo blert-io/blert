@@ -145,6 +145,8 @@ describe('challenges filter URL round-trip', () => {
           Stage.TFA_DREADNOTH,
         ],
         guardianDownCount: [Comparator.LESS_THAN_OR_EQUAL, 2],
+        borkCannonballsHit: [Comparator.GREATER_THAN_OR_EQUAL, 3],
+        borkCannonballsMissed: [Comparator.EQUAL, 0],
         xarthCorpsesLeaked: [Comparator.GREATER_THAN_OR_EQUAL, 1],
       },
     };
@@ -157,6 +159,8 @@ describe('challenges filter URL round-trip', () => {
       'ocellus',
     ]);
     expect(params['tfa.guardianDownCount']).toBe('le2');
+    expect(params['tfa.borkCannonballsHit']).toBe('ge3');
+    expect(params['tfa.borkCannonballsMissed']).toBe('eq0');
     expect(params['tfa.xarthCorpsesLeaked']).toBe('ge1');
     expect(roundTrip(filters).tfa).toEqual({
       route: [
@@ -167,6 +171,8 @@ describe('challenges filter URL round-trip', () => {
         Stage.TFA_OCELLUS,
       ],
       guardianDownCount: [Comparator.LESS_THAN_OR_EQUAL, 2],
+      borkCannonballsHit: [Comparator.GREATER_THAN_OR_EQUAL, 3],
+      borkCannonballsMissed: [Comparator.EQUAL, 0],
       xarthCorpsesLeaked: [Comparator.GREATER_THAN_OR_EQUAL, 1],
     });
   });
@@ -284,10 +290,12 @@ describe('countActiveFilters', () => {
       tfa: {
         route: [Stage.TFA_BORK, Stage.TFA_MOIA, Stage.TFA_XARTH],
         guardianDownCount: [Comparator.EQUAL, 3],
+        borkCannonballsHit: [Comparator.EQUAL, 2],
+        borkCannonballsMissed: [Comparator.EQUAL, 1],
         xarthCorpsesLeaked: [Comparator.EQUAL, 0],
       },
     };
-    expect(countActiveFilters(filters)).toBe(4);
+    expect(countActiveFilters(filters)).toBe(6);
   });
 
   it('counts Mokhaiotl sub-filters individually', () => {

@@ -321,6 +321,8 @@ export function parseChallengeQuery(
 
   const tfaScalarParams = [
     'guardianDownCount',
+    'borkCannonballsHit',
+    'borkCannonballsMissed',
     'xarthCorpsesLeaked',
     'xarthCorpsesIgnored',
     'xarthCorpsesDoused',

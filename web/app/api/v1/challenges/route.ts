@@ -77,7 +77,7 @@ export const GET = withApiRoute(
         }
         splits.add(split);
       }
-      if (sortField.startsWith('tob:')) {
+      if (sortField.startsWith('tob:') || sortField.startsWith('tfa:')) {
         loadStats = true;
       }
     }

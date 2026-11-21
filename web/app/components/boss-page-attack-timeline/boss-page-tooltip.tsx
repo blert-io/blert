@@ -182,7 +182,11 @@ function PlayerTooltipContent({
           <AttackInfo
             verb={meta.verb}
             target={targetChip}
-            distance={state.attack.distanceToTarget}
+            distance={
+              state.attack.distanceToTarget > 0
+                ? state.attack.distanceToTarget
+                : undefined
+            }
           />
         </TooltipSection>
       </React.Fragment>,

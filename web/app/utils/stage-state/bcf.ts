@@ -362,7 +362,10 @@ function buildPlayerCell(
           ? simpleItemCache.getItemName(weaponId)
           : undefined,
       targetActorId,
-      distanceToTarget: state.attack.distanceToTarget,
+      distanceToTarget:
+        state.attack.distanceToTarget >= 0
+          ? state.attack.distanceToTarget
+          : undefined,
       damage: state.attack.damage,
     });
   }

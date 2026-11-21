@@ -2,6 +2,7 @@ import { Coords, getNpcDefinition, PrayerSet, SkillLevel } from '@blert/common';
 
 import { npcImageUrl } from '@/utils/url';
 import { Terrain } from './path';
+import type { SpriteSheetAnimation } from './sprite-sheet';
 
 export type MapDefinition = {
   baseX: number;
@@ -182,6 +183,12 @@ type NpcOptions = {
   };
 };
 
+export type NpcSpotAnim = {
+  animation: SpriteSheetAnimation;
+  startCycle: number;
+  scale: number;
+};
+
 export class NpcEntity implements InteractiveEntity {
   /**
    * Returns the entity ID of the NPC with the given room ID.
@@ -203,6 +210,8 @@ export class NpcEntity implements InteractiveEntity {
   shield: HitpointsState | null = null;
   dimmed: boolean = false;
   label?: string;
+  overheadText: string | null = null;
+  spotAnims: NpcSpotAnim[] = [];
 
   public constructor(
     public readonly position: Coords,

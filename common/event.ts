@@ -2,6 +2,7 @@ import { Event as EventProto } from './generated/event_pb';
 import { RawItemDelta } from './item-delta';
 import { RawPrayerSet } from './prayer-set';
 import {
+  BorkSpeed,
   EquipmentSlot,
   GuardianBrazierPosition,
   GuardianBrazierProperties,
@@ -58,6 +59,12 @@ export enum EventType {
   TFA_GUARDIAN_ROCKS = EventProto.Type.TFA_GUARDIAN_ROCKS,
   TFA_GUARDIAN_SHROOMS = EventProto.Type.TFA_GUARDIAN_SHROOMS,
   TFA_GUARDIAN_BRAZIER = EventProto.Type.TFA_GUARDIAN_BRAZIER,
+  TFA_BORK_DUST = EventProto.Type.TFA_BORK_DUST,
+  TFA_BORK_NAPALM = EventProto.Type.TFA_BORK_NAPALM,
+  TFA_BORK_CANNON_AUTO = EventProto.Type.TFA_BORK_CANNON_AUTO,
+  TFA_BORK_BOMB = EventProto.Type.TFA_BORK_BOMB,
+  TFA_BORK_STUN = EventProto.Type.TFA_BORK_STUN,
+  TFA_BORK_SPEEDUP = EventProto.Type.TFA_BORK_SPEEDUP,
   TFA_XARTH_BOMBS = EventProto.Type.TFA_XARTH_BOMBS,
   TFA_XARTH_BLAST = EventProto.Type.TFA_XARTH_BLAST,
   TFA_XARTH_FIRES = EventProto.Type.TFA_XARTH_FIRES,
@@ -324,6 +331,51 @@ export enum TfaGuardianShroomState {
   POPPED = EventProto.TfaGuardianShrooms.State.POPPED,
 }
 
+export interface TfaBorkDustEvent extends BaseEvent {
+  type: EventType.TFA_BORK_DUST;
+  tfaBorkDust: {
+    tiles: Coords[];
+  };
+}
+
+export interface TfaBorkNapalmEvent extends BaseEvent {
+  type: EventType.TFA_BORK_NAPALM;
+  tfaBorkNapalm: {
+    added: Coords[];
+    removed: Coords[];
+  };
+}
+
+export interface TfaBorkCannonAutoEvent extends BaseEvent {
+  type: EventType.TFA_BORK_CANNON_AUTO;
+  tfaBorkCannonAuto: {
+    targets: string[];
+    landingTick: number;
+  };
+}
+
+export interface TfaBorkBombEvent extends BaseEvent {
+  type: EventType.TFA_BORK_BOMB;
+  tfaBorkBomb: {
+    target: Coords;
+    landingTick: number;
+  };
+}
+
+export interface TfaBorkStunEvent extends BaseEvent {
+  type: EventType.TFA_BORK_STUN;
+  tfaBorkStun: {
+    bombTick: number;
+  };
+}
+
+export interface TfaBorkSpeedupEvent extends BaseEvent {
+  type: EventType.TFA_BORK_SPEEDUP;
+  tfaBorkSpeedup: {
+    speed: BorkSpeed;
+  };
+}
+
 export interface TfaXarthBombsEvent extends BaseEvent {
   type: EventType.TFA_XARTH_BOMBS;
   tfaXarthBombs: {
@@ -506,6 +558,12 @@ export type Event =
   | TfaGuardianRocksEvent
   | TfaGuardianShroomsEvent
   | TfaGuardianBrazierEvent
+  | TfaBorkDustEvent
+  | TfaBorkNapalmEvent
+  | TfaBorkCannonAutoEvent
+  | TfaBorkBombEvent
+  | TfaBorkStunEvent
+  | TfaBorkSpeedupEvent
   | TfaXarthBombsEvent
   | TfaXarthBlastEvent
   | TfaXarthFiresEvent
@@ -573,6 +631,14 @@ export type GuardianProperties = {
   shield?: RawSkillLevel;
 };
 
+export type BorkProperties = {
+  speed: BorkSpeed;
+};
+
+export type SmorksProperties = {
+  speed: BorkSpeed;
+};
+
 export interface EventNpc extends BasicEventNpc {
   hitpoints: RawSkillLevel;
   prayers: RawPrayerSet;
@@ -582,6 +648,8 @@ export interface EventNpc extends BasicEventNpc {
   mokhaiotl?: MokhaiotlProperties;
   guardian?: GuardianProperties;
   guardianBrazier?: GuardianBrazierProperties;
+  bork?: BorkProperties;
+  smorks?: SmorksProperties;
 }
 
 export type Attack = {
