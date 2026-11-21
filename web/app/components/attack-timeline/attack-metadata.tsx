@@ -626,6 +626,14 @@ export const ATTACK_METADATA: Record<PlayerAttack, AttackMetadata> = {
     style: CombatStyle.RANGED,
     verb: 'pipe specced',
   },
+  [PlayerAttack.RUNE_CROSSBOW]: {
+    tagColor: TagColor.GREEN,
+    letter: 'RCB',
+    ranged: true,
+    special: false,
+    style: CombatStyle.RANGED,
+    verb: 'shot',
+  },
   [PlayerAttack.SAELDOR]: {
     tagColor: TagColor.RED,
     letter: 'B',
