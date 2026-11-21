@@ -9,25 +9,13 @@ type EditableTextFieldProps = {
   value: string;
   onChange: (value: string) => void;
   tag: ElementType;
-  inputTag?: 'input' | 'textarea';
   width: number | string;
 };
 
 export function EditableTextField(props: EditableTextFieldProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(props.value);
-  const [fieldHeight, setFieldHeight] = useState(0);
-  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const textRef = useRef<HTMLSpanElement>(null);
   const justStoppedEditing = useRef(false);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      setFieldHeight(inputRef.current.scrollHeight);
-    } else if (textRef.current) {
-      setFieldHeight(textRef.current.scrollHeight);
-    }
-  }, [editing]);
 
   useEffect(() => setValue(props.value), [props.value]);
 
@@ -48,7 +36,6 @@ export function EditableTextField(props: EditableTextFieldProps) {
   }
 
   const Tag = props.tag as React.ElementType<React.HTMLAttributes<HTMLElement>>;
-  const InputTag = props.inputTag ?? 'input';
   const style: React.CSSProperties = { width: props.width };
 
   const className = props.className
@@ -58,7 +45,7 @@ export function EditableTextField(props: EditableTextFieldProps) {
   if (!editing) {
     return (
       <Tag className={className} style={style}>
-        <span className={styles.text} ref={textRef} onClick={startEditing}>
+        <span className={styles.text} onClick={startEditing}>
           {props.value}
         </span>
         <button className={styles.button} onClick={startEditing}>
@@ -69,34 +56,19 @@ export function EditableTextField(props: EditableTextFieldProps) {
     );
   }
 
-  const isTextarea = InputTag === 'textarea';
-
   return (
     <Tag className={className} style={style}>
-      <InputTag
+      <input
         autoFocus
         className={styles.input}
-        ref={
-          inputRef as React.RefObject<HTMLInputElement & HTMLTextAreaElement>
-        }
-        onBlur={() => {
-          if (!isTextarea) {
+        onBlur={stopEditing}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
             stopEditing();
           }
         }}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setFieldHeight(e.target.scrollHeight);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            if (!isTextarea || e.ctrlKey) {
-              stopEditing();
-            }
-          }
-        }}
         value={value}
-        style={{ height: isTextarea ? fieldHeight : undefined }}
       />
       <button
         className={styles.button}

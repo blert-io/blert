@@ -59,16 +59,6 @@
     padding: 6px 10px;
   }
 
-  textarea.input {
-    padding: 8px 10px;
-    min-height: 10em;
-    max-height: 80vh;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    resize: vertical;
-
-    @include styledScrollbar;
-  }
-
   :global([data-theme='aero']) & {
     .text:hover {
       background: rgba(255, 255, 255, 0.55);
