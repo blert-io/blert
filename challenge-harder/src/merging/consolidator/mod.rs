@@ -191,10 +191,11 @@ impl ResolutionStrategy {
 
 /// Extracts the referenced attack tick from an attack-mapped event,
 /// in its client's tick space.
-fn referenced_tick(kind: &EventKind) -> Tick {
-    match kind {
+fn referenced_tick(buffered: &BufferedEvent) -> Tick {
+    match &buffered.event.kind {
         EventKind::VerzikBounce(bounce) => bounce.attack_tick,
         EventKind::VerzikDawnHit(dawn) => dawn.attack_tick,
+        EventKind::BorkCannonAuto(_) => buffered.client_tick,
         _ => unreachable!("non attack-mapped event"),
     }
 }
@@ -229,6 +230,13 @@ fn attack_present(state: &TickState, kind: &EventKind) -> bool {
                 EventKind::PlayerAttack(attacked)
                     if attacked.player == dawn.player
                         && attacked.attack == PlayerAttack::DawnSpec
+            )
+        }),
+        EventKind::BorkCannonAuto(_) => state.events.iter().any(|event| {
+            matches!(
+                &event.kind,
+                EventKind::NpcAttack(attacked)
+                    if matches!(attacked.attack, NpcAttack::TfaSmorksRange | NpcAttack::TfaSmorksMage)
             )
         }),
         _ => unreachable!("non attack-mapped event"),
@@ -276,6 +284,9 @@ fn candidates_agree(a: &EventKind, b: &EventKind) -> bool {
         (EventKind::VerzikBounce(a), EventKind::VerzikBounce(b)) => a.bounced == b.bounced,
         (EventKind::VerzikDawnHit(a), EventKind::VerzikDawnHit(b)) => {
             a.player == b.player && a.damage == b.damage
+        }
+        (EventKind::BorkCannonAuto(a), EventKind::BorkCannonAuto(b)) => {
+            a.targets.iter().collect::<BTreeSet<_>>() == b.targets.iter().collect::<BTreeSet<_>>()
         }
         _ => unreachable!("non attack-mapped event"),
     }
@@ -1359,7 +1370,7 @@ impl<'a, 't> Consolidator<'a, 't> {
 
         for buffered in events {
             self.counters.attack_mapped_events += 1;
-            let client_attack_tick = referenced_tick(&buffered.event.kind);
+            let client_attack_tick = referenced_tick(&buffered);
 
             let Some(merged_attack_tick) = mapping.to_merged(client_attack_tick) else {
                 if let Some(tracer) = self.tracer.as_deref_mut() {
@@ -1409,7 +1420,7 @@ impl<'a, 't> Consolidator<'a, 't> {
     }
 
     /// Chooses between the base's and the target's candidates referencing an
-    /// attack and inserts the winning event on the tick after the attack.
+    /// attack and inserts the winning event.
     fn place_attack_mapped_event(
         &mut self,
         merged: &mut Recording,
@@ -1471,7 +1482,11 @@ impl<'a, 't> Consolidator<'a, 't> {
         };
 
         let attack_tick = winner.merged_attack_tick;
-        let resolved_tick = attack_tick.succ();
+        let resolved_tick = match kind {
+            EventType::TobVerzikBounce | EventType::TobVerzikDawn => attack_tick.succ(),
+            EventType::TfaBorkCannonAuto => attack_tick,
+            _ => unreachable!("non attack-mapped event"),
+        };
 
         if let Some(tracer) = self.tracer.as_deref_mut() {
             tracer.record_attack_mapped_resolution(&AttackMappedResolution {

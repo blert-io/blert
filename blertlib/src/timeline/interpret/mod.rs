@@ -1,6 +1,7 @@
 //! Interpreters to convert raw game signals into structured events.
 
 mod bloat;
+mod bork;
 mod colosseum;
 mod guardian;
 mod maiden;
@@ -15,6 +16,7 @@ mod xarth;
 use std::collections::{BTreeMap, BTreeSet};
 
 use bloat::BloatInterpreter;
+use bork::BorkInterpreter;
 use colosseum::ColosseumInterpreter;
 use guardian::GuardianInterpreter;
 use maiden::MaidenInterpreter;
@@ -91,6 +93,8 @@ const GENERIC_NPCS: [(Option<PluginVersion>, &[u32]); 4] = [
             npc::id::GUARDIAN_BATTERY,
             npc::id::GUARDIAN_BATTERY_DESTROYED,
             npc::id::GUARDIAN_VINE,
+            npc::id::BORK,
+            npc::id::THE_SMORKS,
             npc::id::XARTH,
             npc::id::XARTH_CORPSE,
             npc::id::XARTH_CORPSE_DOUSED,
@@ -106,7 +110,6 @@ const HEADICONS_PRAYER: u16 = 440;
 struct InterpretContext {
     client_id: ClientId,
     plugin_version: PluginVersion,
-    #[expect(dead_code)]
     config_version: ConfigVersion,
 }
 
@@ -183,6 +186,9 @@ pub(super) fn interpret(
         }
         Stage::TfaGuardian => GuardianInterpreter::new(&ctx, recording)
             .and_then(|guardian| guardian.interpret(recording)),
+        Stage::TfaBork => {
+            BorkInterpreter::new(&ctx, recording).and_then(|bork| bork.interpret(recording))
+        }
         Stage::TfaXarth => {
             XarthInterpreter::new(&ctx, recording).and_then(|xarth| xarth.interpret(recording))
         }

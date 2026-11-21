@@ -55,6 +55,8 @@ pub const fn classify(kind: &EventKind) -> Class {
         | EventKind::GuardianRocks(_)
         | EventKind::GuardianShrooms(_)
         | EventKind::GuardianBrazier(_)
+        | EventKind::BorkStun { .. }
+        | EventKind::BorkSpeedup(_)
         | EventKind::XarthBombs(_)
         | EventKind::XarthBlast(_)
         | EventKind::XarthFires(_)
@@ -81,9 +83,12 @@ pub const fn classify(kind: &EventKind) -> Class {
         | EventKind::VerzikPhase(_)
         | EventKind::VerzikDawnDropped(_)
         | EventKind::VerzikDawnPickedUp(_)
-        | EventKind::VerzikHeal(_) => Class::Stream,
+        | EventKind::VerzikHeal(_)
+        | EventKind::BorkBomb(_) => Class::Stream,
 
-        EventKind::VerzikDawnHit(_) | EventKind::VerzikBounce(_) => Class::AttackMapped,
+        EventKind::VerzikDawnHit(_) | EventKind::VerzikBounce(_) | EventKind::BorkCannonAuto(_) => {
+            Class::AttackMapped
+        }
     }
 }
 
@@ -113,6 +118,9 @@ pub enum EventType {
     TobVerzikHeal,
     TobVerzikDawn,
     TobVerzikDawnDrop,
+
+    TfaBorkCannonAuto,
+    TfaBorkBomb,
 
     ColosseumHandicapChoice,
     ColosseumDoomApplied,
@@ -161,6 +169,9 @@ pub(super) const fn event_type(kind: &EventKind) -> EventType {
         EventKind::VerzikBounce(_) => EventType::TobVerzikBounce,
         EventKind::VerzikHeal(_) => EventType::TobVerzikHeal,
 
+        EventKind::BorkCannonAuto(_) => EventType::TfaBorkCannonAuto,
+        EventKind::BorkBomb(_) => EventType::TfaBorkBomb,
+
         EventKind::HandicapChoice(_) => EventType::ColosseumHandicapChoice,
         EventKind::DoomApplied => EventType::ColosseumDoomApplied,
         EventKind::TotemHeal(_) => EventType::ColosseumTotemHeal,
@@ -182,6 +193,8 @@ pub(super) const fn event_type(kind: &EventKind) -> EventType {
         | EventKind::GuardianRocks(_)
         | EventKind::GuardianShrooms(_)
         | EventKind::GuardianBrazier(_)
+        | EventKind::BorkStun { .. }
+        | EventKind::BorkSpeedup(_)
         | EventKind::XarthBombs(_)
         | EventKind::XarthBlast(_)
         | EventKind::XarthFires(_)
@@ -273,6 +286,8 @@ pub(super) fn stream_config(challenge: ChallengeType, kind: EventType) -> Option
         EventType::TobVerzikDawnDrop => StreamConfig::new(Some(Ticks(3)), None),
 
         EventType::TobVerzikHeal => StreamConfig::new(Some(Ticks(30)), Some(Ticks(10))),
+
+        EventType::TfaBorkBomb => StreamConfig::new(Some(Ticks(20)), Some(Ticks(10))),
         _ => return None,
     };
 
@@ -350,6 +365,7 @@ pub(super) fn identity_key(kind: &EventKind) -> IdentityKey {
         EventKind::VerzikDawnDropped(_) => IdentityKey::Number(u64::from(true)),
         EventKind::VerzikDawnPickedUp(_) => IdentityKey::Number(u64::from(false)),
         EventKind::VerzikHeal(heal) => IdentityKey::Player(heal.player),
+        EventKind::BorkBomb(bomb) => IdentityKey::Point(bomb.target),
         _ => unreachable!("non stream event"),
     }
 }

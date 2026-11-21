@@ -3,8 +3,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use blert::{
-    Actor, EventKind, PartyIndex, PlayerAttack, PlayerCooldowns, RoomId, Stage, Tick, Ticks,
-    Timeline,
+    Actor, EventKind, NpcAttack, PartyIndex, PlayerAttack, PlayerCooldowns, RoomId, Stage, Tick,
+    Ticks, Timeline, npc,
 };
 
 use crate::lifecycle::core::types::StageExt;
@@ -25,6 +25,11 @@ pub enum MergeConsistencyIssue {
     DuplicateNpcDeath {
         room_id: RoomId,
         occurrences: Vec<NpcOccurrence>,
+    },
+    DuplicateNpcAttack {
+        room_id: RoomId,
+        previous: NpcAttackOccurrence,
+        current: NpcAttackOccurrence,
     },
     DuplicateStreamEvent {
         kind: EventType,
@@ -64,6 +69,12 @@ pub enum MergeConsistencyIssue {
 pub struct NpcOccurrence {
     pub tick: Tick,
     pub npc_id: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NpcAttackOccurrence {
+    pub tick: Tick,
+    pub kind: NpcAttack,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +120,7 @@ pub(super) fn check(timeline: &Timeline) -> Result<(), Vec<MergeConsistencyIssue
     check_actor_lifecycles(timeline, &mut issues);
     check_stream_events(timeline, &mut issues);
     check_weapon_cooldowns(timeline, &mut issues);
+    check_npc_attacks(timeline, &mut issues);
     check_attack_target_presence(timeline, &mut issues);
     check_exclusive_event_types(timeline, &mut issues);
 
@@ -283,6 +295,50 @@ fn check_weapon_cooldowns(timeline: &Timeline, issues: &mut Vec<MergeConsistency
     }
 }
 
+/// Validates that NPC attacks in the merged timeline do not happen faster than possible.
+fn check_npc_attacks(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIssue>) {
+    let mut last_attack: BTreeMap<RoomId, NpcAttackOccurrence> = BTreeMap::new();
+
+    for tick in Tick(0).through(timeline.last_tick()) {
+        let Some(state) = timeline.get_state(tick) else {
+            continue;
+        };
+
+        for event in &state.events {
+            let EventKind::NpcAttack(attack) = &event.kind else {
+                continue;
+            };
+
+            // TODO(frolv): This only handles Smorks for now, given that their
+            // fast attack speed makes lag more likely to misreport an attack.
+            // Once the merger is rewritten to merge raw signals instead of
+            // events, this becomes moot, so more involved work would just be
+            // thrown away.
+            if state
+                .npcs
+                .get(&attack.npc)
+                .is_none_or(|npc| npc.id != npc::id::THE_SMORKS)
+            {
+                continue;
+            }
+            let current = NpcAttackOccurrence {
+                tick,
+                kind: attack.attack,
+            };
+            if let Some(&previous) = last_attack.get(&attack.npc)
+                && tick - previous.tick < Ticks(2)
+            {
+                issues.push(MergeConsistencyIssue::DuplicateNpcAttack {
+                    room_id: attack.npc,
+                    previous,
+                    current,
+                });
+            }
+            last_attack.insert(attack.npc, current);
+        }
+    }
+}
+
 fn check_attack_target_presence(timeline: &Timeline, issues: &mut Vec<MergeConsistencyIssue>) {
     // If an attack has a target, that target must be present in the same tick's
     // state map. The merger combines attack and target data across multiple
@@ -368,7 +424,7 @@ fn check_exclusive_event_types(timeline: &Timeline, issues: &mut Vec<MergeConsis
 
 #[cfg(test)]
 mod tests {
-    use blert::proto::{Event, event};
+    use blert::proto::{Coords, Event, event};
     use blert::{ChallengeMode, ClientId, Item, PlayerAttacked, Rsn, item};
 
     use super::*;
@@ -678,6 +734,99 @@ mod tests {
             ],
         );
         assert_eq!(check(&timeline), Ok(()));
+    }
+
+    #[test]
+    fn npc_attacks_flags_consecutive_smorks_attacks() {
+        let timeline = fixtures::timeline(
+            Stage::TfaBork,
+            ChallengeMode::TfaNormal,
+            &PARTY,
+            Tick(13),
+            vec![
+                fixtures::npc_spawn_event(NpcEvent {
+                    tick: Tick(0),
+                    stage: Stage::TfaBork,
+                    npc_id: npc::id::THE_SMORKS,
+                    room_id: 1001,
+                    ..Default::default()
+                }),
+                fixtures::npc_update_event(NpcEvent {
+                    tick: Tick(10),
+                    stage: Stage::TfaBork,
+                    npc_id: npc::id::THE_SMORKS,
+                    room_id: 1001,
+                    animation: Some(14554),
+                    animation_start_tick: Tick(10),
+                    ..Default::default()
+                }),
+                fixtures::projectiles_event(
+                    Tick(10),
+                    Stage::TfaBork,
+                    vec![event::Projectile {
+                        id: 4056,
+                        source_coords: Some(Coords { x: 0, y: 0 }),
+                        target_coords: Some(Coords { x: 0, y: 0 }),
+                        landing_tick: 14,
+                        ..Default::default()
+                    }],
+                ),
+                fixtures::npc_update_event(NpcEvent {
+                    tick: Tick(12),
+                    stage: Stage::TfaBork,
+                    npc_id: npc::id::THE_SMORKS,
+                    room_id: 1001,
+                    animation: Some(14554),
+                    animation_start_tick: Tick(10),
+                    ..Default::default()
+                }),
+                fixtures::projectiles_event(
+                    Tick(12),
+                    Stage::TfaBork,
+                    vec![event::Projectile {
+                        id: 4057,
+                        source_coords: Some(Coords { x: 0, y: 0 }),
+                        target_coords: Some(Coords { x: 0, y: 0 }),
+                        landing_tick: 16,
+                        ..Default::default()
+                    }],
+                ),
+                fixtures::npc_update_event(NpcEvent {
+                    tick: Tick(13),
+                    stage: Stage::TfaBork,
+                    npc_id: npc::id::THE_SMORKS,
+                    room_id: 1001,
+                    animation: Some(14554),
+                    animation_start_tick: Tick(10),
+                    ..Default::default()
+                }),
+                fixtures::projectiles_event(
+                    Tick(13),
+                    Stage::TfaBork,
+                    vec![event::Projectile {
+                        id: 4056,
+                        source_coords: Some(Coords { x: 0, y: 0 }),
+                        target_coords: Some(Coords { x: 0, y: 0 }),
+                        landing_tick: 17,
+                        ..Default::default()
+                    }],
+                ),
+            ],
+        );
+        assert_eq!(
+            check(&timeline),
+            Err(vec![MergeConsistencyIssue::DuplicateNpcAttack {
+                room_id: RoomId(1001),
+                previous: NpcAttackOccurrence {
+                    tick: Tick(12),
+                    kind: NpcAttack::TfaSmorksMage,
+                },
+                current: NpcAttackOccurrence {
+                    tick: Tick(13),
+                    kind: NpcAttack::TfaSmorksRange,
+                },
+            }]),
+        );
     }
 
     #[test]

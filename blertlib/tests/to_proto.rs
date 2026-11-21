@@ -302,6 +302,13 @@ fn tfa_guardian() {
 }
 
 #[test]
+fn tfa_bork() {
+    let fixture = Fixture::load("tfa_bork");
+    assert_golden_output(&fixture);
+    assert_refresh_matches_snapshot(&fixture);
+}
+
+#[test]
 fn tfa_xarth() {
     let fixture = Fixture::load("tfa_xarth");
     assert_golden_output(&fixture);

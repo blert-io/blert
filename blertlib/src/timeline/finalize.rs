@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::actor::{Guardian, NpcProperties, PartyIndex, RoomId, Rsn};
 use crate::event::{
-    Event, EventKind, Exhumed, GuardianShrooms, NyloWave, Shroom, ShroomState, XarpusExhumedEvent,
-    XarpusExhumes, XarthBlast, XarthBombs, XarthFires,
+    BorkSpeed, Event, EventKind, Exhumed, GuardianShrooms, NyloWave, Shroom, ShroomState,
+    XarpusExhumedEvent, XarpusExhumes, XarthBlast, XarthBombs, XarthFires,
 };
 use crate::objects::ObjectKind;
 use crate::tick::{Tick, Ticks};
@@ -52,6 +52,7 @@ pub(super) fn finalize_from(timeline: &mut Timeline, start: Tick) {
             finalizers.push(Box::new(XarpusFinalizer::new(legacy)));
         }
         Stage::TfaGuardian => finalizers.push(Box::new(GuardianFinalizer::default())),
+        Stage::TfaBork => finalizers.push(Box::new(BorkFinalizer::default())),
         Stage::TfaXarth => finalizers.push(Box::new(XarthFinalizer::default())),
         _ => {}
     }
@@ -549,6 +550,77 @@ impl Finalizer for GuardianFinalizer {
                 .push(Event::synthetic(EventKind::GuardianShrooms(
                     GuardianShrooms { updated, removed },
                 )));
+        }
+    }
+}
+
+#[derive(Default)]
+struct BorkFinalizer {
+    bomb_landing_to_launch_tick: BTreeMap<Tick, Tick>,
+    speed: Option<BorkSpeed>,
+}
+
+impl BorkFinalizer {
+    const STUN_ANIMATION: u32 = 14545;
+}
+
+impl Finalizer for BorkFinalizer {
+    fn initialize(&mut self, history: &[Option<TickState>]) {
+        for (tick, state) in history.iter().enumerate() {
+            let Some(state) = state else {
+                continue;
+            };
+            for event in &state.events {
+                if let EventKind::BorkBomb(bomb) = &event.kind {
+                    self.bomb_landing_to_launch_tick
+                        .insert(bomb.landing_tick, Tick::from_usize(tick));
+                }
+            }
+            for npc in state.npcs.values() {
+                if let Some(NpcProperties::Smorks(speed)) = npc.properties {
+                    self.speed = Some(speed);
+                }
+            }
+        }
+    }
+
+    fn tick(&mut self, _ctx: &FinalizeContext, tick: Tick, state: &mut Option<TickState>) {
+        let Some(state) = state else {
+            return;
+        };
+
+        for event in &state.events {
+            if let EventKind::BorkBomb(bomb) = &event.kind {
+                self.bomb_landing_to_launch_tick
+                    .insert(bomb.landing_tick, tick);
+            }
+        }
+
+        let stunned = state.npcs.iter().any(|(room_id, npc)| {
+            npc.id == npc::id::BORK
+                && state
+                    .raw_npcs
+                    .get(room_id)
+                    .and_then(|raw| raw.animation(tick))
+                    == Some(Self::STUN_ANIMATION)
+        });
+        if stunned && let Some(&bomb_tick) = self.bomb_landing_to_launch_tick.get(&tick) {
+            state
+                .events
+                .push(Event::synthetic(EventKind::BorkStun { bomb_tick }));
+        }
+
+        for npc in state.npcs.values() {
+            if let Some(NpcProperties::Smorks(speed)) = npc.properties {
+                let previous = self.speed.replace(speed);
+                if speed != BorkSpeed::BorkEnrage
+                    && previous.is_some_and(|previous| previous < speed)
+                {
+                    state
+                        .events
+                        .push(Event::synthetic(EventKind::BorkSpeedup(speed)));
+                }
+            }
         }
     }
 }

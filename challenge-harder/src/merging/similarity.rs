@@ -611,6 +611,7 @@ mod tests {
             },
             prayers: None,
             kind: None,
+            ..Default::default()
         })
     }
 
@@ -851,6 +852,7 @@ mod tests {
             },
             prayers: None,
             kind: None,
+            ..Default::default()
         });
 
         let base = tick_state(
@@ -897,6 +899,7 @@ mod tests {
             },
             prayers: None,
             kind: None,
+            ..Default::default()
         });
 
         let base = tick_state(
@@ -1608,6 +1611,7 @@ mod tests {
                     },
                     prayers: None,
                     kind: None,
+                    ..Default::default()
                 }),
             ]
         };
@@ -1641,6 +1645,7 @@ mod tests {
                     },
                     prayers: None,
                     kind: None,
+                    ..Default::default()
                 }),
             ],
         );

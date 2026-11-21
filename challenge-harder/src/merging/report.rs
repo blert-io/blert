@@ -743,6 +743,11 @@ pub enum MergeConsistencyIssue {
         room_id: RoomId,
         occurrences: Vec<NpcOccurrence>,
     },
+    DuplicateNpcAttack {
+        room_id: RoomId,
+        previous: NpcAttackOccurrence,
+        current: NpcAttackOccurrence,
+    },
     DuplicateStreamEvent {
         event_type: EventType,
         identity_key: String,
@@ -785,6 +790,13 @@ pub struct NpcOccurrence {
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct NpcAttackOccurrence {
+    pub tick: Tick,
+    pub r#type: i32,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerAttackOccurrence {
     pub tick: Tick,
     pub r#type: i32,
@@ -803,6 +815,15 @@ impl From<&merge_consistency::NpcOccurrence> for NpcOccurrence {
         Self {
             tick: occurrence.tick,
             npc_id: occurrence.npc_id,
+        }
+    }
+}
+
+impl From<&merge_consistency::NpcAttackOccurrence> for NpcAttackOccurrence {
+    fn from(occurrence: &merge_consistency::NpcAttackOccurrence) -> Self {
+        Self {
+            tick: occurrence.tick,
+            r#type: occurrence.kind as i32,
         }
     }
 }
@@ -840,6 +861,15 @@ impl From<&merge_consistency::MergeConsistencyIssue> for MergeConsistencyIssue {
             } => Self::DuplicateNpcDeath {
                 room_id: *room_id,
                 occurrences: occurrences.iter().map(NpcOccurrence::from).collect(),
+            },
+            Issue::DuplicateNpcAttack {
+                room_id,
+                previous,
+                current,
+            } => Self::DuplicateNpcAttack {
+                room_id: *room_id,
+                previous: previous.into(),
+                current: current.into(),
             },
             Issue::DuplicateStreamEvent {
                 kind,

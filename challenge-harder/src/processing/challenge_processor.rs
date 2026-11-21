@@ -82,7 +82,9 @@ impl From<&RoomNpc> for challenge_data::StageNpc {
         let kind = npc.kind.map(|kind| match kind {
             event::npc::Type::Basic(())
             | event::npc::Type::Mokhaiotl(_)
-            | event::npc::Type::Guardian(_) => challenge_data::stage_npc::Type::Basic(()),
+            | event::npc::Type::Guardian(_)
+            | event::npc::Type::Bork(_)
+            | event::npc::Type::Smorks(_) => challenge_data::stage_npc::Type::Basic(()),
             event::npc::Type::MaidenCrab(crab) => challenge_data::stage_npc::Type::MaidenCrab(crab),
             event::npc::Type::Nylo(nylo) => challenge_data::stage_npc::Type::Nylo(nylo),
             event::npc::Type::VerzikCrab(crab) => challenge_data::stage_npc::Type::VerzikCrab(crab),

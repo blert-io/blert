@@ -503,7 +503,7 @@ async fn verify_creation(
     client: &Object,
     uuid: Uuid,
     repository: &DataRepository,
-    scale: usize,
+    party: &[&str],
     route: Option<i16>,
 ) -> (i32, Vec<i32>) {
     let challenge_id: i32 = client
@@ -524,7 +524,6 @@ async fn verify_creation(
     assert_eq!(row.get::<_, Option<i32>>(1), None);
     assert_eq!(row.get::<_, Option<i16>>(2), None);
 
-    let party = &GUARDIAN_PARTY[..scale];
     let players = client
         .query(
             "SELECT id, normalized_username, total_recordings FROM players
@@ -645,7 +644,8 @@ async fn guardian_test() {
 
     let repository =
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
-    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 5, Some(0)).await;
+    let (challenge_id, player_ids) =
+        verify_creation(&client, uuid, &repository, &GUARDIAN_PARTY, Some(0)).await;
 
     let payload = pipeline
         .process(ProcessingRequest {
@@ -967,7 +967,8 @@ async fn guardian_merge_clean_test() {
 
     let repository =
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
-    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 2, Some(0)).await;
+    let (challenge_id, player_ids) =
+        verify_creation(&client, uuid, &repository, party, Some(0)).await;
 
     let payload = pipeline
         .process(ProcessingRequest {
@@ -1049,7 +1050,335 @@ async fn guardian_merge_clean_test() {
         .expect("outbox cleanup");
 }
 
+const BORK_CREATED_UNIX_MS: u64 = 1_795_152_391_000;
+const BORK_UUID: &str = "e37f38c2-78d4-4026-91d4-9b99afbe3964";
+const BORK_PARTY: [&str; 2] = ["player1", "player2"];
+
+#[tokio::test]
+async fn bork_test() {
+    let Some(db) = db::test_database().await else {
+        return;
+    };
+    let Some(redis) = redis::tests::test_store().await else {
+        return;
+    };
+    let _fixture_lock = super::FIXTURE_TESTS.lock().await;
+    let client = db.checkout().await.expect("client");
+
+    let uuid: Uuid = BORK_UUID.parse().expect("uuid is valid");
+    let party = BORK_PARTY.as_slice();
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM players WHERE normalized_username = ANY($1)",
+            &[&party],
+        )
+        .await
+        .unwrap();
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .unwrap();
+
+    let fixture = load_fixture("tfa_bork");
+    prepare_fixture(uuid, Stage::TfaBork, &fixture.records).await;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pipeline = Pipeline::new(
+        Arc::new(db),
+        Arc::new(redis),
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        Arc::new(PriceResolver::new(None)),
+        ProcessorConfig {
+            latest_config_version: fixture.latest_config_version,
+            ..ProcessorConfig::default()
+        },
+    )
+    .with_capturer(StreamCapturer::new(
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf()))),
+        false,
+        CaptureRates {
+            baseline: 1.0,
+            ..CaptureRates::default()
+        },
+    ));
+
+    let info = ChallengeInfo {
+        uuid,
+        session_uuid: Uuid::new_v4(),
+        challenge_type: ChallengeType::Tfa,
+        mode: ChallengeMode::TfaNormal,
+        party: party
+            .iter()
+            .map(|name| Rsn::try_from(*name).unwrap())
+            .collect(),
+        party_changed: false,
+        stage: Stage::TfaBork,
+        stage_attempt: None,
+        status: ChallengeStatus::InProgress,
+        created_unix_ms: BORK_CREATED_UNIX_MS,
+        reported_times: None,
+        finished_unix_ms: None,
+    };
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Create { seq: JournalSeq(1) },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("create runs");
+    assert_eq!(payload, ProcessingPayload::None);
+
+    let repository =
+        DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
+    let (challenge_id, player_ids) =
+        verify_creation(&client, uuid, &repository, party, Some(1)).await;
+
+    let payload = pipeline
+        .process(ProcessingRequest {
+            trigger: Trigger::Stage {
+                seq: JournalSeq(2),
+                stage: Stage::TfaBork,
+                attempt: None,
+            },
+            challenge: info.clone(),
+        })
+        .await
+        .expect("stage runs");
+    assert_eq!(
+        payload,
+        ProcessingPayload::Stage {
+            status: StageStatus::Completed,
+            ticks: 161,
+        },
+    );
+
+    let custom_data = verify_bork_stage_rows(&client, challenge_id, &player_ids).await;
+    let merge_report = super::merge_report_rows(&client, challenge_id, Stage::TfaBork).await;
+    let stored_data = repository
+        .load_challenge(uuid)
+        .await
+        .expect("challenge file");
+    let events = repository
+        .load_stage_events(uuid, Stage::TfaBork, None)
+        .await
+        .expect("bork events");
+    let capture = super::capture_file(&repository, uuid, Stage::TfaBork).await;
+    golden::assert_stage_artifacts(
+        "tfa_bork",
+        &custom_data,
+        &stored_data,
+        &events,
+        &merge_report,
+        &capture,
+    );
+
+    let events = client
+        .query(
+            "SELECT kind, key FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox query");
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].get::<_, i16>(0), EventKind::StageFinished as i16);
+    assert_eq!(
+        events[0].get::<_, String>(1),
+        format!("{uuid}:{}", Stage::TfaBork as i32),
+    );
+
+    client
+        .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
+        .await
+        .expect("challenge cleanup");
+    client
+        .execute("DELETE FROM players WHERE id = ANY($1)", &[&player_ids])
+        .await
+        .expect("player cleanup");
+    client
+        .execute(
+            "DELETE FROM challenge_sessions WHERE uuid = $1",
+            &[&info.session_uuid],
+        )
+        .await
+        .expect("session cleanup");
+    client
+        .execute(
+            "DELETE FROM effect_events WHERE key LIKE $1",
+            &[&format!("{uuid}%")],
+        )
+        .await
+        .expect("outbox cleanup");
+}
+
+async fn verify_bork_stage_rows(
+    client: &Object,
+    challenge_id: i32,
+    player_ids: &[i32],
+) -> serde_json::Value {
+    let row = client
+        .query_one(
+            "SELECT type, mode, scale, stage, status, challenge_ticks, total_deaths, start_time
+             FROM challenges WHERE id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("challenge row");
+    assert_eq!(row.get::<_, i16>(0), ChallengeType::Tfa as i16);
+    assert_eq!(row.get::<_, i16>(1), ChallengeMode::TfaNormal as i16);
+    assert_eq!(row.get::<_, i16>(2), 2);
+    assert_eq!(row.get::<_, i16>(3), Stage::TfaBork as i16);
+    assert_eq!(row.get::<_, i16>(4), ChallengeStatus::InProgress as i16);
+    assert_eq!(row.get::<_, i32>(5), 161);
+    assert_eq!(row.get::<_, i32>(6), 0);
+    assert_eq!(
+        row.get::<_, std::time::SystemTime>(7),
+        UNIX_EPOCH + Duration::from_millis(BORK_CREATED_UNIX_MS),
+    );
+
+    let rows = client
+        .query(
+            "SELECT player_id, username, orb, primary_gear, stage_deaths FROM challenge_players
+             WHERE challenge_id = $1 ORDER BY orb",
+            &[&challenge_id],
+        )
+        .await
+        .expect("membership rows");
+    assert_eq!(
+        rows.iter()
+            .map(|row| (
+                row.get::<_, i32>(0),
+                row.get::<_, &str>(1),
+                row.get::<_, i16>(2),
+                row.get::<_, i16>(3),
+                row.get::<_, Vec<i16>>(4),
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                player_ids[0],
+                "player1",
+                0,
+                PrimaryMeleeGear::Unknown as i16,
+                Vec::new(),
+            ),
+            (
+                player_ids[1],
+                "player2",
+                1,
+                PrimaryMeleeGear::Unknown as i16,
+                Vec::new(),
+            ),
+        ],
+    );
+
+    let row = client
+        .query_one(
+            "SELECT route, bork_deaths FROM tfa_challenge_stats WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("stats row");
+    assert_eq!(row.get::<_, Option<i16>>(0), Some(1));
+    assert_eq!(row.get::<_, Option<i32>>(1), Some(0));
+
+    let splits = client
+        .query(
+            "SELECT type, scale, ticks, accurate FROM challenge_splits
+             WHERE challenge_id = $1 ORDER BY type",
+            &[&challenge_id],
+        )
+        .await
+        .expect("split rows");
+    assert_eq!(
+        splits
+            .iter()
+            .map(|row| (
+                row.get::<_, i16>(0),
+                row.get::<_, i16>(1),
+                row.get::<_, i32>(2),
+                row.get::<_, bool>(3),
+            ))
+            .collect::<Vec<_>>(),
+        vec![(SplitType::TfaBork as i16, 2, 161, true)],
+    );
+
+    let pbs = client
+        .query(
+            "SELECT p.player_id, s.type FROM personal_best_history p
+             JOIN challenge_splits s ON s.id = p.challenge_split_id
+             WHERE s.challenge_id = $1 ORDER BY p.player_id, s.type",
+            &[&challenge_id],
+        )
+        .await
+        .expect("pb rows");
+    assert_eq!(
+        pbs.iter()
+            .map(|row| (row.get::<_, i32>(0), row.get::<_, i16>(1)))
+            .collect::<Vec<_>>(),
+        player_ids
+            .iter()
+            .map(|&player| (player, SplitType::TfaBork as i16))
+            .collect::<Vec<_>>(),
+    );
+
+    let stats = client
+        .query_one(
+            "SELECT count(*) FROM player_stats WHERE player_id = ANY($1)",
+            &[&player_ids],
+        )
+        .await
+        .expect("player stats");
+    assert_eq!(stats.get::<_, i64>(0), 0);
+
+    let rows = client
+        .query(
+            "SELECT event_type, count(*) FROM queryable_events
+             WHERE challenge_id = $1 GROUP BY event_type",
+            &[&challenge_id],
+        )
+        .await
+        .expect("queryable counts");
+    let counts: BTreeMap<i16, i64> = rows.iter().map(|row| (row.get(0), row.get(1))).collect();
+    assert_eq!(
+        counts,
+        BTreeMap::from([
+            (event::Type::PlayerAttack as i16, 51),
+            (event::Type::PlayerSpell as i16, 7),
+            (event::Type::NpcSpawn as i16, 2),
+            (event::Type::NpcDeath as i16, 2),
+            (event::Type::NpcAttack as i16, 31),
+        ]),
+    );
+
+    let row = client
+        .query_one(
+            "SELECT processed_seq, outcome_status, outcome_ticks, custom_data
+             FROM challenge_processing_state WHERE challenge_id = $1",
+            &[&challenge_id],
+        )
+        .await
+        .expect("processing state");
+    assert_eq!(row.get::<_, i64>(0), 2);
+    assert_eq!(
+        row.get::<_, Option<i16>>(1),
+        Some(StageStatus::Completed as i16),
+    );
+    assert_eq!(row.get::<_, Option<i32>>(2), Some(161));
+    row.get::<_, Option<serde_json::Value>>(3)
+        .expect("custom data present")
+}
+
 const XARTH_UUID: &str = "075f7af2-0a4c-4a0b-a4ca-db13f9545244";
+const XARTH_PARTY: [&str; 4] = ["player1", "player2", "player3", "player4"];
 
 #[tokio::test]
 async fn xarth_test() {
@@ -1063,7 +1392,7 @@ async fn xarth_test() {
     let client = db.checkout().await.expect("client");
 
     let uuid: Uuid = XARTH_UUID.parse().expect("uuid is valid");
-    let party = &GUARDIAN_PARTY[..4];
+    let party = XARTH_PARTY.as_slice();
 
     client
         .execute("DELETE FROM challenges WHERE uuid = $1", &[&uuid])
@@ -1136,7 +1465,7 @@ async fn xarth_test() {
 
     let repository =
         DataRepository::new(Box::new(FilesystemBackend::new(dir.path().to_path_buf())));
-    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, 4, None).await;
+    let (challenge_id, player_ids) = verify_creation(&client, uuid, &repository, party, None).await;
 
     let payload = pipeline
         .process(ProcessingRequest {

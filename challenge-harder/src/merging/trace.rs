@@ -245,6 +245,8 @@ impl GraphicsSummary {
                     ObjectKind::GuardianShroomSpawning => "TFA_GUARDIAN_SHROOMS_SPAWNING",
                     ObjectKind::GuardianShroomGrown => "TFA_GUARDIAN_SHROOMS_GROWN",
                     ObjectKind::GuardianShroomPopped => "TFA_GUARDIAN_SHROOMS_POPPED",
+                    ObjectKind::BorkDust => "TFA_BORK_DUST",
+                    ObjectKind::BorkNapalm => "TFA_BORK_NAPALM",
                     ObjectKind::XarthBlastFull => "TFA_XARTH_BLAST_FULL",
                     ObjectKind::XarthBlastPartial => "TFA_XARTH_BLAST_PARTIAL",
                     ObjectKind::XarthFire => "TFA_XARTH_FIRE",

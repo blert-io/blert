@@ -23,6 +23,9 @@ pub enum ObjectKind {
     GuardianShroomGrown,
     GuardianShroomPopped,
 
+    BorkDust,
+    BorkNapalm,
+
     XarthBlastFull,
     XarthBlastPartial,
     XarthFire,

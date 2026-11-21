@@ -17,7 +17,7 @@ pub use crate::proto::event::colosseum_sol_grapple::Outcome as SolGrappleOutcome
 pub use crate::proto::event::colosseum_sol_lasers::Phase as SolLaserPhase;
 pub use crate::proto::event::mokhaiotl_orb::Source as MokhaiotlOrbSource;
 pub use crate::proto::event::tfa_guardian_shrooms::State as ShroomState;
-pub use crate::proto::event::{VerzikPhase, XarpusPhase};
+pub use crate::proto::event::{BorkSpeed, VerzikPhase, XarpusPhase};
 
 /// A semantic event occurring in a stage.
 ///
@@ -115,6 +115,13 @@ pub enum EventKind {
     /// A brazier was destroyed.
     GuardianBrazier(RoomId),
 
+    BorkCannonAuto(BorkCannonAuto),
+    BorkBomb(BorkBomb),
+    BorkStun {
+        bomb_tick: Tick,
+    },
+    BorkSpeedup(BorkSpeed),
+
     XarthBombs(XarthBombs),
     XarthBlast(XarthBlast),
     XarthFires(XarthFires),
@@ -140,6 +147,9 @@ impl EventKind {
                 orb.end_tick = remap(orb.end_tick);
             }
             Self::XarpusSplat(splat) => splat.start_tick = splat.start_tick.map(remap),
+            Self::BorkCannonAuto(auto) => auto.landing_tick = remap(auto.landing_tick),
+            Self::BorkBomb(bomb) => bomb.landing_tick = remap(bomb.landing_tick),
+            Self::BorkStun { bomb_tick } => *bomb_tick = remap(*bomb_tick),
             Self::XarthBombs(bombs) => bombs.landing_tick = remap(bombs.landing_tick),
             Self::PlayerDeath(_)
             | Self::PlayerAttack(_)
@@ -176,6 +186,7 @@ impl EventKind {
             | Self::GuardianRocks(_)
             | Self::GuardianShrooms(_)
             | Self::GuardianBrazier(_)
+            | Self::BorkSpeedup(_)
             | Self::XarthBlast(_)
             | Self::XarthFires(_)
             | Self::XarthCorpseLeak(_) => {}
@@ -438,6 +449,18 @@ pub struct Shroom {
     pub id: u32,
     pub position: Point,
     pub state: ShroomState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorkCannonAuto {
+    pub targets: Vec<PartyIndex>,
+    pub landing_tick: Tick,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BorkBomb {
+    pub target: Point,
+    pub landing_tick: Tick,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

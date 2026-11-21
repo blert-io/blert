@@ -8,7 +8,8 @@ use crate::prayer::PrayerSet;
 use crate::skill::SkillLevel;
 use crate::timeline::OcellusProperties;
 use crate::{
-    AttackClass, CombatStyle, PlayerAttack, Point, Rect, Source, Tick, VerzikPhase, npc, proto,
+    AttackClass, BorkSpeed, CombatStyle, PlayerAttack, Point, Rect, Source, Tick, VerzikPhase, npc,
+    proto,
 };
 
 pub use crate::proto::event::npc::guardian_brazier::Position as GuardianBrazierPosition;
@@ -294,6 +295,8 @@ pub enum NpcProperties {
     Mokhaiotl(Mokhaiotl),
     Guardian(Guardian),
     GuardianBrazier(GuardianBrazier),
+    Bork(BorkSpeed),
+    Smorks(BorkSpeed),
     Ocellus(OcellusProperties),
 }
 
@@ -306,7 +309,9 @@ impl NpcProperties {
             | Self::VerzikCrab(_)
             | Self::Mokhaiotl(_)
             | Self::Guardian(_)
-            | Self::GuardianBrazier(_) => {}
+            | Self::GuardianBrazier(_)
+            | Self::Bork(_)
+            | Self::Smorks(_) => {}
         }
     }
 
@@ -362,6 +367,12 @@ impl NpcProperties {
                     position: brazier.position as i32,
                 })
             }
+            Self::Bork(speed) => proto::event::npc::Type::Bork(proto::event::npc::Bork {
+                speed: *speed as i32,
+            }),
+            Self::Smorks(speed) => proto::event::npc::Type::Smorks(proto::event::npc::Smorks {
+                speed: *speed as i32,
+            }),
             Self::Ocellus(_) => return None,
         };
         Some(npc_type)

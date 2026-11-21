@@ -153,6 +153,10 @@ impl DataRepository {
                 // Only store target party indices.
                 rocks.targets.clear();
             }
+
+            if let Some(auto) = &mut event.tfa_bork_cannon_auto {
+                auto.targets.clear();
+            }
         }
 
         let contents = ChallengeEvents {
@@ -204,6 +208,16 @@ impl DataRepository {
                 && rocks.targets.is_empty()
             {
                 rocks.targets = rocks
+                    .target_party_indices
+                    .iter()
+                    .map(|&index| party.get(index as usize).cloned().unwrap_or_default())
+                    .collect();
+            }
+
+            if let Some(auto) = &mut event.tfa_bork_cannon_auto
+                && auto.targets.is_empty()
+            {
+                auto.targets = auto
                     .target_party_indices
                     .iter()
                     .map(|&index| party.get(index as usize).cloned().unwrap_or_default())

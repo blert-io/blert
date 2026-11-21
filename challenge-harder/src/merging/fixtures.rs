@@ -416,6 +416,8 @@ pub struct NpcEvent {
     pub room_id: u64,
     pub hitpoints: SkillLevel,
     pub prayers: Option<u64>,
+    pub animation: Option<u32>,
+    pub animation_start_tick: Tick,
     pub kind: Option<event::npc::Type>,
 }
 
@@ -433,6 +435,8 @@ fn npc_event(event_type: event::Type, options: NpcEvent) -> Event {
         room_id: options.room_id,
         hitpoints: options.hitpoints.to_raw(),
         active_prayers: options.prayers.unwrap_or_default(),
+        animation: options.animation,
+        animation_start_tick: options.animation_start_tick.0,
         r#type: options.kind,
         ..Default::default()
     });
@@ -477,6 +481,17 @@ pub fn npc_attack_event(
         attack: attack as i32,
         target: target.map(str::to_string),
     });
+    event
+}
+
+pub fn projectiles_event(tick: Tick, stage: Stage, projectiles: Vec<event::Projectile>) -> Event {
+    let mut event = Event {
+        tick: tick.0,
+        stage: stage as i32,
+        ..Default::default()
+    };
+    event.set_type(event::Type::Projectiles);
+    event.projectiles = projectiles;
     event
 }
 
