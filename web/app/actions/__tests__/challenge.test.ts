@@ -2186,6 +2186,8 @@ describe('loadChallenge', () => {
         guardianDeaths: 0,
         ezekielDeaths: null,
         borkDeaths: null,
+        borkCannonballsHit: null,
+        borkCannonballsMissed: null,
         moiaDeaths: null,
         dreadnothDeaths: null,
         dagonhaiDeaths: null,

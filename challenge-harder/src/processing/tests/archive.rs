@@ -1280,15 +1280,18 @@ async fn verify_bork_stage_rows(
         ],
     );
 
-    let row = client
+    let stats = client
         .query_one(
-            "SELECT route, bork_deaths FROM tfa_challenge_stats WHERE challenge_id = $1",
+            "SELECT route, bork_deaths, bork_cannonballs_hit, bork_cannonballs_missed
+             FROM tfa_challenge_stats WHERE challenge_id = $1",
             &[&challenge_id],
         )
         .await
         .expect("stats row");
-    assert_eq!(row.get::<_, Option<i16>>(0), Some(1));
-    assert_eq!(row.get::<_, Option<i32>>(1), Some(0));
+    assert_eq!(stats.get::<_, Option<i16>>(0), Some(1));
+    assert_eq!(stats.get::<_, Option<i32>>(1), Some(0));
+    assert_eq!(stats.get::<_, Option<i16>>(2), Some(2));
+    assert_eq!(stats.get::<_, Option<i16>>(3), Some(0));
 
     let splits = client
         .query(

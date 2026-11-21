@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
-use blert::npc::id::XARTH_CORPSE_DOUSED;
+use blert::npc::id::{BORK, XARTH_CORPSE_DOUSED};
 use blert::npc::is_xarth_corpse;
 use blert::{
     EventKind, NpcAttack, NpcAttacked, NpcProperties, Point, RoomId, Tick, TickState, Ticks,
@@ -127,6 +127,13 @@ struct GuardianState {
     downs: u8,
 }
 
+#[derive(Debug, Default)]
+struct BorkState {
+    bomb_landing_to_launch_tick: BTreeMap<Tick, Tick>,
+    cannonballs_hit: u8,
+    cannonballs_missed: u8,
+}
+
 #[derive(Debug)]
 struct CorpseState {
     last_move: (Point, Tick),
@@ -148,6 +155,7 @@ pub struct ArchiveProcessor {
     challenge: ChallengeInfo,
     data: CustomData,
     guardian: GuardianState,
+    bork: BorkState,
     xarth: XarthState,
 }
 
@@ -178,6 +186,7 @@ impl ArchiveProcessor {
             challenge,
             data,
             guardian: GuardianState::default(),
+            bork: BorkState::default(),
             xarth: XarthState::default(),
         })
     }
@@ -197,6 +206,38 @@ impl ArchiveProcessor {
                 }
                 _ => {}
             }
+        }
+    }
+
+    fn process_bork_tick(&mut self, tick: Tick, state: &TickState, timeline: &Timeline) {
+        for event in &state.events {
+            if let EventKind::BorkBomb(bomb) = &event.kind {
+                self.bork
+                    .bomb_landing_to_launch_tick
+                    .insert(bomb.landing_tick, tick);
+            }
+        }
+
+        let Some(&launch_tick) = self.bork.bomb_landing_to_launch_tick.get(&tick) else {
+            return;
+        };
+        let bork_alive = state.npcs.iter().any(|(&room_id, npc)| {
+            npc.id == BORK
+                && timeline
+                    .npc(room_id)
+                    .is_some_and(|bork| bork.dying.is_none_or(|dying| tick < dying))
+        });
+        if !bork_alive {
+            return;
+        }
+
+        let stunned = state.events.iter().any(|event| {
+            matches!(event.kind, EventKind::BorkStun { bomb_tick } if bomb_tick == launch_tick)
+        });
+        if stunned {
+            self.bork.cannonballs_hit += 1;
+        } else {
+            self.bork.cannonballs_missed += 1;
         }
     }
 
@@ -251,10 +292,11 @@ impl ChallengeProcessor for ArchiveProcessor {
         ctx: &mut StageContext,
         tick: Tick,
         state: &TickState,
-        _timeline: &Timeline,
+        timeline: &Timeline,
     ) {
         match ctx.stage() {
             Stage::TfaGuardian => self.process_guardian_tick(ctx, tick, state),
+            Stage::TfaBork => self.process_bork_tick(tick, state, timeline),
             Stage::TfaXarth => self.process_xarth_tick(tick, state),
             _ => {}
         }
@@ -342,31 +384,47 @@ impl ChallengeProcessor for ArchiveProcessor {
         )
         .await?;
 
-        if stage == Stage::TfaGuardian {
-            txn.execute(
-                "UPDATE tfa_challenge_stats SET guardian_down_count = $1 WHERE challenge_id = $2",
-                &[&i16::from(self.guardian.downs), &txn.challenge_id()],
-            )
-            .await?;
-        }
-
-        if stage == Stage::TfaXarth {
-            txn.execute(
-                "UPDATE tfa_challenge_stats
-                SET xarth_corpses_leaked = $1,
-                    xarth_corpses_ignored = $2,
-                    xarth_corpses_doused = $3,
-                    xarth_p2_blasts = $4
-                WHERE challenge_id = $5",
-                &[
-                    &i16::from(self.xarth.leaked),
-                    &i16::from(self.xarth.ignored),
-                    &i16::from(self.xarth.doused),
-                    &i16::from(self.xarth.p2_blasts),
-                    &txn.challenge_id(),
-                ],
-            )
-            .await?;
+        match stage {
+            Stage::TfaGuardian => {
+                txn.execute(
+                    "UPDATE tfa_challenge_stats SET guardian_down_count = $1 WHERE challenge_id = $2",
+                    &[&i16::from(self.guardian.downs), &txn.challenge_id()],
+                )
+                .await?;
+            }
+            Stage::TfaBork => {
+                txn.execute(
+                    "UPDATE tfa_challenge_stats
+                    SET bork_cannonballs_hit = $1,
+                        bork_cannonballs_missed = $2
+                    WHERE challenge_id = $3",
+                    &[
+                        &i16::from(self.bork.cannonballs_hit),
+                        &i16::from(self.bork.cannonballs_missed),
+                        &txn.challenge_id(),
+                    ],
+                )
+                .await?;
+            }
+            Stage::TfaXarth => {
+                txn.execute(
+                    "UPDATE tfa_challenge_stats
+                    SET xarth_corpses_leaked = $1,
+                        xarth_corpses_ignored = $2,
+                        xarth_corpses_doused = $3,
+                        xarth_p2_blasts = $4
+                    WHERE challenge_id = $5",
+                    &[
+                        &i16::from(self.xarth.leaked),
+                        &i16::from(self.xarth.ignored),
+                        &i16::from(self.xarth.doused),
+                        &i16::from(self.xarth.p2_blasts),
+                        &txn.challenge_id(),
+                    ],
+                )
+                .await?;
+            }
+            _ => {}
         }
 
         Ok(ChallengeTicks::Add(last_tick.duration()))
