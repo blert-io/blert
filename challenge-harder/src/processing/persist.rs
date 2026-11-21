@@ -708,6 +708,8 @@ fn to_queryable_event(
                         row.subtype = Some(17);
                         row.custom_short_1 = Some(brazier.position as i16);
                     }
+                    event::npc::Type::Bork(_) => row.subtype = Some(18),
+                    event::npc::Type::Smorks(_) => row.subtype = Some(19),
                 }
             }
             row

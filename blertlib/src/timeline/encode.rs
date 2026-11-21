@@ -227,6 +227,7 @@ impl<'a> Encoder<'a> {
                 | ObjectKind::SoteMazeTiles
                 | ObjectKind::VerzikYellows
                 | ObjectKind::MokhaiotlShockwave
+                | ObjectKind::BorkDust
                     if !state.objects.contains_kind(kind) => {}
                 ObjectKind::MaidenBloodSplats => {
                     let mut event =
@@ -300,6 +301,20 @@ impl<'a> Encoder<'a> {
                     let mut event = self.event(proto::event::Type::MokhaiotlShockwave, tick, None);
                     event.mokhaiotl_shockwave =
                         Some(proto::event::MokhaiotlShockwave { tiles: points() });
+                    events.push(event);
+                }
+                ObjectKind::BorkDust => {
+                    let mut event = self.event(proto::event::Type::TfaBorkDust, tick, None);
+                    event.tfa_bork_dust = Some(proto::event::TfaBorkDust { tiles: points() });
+                    events.push(event);
+                }
+                ObjectKind::BorkNapalm => {
+                    let (added, removed) = diff_objects(previous, &state.objects, kind);
+                    if added.is_empty() && removed.is_empty() {
+                        continue;
+                    }
+                    let mut event = self.event(proto::event::Type::TfaBorkNapalm, tick, None);
+                    event.tfa_bork_napalm = Some(proto::event::TfaBorkNapalm { added, removed });
                     events.push(event);
                 }
                 ObjectKind::XarpusExhumes
@@ -806,6 +821,44 @@ impl<'a> Encoder<'a> {
                 event.tfa_guardian_brazier = Some(proto::event::TfaGuardianBrazier {
                     room_id: room_id.0,
                     position: properties.position as i32,
+                });
+                Some(event)
+            }
+
+            EventKind::BorkCannonAuto(auto) => {
+                let mut event = self.event(proto::event::Type::TfaBorkCannonAuto, tick, None);
+                event.tfa_bork_cannon_auto = Some(proto::event::TfaBorkCannonAuto {
+                    targets: auto.targets.iter().map(|&index| self.name(index)).collect(),
+                    target_party_indices: auto
+                        .targets
+                        .iter()
+                        .map(|index| u32::from(index.0))
+                        .collect(),
+                    landing_tick: auto.landing_tick.0,
+                });
+                Some(event)
+            }
+
+            EventKind::BorkBomb(bomb) => {
+                let mut event = self.event(proto::event::Type::TfaBorkBomb, tick, None);
+                event.tfa_bork_bomb = Some(proto::event::TfaBorkBomb {
+                    target: Some(proto::Coords::from(bomb.target)),
+                    landing_tick: bomb.landing_tick.0,
+                });
+                Some(event)
+            }
+
+            EventKind::BorkStun { bomb_tick } => {
+                let mut event = self.event(proto::event::Type::TfaBorkStun, tick, None);
+                event.tfa_bork_stun = Some(proto::event::TfaBorkStun {
+                    bomb_tick: bomb_tick.0,
+                });
+                Some(event)
+            }
+            EventKind::BorkSpeedup(speed) => {
+                let mut event = self.event(proto::event::Type::TfaBorkSpeedup, tick, None);
+                event.tfa_bork_speedup = Some(proto::event::TfaBorkSpeedup {
+                    speed: *speed as i32,
                 });
                 Some(event)
             }

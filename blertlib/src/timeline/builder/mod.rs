@@ -915,6 +915,12 @@ impl<'a> TickBuilder<'a> {
             | Type::TfaGuardianRocks
             | Type::TfaGuardianShrooms
             | Type::TfaGuardianBrazier
+            | Type::TfaBorkDust
+            | Type::TfaBorkCannonAuto
+            | Type::TfaBorkNapalm
+            | Type::TfaBorkBomb
+            | Type::TfaBorkStun
+            | Type::TfaBorkSpeedup
             | Type::TfaXarthBombs
             | Type::TfaXarthBlast
             | Type::TfaXarthFires
@@ -1225,7 +1231,9 @@ fn extract_npc_state(
         | Some(
             proto::event::npc::Type::Basic(())
             | proto::event::npc::Type::Guardian(_)
-            | proto::event::npc::Type::GuardianBrazier(_),
+            | proto::event::npc::Type::GuardianBrazier(_)
+            | proto::event::npc::Type::Bork(_)
+            | proto::event::npc::Type::Smorks(_),
         ) => prior.and_then(|prior| prior.properties.clone()),
         Some(proto::event::npc::Type::MaidenCrab(crab)) => {
             Some(NpcProperties::MaidenCrab(MaidenCrab {
