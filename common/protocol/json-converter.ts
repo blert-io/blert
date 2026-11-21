@@ -823,6 +823,10 @@ export function attackDefinitionJsonToProto(
     def.setAttackerGraphicIdsList(json.attackerGraphicIds);
   }
 
+  if (json.soundIds !== undefined) {
+    def.setSoundIdsList(json.soundIds);
+  }
+
   switch (json.category) {
     case 'MELEE':
       def.setCategory(AttackDefinition.Category.MELEE);
@@ -1153,6 +1157,10 @@ function attackDefinitionToJson(
 
   if (attackDefinition.getAttackerGraphicIdsList().length > 0) {
     json.attackerGraphicIds = attackDefinition.getAttackerGraphicIdsList();
+  }
+
+  if (attackDefinition.getSoundIdsList().length > 0) {
+    json.soundIds = attackDefinition.getSoundIdsList();
   }
 
   return json;
