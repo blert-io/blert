@@ -5,7 +5,7 @@ import { AggregateStats, ColumnAggregates } from './use-aggregate-stats';
 import styles from './style.module.scss';
 
 export type SummaryColumn = {
-  key: number;
+  key: string;
   field?: string;
   render?: (value: number) => ReactNode;
   align?: 'left' | 'right' | 'center';

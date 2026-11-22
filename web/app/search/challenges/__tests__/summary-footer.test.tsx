@@ -4,15 +4,31 @@
 import { render, screen } from '@testing-library/react';
 
 import SummaryFooter, { SummaryColumn } from '../summary-footer';
+import { Column } from '../types';
 import { AggregateStats } from '../use-aggregate-stats';
 
 // First column is the label slot; col 3 has no field, so it stays blank.
 const COLUMNS: SummaryColumn[] = [
-  { key: 0 },
-  { key: 1, field: 'challengeTicks', render: (v) => `${v}t`, align: 'right' },
-  { key: 2, field: 'deaths', render: (v) => `${v}d`, align: 'right' },
-  { key: 3 },
-  { key: 4, field: 'reds', render: (v) => `${v}r`, align: 'right' },
+  { key: Column.DATE },
+  {
+    key: Column.CHALLENGE_TIME,
+    field: 'challengeTicks',
+    render: (v) => `${v}t`,
+    align: 'right',
+  },
+  {
+    key: Column.TOTAL_DEATHS,
+    field: 'deaths',
+    render: (v) => `${v}d`,
+    align: 'right',
+  },
+  { key: Column.PARTY },
+  {
+    key: Column.TOB_VERZIK_REDS_COUNT,
+    field: 'reds',
+    render: (v) => `${v}r`,
+    align: 'right',
+  },
 ];
 
 const STATS: AggregateStats = {
