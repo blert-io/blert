@@ -1,52 +1,6 @@
 @use '../../mixins.scss' as *;
 
-// NOTE: These values are duplicated in canvas/colors.ts for the canvas
-// renderer. If you change them here, update that file to match.
-@mixin bcf-colors {
-  /* --- RED --- */
-  --bcf-color-red-low: rgba(160, 80, 80, 0.2);
-  --bcf-color-red-medium: rgba(120, 50, 50, 0.45);
-  --bcf-color-red-high: rgba(80, 32, 32, 0.7);
-
-  /* --- ORANGE --- */
-  --bcf-color-orange-low: rgba(220, 140, 70, 0.25);
-  --bcf-color-orange-medium: rgba(210, 130, 60, 0.45);
-  --bcf-color-orange-high: rgba(200, 120, 50, 0.7);
-
-  /* --- YELLOW --- */
-  --bcf-color-yellow-low: rgba(240, 230, 140, 0.25);
-  --bcf-color-yellow-medium: rgba(230, 215, 100, 0.45);
-  --bcf-color-yellow-high: rgba(222, 200, 88, 0.7);
-
-  /* --- GREEN --- */
-  --bcf-color-green-low: rgba(100, 180, 100, 0.25);
-  --bcf-color-green-medium: rgba(80, 160, 85, 0.45);
-  --bcf-color-green-high: rgba(64, 147, 67, 0.7);
-
-  /* --- CYAN --- */
-  --bcf-color-cyan-low: rgba(100, 220, 235, 0.25);
-  --bcf-color-cyan-medium: rgba(85, 210, 225, 0.45);
-  --bcf-color-cyan-high: rgba(66, 198, 215, 0.7);
-
-  /* --- BLUE --- */
-  --bcf-color-blue-low: rgba(100, 160, 255, 0.25);
-  --bcf-color-blue-medium: rgba(80, 145, 250, 0.45);
-  --bcf-color-blue-high: rgba(59, 130, 246, 0.7);
-
-  /* --- PURPLE --- */
-  --bcf-color-purple-low: rgba(130, 140, 255, 0.25);
-  --bcf-color-purple-medium: rgba(110, 120, 250, 0.45);
-  --bcf-color-purple-high: rgba(88, 101, 242, 0.7);
-
-  /* --- GRAY --- */
-  --bcf-color-gray-low: rgba(190, 190, 195, 0.25);
-  --bcf-color-gray-medium: rgba(180, 180, 180, 0.45);
-  --bcf-color-gray-high: rgba(169, 170, 171, 0.7);
-}
-
 .bcfRenderer {
-  @include bcf-colors;
-
   display: flex;
   flex-direction: row;
   position: relative;
