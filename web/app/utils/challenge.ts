@@ -199,6 +199,7 @@ export function relevantSplitsForStage(
       splits = [
         SplitType.TOB_VERZIK_ROOM,
         SplitType.TOB_VERZIK_P1,
+        SplitType.TOB_VERZIK_REDS_PUSH,
         SplitType.TOB_VERZIK_REDS,
         SplitType.TOB_VERZIK_P2,
       ];

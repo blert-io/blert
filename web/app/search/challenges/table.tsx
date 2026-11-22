@@ -194,6 +194,8 @@ const COLUMN_GROUPS: ColumnGroup[] = [
       Column.TOB_VERZIK_ENTRY,
       Column.TOB_VERZIK_ROOM,
       Column.TOB_VERZIK_P1,
+      Column.TOB_VERZIK_REDS_PUSH,
+      Column.TOB_VERZIK_REDS,
       Column.TOB_VERZIK_P2,
       Column.TOB_VERZIK_P3,
     ],
@@ -477,6 +479,16 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     'Verzik - P1',
     SplitType.TOB_VERZIK_P1,
     120,
+  ),
+  [Column.TOB_VERZIK_REDS_PUSH]: splitColumn(
+    'Verzik - Reds Push',
+    SplitType.TOB_VERZIK_REDS_PUSH,
+    170,
+  ),
+  [Column.TOB_VERZIK_REDS]: splitColumn(
+    'Verzik - Reds',
+    SplitType.TOB_VERZIK_REDS,
+    130,
   ),
   [Column.TOB_VERZIK_P2]: splitColumn(
     'Verzik - P2',

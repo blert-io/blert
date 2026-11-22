@@ -79,7 +79,7 @@ impl SplitExt for SplitType {
 }
 
 fn is_tob_split(split: SplitType) -> bool {
-    (SplitType::TobEntryChallenge as i32..=SplitType::TobHmVerzikStart as i32)
+    (SplitType::TobEntryChallenge as i32..=SplitType::TobHmVerzikRedsPush as i32)
         .contains(&(split as i32))
 }
 
@@ -98,8 +98,8 @@ mod tests {
             SplitType::TobHmMaiden,
         );
         assert_eq!(
-            SplitType::TobEntryVerzikStart.adjust_to(ChallengeMode::TobHard),
-            SplitType::TobHmVerzikStart,
+            SplitType::TobEntryVerzikRedsPush.adjust_to(ChallengeMode::TobHard),
+            SplitType::TobHmVerzikRedsPush,
         );
         assert_eq!(
             SplitType::TobEntryMaiden.adjust_to(ChallengeMode::TobEntry),
@@ -150,8 +150,8 @@ mod tests {
             SplitType::TobEntryMaiden
         );
         assert_eq!(
-            SplitType::TobHmVerzikStart.generalize(),
-            SplitType::TobEntryVerzikStart,
+            SplitType::TobHmVerzikRedsPush.generalize(),
+            SplitType::TobEntryVerzikRedsPush,
         );
         assert_eq!(
             SplitType::TobEntryMaiden.generalize(),
@@ -181,7 +181,7 @@ mod tests {
             SplitType::try_from(SplitType::MokhaiotlDelve3Start as i32 + 2),
             Ok(SplitType::MokhaiotlDelve5Start),
         );
-        assert!(SplitType::try_from(114).is_err());
+        assert!(SplitType::try_from(117).is_err());
         assert!(SplitType::try_from(304).is_err());
     }
 }
