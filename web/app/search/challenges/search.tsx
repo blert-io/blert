@@ -29,7 +29,7 @@ import Table, {
   extraFieldsForColumns,
   DEFAULT_SELECTED_COLUMNS,
 } from './table';
-import { SelectedColumn } from './types';
+import { parseSavedColumns, SelectedColumn } from './types';
 
 import styles from './style.module.scss';
 
@@ -325,9 +325,11 @@ export default function Search({
   useEffect(() => {
     const initialLoad = async () => {
       const initialContext = contextFromUrlParams(requestParams(searchParams));
-      const activeColumns = getLocalSetting<SelectedColumn[]>(
-        'search-active-columns',
-        DEFAULT_SELECTED_COLUMNS,
+      const activeColumns = parseSavedColumns(
+        getLocalSetting<SelectedColumn[]>(
+          'search-active-columns',
+          DEFAULT_SELECTED_COLUMNS,
+        ),
       );
       initialContext.extraFields = extraFieldsForColumns(activeColumns);
       await loadChallenges(FetchAction.LOAD, initialContext);

@@ -174,28 +174,28 @@ const COLUMN_GROUPS: ColumnGroup[] = [
   {
     label: 'ToB Splits',
     columns: [
-      Column.MAIDEN_ROOM,
-      Column.MAIDEN_70S,
-      Column.MAIDEN_50S,
-      Column.MAIDEN_30S,
-      Column.BLOAT_ROOM,
-      Column.NYLOCAS_ENTRY,
-      Column.NYLOCAS_ROOM,
-      Column.NYLOCAS_CLEANUP,
-      Column.NYLOCAS_BOSS_SPAWN,
-      Column.NYLOCAS_BOSS,
-      Column.SOTETSEG_ENTRY,
-      Column.SOTETSEG_ROOM,
-      Column.SOTETSEG_66,
-      Column.SOTETSEG_33,
-      Column.XARPUS_ENTRY,
-      Column.XARPUS_ROOM,
-      Column.XARPUS_SCREECH,
-      Column.VERZIK_ENTRY,
-      Column.VERZIK_ROOM,
-      Column.VERZIK_P1,
-      Column.VERZIK_P2,
-      Column.VERZIK_P3,
+      Column.TOB_MAIDEN_ROOM,
+      Column.TOB_MAIDEN_70S,
+      Column.TOB_MAIDEN_50S,
+      Column.TOB_MAIDEN_30S,
+      Column.TOB_BLOAT_ROOM,
+      Column.TOB_NYLOCAS_ENTRY,
+      Column.TOB_NYLOCAS_ROOM,
+      Column.TOB_NYLOCAS_CLEANUP,
+      Column.TOB_NYLOCAS_BOSS_SPAWN,
+      Column.TOB_NYLOCAS_BOSS,
+      Column.TOB_SOTETSEG_ENTRY,
+      Column.TOB_SOTETSEG_ROOM,
+      Column.TOB_SOTETSEG_66,
+      Column.TOB_SOTETSEG_33,
+      Column.TOB_XARPUS_ENTRY,
+      Column.TOB_XARPUS_ROOM,
+      Column.TOB_XARPUS_SCREECH,
+      Column.TOB_VERZIK_ENTRY,
+      Column.TOB_VERZIK_ROOM,
+      Column.TOB_VERZIK_P1,
+      Column.TOB_VERZIK_P2,
+      Column.TOB_VERZIK_P3,
     ],
   },
   {
@@ -225,7 +225,7 @@ const COLUMN_GROUPS: ColumnGroup[] = [
       Column.TFA_DAGONHAI,
       Column.TFA_XARTH,
       Column.TFA_XARTH_CORPSES_LEAKED,
-      Column.TFA_FINAL_ENTRY,
+      Column.TFA_OCELLUS_ENTRY,
       Column.TFA_OCELLUS,
     ],
   },
@@ -386,96 +386,108 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     sortable: true,
     aggregate: { renderer: aggregateNumber },
   },
-  [Column.MAIDEN_ROOM]: splitColumn(
+  [Column.TOB_MAIDEN_ROOM]: splitColumn(
     'Maiden',
     SplitType.TOB_MAIDEN,
     100,
     'Maiden Time',
   ),
-  [Column.MAIDEN_70S]: splitColumn(
+  [Column.TOB_MAIDEN_70S]: splitColumn(
     'Maiden - 70s',
     SplitType.TOB_MAIDEN_70S,
     130,
   ),
-  [Column.MAIDEN_50S]: splitColumn(
+  [Column.TOB_MAIDEN_50S]: splitColumn(
     'Maiden - 50s',
     SplitType.TOB_MAIDEN_50S,
     130,
   ),
-  [Column.MAIDEN_30S]: splitColumn(
+  [Column.TOB_MAIDEN_30S]: splitColumn(
     'Maiden - 30s',
     SplitType.TOB_MAIDEN_30S,
     130,
   ),
-  [Column.BLOAT_ROOM]: splitColumn(
+  [Column.TOB_BLOAT_ROOM]: splitColumn(
     'Bloat',
     SplitType.TOB_BLOAT,
     100,
     'Bloat Time',
   ),
-  [Column.NYLOCAS_ROOM]: splitColumn(
+  [Column.TOB_NYLOCAS_ROOM]: splitColumn(
     'Nylocas',
     SplitType.TOB_NYLO_ROOM,
     100,
     'Nylocas Time',
   ),
-  [Column.NYLOCAS_CLEANUP]: splitColumn(
+  [Column.TOB_NYLOCAS_CLEANUP]: splitColumn(
     'Nylo - Cleanup',
     SplitType.TOB_NYLO_CLEANUP,
     120,
     'Nylocas - Cleanup',
   ),
-  [Column.NYLOCAS_BOSS_SPAWN]: splitColumn(
+  [Column.TOB_NYLOCAS_BOSS_SPAWN]: splitColumn(
     'Nylo - Boss Spawn',
     SplitType.TOB_NYLO_BOSS_SPAWN,
     170,
     'Nylocas - Boss Spawn',
   ),
-  [Column.NYLOCAS_BOSS]: splitColumn(
+  [Column.TOB_NYLOCAS_BOSS]: splitColumn(
     'Nylo - Boss Time',
     SplitType.TOB_NYLO_BOSS,
     120,
     'Nylocas - Boss Time',
   ),
-  [Column.SOTETSEG_ROOM]: splitColumn(
+  [Column.TOB_SOTETSEG_ROOM]: splitColumn(
     'Sotetseg',
     SplitType.TOB_SOTETSEG,
     100,
     'Sotetseg Time',
   ),
-  [Column.SOTETSEG_66]: splitColumn(
+  [Column.TOB_SOTETSEG_66]: splitColumn(
     'Sote - 66%',
     SplitType.TOB_SOTETSEG_66,
     120,
     'Sotetseg - 66%',
   ),
-  [Column.SOTETSEG_33]: splitColumn(
+  [Column.TOB_SOTETSEG_33]: splitColumn(
     'Sote - 33%',
     SplitType.TOB_SOTETSEG_33,
     120,
     'Sotetseg - 33%',
   ),
-  [Column.XARPUS_ROOM]: splitColumn(
+  [Column.TOB_XARPUS_ROOM]: splitColumn(
     'Xarpus',
     SplitType.TOB_XARPUS,
     100,
     'Xarpus Time',
   ),
-  [Column.XARPUS_SCREECH]: splitColumn(
+  [Column.TOB_XARPUS_SCREECH]: splitColumn(
     'Xarp - Screech',
     SplitType.TOB_XARPUS_SCREECH,
     150,
     'Xarpus - Screech',
   ),
-  [Column.VERZIK_ROOM]: splitColumn(
+  [Column.TOB_VERZIK_ROOM]: splitColumn(
     'Verzik',
     SplitType.TOB_VERZIK_ROOM,
     100,
     'Verzik Time',
   ),
-  [Column.VERZIK_P1]: splitColumn('Verzik - P1', SplitType.TOB_VERZIK_P1, 120),
-  [Column.VERZIK_P2]: splitColumn('Verzik - P2', SplitType.TOB_VERZIK_P2, 120),
-  [Column.VERZIK_P3]: splitColumn('Verzik - P3', SplitType.TOB_VERZIK_P3, 120),
+  [Column.TOB_VERZIK_P1]: splitColumn(
+    'Verzik - P1',
+    SplitType.TOB_VERZIK_P1,
+    120,
+  ),
+  [Column.TOB_VERZIK_P2]: splitColumn(
+    'Verzik - P2',
+    SplitType.TOB_VERZIK_P2,
+    120,
+  ),
+  [Column.TOB_VERZIK_P3]: splitColumn(
+    'Verzik - P3',
+    SplitType.TOB_VERZIK_P3,
+    120,
+  ),
   [Column.INFERNO_WAVE_9]: splitColumn(
     'Inferno - W9',
     SplitType.INFERNO_WAVE_9_START,
@@ -746,25 +758,25 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     toggleFields: includeStats,
   },
 
-  [Column.NYLOCAS_ENTRY]: splitColumn(
+  [Column.TOB_NYLOCAS_ENTRY]: splitColumn(
     'Nylo entry',
     SplitType.TOB_NYLO_START,
     120,
     'Nylocas entry',
   ),
-  [Column.SOTETSEG_ENTRY]: splitColumn(
+  [Column.TOB_SOTETSEG_ENTRY]: splitColumn(
     'Sote entry',
     SplitType.TOB_SOTETSEG_START,
     120,
     'Sotetseg entry',
   ),
-  [Column.XARPUS_ENTRY]: splitColumn(
+  [Column.TOB_XARPUS_ENTRY]: splitColumn(
     'Xarpus entry',
     SplitType.TOB_XARPUS_START,
     120,
     'Xarpus entry',
   ),
-  [Column.VERZIK_ENTRY]: splitColumn(
+  [Column.TOB_VERZIK_ENTRY]: splitColumn(
     'Verzik entry',
     SplitType.TOB_VERZIK_START,
     120,
@@ -937,7 +949,7 @@ const COLUMNS: Record<Column, ColumnInfo> = {
     aggregate: { renderer: aggregateNumber },
     toggleFields: includeStats,
   },
-  [Column.TFA_FINAL_ENTRY]: splitColumn(
+  [Column.TFA_OCELLUS_ENTRY]: splitColumn(
     'Ocellus entry',
     SplitType.TFA_FINAL_START,
     130,
@@ -1032,14 +1044,14 @@ export default function Table(props: TableProps) {
         const [type, ...rest] = (target.dataset.context ?? '').split(':');
         switch (type) {
           case 'heading': {
-            const column: Column = Number.parseInt(rest[0]);
+            const column = rest[0] as Column;
             menu.heading = { column };
             break;
           }
 
           case 'row': {
             const index = Number.parseInt(rest[0]);
-            const column: Column = Number.parseInt(rest[1]);
+            const column = rest[1] as Column;
 
             if (selectedChallenges.length > 1) {
               menu.multipleChallenges = selectedChallenges;
