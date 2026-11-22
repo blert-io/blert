@@ -1532,6 +1532,15 @@ describe('round-trip conversion', () => {
           cooldown: 5,
           category: 'MAGIC',
         },
+        {
+          protoId: 120,
+          name: 'Obligator Thrust',
+          weaponIds: [34715, 34717],
+          animationIds: [15123, 15131],
+          startGraphicIds: [4425, 4426],
+          cooldown: 5,
+          category: 'MELEE',
+        },
       ],
       requestId: 1,
     };
@@ -1541,7 +1550,7 @@ describe('round-trip conversion', () => {
 
     expect(resultJson.type).toBe(originalJson.type);
     expect(resultJson.requestId).toBe(originalJson.requestId);
-    expect(resultJson.attackDefinitions).toHaveLength(3);
+    expect(resultJson.attackDefinitions).toHaveLength(4);
 
     const originalDef = originalJson.attackDefinitions![0];
     const resultDef = resultJson.attackDefinitions![0];
@@ -1551,12 +1560,17 @@ describe('round-trip conversion', () => {
     expect(resultDef.weaponIds).toEqual(originalDef.weaponIds);
     expect(resultDef.category).toBe(originalDef.category);
     expect(resultDef.attackerGraphicIds).toBeUndefined();
+    expect(resultDef.startGraphicIds).toBeUndefined();
 
     // Check projectile on second definition
     expect(resultJson.attackDefinitions![1].projectile?.id).toBe(1120);
 
     // Check attacker graphics on third definition
     expect(resultJson.attackDefinitions![2].attackerGraphicIds).toEqual([1869]);
+
+    expect(resultJson.attackDefinitions![3].startGraphicIds).toEqual([
+      4425, 4426,
+    ]);
   });
 
   it('preserves spell definitions through JSON -> Proto -> JSON', () => {

@@ -54,6 +54,8 @@ struct AttackDefinition {
     animation_ids: Vec<i32>,
     #[serde(default)]
     attacker_graphic_ids: Vec<i32>,
+    #[serde(default)]
+    start_graphic_ids: Vec<i32>,
     projectile: Option<Projectile>,
     #[serde(default)]
     weapon_projectiles: Vec<WeaponProjectile>,
