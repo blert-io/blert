@@ -817,6 +817,10 @@ const CUSTOM_FILTERS_ITEMS: MenuItem[] = [
                 value: s('Verzik P1', SplitType.TOB_VERZIK_P1).id,
               },
               {
+                label: 'Reds push',
+                value: s('Verzik reds push', SplitType.TOB_VERZIK_REDS_PUSH).id,
+              },
+              {
                 label: 'Reds spawn',
                 value: s('Verzik reds', SplitType.TOB_VERZIK_REDS).id,
               },

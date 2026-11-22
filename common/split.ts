@@ -214,6 +214,11 @@ export enum SplitType {
   TOB_HM_VERZIK_START = 113,
   TOB_VERZIK_START = TOB_ENTRY_VERZIK_START,
 
+  TOB_ENTRY_VERZIK_REDS_PUSH = 114,
+  TOB_REG_VERZIK_REDS_PUSH = 115,
+  TOB_HM_VERZIK_REDS_PUSH = 116,
+  TOB_VERZIK_REDS_PUSH = TOB_ENTRY_VERZIK_REDS_PUSH,
+
   // Colosseum wave times.
   COLOSSEUM_CHALLENGE = 150,
   COLOSSEUM_OVERALL = 151,
@@ -401,6 +406,7 @@ const genericTobSplits = [
   SplitType.TOB_XARPUS_P3,
   SplitType.TOB_VERZIK_ROOM,
   SplitType.TOB_VERZIK_P1_END,
+  SplitType.TOB_VERZIK_REDS_PUSH,
   SplitType.TOB_VERZIK_REDS,
   SplitType.TOB_VERZIK_P2_END,
   SplitType.TOB_VERZIK_P1,
@@ -449,7 +455,7 @@ export function adjustSplitForMode(
 export function generalizeSplit(split: SplitType): SplitType {
   if (
     split >= SplitType.TOB_CHALLENGE &&
-    split <= SplitType.TOB_HM_VERZIK_START
+    split <= SplitType.TOB_HM_VERZIK_REDS_PUSH
   ) {
     return split - (split % 3);
   }
@@ -568,6 +574,8 @@ export function splitName(
       return full ? 'Verzik room time' : 'Verzik';
     case SplitType.TOB_VERZIK_P1_END:
       return excludeStage ? 'P1' : 'Verzik P1';
+    case SplitType.TOB_VERZIK_REDS_PUSH:
+      return excludeStage ? 'Reds push' : 'Verzik reds push';
     case SplitType.TOB_VERZIK_REDS:
       return excludeStage ? 'Reds' : 'Verzik reds';
     case SplitType.TOB_VERZIK_P2_END:
@@ -751,43 +759,47 @@ export function splitName(
  * @returns The stage to which the split belongs.
  */
 export function splitToStage(split: SplitType): Stage {
-  if (
-    split >= SplitType.TOB_ENTRY_MAIDEN &&
-    split <= SplitType.TOB_HM_MAIDEN_30S_END
-  ) {
-    return Stage.TOB_MAIDEN;
-  }
-
-  if (split >= SplitType.TOB_ENTRY_BLOAT && split <= SplitType.TOB_HM_BLOAT) {
-    return Stage.TOB_BLOAT;
-  }
-
-  if (
-    split >= SplitType.TOB_ENTRY_NYLO_ROOM &&
-    split <= SplitType.TOB_HM_NYLO_BOSS
-  ) {
-    return Stage.TOB_NYLOCAS;
-  }
-
-  if (
-    split >= SplitType.TOB_ENTRY_SOTETSEG &&
-    split <= SplitType.TOB_HM_SOTETSEG_P3
-  ) {
-    return Stage.TOB_SOTETSEG;
-  }
-
-  if (
-    split >= SplitType.TOB_ENTRY_XARPUS &&
-    split <= SplitType.TOB_HM_XARPUS_P3
-  ) {
-    return Stage.TOB_XARPUS;
-  }
-
-  if (
-    split >= SplitType.TOB_ENTRY_VERZIK_ROOM &&
-    split <= SplitType.TOB_HM_VERZIK_P3
-  ) {
-    return Stage.TOB_VERZIK;
+  const generic = generalizeSplit(split);
+  switch (generic) {
+    case SplitType.TOB_MAIDEN:
+    case SplitType.TOB_MAIDEN_70S:
+    case SplitType.TOB_MAIDEN_50S:
+    case SplitType.TOB_MAIDEN_30S:
+    case SplitType.TOB_MAIDEN_70S_50S:
+    case SplitType.TOB_MAIDEN_50S_30S:
+    case SplitType.TOB_MAIDEN_30S_END:
+      return Stage.TOB_MAIDEN;
+    case SplitType.TOB_BLOAT:
+      return Stage.TOB_BLOAT;
+    case SplitType.TOB_NYLO_ROOM:
+    case SplitType.TOB_NYLO_CAP:
+    case SplitType.TOB_NYLO_WAVES:
+    case SplitType.TOB_NYLO_CLEANUP:
+    case SplitType.TOB_NYLO_BOSS_SPAWN:
+    case SplitType.TOB_NYLO_BOSS:
+      return Stage.TOB_NYLOCAS;
+    case SplitType.TOB_SOTETSEG:
+    case SplitType.TOB_SOTETSEG_66:
+    case SplitType.TOB_SOTETSEG_33:
+    case SplitType.TOB_SOTETSEG_MAZE_1:
+    case SplitType.TOB_SOTETSEG_MAZE_2:
+    case SplitType.TOB_SOTETSEG_P2:
+    case SplitType.TOB_SOTETSEG_P3:
+      return Stage.TOB_SOTETSEG;
+    case SplitType.TOB_XARPUS:
+    case SplitType.TOB_XARPUS_EXHUMES:
+    case SplitType.TOB_XARPUS_SCREECH:
+    case SplitType.TOB_XARPUS_P2:
+    case SplitType.TOB_XARPUS_P3:
+      return Stage.TOB_XARPUS;
+    case SplitType.TOB_VERZIK_ROOM:
+    case SplitType.TOB_VERZIK_P1_END:
+    case SplitType.TOB_VERZIK_REDS_PUSH:
+    case SplitType.TOB_VERZIK_REDS:
+    case SplitType.TOB_VERZIK_P2_END:
+    case SplitType.TOB_VERZIK_P2:
+    case SplitType.TOB_VERZIK_P3:
+      return Stage.TOB_VERZIK;
   }
 
   const splitsPerTfaBoss = SplitType.TFA_EZEKIEL - SplitType.TFA_GUARDIAN;
@@ -816,7 +828,6 @@ export function splitToStage(split: SplitType): Stage {
     return Stage.MOKHAIOTL_DELVE_1 + (split - SplitType.MOKHAIOTL_DELVE_1);
   }
 
-  const generic = generalizeSplit(split);
   if (
     generic >= SplitType.INFERNO_WAVE_1_TIME &&
     generic <= SplitType.INFERNO_WAVE_69_TIME

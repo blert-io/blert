@@ -1992,6 +1992,7 @@ async fn verify_verzik_rows(
         (SplitType::TobRegVerzikP2End, 266),
         (SplitType::TobRegVerzikP2, 169),
         (SplitType::TobRegVerzikP3, 122),
+        (SplitType::TobRegVerzikRedsPush, 103),
     ];
     assert_eq!(splits.len(), expected.len());
     for (row, (split, ticks)) in splits.iter().zip(expected) {

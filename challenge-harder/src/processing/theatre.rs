@@ -363,6 +363,14 @@ impl TheatreProcessor {
             match self.verzik.red_spawn_ticks.last() {
                 None => {
                     ctx.set_stage_split(SplitType::TobEntryVerzikReds, tick, Tick(0), false);
+                    if let Some(p1_end) = ctx.stage_split(SplitType::TobEntryVerzikP1End) {
+                        ctx.set_stage_split(
+                            SplitType::TobEntryVerzikRedsPush,
+                            tick,
+                            p1_end.tick + VERZIK_P1_TRANSITION_TICKS,
+                            false,
+                        );
+                    }
                     self.verzik.red_spawn_ticks.push(tick);
                 }
                 Some(&last) if last != tick => self.verzik.red_spawn_ticks.push(tick),
@@ -2608,6 +2616,14 @@ mod tests {
                     SplitType::TobEntryVerzikP2,
                     StageSplit {
                         tick: Tick(332),
+                        start: Tick(101),
+                        requires_completion: false,
+                    },
+                ),
+                (
+                    SplitType::TobEntryVerzikRedsPush,
+                    StageSplit {
+                        tick: Tick(204),
                         start: Tick(101),
                         requires_completion: false,
                     },
