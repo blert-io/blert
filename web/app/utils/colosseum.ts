@@ -1,4 +1,4 @@
-import { Handicap, handicapBase } from '@blert/common';
+import { Handicap } from '@blert/common';
 
 const HANDICAP_SLUGS: Record<number, string> = {
   [Handicap.MANTIMAYHEM]: 'mantimayhem',
@@ -20,11 +20,6 @@ const HANDICAP_SLUGS: Record<number, string> = {
 const HANDICAP_BY_SLUG: Record<string, Handicap> = Object.fromEntries(
   Object.entries(HANDICAP_SLUGS).map(([id, slug]) => [slug, Number(id)]),
 );
-
-/** Returns the API slug for a handicap, or `null` if unknown. */
-export function handicapSlug(handicap: Handicap): string | null {
-  return HANDICAP_SLUGS[handicapBase(handicap)] ?? null;
-}
 
 /** Resolves an API slug to its base handicap, or `null` if unrecognized. */
 export function handicapFromSlug(slug: string): Handicap | null {
