@@ -187,7 +187,6 @@ export default function NetworkContent() {
         <NetworkGraph
           data={networkData}
           loading={loading || updating}
-          selectedNode={selectedNode}
           onNodeSelect={handleNodeSelect}
           focusedPlayer={focusedPlayer}
           controlsOverlay={

@@ -28,7 +28,6 @@ const JITTER_FACTOR = 150;
 type NetworkGraphProps = {
   data: NetworkData | null;
   loading: boolean;
-  selectedNode: SelectedNode;
   onNodeSelect: (nodeData: SelectedNode) => void;
   focusedPlayer: string | null;
   controlsOverlay?: React.ReactNode;
