@@ -360,5 +360,7 @@
   "34690": {"stackThresholds":[2,3,4,5]},
   "34696": {"stackThresholds":[2,3,4,5]},
   "34702": {"stackThresholds":[2,3,4,5]},
-  "34708": {"stackThresholds":[2,3,4,5]}
+  "34708": {"stackThresholds":[2,3,4,5]},
+  "35033": {"stackThresholds":[2,3,4,5]},
+  "35059": {"stackThresholds":[2,3,4,5]}
 }
