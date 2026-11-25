@@ -41,13 +41,6 @@ class MessageStats {
     this.updateStats(this.out, size);
   }
 
-  public logString(): string {
-    return (
-      `in=${this.in.total} max(size)=${this.in.maxSize} mean(size)=${this.in.meanSize | 0} | ` +
-      `out=${this.out.total} max(size)=${this.out.maxSize} mean(size)=${this.out.meanSize | 0}`
-    );
-  }
-
   private updateStats(stats: Stats, size: number) {
     stats.total++;
     stats.maxSize = Math.max(stats.maxSize, size);
