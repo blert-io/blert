@@ -56,9 +56,6 @@ export interface MapCanvasProps {
   /** Currently selected entity. */
   selectedEntity?: AnyEntity | null;
 
-  /** Actor ID to follow with the camera. */
-  followedActor?: string | null;
-
   /** Whether to enable WASD keyboard controls for camera movement. */
   keyboardControlsEnabled?: boolean;
 
@@ -536,7 +533,6 @@ export default function MapCanvas({
   onEntitySelected,
   onEntityHovered,
   selectedEntity,
-  followedActor: _followedActor = null,
   keyboardControlsEnabled = true,
   keyboardControlsSpeed = 16,
   preloadTextures,
