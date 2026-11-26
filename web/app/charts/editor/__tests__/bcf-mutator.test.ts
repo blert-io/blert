@@ -11,6 +11,7 @@ import {
   addActor,
   clearActions,
   clearCells,
+  copyCells,
   duplicateActor,
   insertTicks,
   pasteCells,
@@ -26,6 +27,7 @@ import {
   setTotalTicks,
   translateCells,
   updateMeta,
+  validateTranslation,
 } from '../bcf-mutator';
 
 const VERZIK: BCFActor = {
@@ -1141,6 +1143,135 @@ describe('translateCells', () => {
   });
 });
 
+describe('validateTranslation', () => {
+  it('accepts valid moves', () => {
+    const bcf = makeChart(SILLY_P1);
+
+    expect(
+      validateTranslation(
+        bcf,
+        { actorIds: ['p1', 'p2'], startTick: 5, endTick: 9 },
+        { rows: 0, ticks: 3 },
+      ),
+    ).toEqual({ valid: true });
+  });
+
+  it('rejects moves of unknown actors', () => {
+    expect(
+      validateTranslation(
+        makeChart(SILLY_P1),
+        { actorIds: ['nonexistent'], startTick: 0, endTick: 5 },
+        { rows: 0, ticks: 1 },
+      ),
+    ).toEqual({ valid: false, reason: 'Unknown actor: nonexistent' });
+  });
+
+  it('rejects moves off the chart', () => {
+    const bcf = makeChart(SILLY_P1);
+
+    expect(
+      validateTranslation(
+        bcf,
+        { actorIds: ['verzik'], startTick: 19, endTick: 19 },
+        { rows: -1, ticks: 0 },
+      ),
+    ).toEqual({ valid: false, reason: 'Row -1 is out of bounds [0, 3)' });
+    expect(
+      validateTranslation(
+        bcf,
+        { actorIds: ['p1'], startTick: 24, endTick: 24 },
+        { rows: 0, ticks: 6 },
+      ),
+    ).toEqual({
+      valid: false,
+      reason: 'Ticks [30, 30] are out of bounds [0, 30)',
+    });
+  });
+
+  it('rejects moves onto an actor that cannot perform an action', () => {
+    expect(
+      validateTranslation(
+        makeChart(SILLY_P1),
+        { actorIds: ['p1'], startTick: 5, endTick: 5 },
+        { rows: -1, ticks: 0 },
+      ),
+    ).toEqual({
+      valid: false,
+      reason: 'npc actor verzik cannot perform "attack"',
+    });
+  });
+
+  it("rejects moves outside an npc's lifetime", () => {
+    const bcf = makeChart(
+      [
+        { tick: 6, cells: [{ actorId: 'mage' }] },
+        { tick: 20, cells: [{ actorId: 'mage' }] },
+      ],
+      { ...JAL_ZEK, spawnTick: 5, deathTick: 25 },
+    );
+
+    expect(
+      validateTranslation(
+        bcf,
+        { actorIds: ['mage'], startTick: 6, endTick: 6 },
+        { rows: 0, ticks: -2 },
+      ),
+    ).toEqual({ valid: false, reason: 'Tick 4 is before mage spawns (5)' });
+    expect(
+      validateTranslation(
+        bcf,
+        { actorIds: ['mage'], startTick: 20, endTick: 20 },
+        { rows: 0, ticks: 6 },
+      ),
+    ).toEqual({ valid: false, reason: 'Tick 26 is after mage dies (25)' });
+  });
+});
+
+describe('copyCells', () => {
+  it('copies cells within the given region relative to its first row and tick', () => {
+    const block = copyCells(makeChart(SILLY_P1), {
+      actorIds: ['verzik', 'p1'],
+      startTick: 5,
+      endTick: 19,
+    });
+
+    expect(block).toEqual({
+      cells: [
+        { rowOffset: 1, tickOffset: 0, cell: { actions: [DAWN_SPEC] } },
+        { rowOffset: 1, tickOffset: 4, cell: { actions: [SCYTHE] } },
+        { rowOffset: 1, tickOffset: 9, cell: { actions: [SCYTHE] } },
+        { rowOffset: 0, tickOffset: 14, cell: { actions: [VERZIK_AUTO] } },
+        { rowOffset: 1, tickOffset: 14, cell: { actions: [SCYTHE] } },
+      ],
+      rows: 2,
+      ticks: 15,
+    });
+  });
+
+  it('copies an empty region as an empty block', () => {
+    const block = copyCells(makeChart(SILLY_P1), {
+      actorIds: ['p2'],
+      startTick: 25,
+      endTick: 29,
+    });
+
+    expect(block).toEqual({ cells: [], rows: 1, ticks: 5 });
+  });
+
+  it('does not share cells with the document', () => {
+    const bcf = makeChart(SILLY_P1);
+    const before = structuredClone(bcf);
+
+    const block = copyCells(bcf, {
+      actorIds: ['p1', 'p2'],
+      startTick: 0,
+      endTick: 29,
+    });
+    block.cells[0].cell.actions?.push(VENGEANCE);
+    expect(bcf).toEqual(before);
+  });
+});
+
 describe('pasteCells', () => {
   const SINGLE_PLAYER_BLOCK: CellBlock = {
     cells: [
@@ -1158,12 +1289,6 @@ describe('pasteCells', () => {
     ],
     rows: 2,
     ticks: 3,
-  };
-
-  const NPC_BLOCK: CellBlock = {
-    cells: [{ rowOffset: 0, tickOffset: 0, cell: { actions: [VERZIK_AUTO] } }],
-    rows: 1,
-    ticks: 1,
   };
 
   const NPC_AND_PLAYER_BLOCK: CellBlock = {
@@ -1311,15 +1436,61 @@ describe('pasteCells', () => {
     ).toEqual(bcf);
   });
 
-  it('throws if the block extends outside the timeline', () => {
-    expect(() =>
-      pasteCells(
-        makeChart(SILLY_P1),
-        { actorId: 'p1', tick: 27 },
-        SINGLE_PLAYER_BLOCK,
-      ),
-    ).toThrow('out of bounds');
+  it('removes targets that are not actors in the document', () => {
+    const block: CellBlock = {
+      cells: [
+        {
+          rowOffset: 0,
+          tickOffset: 0,
+          cell: { actions: [{ ...SCYTHE, targetActorId: 'maiden' }] },
+        },
+        {
+          rowOffset: 0,
+          tickOffset: 5,
+          cell: { actions: [{ ...SCYTHE, targetActorId: 'verzik' }] },
+        },
+      ],
+      rows: 1,
+      ticks: 6,
+    };
 
+    const result = pasteCells(makeChart(), { actorId: 'p1', tick: 20 }, block);
+
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 20, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+      {
+        tick: 25,
+        cells: [
+          { actorId: 'p1', actions: [{ ...SCYTHE, targetActorId: 'verzik' }] },
+        ],
+      },
+    ]);
+  });
+
+  it('drops the part of the block past the last row or tick', () => {
+    const result = pasteCells(
+      makeChart(SILLY_P1),
+      { actorId: 'p2', tick: 27 },
+      {
+        cells: [
+          { rowOffset: 0, tickOffset: 0, cell: { actions: [SCYTHE] } },
+          { rowOffset: 0, tickOffset: 5, cell: { actions: [SCYTHE] } },
+          { rowOffset: 1, tickOffset: 0, cell: { actions: [SCYTHE] } },
+        ],
+        rows: 2,
+        ticks: 6,
+      },
+    );
+
+    expectValid(result);
+    expect(result.timeline.ticks).toEqual([
+      ...SILLY_P1,
+      { tick: 27, cells: [{ actorId: 'p2', actions: [SCYTHE] }] },
+    ]);
+  });
+
+  it('throws if the anchor is outside the timeline', () => {
     expect(() =>
       pasteCells(
         makeChart(SILLY_P1),
@@ -1331,45 +1502,49 @@ describe('pasteCells', () => {
     expect(() =>
       pasteCells(
         makeChart(SILLY_P1),
-        { actorId: 'p2', tick: 20 },
-        TWO_PLAYER_BLOCK,
+        { actorId: 'p1', tick: 30 },
+        SINGLE_PLAYER_BLOCK,
       ),
     ).toThrow('out of bounds');
   });
 
-  it('throws if pasting cells onto an incompatible actor type', () => {
-    expect(() =>
-      pasteCells(
-        makeChart(SILLY_P1),
-        { actorId: 'verzik', tick: 20 },
-        SINGLE_PLAYER_BLOCK,
-      ),
-    ).toThrow('npc actor verzik cannot perform "attack"');
+  it('skips cells whose actor type cannot perform their actions', () => {
+    const onNpc = pasteCells(
+      makeChart(SILLY_P1),
+      { actorId: 'verzik', tick: 20 },
+      SINGLE_PLAYER_BLOCK,
+    );
+    expectValid(onNpc);
+    expect(onNpc.timeline.ticks).toEqual(SILLY_P1);
 
-    expect(() =>
-      pasteCells(makeChart(SILLY_P1), { actorId: 'p1', tick: 20 }, NPC_BLOCK),
-    ).toThrow('player actor p1 cannot perform "npcAttack"');
-
-    expect(() =>
-      pasteCells(
-        makeChart(SILLY_P1),
-        { actorId: 'p1', tick: 20 },
-        NPC_AND_PLAYER_BLOCK,
-      ),
-    ).toThrow('player actor p1 cannot perform "npcAttack"');
+    const onPlayers = pasteCells(
+      makeChart(SILLY_P1),
+      { actorId: 'p1', tick: 20 },
+      NPC_AND_PLAYER_BLOCK,
+    );
+    expectValid(onPlayers);
+    expect(onPlayers.timeline.ticks).toEqual([
+      ...SILLY_P1.slice(0, 8),
+      { tick: 22, cells: [{ actorId: 'p2', actions: [SCYTHE] }] },
+      SILLY_P1[8],
+    ]);
   });
 
-  it("throws if a cell would land outside an npc's lifetime", () => {
+  it("skips cells outside an npc's lifetime", () => {
     const bcf = makeChart([], { ...JAL_ZEK, spawnTick: 5, deathTick: 25 });
     const block: CellBlock = {
-      cells: [{ rowOffset: 0, tickOffset: 0, cell: {} }],
+      cells: [
+        { rowOffset: 0, tickOffset: 0, cell: {} },
+        { rowOffset: 0, tickOffset: 1, cell: {} },
+      ],
       rows: 1,
-      ticks: 1,
+      ticks: 2,
     };
 
-    expect(() => pasteCells(bcf, { actorId: 'mage', tick: 26 }, block)).toThrow(
-      'Tick 26 is after mage dies (25)',
-    );
+    const result = pasteCells(bcf, { actorId: 'mage', tick: 25 }, block);
+    expect(result.timeline.ticks).toEqual([
+      { tick: 25, cells: [{ actorId: 'mage' }] },
+    ]);
   });
 
   it('throws if the specified offset is outside the block', () => {

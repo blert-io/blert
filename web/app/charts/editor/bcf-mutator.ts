@@ -39,18 +39,53 @@ function rowOf(bcf: BlertChartFormat, actorId: string): number {
   return row;
 }
 
-function assertRow(bcf: BlertChartFormat, row: number): void {
-  const count = rows(bcf).length;
-  if (row < 0 || row >= count) {
-    throw new Error(`Row ${row} is out of bounds [0, ${count})`);
-  }
-}
-
 function assertTick(bcf: BlertChartFormat, tick: number): void {
   const { totalTicks } = bcf.config;
   if (tick < 0 || tick >= totalTicks) {
     throw new Error(`Tick ${tick} is out of bounds [0, ${totalTicks})`);
   }
+}
+
+type Validation = { valid: true } | { valid: false; reason: string };
+
+/** Returns whether a cell can exist on `actorId`'s row at `tick`. */
+function validateCell(
+  bcf: BlertChartFormat,
+  actorId: string,
+  tick: number,
+  cell: Omit<BCFCell, 'actorId'>,
+): Validation {
+  const actor = bcf.timeline.actors.find((a) => a.id === actorId);
+  if (actor === undefined) {
+    return { valid: false, reason: `Unknown actor: ${actorId}` };
+  }
+
+  for (const action of cell.actions ?? []) {
+    if (!actorTypeSupportsAction(actor.type, action.type)) {
+      return {
+        valid: false,
+        reason: `${actor.type} actor ${actorId} cannot perform "${action.type}"`,
+      };
+    }
+  }
+
+  if (actor.type === 'npc') {
+    const spawnTick = actor.spawnTick ?? 0;
+    if (tick < spawnTick) {
+      return {
+        valid: false,
+        reason: `Tick ${tick} is before ${actorId} spawns (${spawnTick})`,
+      };
+    }
+    if (actor.deathTick !== undefined && tick > actor.deathTick) {
+      return {
+        valid: false,
+        reason: `Tick ${tick} is after ${actorId} dies (${actor.deathTick})`,
+      };
+    }
+  }
+
+  return { valid: true };
 }
 
 /** @throws Error if a cell cannot exist on `actorId`'s row at `tick`. */
@@ -60,31 +95,9 @@ function assertCompatibleCell(
   tick: number,
   cell: Omit<BCFCell, 'actorId'>,
 ): void {
-  const actor = bcf.timeline.actors.find((a) => a.id === actorId);
-  if (actor === undefined) {
-    throw new Error(`Unknown actor: ${actorId}`);
-  }
-
-  for (const action of cell.actions ?? []) {
-    if (!actorTypeSupportsAction(actor.type, action.type)) {
-      throw new Error(
-        `${actor.type} actor ${actorId} cannot perform "${action.type}"`,
-      );
-    }
-  }
-
-  if (actor.type === 'npc') {
-    const spawnTick = actor.spawnTick ?? 0;
-    if (tick < spawnTick) {
-      throw new Error(
-        `Tick ${tick} is before ${actorId} spawns (${spawnTick})`,
-      );
-    }
-    if (actor.deathTick !== undefined && tick > actor.deathTick) {
-      throw new Error(
-        `Tick ${tick} is after ${actorId} dies (${actor.deathTick})`,
-      );
-    }
+  const validation = validateCell(bcf, actorId, tick, cell);
+  if (!validation.valid) {
+    throw new Error(validation.reason);
   }
 }
 
@@ -570,6 +583,63 @@ export type CellDelta = {
   ticks: number;
 };
 
+/** Returns whether the cells within `region` can move by `delta`. */
+export function validateTranslation(
+  bcf: BlertChartFormat,
+  region: CellRegion,
+  delta: CellDelta,
+): Validation {
+  const rowOrder = rows(bcf);
+  const destinationActorIdBySource = new Map<string, string>();
+  for (const actorId of region.actorIds) {
+    const sourceRow = rowOrder.indexOf(actorId);
+    if (sourceRow === -1) {
+      return { valid: false, reason: `Unknown actor: ${actorId}` };
+    }
+    const destinationRow = sourceRow + delta.rows;
+    if (destinationRow < 0 || destinationRow >= rowOrder.length) {
+      return {
+        valid: false,
+        reason: `Row ${destinationRow} is out of bounds [0, ${rowOrder.length})`,
+      };
+    }
+    destinationActorIdBySource.set(actorId, rowOrder[destinationRow]);
+  }
+
+  const startTick = region.startTick + delta.ticks;
+  const endTick = region.endTick + delta.ticks;
+  const { totalTicks } = bcf.config;
+  if (startTick < 0 || endTick >= totalTicks) {
+    return {
+      valid: false,
+      reason:
+        `Ticks [${startTick}, ${endTick}] are out of bounds ` +
+        `[0, ${totalTicks})`,
+    };
+  }
+
+  const { ticks } = bcf.timeline;
+  for (
+    let i = lowerBound(ticks, region.startTick);
+    i < ticks.length && ticks[i].tick <= region.endTick;
+    i++
+  ) {
+    for (const cell of ticks[i].cells) {
+      const destinationActorId = destinationActorIdBySource.get(cell.actorId);
+      if (destinationActorId === undefined) {
+        continue;
+      }
+      const tick = ticks[i].tick + delta.ticks;
+      const validation = validateCell(bcf, destinationActorId, tick, cell);
+      if (!validation.valid) {
+        return validation;
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 /**
  * Moves the cells within `region` by `delta`, overwriting all cells in the
  * destination.
@@ -582,31 +652,17 @@ export function translateCells(
   region: CellRegion,
   delta: CellDelta,
 ): BlertChartFormat {
-  const order = bcf.config.rowOrder ?? bcf.timeline.actors.map((a) => a.id);
-
-  const destActorIds = region.actorIds.map((actorId) => {
-    const row = order.indexOf(actorId);
-    if (row === -1) {
-      throw new Error(`Unknown actor: ${actorId}`);
-    }
-    const destRow = row + delta.rows;
-    if (destRow < 0 || destRow >= order.length) {
-      throw new Error(`Row ${destRow} is out of bounds [0, ${order.length})`);
-    }
-    return order[destRow];
-  });
-
-  const startTick = region.startTick + delta.ticks;
-  const endTick = region.endTick + delta.ticks;
-  if (startTick < 0 || endTick >= bcf.config.totalTicks) {
-    throw new Error(
-      `Ticks [${startTick}, ${endTick}] are out of bounds ` +
-        `[0, ${bcf.config.totalTicks})`,
-    );
+  const validation = validateTranslation(bcf, region, delta);
+  if (!validation.valid) {
+    throw new Error(validation.reason);
   }
 
-  const destinations = new Map(
-    region.actorIds.map((actorId, i) => [actorId, destActorIds[i]]),
+  const rowOrder = rows(bcf);
+  const destinationActorIds = region.actorIds.map(
+    (actorId) => rowOrder[rowOrder.indexOf(actorId) + delta.rows],
+  );
+  const destinationActorIdBySource = new Map(
+    region.actorIds.map((actorId, i) => [actorId, destinationActorIds[i]]),
   );
 
   const next = structuredClone(bcf);
@@ -617,11 +673,9 @@ export function translateCells(
       continue;
     }
     for (const cell of entry.cells) {
-      const actorId = destinations.get(cell.actorId);
+      const actorId = destinationActorIdBySource.get(cell.actorId);
       if (actorId !== undefined) {
-        const tick = entry.tick + delta.ticks;
-        assertCompatibleCell(bcf, actorId, tick, cell);
-        moved.push({ tick, actorId, cell });
+        moved.push({ tick: entry.tick + delta.ticks, actorId, cell });
       }
     }
   }
@@ -629,9 +683,9 @@ export function translateCells(
   const { timeline } = next;
   timeline.ticks = clear(timeline.ticks, region);
   timeline.ticks = clear(timeline.ticks, {
-    actorIds: destActorIds,
-    startTick,
-    endTick,
+    actorIds: destinationActorIds,
+    startTick: region.startTick + delta.ticks,
+    endTick: region.endTick + delta.ticks,
   });
 
   for (const { tick, actorId, cell } of moved) {
@@ -659,11 +713,49 @@ export type CellBlock = {
 };
 
 /**
+ * Returns a copy of the cells within `region`, positioned relative to its
+ * first actor and tick.
+ */
+export function copyCells(
+  bcf: BlertChartFormat,
+  region: CellRegion,
+): CellBlock {
+  const rowOffsets = new Map(region.actorIds.map((actorId, i) => [actorId, i]));
+  const { ticks } = bcf.timeline;
+  const cells: CellBlock['cells'] = [];
+
+  for (
+    let i = lowerBound(ticks, region.startTick);
+    i < ticks.length && ticks[i].tick <= region.endTick;
+    i++
+  ) {
+    for (const { actorId, ...cell } of ticks[i].cells) {
+      const rowOffset = rowOffsets.get(actorId);
+      if (rowOffset !== undefined) {
+        cells.push({
+          rowOffset,
+          tickOffset: ticks[i].tick - region.startTick,
+          cell: structuredClone(cell),
+        });
+      }
+    }
+  }
+
+  return {
+    cells,
+    rows: region.actorIds.length,
+    ticks: region.endTick - region.startTick + 1,
+  };
+}
+
+/**
  * Writes `block` into the document with its first row and tick at `anchor`,
- * overwriting all cells within its extent. An empty block does nothing.
+ * overwriting all cells within its extent. Any part of the block past the last
+ * row or tick is left out, as is any cell its row cannot hold, and an empty
+ * block does nothing.
+ * Targets of pasted actions that are not actors in the document are removed.
  *
- * @throws Error if the block lands outside the document or on rows whose
- *   actors cannot perform the pasted actions.
+ * @throws Error if `anchor` is outside the document.
  */
 export function pasteCells(
   bcf: BlertChartFormat,
@@ -677,14 +769,11 @@ export function pasteCells(
   const anchorRow = rowOf(bcf, anchor.actorId);
   assertTick(bcf, anchor.tick);
 
-  const endRow = anchorRow + block.rows - 1;
-  assertRow(bcf, endRow);
-  const endTick = anchor.tick + block.ticks - 1;
-  assertTick(bcf, endTick);
+  const destActorIds = rows(bcf).slice(anchorRow, anchorRow + block.rows);
+  const endTick =
+    Math.min(anchor.tick + block.ticks, bcf.config.totalTicks) - 1;
 
-  const order = rows(bcf);
-
-  const placements = block.cells.map(({ rowOffset, tickOffset, cell }) => {
+  const placements = block.cells.flatMap(({ rowOffset, tickOffset, cell }) => {
     if (rowOffset < 0 || rowOffset >= block.rows) {
       throw new Error(`Row offset ${rowOffset} is outside the block`);
     }
@@ -692,24 +781,38 @@ export function pasteCells(
       throw new Error(`Tick offset ${tickOffset} is outside the block`);
     }
 
-    const actorId = order[anchorRow + rowOffset];
     const tick = anchor.tick + tickOffset;
-    assertCompatibleCell(bcf, actorId, tick, cell);
-    return { actorId, tick, cell };
+    if (rowOffset >= destActorIds.length || tick > endTick) {
+      return [];
+    }
+    const actorId = destActorIds[rowOffset];
+    const { valid } = validateCell(bcf, actorId, tick, cell);
+    if (!valid) {
+      return [];
+    }
+    return [{ actorId, tick, cell }];
   });
 
   const next = structuredClone(bcf);
   next.timeline.ticks = clear(next.timeline.ticks, {
-    actorIds: order.slice(anchorRow, anchorRow + block.rows),
+    actorIds: destActorIds,
     startTick: anchor.tick,
     endTick,
   });
 
+  const actorIds = new Set(bcf.timeline.actors.map((a) => a.id));
   for (const { actorId, tick, cell } of placements) {
-    setUnchecked(next.timeline.ticks, actorId, tick, {
-      actorId,
-      ...structuredClone(cell),
-    });
+    const placed: BCFCell = { actorId, ...structuredClone(cell) };
+    for (const action of placed.actions ?? []) {
+      if (
+        'targetActorId' in action &&
+        action.targetActorId !== undefined &&
+        !actorIds.has(action.targetActorId)
+      ) {
+        delete action.targetActorId;
+      }
+    }
+    setUnchecked(next.timeline.ticks, actorId, tick, placed);
   }
 
   return next;

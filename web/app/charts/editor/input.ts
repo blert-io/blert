@@ -5,11 +5,21 @@ import {
   actorTypeSupportsAction,
 } from '@blert/bcf';
 
-import { PointerHit } from '@/components/attack-timeline';
+import {
+  CellHit,
+  NearestCellHit,
+  PointerHit,
+} from '@/components/attack-timeline';
+import { clamp } from '@/utils/math';
 
 import { cycleAttack } from './action-registry';
 import { actionFillTicks, findOffCooldownTick } from './attack-cycle';
-import { clearActions, placeActions } from './bcf-mutator';
+import {
+  CellDelta,
+  clearActions,
+  placeActions,
+  validateTranslation,
+} from './bcf-mutator';
 import {
   AUTO_SCROLL_MAX_SPEED_PX_PER_S,
   AUTO_SCROLL_ZONE_PX,
@@ -40,8 +50,12 @@ export type Keypress = {
 
 export type CanvasPoint = { x: number; y: number };
 
-/** A primary button press on a cell. */
-export type Press = { altKey: boolean; cell: CellCoord };
+/** A primary button press on or near a cell. */
+export type Press = {
+  altKey: boolean;
+  hit: CellHit | NearestCellHit;
+  shiftKey: boolean;
+};
 
 /** An in-progress fill of an action over a range of cells. */
 export type Fill = {
@@ -60,8 +74,18 @@ export type Marquee = {
   range: CellRange;
 };
 
+/** An in-progress move of a range of cells. */
+export type Move = {
+  type: 'move';
+  dragging: boolean;
+  origin: CanvasPoint;
+  range: CellRange;
+  originCell: CellCoord;
+  hoveredCell: CellCoord;
+};
+
 /** An in-progress pointer drag over the chart. */
-export type Drag = Fill | Marquee;
+export type Drag = Fill | Marquee | Move;
 
 export type InputContext = {
   at: number;
@@ -71,14 +95,22 @@ export type InputContext = {
   state: EditorState;
 };
 
-export type PressContext = { brush: BCFAction | null; resolver: BCFResolver };
+export type PressContext = {
+  bcf: BlertChartFormat;
+  brush: BCFAction | null;
+  resolver: BCFResolver;
+  selection: CellRange | null;
+};
 
 type EditorIntent = Extract<
   EditorAction,
   {
     type:
+      | 'copy'
       | 'extend-selection'
+      | 'move-cells'
       | 'move-focus'
+      | 'paste'
       | 'place-slot-at-focus'
       | 'redo'
       | 'select-slot'
@@ -93,6 +125,7 @@ export type KeyIntent =
   | EditorIntent
   | { type: 'clear-cells'; range: CellRange }
   | { type: 'open-search' }
+  | { type: 'reject-move'; range: CellRange; delta: CellDelta }
   | { type: 'reject-slot'; focus: CellCoord; invalid: boolean; slot: number }
   | { type: 'remove-cell'; cell: CellCoord }
   | { type: 'rename-row'; actorId: string }
@@ -100,9 +133,10 @@ export type KeyIntent =
   | { type: 'zoom'; delta: number };
 
 export type PressIntent =
-  | Extract<EditorAction, { type: 'set-brush' }>
+  | Extract<EditorAction, { type: 'set-brush' | 'set-focus' }>
   | { type: 'start-fill'; action: BCFAction; cell: CellCoord }
-  | { type: 'start-marquee'; cell: CellCoord };
+  | { type: 'start-marquee'; cell: CellCoord }
+  | { type: 'start-move'; cell: CellCoord; range: CellRange };
 
 /**
  * Applies `fill` to every row in its range.
@@ -212,7 +246,7 @@ export function autoScrollSpeed(
 
 /**
  * Returns a copy of `drag` with its `end` set to the cell under `hit`.
- * If the end cell did not move, or `hit` is not valid, returns `drag`.
+ * If that cell did not change, or `hit` is not valid, returns `drag`.
  * If `drag` is a fill, it is limited to actor rows of the same type as its
  * start row.
  */
@@ -225,7 +259,8 @@ export function extendDrag(
     return drag;
   }
 
-  const { end, start } = drag.range;
+  const { start } = drag.range;
+  const end = drag.type === 'move' ? drag.hoveredCell : drag.range.end;
   let actorId = hit.type === 'tick-header' ? end.actorId : hit.rowId;
   if (drag.type === 'fill') {
     actorId = clampToActorType(resolver, start.actorId, actorId);
@@ -233,7 +268,12 @@ export function extendDrag(
   if (actorId === end.actorId && hit.tick === end.tick) {
     return drag;
   }
-  return { ...drag, range: { start, end: { actorId, tick: hit.tick } } };
+
+  const newEnd = { actorId, tick: hit.tick };
+  if (drag.type === 'move') {
+    return { ...drag, hoveredCell: newEnd };
+  }
+  return { ...drag, range: { start, end: newEnd } };
 }
 
 /** Returns the actions `keypress` applies given some state, in order. */
@@ -253,6 +293,8 @@ export function keyIntents(
   const { activeSlot, brush, focus, focusedBy, selection, slots } = state;
   const bcf = currentDocument(state);
   const modifier = ctrlKey || metaKey;
+  const selectedRange =
+    selection ?? (focus !== null ? { start: focus, end: focus } : null);
 
   const focusRowEdge = (edge: 'end' | 'start'): KeyIntent[] => {
     if (focus === null) {
@@ -285,7 +327,7 @@ export function keyIntents(
     case 'ArrowUp':
     case 'ArrowDown':
     case 'ArrowLeft':
-    case 'ArrowRight':
+    case 'ArrowRight': {
       if (
         metaKey &&
         !ctrlKey &&
@@ -294,16 +336,43 @@ export function keyIntents(
       ) {
         return focusRowEdge(key === 'ArrowLeft' ? 'start' : 'end');
       }
-      if (modifier || altKey) {
+      if (modifier) {
         return [];
+      }
+      const rows = key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0;
+      const ticks = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
+      if (!altKey) {
+        return shiftKey
+          ? [{ type: 'extend-selection', rows, ticks }]
+          : [{ type: 'move-focus', rows, ticks }];
+      }
+      if (shiftKey || selectedRange === null || !hasCells(bcf, selectedRange)) {
+        return [];
+      }
+
+      const delta = clampDelta(bcf, selectedRange, { rows, ticks });
+      const region = rangeToRegion(bcf, selectedRange);
+      const atEdge = delta.rows === 0 && delta.ticks === 0;
+      if (atEdge || !validateTranslation(bcf, region, delta).valid) {
+        return [
+          {
+            type: 'reject-move',
+            range: selectedRange,
+            delta: { rows, ticks },
+          },
+        ];
       }
       return [
         {
-          type: shiftKey ? 'extend-selection' : 'move-focus',
-          rows: key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0,
-          ticks: key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0,
+          type: 'move-cells',
+          range: selectedRange,
+          ...delta,
+          focusedBy: 'keyboard',
+          coalesce: 'nudge',
+          at,
         },
       ];
+    }
 
     case 'Home':
     case 'End':
@@ -367,11 +436,50 @@ export function keyIntents(
     }
 
     case 'a':
-    case 'A':
-      if (modifier || altKey) {
+    case 'A': {
+      if (altKey) {
         return [];
       }
-      return [{ type: 'toggle-drawer', panel: 'actions' }];
+      if (!modifier) {
+        return [{ type: 'toggle-drawer', panel: 'actions' }];
+      }
+      const rowOrder = bcf.config.rowOrder ?? [];
+      if (rowOrder.length === 0) {
+        return [];
+      }
+      const [first, last] = displayWindow(bcf);
+      const start = { actorId: rowOrder[0], tick: first };
+      const end = { actorId: rowOrder[rowOrder.length - 1], tick: last };
+      return [{ type: 'set-selection', selection: { start, end } }];
+    }
+
+    case 'c':
+    case 'C':
+    case 'x':
+    case 'X': {
+      if (!modifier || altKey || selectedRange === null) {
+        return [];
+      }
+      const copy: KeyIntent = { type: 'copy', range: selectedRange };
+      if ((key === 'x' || key === 'X') && hasCells(bcf, selectedRange)) {
+        return [copy, { type: 'clear-cells', range: selectedRange }];
+      }
+      return [copy];
+    }
+
+    case 'v':
+    case 'V': {
+      const { clipboard } = state;
+      if (!modifier || altKey || clipboard === null || selectedRange === null) {
+        return [];
+      }
+      const { actorIds, startTick } = rangeToRegion(bcf, selectedRange);
+      if (actorIds.length === 0) {
+        return [];
+      }
+      const anchor = { actorId: actorIds[0], tick: startTick };
+      return [{ type: 'paste', anchor, at }];
+    }
 
     case 'r':
     case 'R':
@@ -428,27 +536,84 @@ export function keyIntents(
   return [];
 }
 
-/** Returns the action that `press` applies given some state. */
-export function pressIntent(
+/** Returns how far `move` moves its cells, limited to the display window. */
+export function deltaOfMove(bcf: BlertChartFormat, move: Move): CellDelta {
+  const rowOrder = bcf.config.rowOrder ?? [];
+  const { hoveredCell, originCell, range } = move;
+  return clampDelta(bcf, range, {
+    rows:
+      rowOrder.indexOf(hoveredCell.actorId) -
+      rowOrder.indexOf(originCell.actorId),
+    ticks: hoveredCell.tick - originCell.tick,
+  });
+}
+
+/** Returns the actions that `press` applies given some state, in order. */
+export function pressIntents(
   context: PressContext,
   press: Press,
-): PressIntent | null {
-  const { brush, resolver } = context;
-  const { altKey, cell } = press;
+): PressIntent[] {
+  const { bcf, brush, resolver, selection } = context;
+  const { altKey, hit, shiftKey } = press;
+  const cell = { actorId: hit.rowId, tick: hit.tick };
+  const inSelection =
+    selection !== null &&
+    hasCells(bcf, selection) &&
+    rangeContains(bcf, selection, cell);
+
+  if (hit.type === 'nearest-cell') {
+    return inSelection && !altKey && !shiftKey && brush === null
+      ? [{ type: 'start-move', cell, range: selection }]
+      : [];
+  }
 
   if (altKey) {
     const actions = resolver.getCell(cell.actorId, cell.tick)?.actions ?? [];
     const picked = actions.find((a) => a.type === 'attack') ?? actions[0];
-    return picked === undefined ? null : { type: 'set-brush', brush: picked };
+    return picked === undefined ? [] : [{ type: 'set-brush', brush: picked }];
   }
 
-  if (brush === null) {
-    return { type: 'start-marquee', cell };
+  if (brush !== null) {
+    return canPlace(resolver, cell.actorId, brush)
+      ? [{ type: 'start-fill', action: brush, cell }]
+      : [];
   }
-  if (!canPlace(resolver, cell.actorId, brush)) {
-    return null;
+
+  if (!shiftKey) {
+    if (inSelection) {
+      return [{ type: 'start-move', cell, range: selection }];
+    }
+    if (resolver.getCell(cell.actorId, cell.tick) !== undefined) {
+      return [
+        { type: 'set-focus', focus: cell },
+        { type: 'start-move', cell, range: { start: cell, end: cell } },
+      ];
+    }
   }
-  return { type: 'start-fill', action: brush, cell };
+  return [
+    { type: 'set-focus', focus: cell },
+    { type: 'start-marquee', cell },
+  ];
+}
+
+/**
+ * Returns `delta` limited so that moving `range` by it stays within the
+ * display window of `bcf`
+ */
+function clampDelta(
+  bcf: BlertChartFormat,
+  range: CellRange,
+  delta: CellDelta,
+): CellDelta {
+  const rowOrder = bcf.config.rowOrder ?? [];
+  const { actorIds, endTick, startTick } = rangeToRegion(bcf, range);
+  const firstRow = rowOrder.indexOf(actorIds[0]);
+  const lastRow = firstRow + actorIds.length - 1;
+  const [firstTick, lastTick] = displayWindow(bcf);
+  return {
+    rows: clamp(delta.rows, -firstRow, rowOrder.length - 1 - lastRow),
+    ticks: clamp(delta.ticks, firstTick - startTick, lastTick - endTick),
+  };
 }
 
 /**
@@ -487,5 +652,18 @@ function hasCells(bcf: BlertChartFormat, range: CellRange): boolean {
       tick >= startTick &&
       tick <= endTick &&
       cells.some((cell) => actors.has(cell.actorId)),
+  );
+}
+
+function rangeContains(
+  bcf: BlertChartFormat,
+  range: CellRange,
+  cell: CellCoord,
+): boolean {
+  const { actorIds, endTick, startTick } = rangeToRegion(bcf, range);
+  return (
+    actorIds.includes(cell.actorId) &&
+    cell.tick >= startTick &&
+    cell.tick <= endTick
   );
 }

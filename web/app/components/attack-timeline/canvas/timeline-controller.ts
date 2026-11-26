@@ -25,13 +25,15 @@ export type TileInfo = {
   startTick: number;
   tickCount: number;
   logicalWidth: number;
+  endsVisualRow: boolean;
 };
 
 export type PointerHit = HitTestResult | NearestCellHit;
 
 /**
  * Receives pointer events over the timeline, pairing each with the cell or tick
- * header under the pointer.
+ * header under the pointer. Events over the gap between two cells are paired
+ * with the nearer of them.
  *
  * From a press until its release, move events and the release event are
  * delivered even when the pointer leaves the canvas. While the pointer is not
@@ -47,7 +49,7 @@ export type InteractionHandler = {
    * Callback invoked on each `hit` target change returning the CSS cursor value
    * to display over it. `undefined` uses the default cursor.
    */
-  cursor?: (hit: HitTestResult | null) => string | undefined;
+  cursor?: (hit: PointerHit | null) => string | undefined;
 };
 
 export type ControllerData = {
@@ -533,6 +535,7 @@ export class TimelineController {
 
     if (result === null || result.type === 'nearest-cell') {
       this.clearHover();
+      this.cursor = this.cursorFor(result);
       canvas.style.cursor = this.cursor;
       return;
     }
@@ -569,7 +572,7 @@ export class TimelineController {
     canvas.style.cursor = this.cursor;
   }
 
-  private cursorFor(hit: HitTestResult | null): string {
+  private cursorFor(hit: PointerHit | null): string {
     const cursor = this.data?.interactionHandler?.cursor?.(hit);
     if (cursor !== undefined) {
       return cursor;
@@ -602,8 +605,9 @@ export class TimelineController {
     if (handler === undefined) {
       return;
     }
-    const hit = this.resolvePointer(e)?.hit ?? null;
-    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    const canvas = e.currentTarget as HTMLCanvasElement;
+    canvas.setPointerCapture(e.pointerId);
+    const hit = this.resolveHit(canvas, e.clientX, e.clientY)?.hit ?? null;
     handler.onPointerDown?.(hit, e);
   };
 
@@ -621,14 +625,32 @@ export class TimelineController {
     clientY: number,
   ): ResolvedHit | null {
     const tileIndex = this.tileIndexForCanvas(canvas);
+    const tile = this.layout?.tiles[tileIndex];
     const layout = this.tileLayout(tileIndex);
-    if (layout === null) {
+    if (tile === undefined || layout === null) {
       return null;
     }
 
     const rect = canvas.getBoundingClientRect();
-    const hit = hitTest(clientX - rect.left, clientY - rect.top, layout);
-    return { hit, tileIndex, canvas };
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const hit = hitTest(x, y, layout);
+    if (hit !== null) {
+      return { hit, tileIndex, canvas };
+    }
+
+    const { cellGap, cellSize, rowOrder, tickHeight } = layout;
+    const gridRight = tile.endsVisualRow
+      ? tile.logicalWidth - cellGap
+      : tile.logicalWidth;
+    const gridBottom =
+      tickHeight + rowOrder.length * (cellSize + cellGap) - cellGap;
+    const inGrid = x >= 0 && x < gridRight && y >= tickHeight && y < gridBottom;
+    return {
+      hit: inGrid ? nearestCell(x, y, layout) : null,
+      tileIndex,
+      canvas,
+    };
   }
 
   /** Resolves the hit on whichever tile is under a point, if any. */

@@ -9,7 +9,16 @@ import {
 import { clamp } from '@/utils/math';
 
 import { attackCooldown } from './attack-cycle';
-import { CellRegion, placeAction, setRowOrder } from './bcf-mutator';
+import {
+  CellBlock,
+  CellRegion,
+  copyCells,
+  pasteCells,
+  placeAction,
+  setRowOrder,
+  translateCells,
+  validateTranslation,
+} from './bcf-mutator';
 import { HOTBAR_SLOTS } from './constants';
 
 export type CellCoord = { actorId: string; tick: number };
@@ -24,8 +33,18 @@ export type CellRange = { start: CellCoord; end: CellCoord };
 /** Actions bound to the hotbar slots. */
 export type HotbarSlots = (BCFAction | null)[];
 
+/** A value before and after an edit. */
+type Change<T> = { before: T; after: T };
+
+type HistoryEntry = {
+  document: BlertChartFormat;
+  // The focus and/or selection moved directly by the edit.
+  focus?: Change<CellCoord | null>;
+  selection?: Change<CellRange | null>;
+};
+
 export type EditorState = {
-  history: BlertChartFormat[];
+  history: HistoryEntry[];
   position: number;
   /**
    * Marks the head history entry as combinable with consecutive updates
@@ -39,6 +58,8 @@ export type EditorState = {
   /** How the focus last moved. */
   focusedBy: 'keyboard' | 'pointer';
   selection: CellRange | null;
+  /** The cells last copied or cut. */
+  clipboard: CellBlock | null;
   brush: BCFAction | null;
   slots: HotbarSlots;
   activeSlot: number | null;
@@ -55,6 +76,10 @@ export type EditorAction =
        * ends the run.
        */
       coalesce?: string;
+      /** Where to move focus after the update. */
+      focus?: CellCoord | null;
+      /** Where to move selection after the update. */
+      selection?: CellRange | null;
       at: number;
     }
   | { type: 'undo' }
@@ -63,6 +88,17 @@ export type EditorAction =
   | { type: 'move-focus'; rows: number; ticks: number }
   | { type: 'set-selection'; selection: CellRange | null }
   | { type: 'extend-selection'; rows: number; ticks: number }
+  | { type: 'copy'; range: CellRange }
+  | { type: 'paste'; anchor: CellCoord; at: number }
+  | {
+      type: 'move-cells';
+      range: CellRange;
+      rows: number;
+      ticks: number;
+      focusedBy: EditorState['focusedBy'];
+      coalesce?: string;
+      at: number;
+    }
   | { type: 'place-slot-at-focus'; slot: number; at: number }
   | { type: 'set-brush'; brush: BCFAction | null }
   | { type: 'set-respect-cooldowns'; respectCooldowns: boolean }
@@ -77,7 +113,7 @@ export type EditorAction =
 const COALESCE_WINDOW_MS = 2500;
 
 export function currentDocument(state: EditorState): BlertChartFormat {
-  return state.history[state.position];
+  return state.history[state.position].document;
 }
 
 /** Returns the first and last ticks `bcf` displays, inclusive. */
@@ -136,13 +172,14 @@ export function initialState(bcf: BlertChartFormat): EditorState {
       : bcf;
 
   return {
-    history: [document],
+    history: [{ document }],
     position: 0,
     coalesce: null,
     modified: false,
     focus: null,
     focusedBy: 'pointer',
     selection: null,
+    clipboard: null,
     brush: null,
     slots: new Array<BCFAction | null>(HOTBAR_SLOTS).fill(null),
     activeSlot: null,
@@ -230,60 +267,143 @@ function offsetCell(
     : { actorId: rowOrder[nextRow], tick };
 }
 
+/**
+ * Sets the focus and selection changed by the edit that created `entry` to
+ * their values on one side of the edit, provided they still have their values
+ * from the other side.
+ */
+function restoreFocusAndSelection(
+  state: EditorState,
+  entry: HistoryEntry,
+  restoreTo: 'after' | 'before',
+): EditorState {
+  const currentSide = restoreTo === 'after' ? 'before' : 'after';
+  const { focus: focusChange, selection: selectionChange } = entry;
+  if (
+    (focusChange !== undefined &&
+      !cellCoordsEqual(state.focus, focusChange[currentSide])) ||
+    (selectionChange !== undefined &&
+      !cellRangesEqual(state.selection, selectionChange[currentSide]))
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    focus: focusChange === undefined ? state.focus : focusChange[restoreTo],
+    selection:
+      selectionChange === undefined
+        ? state.selection
+        : selectionChange[restoreTo],
+  };
+}
+
+function cellCoordsEqual(
+  first: CellCoord | null,
+  second: CellCoord | null,
+): boolean {
+  if (first === null || second === null) {
+    return first === second;
+  }
+  return first.actorId === second.actorId && first.tick === second.tick;
+}
+
+function cellRangesEqual(
+  first: CellRange | null,
+  second: CellRange | null,
+): boolean {
+  if (first === null || second === null) {
+    return first === second;
+  }
+  return (
+    cellCoordsEqual(first.start, second.start) &&
+    cellCoordsEqual(first.end, second.end)
+  );
+}
+
 function apply(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'update': {
       const updated = action.mutate(currentDocument(state));
       const key = action.coalesce ?? null;
-
-      if (
+      const coalescing =
         key !== null &&
         state.position === state.history.length - 1 &&
         state.coalesce?.key === key &&
         state.coalesce.position === state.position &&
-        action.at - state.coalesce.at <= COALESCE_WINDOW_MS
-      ) {
-        return {
-          ...state,
-          history: [...state.history.slice(0, state.position), updated],
-          coalesce: { ...state.coalesce, at: action.at },
-          modified: true,
+        action.at - state.coalesce.at <= COALESCE_WINDOW_MS;
+
+      // Coalescing replaces the current entry, keeping the focus and selection
+      // from before the run's first edit.
+      const replacedEntry = coalescing ? state.history[state.position] : null;
+      const updatedEntry: HistoryEntry = {
+        ...replacedEntry,
+        document: updated,
+      };
+      if (action.focus !== undefined) {
+        updatedEntry.focus = {
+          before:
+            replacedEntry?.focus === undefined
+              ? state.focus
+              : replacedEntry.focus.before,
+          after: action.focus,
+        };
+      }
+      if (action.selection !== undefined) {
+        updatedEntry.selection = {
+          before:
+            replacedEntry?.selection === undefined
+              ? state.selection
+              : replacedEntry.selection.before,
+          after: action.selection,
         };
       }
 
+      const position = coalescing ? state.position : state.position + 1;
       return {
         ...state,
-        history: [...state.history.slice(0, state.position + 1), updated],
-        position: state.position + 1,
-        coalesce:
-          key !== null
-            ? { key, position: state.position + 1, at: action.at }
-            : null,
+        history: [...state.history.slice(0, position), updatedEntry],
+        position,
+        coalesce: key === null ? null : { key, position, at: action.at },
         modified: true,
+        focus: action.focus === undefined ? state.focus : action.focus,
+        selection:
+          action.selection === undefined ? state.selection : action.selection,
       };
     }
 
-    case 'undo':
+    case 'undo': {
       if (state.position === 0) {
         return state;
       }
-      return {
-        ...state,
-        position: state.position - 1,
-        coalesce: null,
-        modified: true,
-      };
+      const undoneEntry = state.history[state.position];
+      return restoreFocusAndSelection(
+        {
+          ...state,
+          position: state.position - 1,
+          coalesce: null,
+          modified: true,
+        },
+        undoneEntry,
+        'before',
+      );
+    }
 
-    case 'redo':
+    case 'redo': {
       if (state.position === state.history.length - 1) {
         return state;
       }
-      return {
-        ...state,
-        position: state.position + 1,
-        coalesce: null,
-        modified: true,
-      };
+      const redoneEntry = state.history[state.position + 1];
+      return restoreFocusAndSelection(
+        {
+          ...state,
+          position: state.position + 1,
+          coalesce: null,
+          modified: true,
+        },
+        redoneEntry,
+        'after',
+      );
+    }
 
     case 'set-focus':
       return {
@@ -336,6 +456,63 @@ function apply(state: EditorState, action: EditorAction): EditorState {
       };
     }
 
+    case 'copy': {
+      const bcf = currentDocument(state);
+      const clipboard = copyCells(bcf, rangeToRegion(bcf, action.range));
+      return { ...state, clipboard };
+    }
+
+    case 'paste': {
+      const { clipboard } = state;
+      if (clipboard === null) {
+        return state;
+      }
+
+      const { anchor } = action;
+      const end = offsetCell(currentDocument(state), anchor, {
+        rows: clipboard.rows - 1,
+        ticks: clipboard.ticks - 1,
+      });
+      const pasted = apply(state, {
+        type: 'update',
+        mutate: (bcf) => pasteCells(bcf, anchor, clipboard),
+        selection: { start: anchor, end },
+        at: action.at,
+      });
+      return { ...pasted, focus: anchor, focusedBy: 'keyboard' };
+    }
+
+    case 'move-cells': {
+      const bcf = currentDocument(state);
+      const region = rangeToRegion(bcf, action.range);
+      if (!validateTranslation(bcf, region, action).valid) {
+        return state;
+      }
+
+      const { focus, selection } = state;
+      const destinationFocus =
+        focus === null ? null : offsetCell(bcf, focus, action);
+      const destinationSelection =
+        selection !== null
+          ? {
+              start: offsetCell(bcf, selection.start, action),
+              end: offsetCell(bcf, selection.end, action),
+            }
+          : null;
+      const translate = (document: BlertChartFormat) =>
+        translateCells(document, region, action);
+
+      const translated = apply(state, {
+        type: 'update',
+        mutate: translate,
+        coalesce: action.coalesce,
+        focus: destinationFocus,
+        selection: destinationSelection,
+        at: action.at,
+      });
+      return { ...translated, focusedBy: action.focusedBy };
+    }
+
     case 'place-slot-at-focus': {
       const { focus } = state;
       const bound = state.slots[action.slot] ?? null;
@@ -353,20 +530,23 @@ function apply(state: EditorState, action: EditorAction): EditorState {
         return state;
       }
 
-      const placed = apply(
+      const advancedFocus =
+        bound.type === 'attack'
+          ? offsetCell(currentDocument(state), focus, {
+              rows: 0,
+              ticks: attackCooldown(bound.attackType),
+            })
+          : undefined;
+      return apply(
         { ...state, selection: null },
         {
           type: 'update',
           mutate: (bcf) => placeAction(bcf, focus.actorId, focus.tick, bound),
           coalesce: 'place',
+          focus: advancedFocus,
           at: action.at,
         },
       );
-      if (bound.type !== 'attack') {
-        return placed;
-      }
-      const tick = focus.tick + attackCooldown(bound.attackType);
-      return { ...placed, focus: { actorId: focus.actorId, tick } };
     }
 
     case 'set-brush':

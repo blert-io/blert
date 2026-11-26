@@ -154,6 +154,23 @@ $aero-chrome-shadow: rgba(60, 120, 165, 0.25);
   }
 }
 
+@keyframes nudge-vertical {
+  25% {
+    transform: translateY(-3px);
+  }
+
+  75% {
+    transform: translateY(3px);
+  }
+}
+
+.focusOverlay.invalid.vertical,
+.selection.rejected.vertical {
+  @media (prefers-reduced-motion: no-preference) {
+    animation-name: nudge-vertical, flash-invalid;
+  }
+}
+
 @keyframes flash-invalid {
   from {
     outline-color: var(--blert-red);
@@ -217,6 +234,11 @@ $aero-chrome-shadow: rgba(60, 120, 165, 0.25);
   outline: 1px dashed rgba(var(--blert-purple-base), 0.7);
   outline-offset: 1px;
   background: rgba(var(--blert-purple-base), 0.08);
+
+  &.invalid {
+    outline-color: rgba(var(--blert-red-base), 0.8);
+    background: rgba(var(--blert-red-base), 0.08);
+  }
 }
 
 .removed {
@@ -229,6 +251,32 @@ $aero-chrome-shadow: rgba(60, 120, 165, 0.25);
   outline: 1px solid rgba(var(--blert-purple-base), 0.8);
   outline-offset: 1px;
   background: rgba(var(--blert-purple-base), 0.15);
+
+  &.rejected {
+    animation:
+      nudge 150ms ease,
+      flash-invalid 600ms ease-out;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: flash-invalid 600ms ease-out;
+    }
+  }
+}
+
+// Flashes over cells as they are copied.
+.copied {
+  border-radius: 4px;
+  outline: 1px solid rgba(var(--blert-accent-complement-base), 0.9);
+  outline-offset: 1px;
+  background: rgba(var(--blert-accent-complement-base), 0.35);
+  opacity: 0;
+  animation: copied-fade 500ms ease-out;
+}
+
+@keyframes copied-fade {
+  from {
+    opacity: 1;
+  }
 }
 
 .drawer {
