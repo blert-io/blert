@@ -6,7 +6,12 @@ import Button from '@/components/button';
 import { useIsApple } from '@/display';
 
 import { setTotalTicks, updateMeta } from './bcf-mutator';
-import { MAX_CELL_SIZE, MAX_TICKS, MIN_CELL_SIZE } from './constants';
+import {
+  FIRST_TICK,
+  MAX_CELL_SIZE,
+  MAX_TICKS,
+  MIN_CELL_SIZE,
+} from './constants';
 import { currentDocument } from './editor-state';
 import { ChartEditor } from './use-chart-editor';
 
@@ -29,8 +34,7 @@ export function Toolbar({
   const bcf = currentDocument(state);
   const isApple = useIsApple();
 
-  const startTick = bcf.config.startTick ?? 0;
-  const ticks = bcf.config.totalTicks - startTick;
+  const ticks = bcf.config.totalTicks - FIRST_TICK;
 
   return (
     <>
@@ -55,7 +59,7 @@ export function Toolbar({
           key={ticks}
           ticks={ticks}
           onCommit={(value) =>
-            update((doc) => setTotalTicks(doc, startTick + value))
+            update((doc) => setTotalTicks(doc, FIRST_TICK + value))
           }
         />
       </label>

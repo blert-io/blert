@@ -19,7 +19,7 @@ import {
   translateCells,
   validateTranslation,
 } from './bcf-mutator';
-import { HOTBAR_SLOTS } from './constants';
+import { FIRST_TICK, HOTBAR_SLOTS } from './constants';
 
 export type CellCoord = { actorId: string; tick: number };
 
@@ -116,12 +116,9 @@ export function currentDocument(state: EditorState): BlertChartFormat {
   return state.history[state.position].document;
 }
 
-/** Returns the first and last ticks `bcf` displays, inclusive. */
+/** Returns the first and last ticks the editor displays, inclusive. */
 export function displayWindow(bcf: BlertChartFormat): [number, number] {
-  return [
-    bcf.config.startTick ?? 0,
-    bcf.config.endTick ?? bcf.config.totalTicks - 1,
-  ];
+  return [FIRST_TICK, bcf.config.totalTicks - 1];
 }
 
 /**

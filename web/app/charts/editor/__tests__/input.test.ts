@@ -76,11 +76,7 @@ describe('applyFill', () => {
   it('fills every row in its range with an attack, clearing existing attacks', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: {
-        totalTicks: 31,
-        startTick: 1,
-        rowOrder: ['verzik', 'p1', 'p2'],
-      },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -150,7 +146,7 @@ describe('applyFill', () => {
   it('fills other actions without clearing existing ones', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -224,11 +220,7 @@ describe('extendDrag', () => {
   it('moves the end of a drag to the target of a hit', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: {
-        totalTicks: 31,
-        startTick: 1,
-        rowOrder: ['verzik', 'p1', 'p2'],
-      },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -348,9 +340,7 @@ describe('deltaOfMove', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
       config: {
-        totalTicks: 31,
-        startTick: 1,
-        endTick: 20,
+        totalTicks: 21,
         rowOrder: ['verzik', 'p1', 'p2'],
       },
       timeline: {
@@ -384,7 +374,7 @@ describe('keyIntents', () => {
   it('ignores all keys on text targets and control keys on control targets', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -418,7 +408,7 @@ describe('keyIntents', () => {
   it('moves focus on movement keys', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -494,11 +484,7 @@ describe('keyIntents', () => {
   it('moves the selection or focused cell on alt+arrows', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: {
-        totalTicks: 31,
-        startTick: 1,
-        rowOrder: ['verzik', 'p1', 'p2'],
-      },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -604,7 +590,7 @@ describe('keyIntents', () => {
   it('selects or places hotbar slots on number keys', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -647,7 +633,7 @@ describe('keyIntents', () => {
   it('clears the focused cell on delete or backspace', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -687,7 +673,7 @@ describe('keyIntents', () => {
   it('copies on ctrl+c and cuts on ctrl+x', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -733,7 +719,7 @@ describe('keyIntents', () => {
   it('pastes at the selection or focused cell on ctrl+v', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -770,12 +756,7 @@ describe('keyIntents', () => {
   it('selects the full visible chart on ctrl+a', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: {
-        totalTicks: 31,
-        startTick: 1,
-        endTick: 25,
-        rowOrder: ['verzik', 'p1'],
-      },
+      config: { totalTicks: 26, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -800,7 +781,7 @@ describe('keyIntents', () => {
   it('clears brush then focus on escape', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -829,7 +810,7 @@ describe('keyIntents', () => {
   it('handles miscellaneous shortcuts', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -869,7 +850,7 @@ describe('keyIntents', () => {
   it('cycles brush on s', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -901,7 +882,7 @@ describe('pressIntents', () => {
   it("places the brush's action", () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -952,7 +933,7 @@ describe('pressIntents', () => {
   it('moves the pressed cells or starts a marquee if no brush is set', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -1053,7 +1034,7 @@ describe('pressIntents', () => {
   it("picks a cell's action with alt held, preferring an attack", () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: {
         actors: [
           { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
