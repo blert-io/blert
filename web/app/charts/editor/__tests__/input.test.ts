@@ -1,5 +1,7 @@
 import { BCFAction, BCFResolver, BlertChartFormat } from '@blert/bcf';
 
+import { CellHit, NearestCellHit } from '@/components/attack-timeline';
+
 import { deriveState } from '../attack-cycle';
 import { EditorState, currentDocument, initialState } from '../editor-state';
 import {
@@ -7,12 +9,15 @@ import {
   InputContext,
   Keypress,
   Marquee,
+  Move,
+  PressContext,
   applyFill,
   autoScrollSpeed,
   cellsClearedBy,
+  deltaOfMove,
   extendDrag,
   keyIntents,
-  pressIntent,
+  pressIntents,
 } from '../input';
 
 const SCYTHE: BCFAction = {
@@ -310,6 +315,68 @@ describe('extendDrag', () => {
       ...fill,
       range: { start: fillStart, end: { actorId: 'p1', tick: 6 } },
     });
+
+    const pressed = { actorId: 'p1', tick: 4 };
+    const move: Move = {
+      type: 'move',
+      dragging: true,
+      origin: { x: 0, y: 0 },
+      range: { start: pressed, end: { actorId: 'p2', tick: 5 } },
+      originCell: pressed,
+      hoveredCell: pressed,
+    };
+    const overNpc = extendDrag(resolver, move, {
+      type: 'cell',
+      tick: 6,
+      rowId: 'verzik',
+      rowIndex: 0,
+      cellX: 175,
+      cellY: 30,
+    });
+    expect(overNpc).toEqual({
+      ...move,
+      hoveredCell: { actorId: 'verzik', tick: 6 },
+    });
+    expect(
+      extendDrag(resolver, overNpc, { type: 'tick-header', tick: 8 }),
+    ).toEqual({ ...move, hoveredCell: { actorId: 'verzik', tick: 8 } });
+  });
+});
+
+describe('deltaOfMove', () => {
+  it('returns the offset to the hovered cell, limited to the display window', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: {
+        totalTicks: 31,
+        startTick: 1,
+        endTick: 20,
+        rowOrder: ['verzik', 'p1', 'p2'],
+      },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+          { type: 'player', id: 'p2', name: 'Player 2' },
+        ],
+        ticks: [],
+      },
+    };
+    const pressed = { actorId: 'p1', tick: 5 };
+    const move: Move = {
+      type: 'move',
+      dragging: true,
+      origin: { x: 0, y: 0 },
+      range: { start: pressed, end: { actorId: 'p2', tick: 7 } },
+      originCell: pressed,
+      hoveredCell: pressed,
+    };
+    const hover = (actorId: string, tick: number) =>
+      deltaOfMove(bcf, { ...move, hoveredCell: { actorId, tick } });
+
+    expect(hover('verzik', 9)).toEqual({ rows: -1, ticks: 4 });
+    expect(hover('p2', 30)).toEqual({ rows: 0, ticks: 13 });
+    expect(hover('p1', 0)).toEqual({ rows: 0, ticks: -4 });
   });
 });
 
@@ -383,7 +450,6 @@ describe('keyIntents', () => {
     expect(intents('ArrowRight', { shiftKey: true })).toEqual([
       { type: 'extend-selection', rows: 0, ticks: 1 },
     ]);
-    expect(intents('ArrowLeft', { altKey: true })).toEqual([]);
     expect(intents('ArrowLeft', { ctrlKey: true })).toEqual([]);
     expect(intents('ArrowLeft', { metaKey: true })).toEqual([
       { type: 'move-focus', rows: 0, ticks: -2 },
@@ -423,6 +489,116 @@ describe('keyIntents', () => {
     for (const key of ['Home', 'End', 'Enter', 'Tab']) {
       expect(keyIntents(withoutFocus, keypress(key))).toEqual([]);
     }
+  });
+
+  it('moves the selection or focused cell on alt+arrows', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: {
+        totalTicks: 31,
+        startTick: 1,
+        rowOrder: ['verzik', 'p1', 'p2'],
+      },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+          { type: 'player', id: 'p2', name: 'Player 2' },
+        ],
+        ticks: [
+          { tick: 3, cells: [{ actorId: 'p1', actions: [SCYTHE] }] },
+          { tick: 4, cells: [{ actorId: 'p2', actions: [SCYTHE] }] },
+        ],
+      },
+    };
+    const selection = {
+      start: { actorId: 'p1', tick: 3 },
+      end: { actorId: 'p2', tick: 4 },
+    };
+    const selected = contextFor(
+      {
+        ...initialState(bcf),
+        focus: selection.start,
+        focusedBy: 'keyboard',
+        selection,
+      },
+      7,
+    );
+
+    expect(
+      keyIntents(selected, keypress('ArrowRight', { altKey: true })),
+    ).toEqual([
+      {
+        type: 'move-cells',
+        range: selection,
+        rows: 0,
+        ticks: 1,
+        focusedBy: 'keyboard',
+        coalesce: 'nudge',
+        at: 7,
+      },
+    ]);
+    // Can't move scythe into NPC rows.
+    expect(keyIntents(selected, keypress('ArrowUp', { altKey: true }))).toEqual(
+      [
+        {
+          type: 'reject-move',
+          range: selection,
+          delta: { rows: -1, ticks: 0 },
+        },
+      ],
+    );
+    // The selection is already on the last row.
+    expect(
+      keyIntents(selected, keypress('ArrowDown', { altKey: true })),
+    ).toEqual([
+      { type: 'reject-move', range: selection, delta: { rows: 1, ticks: 0 } },
+    ]);
+    expect(keyIntents(selected, keypress('ArrowRight'))).toEqual([
+      { type: 'move-focus', rows: 0, ticks: 1 },
+    ]);
+
+    const focused = contextFor(
+      {
+        ...initialState(bcf),
+        focus: { actorId: 'p1', tick: 3 },
+        focusedBy: 'keyboard',
+      },
+      7,
+    );
+    expect(
+      keyIntents(focused, keypress('ArrowRight', { altKey: true })),
+    ).toEqual([
+      {
+        type: 'move-cells',
+        range: {
+          start: { actorId: 'p1', tick: 3 },
+          end: { actorId: 'p1', tick: 3 },
+        },
+        rows: 0,
+        ticks: 1,
+        focusedBy: 'keyboard',
+        coalesce: 'nudge',
+        at: 7,
+      },
+    ]);
+
+    const emptySelection = {
+      start: { actorId: 'p1', tick: 10 },
+      end: { actorId: 'p2', tick: 12 },
+    };
+    const emptySelected = contextFor(
+      {
+        ...initialState(bcf),
+        focus: emptySelection.start,
+        focusedBy: 'keyboard',
+        selection: emptySelection,
+      },
+      7,
+    );
+    expect(
+      keyIntents(emptySelected, keypress('ArrowRight', { altKey: true })),
+    ).toEqual([]);
   });
 
   it('selects or places hotbar slots on number keys', () => {
@@ -506,6 +682,119 @@ describe('keyIntents', () => {
     const withoutFocus = contextFor(start, 0);
     expect(keyIntents(withoutFocus, keypress('Delete'))).toEqual([]);
     expect(keyIntents(withoutFocus, keypress('Backspace'))).toEqual([]);
+  });
+
+  it('copies on ctrl+c and cuts on ctrl+x', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+        ],
+        ticks: [{ tick: 3, cells: [{ actorId: 'p1', actions: [SCYTHE] }] }],
+      },
+    };
+    const start = initialState(bcf);
+
+    const selection = {
+      start: { actorId: 'verzik', tick: 5 },
+      end: { actorId: 'p1', tick: 2 },
+    };
+    const selected = contextFor(
+      { ...start, focus: selection.start, selection },
+      0,
+    );
+    expect(keyIntents(selected, keypress('c', { ctrlKey: true }))).toEqual([
+      { type: 'copy', range: selection },
+    ]);
+    expect(keyIntents(selected, keypress('x', { metaKey: true }))).toEqual([
+      { type: 'copy', range: selection },
+      { type: 'clear-cells', range: selection },
+    ]);
+
+    const focus = { actorId: 'p1', tick: 4 };
+    const focused = contextFor({ ...start, focus }, 0);
+    const cell = { start: focus, end: focus };
+    expect(keyIntents(focused, keypress('c', { metaKey: true }))).toEqual([
+      { type: 'copy', range: cell },
+    ]);
+    expect(keyIntents(focused, keypress('x', { ctrlKey: true }))).toEqual([
+      { type: 'copy', range: cell },
+    ]);
+
+    expect(keyIntents(focused, keypress('c'))).toEqual([]);
+    expect(
+      keyIntents(contextFor(start, 0), keypress('c', { ctrlKey: true })),
+    ).toEqual([]);
+  });
+
+  it('pastes at the selection or focused cell on ctrl+v', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+        ],
+        ticks: [],
+      },
+    };
+    const clipboard = {
+      cells: [{ rowOffset: 0, tickOffset: 0, cell: { actions: [SCYTHE] } }],
+      rows: 1,
+      ticks: 1,
+    };
+    const start = { ...initialState(bcf), clipboard };
+    const paste = (state: EditorState) =>
+      keyIntents(contextFor(state, 7), keypress('v', { ctrlKey: true }));
+
+    const selection = {
+      start: { actorId: 'p1', tick: 5 },
+      end: { actorId: 'verzik', tick: 2 },
+    };
+    expect(paste({ ...start, focus: selection.start, selection })).toEqual([
+      { type: 'paste', anchor: { actorId: 'verzik', tick: 2 }, at: 7 },
+    ]);
+
+    const focus = { actorId: 'p1', tick: 4 };
+    expect(paste({ ...start, focus })).toEqual([
+      { type: 'paste', anchor: focus, at: 7 },
+    ]);
+    expect(paste({ ...start, focus, clipboard: null })).toEqual([]);
+    expect(paste(start)).toEqual([]);
+  });
+
+  it('selects the full visible chart on ctrl+a', () => {
+    const bcf: BlertChartFormat = {
+      version: '1.0',
+      config: {
+        totalTicks: 31,
+        startTick: 1,
+        endTick: 25,
+        rowOrder: ['verzik', 'p1'],
+      },
+      timeline: {
+        actors: [
+          { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
+          { type: 'player', id: 'p1', name: 'Player 1' },
+        ],
+        ticks: [],
+      },
+    };
+    const context = contextFor(initialState(bcf), 0);
+
+    expect(keyIntents(context, keypress('a', { ctrlKey: true }))).toEqual([
+      {
+        type: 'set-selection',
+        selection: {
+          start: { actorId: 'verzik', tick: 1 },
+          end: { actorId: 'p1', tick: 25 },
+        },
+      },
+    ]);
   });
 
   it('clears brush then focus on escape', () => {
@@ -608,7 +897,7 @@ describe('keyIntents', () => {
   });
 });
 
-describe('pressIntent', () => {
+describe('pressIntents', () => {
   it("places the brush's action", () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
@@ -621,27 +910,46 @@ describe('pressIntent', () => {
         ticks: [],
       },
     };
-    const withBrush = { brush: SCYTHE, resolver: new BCFResolver(bcf) };
+    const withBrush = {
+      bcf,
+      brush: SCYTHE,
+      resolver: new BCFResolver(bcf),
+      selection: null,
+    };
 
     expect(
-      pressIntent(withBrush, {
+      pressIntents(withBrush, {
         altKey: false,
-        cell: { actorId: 'p1', tick: 4 },
+        hit: {
+          type: 'cell',
+          tick: 4,
+          rowId: 'p1',
+          rowIndex: 1,
+          cellX: 105,
+          cellY: 65,
+        },
+        shiftKey: false,
       }),
-    ).toEqual({
-      type: 'start-fill',
-      action: SCYTHE,
-      cell: { actorId: 'p1', tick: 4 },
-    });
+    ).toEqual([
+      { type: 'start-fill', action: SCYTHE, cell: { actorId: 'p1', tick: 4 } },
+    ]);
     expect(
-      pressIntent(withBrush, {
+      pressIntents(withBrush, {
         altKey: false,
-        cell: { actorId: 'verzik', tick: 4 },
+        hit: {
+          type: 'cell',
+          tick: 4,
+          rowId: 'verzik',
+          rowIndex: 0,
+          cellX: 105,
+          cellY: 30,
+        },
+        shiftKey: false,
       }),
-    ).toBeNull();
+    ).toEqual([]);
   });
 
-  it('starts a marquee at the pressed cell if no brush is set', () => {
+  it('moves the pressed cells or starts a marquee if no brush is set', () => {
     const bcf: BlertChartFormat = {
       version: '1.0',
       config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
@@ -653,20 +961,93 @@ describe('pressIntent', () => {
         ticks: [{ tick: 3, cells: [{ actorId: 'p1', actions: [SCYTHE] }] }],
       },
     };
-    const withoutBrush = { brush: null, resolver: new BCFResolver(bcf) };
+    const withoutBrush: PressContext = {
+      bcf,
+      brush: null,
+      resolver: new BCFResolver(bcf),
+      selection: null,
+    };
+    const press = (
+      context: PressContext,
+      hit: CellHit | NearestCellHit,
+      shiftKey = false,
+    ) => pressIntents(context, { altKey: false, hit, shiftKey });
 
+    const empty = { actorId: 'p1', tick: 4 };
+    const emptyHit: CellHit = {
+      type: 'cell',
+      tick: 4,
+      rowId: 'p1',
+      rowIndex: 1,
+      cellX: 105,
+      cellY: 65,
+    };
+    expect(press(withoutBrush, emptyHit)).toEqual([
+      { type: 'set-focus', focus: empty },
+      { type: 'start-marquee', cell: empty },
+    ]);
+
+    const filled = { actorId: 'p1', tick: 3 };
+    const filledHit: CellHit = {
+      type: 'cell',
+      tick: 3,
+      rowId: 'p1',
+      rowIndex: 1,
+      cellX: 70,
+      cellY: 65,
+    };
+    expect(press(withoutBrush, filledHit)).toEqual([
+      { type: 'set-focus', focus: filled },
+      {
+        type: 'start-move',
+        cell: filled,
+        range: { start: filled, end: filled },
+      },
+    ]);
+    expect(press(withoutBrush, filledHit, true)).toEqual([
+      { type: 'set-focus', focus: filled },
+      { type: 'start-marquee', cell: filled },
+    ]);
+
+    // Pressing anywhere in a selection with cells moves the selection.
+    const selection = {
+      start: { actorId: 'verzik', tick: 2 },
+      end: { actorId: 'p1', tick: 5 },
+    };
+    expect(press({ ...withoutBrush, selection }, emptyHit)).toEqual([
+      { type: 'start-move', cell: empty, range: selection },
+    ]);
+
+    // Pressing near a cell only moves a selection containing it.
+    const emptyNearestHit: NearestCellHit = {
+      ...emptyHit,
+      type: 'nearest-cell',
+    };
+    expect(press({ ...withoutBrush, selection }, emptyNearestHit)).toEqual([
+      { type: 'start-move', cell: empty, range: selection },
+    ]);
+    expect(press(withoutBrush, emptyNearestHit)).toEqual([]);
+
+    // A selection without cells is pressed like any other empty cell.
+    const emptySelection = {
+      start: { actorId: 'verzik', tick: 6 },
+      end: { actorId: 'p1', tick: 8 },
+    };
+    const inside = { actorId: 'p1', tick: 7 };
+    const insideHit: CellHit = {
+      type: 'cell',
+      tick: 7,
+      rowId: 'p1',
+      rowIndex: 1,
+      cellX: 210,
+      cellY: 65,
+    };
     expect(
-      pressIntent(withoutBrush, {
-        altKey: false,
-        cell: { actorId: 'p1', tick: 4 },
-      }),
-    ).toEqual({ type: 'start-marquee', cell: { actorId: 'p1', tick: 4 } });
-    expect(
-      pressIntent(withoutBrush, {
-        altKey: false,
-        cell: { actorId: 'p1', tick: 3 },
-      }),
-    ).toEqual({ type: 'start-marquee', cell: { actorId: 'p1', tick: 3 } });
+      press({ ...withoutBrush, selection: emptySelection }, insideHit),
+    ).toEqual([
+      { type: 'set-focus', focus: inside },
+      { type: 'start-marquee', cell: inside },
+    ]);
   });
 
   it("picks a cell's action with alt held, preferring an attack", () => {
@@ -687,25 +1068,54 @@ describe('pressIntent', () => {
         ],
       },
     };
-    const withBrush = { brush: SCYTHE, resolver: new BCFResolver(bcf) };
+    const withBrush = {
+      bcf,
+      brush: SCYTHE,
+      resolver: new BCFResolver(bcf),
+      selection: null,
+    };
 
     expect(
-      pressIntent(withBrush, {
+      pressIntents(withBrush, {
         altKey: true,
-        cell: { actorId: 'p1', tick: 9 },
+        hit: {
+          type: 'cell',
+          tick: 9,
+          rowId: 'p1',
+          rowIndex: 1,
+          cellX: 280,
+          cellY: 65,
+        },
+        shiftKey: false,
       }),
-    ).toEqual({ type: 'set-brush', brush: BGS_SPEC });
+    ).toEqual([{ type: 'set-brush', brush: BGS_SPEC }]);
     expect(
-      pressIntent(withBrush, {
+      pressIntents(withBrush, {
         altKey: true,
-        cell: { actorId: 'p1', tick: 15 },
+        hit: {
+          type: 'cell',
+          tick: 15,
+          rowId: 'p1',
+          rowIndex: 1,
+          cellX: 490,
+          cellY: 65,
+        },
+        shiftKey: false,
       }),
-    ).toEqual({ type: 'set-brush', brush: VENGEANCE });
+    ).toEqual([{ type: 'set-brush', brush: VENGEANCE }]);
     expect(
-      pressIntent(withBrush, {
+      pressIntents(withBrush, {
         altKey: true,
-        cell: { actorId: 'p1', tick: 4 },
+        hit: {
+          type: 'cell',
+          tick: 4,
+          rowId: 'p1',
+          rowIndex: 1,
+          cellX: 105,
+          cellY: 65,
+        },
+        shiftKey: false,
       }),
-    ).toBeNull();
+    ).toEqual([]);
   });
 });

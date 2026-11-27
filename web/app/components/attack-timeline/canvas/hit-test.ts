@@ -112,9 +112,13 @@ export function nearestCell(
   }
 
   const pitch = cellSize + cellGap;
-  const colIndex = clamp(Math.floor(cursorX / pitch), 0, tickCount - 1);
+  const colIndex = clamp(
+    Math.floor((cursorX + cellGap / 2) / pitch),
+    0,
+    tickCount - 1,
+  );
   const rowIndex = clamp(
-    Math.floor((cursorY - tickHeight) / pitch),
+    Math.floor((cursorY - tickHeight + cellGap / 2) / pitch),
     0,
     rowOrder.length - 1,
   );

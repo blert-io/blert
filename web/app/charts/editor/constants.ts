@@ -9,3 +9,6 @@ export const DRAG_THRESHOLD_PX = 4;
 
 export const AUTO_SCROLL_ZONE_PX = 40;
 export const AUTO_SCROLL_MAX_SPEED_PX_PER_S = 960;
+
+// Matches the length of the copy flash animation in chart-editor.module.scss.
+export const COPY_FLASH_MS = 500;

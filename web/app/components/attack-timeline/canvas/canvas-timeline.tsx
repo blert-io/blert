@@ -63,6 +63,7 @@ function computeTiles(
       startTick: tick,
       tickCount: count,
       logicalWidth,
+      endsVisualRow: count === remaining,
     });
 
     tick += count;

@@ -31,8 +31,11 @@ import { useActionDrag } from './action-drag';
 import { ActionIcon } from './action-icon';
 import { CooldownConflict, actionFillTicks, deriveState } from './attack-cycle';
 import {
+  CellDelta,
+  CellRegion,
   addActor,
   clearCells,
+  copyCells,
   duplicateActor,
   placeAction,
   removeAction,
@@ -40,13 +43,15 @@ import {
   removeCell,
   renameActor,
   setRowOrder,
+  validateTranslation,
 } from './bcf-mutator';
 import { CellBar } from './cell-bar';
-import { MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
+import { COPY_FLASH_MS, MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
 import { DismissButton } from './dismiss-button';
 import {
   actorCopy,
   CellCoord,
+  CellRange,
   currentDocument,
   displayWindow,
   EditorAction,
@@ -60,14 +65,16 @@ import {
   Fill,
   InputContext,
   Keypress,
+  Move,
   applyFill,
   autoScrollSpeed,
   canPlace,
   cellsClearedBy,
+  deltaOfMove,
   extendDrag,
   hasPassedDragThreshold,
   keyIntents,
-  pressIntent,
+  pressIntents,
 } from './input';
 import { Palette } from './palette';
 import { RowsPanel } from './rows-panel';
@@ -81,7 +88,7 @@ const DEFAULT_CELL_SIZE = 30;
 const DEFAULT_CHART: BlertChartFormat = {
   version: '1.0',
   name: 'Untitled chart',
-  config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+  config: { totalTicks: 51, startTick: 1, rowOrder: ['verzik', 'p1'] },
   timeline: {
     actors: [
       { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -208,13 +215,22 @@ export function ChartEditor() {
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragging = drag?.dragging === true;
+
   const [lastHit, setLastHit] = useState<string | null>(null);
-  const [rejection, setRejection] = useState<{
-    at: number;
-    focus: CellCoord;
-    invalid: boolean;
-    slot: number;
-  } | null>(null);
+  const [rejection, setRejection] = useState<
+    | {
+        type: 'slot';
+        at: number;
+        focus: CellCoord;
+        invalid: boolean;
+        slot: number;
+      }
+    | { type: 'move'; at: number; range: CellRange; delta: CellDelta }
+    | null
+  >(null);
+  const [copied, flashCopied] = useFlash<{ at: number; range: CellRange }>(
+    COPY_FLASH_MS,
+  );
   const altHeld = useModifierKey('Alt');
   const { capture, drag: actionDrag, release } = useActionDrag();
 
@@ -238,6 +254,24 @@ export function ChartEditor() {
       if (drag.type === 'marquee') {
         if (dragging) {
           dispatch({ type: 'set-selection', selection: drag.range });
+        }
+        return;
+      }
+      if (drag.type === 'move') {
+        if (!dragging) {
+          dispatch({ type: 'set-focus', focus: drag.originCell });
+          return;
+        }
+        const delta = deltaOfMove(bcf, drag);
+        if (delta.rows !== 0 || delta.ticks !== 0) {
+          const at = Date.now();
+          dispatch({
+            type: 'move-cells',
+            range: drag.range,
+            ...delta,
+            focusedBy: 'pointer',
+            at,
+          });
         }
         return;
       }
@@ -272,33 +306,56 @@ export function ChartEditor() {
       window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [dispatch, drag, dragging, respectCooldowns, update]);
+  }, [bcf, dispatch, drag, dragging, respectCooldowns, update]);
 
   const pointerY = useAutoScroll(gridRef, dragging);
+
+  const moving = dragging && drag.type === 'move';
 
   const interactionHandler = useMemo<InteractionHandler>(
     () => ({
       onPointerDown: (hit, e) => {
-        if (e.button !== 0 || hit?.type !== 'cell') {
+        if (e.button !== 0 || hit === null || hit.type === 'tick-header') {
           return;
         }
 
-        const intent = pressIntent(
-          { brush, resolver },
-          { altKey: e.altKey, cell: { actorId: hit.rowId, tick: hit.tick } },
+        const intents = pressIntents(
+          { bcf, brush, resolver, selection },
+          { altKey: e.altKey, hit, shiftKey: e.shiftKey },
         );
         const origin = { x: e.clientX, y: e.clientY };
-        if (intent?.type === 'start-fill') {
-          const { action, cell } = intent;
-          const range = { start: cell, end: cell };
-          setDrag({ type: 'fill', action, dragging: false, origin, range });
-        } else if (intent?.type === 'start-marquee') {
-          const { cell } = intent;
-          const range = { start: cell, end: cell };
-          dispatch({ type: 'set-focus', focus: cell });
-          setDrag({ type: 'marquee', dragging: false, origin, range });
-        } else if (intent !== null) {
-          dispatch(intent);
+        for (const intent of intents) {
+          switch (intent.type) {
+            case 'start-fill': {
+              const { action, cell } = intent;
+              const range = { start: cell, end: cell };
+              setDrag({ type: 'fill', action, dragging: false, origin, range });
+              break;
+            }
+
+            case 'start-marquee': {
+              const { cell } = intent;
+              const range = { start: cell, end: cell };
+              setDrag({ type: 'marquee', dragging: false, origin, range });
+              break;
+            }
+
+            case 'start-move': {
+              const { cell, range } = intent;
+              setDrag({
+                type: 'move',
+                dragging: false,
+                origin,
+                range,
+                originCell: cell,
+                hoveredCell: cell,
+              });
+              break;
+            }
+
+            default:
+              dispatch(intent);
+          }
         }
       },
       onPointerMove: (hit, e) => {
@@ -342,30 +399,45 @@ export function ChartEditor() {
         }
       },
       cursor: (hit) => {
-        if (hit?.type !== 'cell') {
+        if (moving) {
+          return 'grabbing';
+        }
+        if (hit === null || hit.type === 'tick-header') {
           return undefined;
         }
-        if (altHeld) {
-          return resolver.getCell(hit.rowId, hit.tick) !== undefined
-            ? 'copy'
-            : undefined;
+        if (hit.type === 'cell') {
+          if (altHeld) {
+            return resolver.getCell(hit.rowId, hit.tick) !== undefined
+              ? 'copy'
+              : undefined;
+          }
+          if (brush !== null && !canPlace(resolver, hit.rowId, brush)) {
+            return 'not-allowed';
+          }
         }
-        if (brush !== null && !canPlace(resolver, hit.rowId, brush)) {
-          return 'not-allowed';
+        const intents = pressIntents(
+          { bcf, brush, resolver, selection },
+          { altKey: altHeld, hit, shiftKey: false },
+        );
+        if (intents.some((intent) => intent.type === 'start-move')) {
+          return 'grab';
         }
-        return 'cell';
+        return hit.type === 'cell' ? 'cell' : undefined;
       },
     }),
     [
       actionDrag,
       altHeld,
+      bcf,
       brush,
       capture,
       dispatch,
+      moving,
       place,
       pointerY,
       release,
       resolver,
+      selection,
     ],
   );
 
@@ -388,15 +460,18 @@ export function ChartEditor() {
         resolver,
         state,
       };
+      const target = keyTarget(e.target);
       const intents = keyIntents(context, {
         altKey: e.altKey,
         ctrlKey: e.ctrlKey,
         key: e.key,
         metaKey: e.metaKey,
         shiftKey: e.shiftKey,
-        target: keyTarget(e.target),
+        target,
       });
-      if (intents.length > 0) {
+      const altArrow =
+        e.altKey && e.key.startsWith('Arrow') && target !== 'text';
+      if (intents.length > 0 || altArrow) {
         e.preventDefault();
       }
 
@@ -408,14 +483,34 @@ export function ChartEditor() {
             break;
           }
 
+          case 'copy':
+            dispatch(intent);
+            flashCopied({ at: context.at, range: intent.range });
+            break;
+
           case 'open-search':
             flushSync(() => setDrawer({ open: true, panel: 'actions' }));
             searchRef.current?.focus({ preventScroll: true });
             break;
 
+          case 'reject-move':
+            setRejection({
+              type: 'move',
+              at: context.at,
+              range: intent.range,
+              delta: intent.delta,
+            });
+            break;
+
           case 'reject-slot': {
             const { focus, invalid, slot } = intent;
-            setRejection({ at: context.at, focus, invalid, slot });
+            setRejection({
+              type: 'slot',
+              at: context.at,
+              focus,
+              invalid,
+              slot,
+            });
             break;
           }
 
@@ -451,6 +546,7 @@ export function ChartEditor() {
   }, [
     derivedResolver,
     dispatch,
+    flashCopied,
     resolver,
     setCellSize,
     state,
@@ -463,15 +559,35 @@ export function ChartEditor() {
     dispatch({ type: 'set-focus', focus: { actorId, tick } });
   };
 
+  let refusedMoveClass = '';
+  if (rejection?.type === 'move') {
+    refusedMoveClass = ` ${styles.rejected}`;
+    if (Math.abs(rejection.delta.rows) > Math.abs(rejection.delta.ticks)) {
+      refusedMoveClass += ` ${styles.vertical}`;
+    }
+  }
+
   let focusClass = styles.focusOverlay;
   if (focusedBy === 'keyboard') {
     focusClass += ` ${styles.keyboard}`;
   }
-  if (rejection !== null && rejection.focus === focus) {
+  if (rejection?.type === 'slot' && rejection.focus === focus) {
     focusClass += ` ${styles.rejected}`;
     if (rejection.invalid) {
       focusClass += ` ${styles.invalid}`;
     }
+  }
+  if (
+    rejection?.type === 'move' &&
+    selection === null &&
+    rejection.range.start === focus
+  ) {
+    focusClass += `${refusedMoveClass} ${styles.invalid}`;
+  }
+
+  let selectionClass = styles.selection;
+  if (rejection?.type === 'move' && rejection.range === selection) {
+    selectionClass += refusedMoveClass;
   }
 
   return (
@@ -533,8 +649,9 @@ export function ChartEditor() {
           ))}
           {selection !== null && (
             <RegionOverlay
-              className={styles.selection}
+              className={selectionClass}
               endRowId={selection.end.actorId}
+              key={rejection?.type === 'move' ? rejection.at : undefined}
               endTick={selection.end.tick}
               startRowId={selection.start.actorId}
               startTick={selection.start.tick}
@@ -547,10 +664,24 @@ export function ChartEditor() {
               tick={selection.end.tick}
             />
           )}
+          {copied !== null && (
+            <RegionOverlay
+              className={styles.copied}
+              endRowId={copied.range.end.actorId}
+              endTick={copied.range.end.tick}
+              key={copied.at}
+              startRowId={copied.range.start.actorId}
+              startTick={copied.range.start.tick}
+            />
+          )}
           {focus !== null && (
             <CellOverlay
               className={focusClass}
-              key={rejection?.at}
+              key={
+                rejection?.type === 'slot' || selection === null
+                  ? rejection?.at
+                  : undefined
+              }
               ref={focusRef}
               rowId={focus.actorId}
               tick={focus.tick}
@@ -582,6 +713,9 @@ export function ChartEditor() {
               startRowId={drag.range.start.actorId}
               startTick={drag.range.start.tick}
             />
+          )}
+          {dragging && drag?.type === 'move' && (
+            <MovePreview bcf={bcf} cellSize={cellSize} move={drag} />
           )}
         </BcfRenderer>
       </div>
@@ -665,7 +799,9 @@ export function ChartEditor() {
             dispatch({ type: 'set-slot', slot, action })
           }
           onSwapSlots={(from, to) => dispatch({ type: 'swap-slots', from, to })}
-          pulse={rejection !== null && !rejection.invalid ? rejection : null}
+          pulse={
+            rejection?.type === 'slot' && !rejection.invalid ? rejection : null
+          }
           respectCooldowns={respectCooldowns}
           slots={slots}
         />
@@ -779,6 +915,77 @@ function FillPreview({
   );
 }
 
+type MovePreviewProps = {
+  bcf: BlertChartFormat;
+  cellSize: number;
+  move: Move;
+};
+
+function MovePreview({ bcf, cellSize, move }: MovePreviewProps) {
+  const rowOrder = bcf.config.rowOrder ?? [];
+  const delta = deltaOfMove(bcf, move);
+  const source = rangeToRegion(bcf, move.range);
+  const copy = copyCells(bcf, source);
+  const { valid } = validateTranslation(bcf, source, delta);
+
+  const firstRow = rowOrder.indexOf(source.actorIds[0]) + delta.rows;
+  const destination: CellRegion = {
+    actorIds: rowOrder.slice(firstRow, firstRow + source.actorIds.length),
+    startTick: source.startTick + delta.ticks,
+    endTick: source.endTick + delta.ticks,
+  };
+
+  // Dropping clears the source cells and every cell in the target region.
+  const cleared = new Map<string, CellCoord>();
+  for (const region of [source, destination]) {
+    for (const { rowOffset, tickOffset } of copyCells(bcf, region).cells) {
+      const actorId = region.actorIds[rowOffset];
+      const tick = region.startTick + tickOffset;
+      cleared.set(`${actorId}:${tick}`, { actorId, tick });
+    }
+  }
+
+  const ghostClass = `${styles.ghost} ${valid ? styles.valid : styles.invalid}`;
+  return (
+    <>
+      <RegionOverlay
+        className={`${styles.fillRegion} ${valid ? '' : styles.invalid}`}
+        endRowId={destination.actorIds[destination.actorIds.length - 1]}
+        endTick={destination.endTick}
+        startRowId={destination.actorIds[0]}
+        startTick={destination.startTick}
+      />
+      {Array.from(cleared.values(), ({ actorId, tick }) => (
+        <CellOverlay
+          className={styles.removed}
+          key={`${actorId}:${tick}`}
+          rowId={actorId}
+          tick={tick}
+        />
+      ))}
+      {copy.cells.map(({ cell, rowOffset, tickOffset }) => {
+        const actions = cell.actions ?? [];
+        const shown = actions.find((a) => a.type === 'attack') ?? actions[0];
+        if (shown === undefined) {
+          return null;
+        }
+        const actorId = destination.actorIds[rowOffset];
+        const tick = destination.startTick + tickOffset;
+        return (
+          <CellOverlay
+            className={ghostClass}
+            key={`${actorId}:${tick}`}
+            rowId={actorId}
+            tick={tick}
+          >
+            <ActionIcon action={shown} size={cellSize - 2} />
+          </CellOverlay>
+        );
+      })}
+    </>
+  );
+}
+
 type EditorDebugProps = {
   gridWidth: number | null;
   hit: string | null;
@@ -870,6 +1077,21 @@ function useAutoScroll(
   }, [active, container]);
 
   return pointerY;
+}
+
+/**
+ * Returns state that resets to `null` `durationMs` after each time it is set.
+ */
+function useFlash<T>(durationMs: number): [T | null, (value: T) => void] {
+  const [value, setValue] = useState<T | null>(null);
+  useEffect(() => {
+    if (value === null) {
+      return;
+    }
+    const timeout = setTimeout(() => setValue(null), durationMs);
+    return () => clearTimeout(timeout);
+  }, [durationMs, value]);
+  return [value, setValue];
 }
 
 function describeHit(hit: PointerHit | null): string | null {

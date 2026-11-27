@@ -24,7 +24,7 @@ const P2: BCFActor = { id: 'p2', type: 'player', name: 'Player 2' };
 function withHistory(documents: BlertChartFormat[]): EditorState {
   return {
     ...initialState(documents[0]),
-    history: documents,
+    history: documents.map((document) => ({ document })),
     position: documents.length - 1,
   };
 }
@@ -154,6 +154,66 @@ describe('undo', () => {
     });
     expect(reduce(state, { type: 'undo' })).toBe(state);
   });
+
+  it('restores focus and selection from an entry if they have not changed since', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const chart: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1', 'p2'] },
+      timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+    };
+
+    const focus = { actorId: 'p1', tick: 4 };
+    let typed: EditorState = {
+      ...initialState(chart),
+      slots: [scythe, null, null, null, null, null, null, null, null],
+      focus,
+      focusedBy: 'keyboard',
+    };
+    typed = reduce(typed, { type: 'place-slot-at-focus', slot: 0, at: 0 });
+    typed = reduce(typed, { type: 'place-slot-at-focus', slot: 0, at: 300 });
+    expect(reduce(typed, { type: 'undo' })).toEqual({
+      ...typed,
+      position: 0,
+      coalesce: null,
+      focus,
+    });
+
+    // After manually changing focus, undo no longer restores it.
+    const navigated = reduce(typed, { type: 'move-focus', rows: 1, ticks: 0 });
+    expect(reduce(navigated, { type: 'undo' })).toEqual({
+      ...navigated,
+      position: 0,
+      coalesce: null,
+    });
+
+    const selection = {
+      start: { actorId: 'p2', tick: 8 },
+      end: { actorId: 'p1', tick: 6 },
+    };
+    const pasted = reduce(
+      {
+        ...initialState(chart),
+        clipboard: {
+          cells: [{ rowOffset: 0, tickOffset: 0, cell: { actions: [scythe] } }],
+          rows: 1,
+          ticks: 1,
+        },
+        focus: selection.start,
+        selection,
+      },
+      { type: 'paste', anchor: { actorId: 'p1', tick: 6 }, at: 0 },
+    );
+    expect(reduce(pasted, { type: 'undo' })).toEqual({
+      ...pasted,
+      position: 0,
+      selection,
+    });
+  });
 });
 
 describe('redo', () => {
@@ -179,6 +239,62 @@ describe('redo', () => {
       timeline: { actors: [VERZIK, P1], ticks: [] },
     });
     expect(reduce(state, { type: 'redo' })).toBe(state);
+  });
+
+  it('restores focus and selection from the next entry if they have not changed since', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const chart: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1', 'p2'] },
+      timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+    };
+    const placed = placeAction(chart, 'p1', 4, scythe);
+    const pasted = placeAction(placed, 'p2', 6, scythe);
+
+    const focus = { actorId: 'p1', tick: 4 };
+    const advancedFocus = { actorId: 'p1', tick: 9 };
+    const pastedSelection = {
+      start: { actorId: 'p2', tick: 6 },
+      end: { actorId: 'p2', tick: 6 },
+    };
+    const undone: EditorState = {
+      ...initialState(chart),
+      history: [
+        { document: chart },
+        { document: placed, focus: { before: focus, after: advancedFocus } },
+        {
+          document: pasted,
+          selection: { before: null, after: pastedSelection },
+        },
+      ],
+      focus,
+      focusedBy: 'keyboard',
+    };
+
+    const redone = reduce(undone, { type: 'redo' });
+    expect(redone).toEqual({
+      ...undone,
+      position: 1,
+      modified: true,
+      focus: advancedFocus,
+    });
+    expect(reduce(redone, { type: 'redo' })).toEqual({
+      ...redone,
+      position: 2,
+      selection: pastedSelection,
+    });
+
+    // After manually changing focus, redo no longer restores it.
+    const navigated = { ...undone, focus: { actorId: 'p2', tick: 4 } };
+    expect(reduce(navigated, { type: 'redo' })).toEqual({
+      ...navigated,
+      position: 1,
+      modified: true,
+    });
   });
 });
 
@@ -309,10 +425,12 @@ describe('update', () => {
 
     const state = resize(initialState(chart), 40, 0);
 
-    expect(state.history.map((h) => h.config.totalTicks)).toEqual([30, 40]);
+    expect(
+      state.history.map((entry) => entry.document.config.totalTicks),
+    ).toEqual([30, 40]);
     expect(state.position).toBe(1);
     expect(state.modified).toBe(true);
-    expect(state.history[0]).toBe(chart);
+    expect(state.history[0].document).toBe(chart);
   });
 
   it('truncates any future entries', () => {
@@ -328,7 +446,9 @@ describe('update', () => {
     };
     const state = resize(withUndo, 50, 0);
 
-    expect(state.history.map((h) => h.config.totalTicks)).toEqual([30, 50]);
+    expect(
+      state.history.map((entry) => entry.document.config.totalTicks),
+    ).toEqual([30, 50]);
     expect(state.position).toBe(1);
   });
 
@@ -342,7 +462,9 @@ describe('update', () => {
     state = resize(state, 32, 100, 'ticks');
     state = resize(state, 33, 200, 'ticks');
 
-    expect(state.history.map((h) => h.config.totalTicks)).toEqual([30, 33]);
+    expect(
+      state.history.map((entry) => entry.document.config.totalTicks),
+    ).toEqual([30, 33]);
     expect(state.position).toBe(1);
     expect(reduce(state, { type: 'undo' }).position).toBe(0);
   });
@@ -358,16 +480,18 @@ describe('update', () => {
     state = resize(state, 31, 0, 'a');
     state = resize(state, 32, 100, 'b');
 
-    expect(state.history.map((h) => h.config.totalTicks)).toEqual([30, 31, 32]);
+    expect(
+      state.history.map((entry) => entry.document.config.totalTicks),
+    ).toEqual([30, 31, 32]);
 
     state = initialState(chart);
     state = resize(state, 31, 0, 'ticks');
     state = resize(state, 32, 100);
     state = resize(state, 33, 200, 'ticks');
 
-    expect(state.history.map((h) => h.config.totalTicks)).toEqual([
-      30, 31, 32, 33,
-    ]);
+    expect(
+      state.history.map((entry) => entry.document.config.totalTicks),
+    ).toEqual([30, 31, 32, 33]);
   });
 
   it('stops coalescing after an undo', () => {
@@ -384,7 +508,9 @@ describe('update', () => {
     expect(state.coalesce).toBeNull();
 
     state = resize(state, 40, 200, 'ticks');
-    expect(state.history.map((h) => h.config.totalTicks)).toEqual([30, 40]);
+    expect(
+      state.history.map((entry) => entry.document.config.totalTicks),
+    ).toEqual([30, 40]);
   });
 });
 
@@ -658,6 +784,264 @@ describe('extend-selection', () => {
   });
 });
 
+describe('copy', () => {
+  it('stores the region in the clipboard without changing history', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    let chart: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1', 'p2'] },
+      timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+    };
+    chart = placeAction(chart, 'p1', 4, scythe);
+    chart = placeAction(chart, 'p2', 5, scythe);
+    const initial = initialState(chart);
+
+    const range = {
+      start: { actorId: 'p2', tick: 5 },
+      end: { actorId: 'p1', tick: 4 },
+    };
+    expect(reduce(initial, { type: 'copy', range })).toEqual({
+      ...initial,
+      clipboard: {
+        cells: [
+          { rowOffset: 0, tickOffset: 0, cell: { actions: [scythe] } },
+          { rowOffset: 1, tickOffset: 1, cell: { actions: [scythe] } },
+        ],
+        rows: 2,
+        ticks: 2,
+      },
+    });
+  });
+});
+
+describe('paste', () => {
+  it('pastes the clipboard as one step and selects the pasted cells', () => {
+    const scythe = {
+      type: 'attack' as const,
+      attackType: 'SCYTHE',
+      weaponId: 22325,
+    };
+    const chart: BlertChartFormat = {
+      version: '1.0',
+      config: { totalTicks: 30, rowOrder: ['verzik', 'p1', 'p2'] },
+      timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+    };
+    const initial = initialState(chart);
+    const anchor = { actorId: 'p1', tick: 10 };
+    expect(reduce(initial, { type: 'paste', anchor, at: 0 })).toBe(initial);
+
+    const copied = {
+      ...initial,
+      clipboard: {
+        cells: [
+          { rowOffset: 0, tickOffset: 0, cell: { actions: [scythe] } },
+          { rowOffset: 1, tickOffset: 1, cell: { actions: [scythe] } },
+        ],
+        rows: 2,
+        ticks: 2,
+      },
+    };
+
+    const pasted = reduce(copied, { type: 'paste', anchor, at: 0 });
+    let expected = placeAction(chart, 'p1', 10, scythe);
+    expected = placeAction(expected, 'p2', 11, scythe);
+    const pastedSelection = {
+      start: anchor,
+      end: { actorId: 'p2', tick: 11 },
+    };
+    expect(pasted).toEqual({
+      ...copied,
+      history: [
+        { document: chart },
+        {
+          document: expected,
+          selection: { before: null, after: pastedSelection },
+        },
+      ],
+      position: 1,
+      modified: true,
+      focus: anchor,
+      focusedBy: 'keyboard',
+      selection: pastedSelection,
+    });
+
+    const edge = { actorId: 'p2', tick: 29 };
+    const clipped = reduce(pasted, { type: 'paste', anchor: edge, at: 0 });
+    expect(clipped).toEqual({
+      ...pasted,
+      history: [
+        ...pasted.history,
+        {
+          document: placeAction(expected, 'p2', 29, scythe),
+          selection: {
+            before: pastedSelection,
+            after: { start: edge, end: edge },
+          },
+        },
+      ],
+      position: 2,
+      focus: edge,
+      selection: { start: edge, end: edge },
+    });
+    expect(currentDocument(reduce(clipped, { type: 'undo' }))).toBe(
+      currentDocument(pasted),
+    );
+  });
+});
+
+describe('move-cells', () => {
+  const scythe = {
+    type: 'attack' as const,
+    attackType: 'SCYTHE',
+    weaponId: 22325,
+  };
+  const empty: BlertChartFormat = {
+    version: '1.0',
+    config: { totalTicks: 30, rowOrder: ['verzik', 'p1', 'p2'] },
+    timeline: { actors: [VERZIK, P1, P2], ticks: [] },
+  };
+
+  it('moves selection and focus with the cells and undoes coalesced moves together', () => {
+    const chart = placeAction(empty, 'p1', 4, scythe);
+    const selection = {
+      start: { actorId: 'p1', tick: 4 },
+      end: { actorId: 'p1', tick: 5 },
+    };
+    const initial = {
+      ...initialState(chart),
+      focus: { actorId: 'p1', tick: 4 },
+      focusedBy: 'pointer' as const,
+      selection,
+    };
+
+    const down = reduce(initial, {
+      type: 'move-cells',
+      range: selection,
+      rows: 1,
+      ticks: 0,
+      focusedBy: 'keyboard',
+      coalesce: 'nudge',
+      at: 0,
+    });
+    const right = reduce(down, {
+      type: 'move-cells',
+      range: {
+        start: { actorId: 'p2', tick: 4 },
+        end: { actorId: 'p2', tick: 5 },
+      },
+      rows: 0,
+      ticks: 1,
+      focusedBy: 'keyboard',
+      coalesce: 'nudge',
+      at: 300,
+    });
+
+    const destinationSelection = {
+      start: { actorId: 'p2', tick: 5 },
+      end: { actorId: 'p2', tick: 6 },
+    };
+    expect(right).toEqual({
+      ...initial,
+      history: [
+        { document: chart },
+        {
+          document: placeAction(empty, 'p2', 5, scythe),
+          focus: {
+            before: { actorId: 'p1', tick: 4 },
+            after: { actorId: 'p2', tick: 5 },
+          },
+          selection: { before: selection, after: destinationSelection },
+        },
+      ],
+      position: 1,
+      coalesce: { key: 'nudge', position: 1, at: 300 },
+      modified: true,
+      focus: { actorId: 'p2', tick: 5 },
+      focusedBy: 'keyboard',
+      selection: destinationSelection,
+    });
+    expect(reduce(right, { type: 'undo' })).toEqual({
+      ...right,
+      position: 0,
+      coalesce: null,
+      focus: { actorId: 'p1', tick: 4 },
+      selection,
+    });
+  });
+
+  it('moves and restores focus without a selection', () => {
+    const chart = placeAction(empty, 'p1', 4, scythe);
+    const initial = {
+      ...initialState(chart),
+      focus: { actorId: 'p1', tick: 4 },
+      focusedBy: 'keyboard' as const,
+    };
+
+    const moved = reduce(initial, {
+      type: 'move-cells',
+      range: {
+        start: { actorId: 'p1', tick: 4 },
+        end: { actorId: 'p1', tick: 4 },
+      },
+      rows: 1,
+      ticks: 3,
+      focusedBy: 'pointer',
+      at: 0,
+    });
+    expect(moved).toEqual({
+      ...initial,
+      history: [
+        { document: chart },
+        {
+          document: placeAction(empty, 'p2', 7, scythe),
+          focus: {
+            before: { actorId: 'p1', tick: 4 },
+            after: { actorId: 'p2', tick: 7 },
+          },
+          selection: { before: null, after: null },
+        },
+      ],
+      position: 1,
+      modified: true,
+      focus: { actorId: 'p2', tick: 7 },
+      focusedBy: 'pointer',
+    });
+    expect(reduce(moved, { type: 'undo' })).toEqual({
+      ...moved,
+      position: 0,
+      focus: { actorId: 'p1', tick: 4 },
+    });
+  });
+
+  it('does nothing if any cell cannot move to its destination', () => {
+    const chart = placeAction(empty, 'p1', 4, scythe);
+    const initial = {
+      ...initialState(chart),
+      focus: { actorId: 'p1', tick: 4 },
+    };
+    const range = {
+      start: { actorId: 'p1', tick: 4 },
+      end: { actorId: 'p1', tick: 4 },
+    };
+
+    const move = (rows: number, ticks: number) =>
+      reduce(initial, {
+        type: 'move-cells',
+        range,
+        rows,
+        ticks,
+        focusedBy: 'keyboard',
+        at: 0,
+      });
+    expect(move(-1, 0)).toBe(initial);
+    expect(move(0, 26)).toBe(initial);
+  });
+});
+
 describe('place-slot-at-focus', () => {
   it('sets the focused cell and advances', () => {
     const scythe = {
@@ -699,7 +1083,16 @@ describe('place-slot-at-focus', () => {
     expected = placeAction(expected, 'p1', 20, scythe);
     expect(state).toEqual({
       ...initial,
-      history: [chart, expected],
+      history: [
+        { document: chart },
+        {
+          document: expected,
+          focus: {
+            before: { actorId: 'p1', tick: 4 },
+            after: { actorId: 'p1', tick: 23 },
+          },
+        },
+      ],
       position: 1,
       coalesce: { key: 'place', position: 1, at: 1200 },
       modified: true,

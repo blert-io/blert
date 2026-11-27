@@ -174,6 +174,14 @@ describe('nearestCell', () => {
       cellX: 0,
       cellY: 30,
     });
+    expect(nearestCell(33, 63, layout)).toEqual({
+      type: 'nearest-cell',
+      tick: 2,
+      rowId: 'player_a',
+      rowIndex: 1,
+      cellX: 35,
+      cellY: 65,
+    });
     expect(nearestCell(145, 15, layout)).toEqual({
       type: 'nearest-cell',
       tick: 5,
