@@ -351,7 +351,7 @@ describe('focus', () => {
     const state = reduce(
       initialState({
         version: '1.0',
-        config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+        config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
       { type: 'set-focus', focus: { actorId: 'p1', tick: 0 } },
@@ -614,14 +614,14 @@ describe('move-focus', () => {
         config: { totalTicks: 30, rowOrder: ['p1', 'verzik', 'p2'] },
         timeline: { actors: [VERZIK, P1, P2], ticks: [] },
       }),
-      focus: { actorId: 'verzik', tick: 0 },
+      focus: { actorId: 'verzik', tick: 1 },
     };
 
     const top = reduce(state, { type: 'move-focus', rows: -5, ticks: 0 });
-    expect(top.focus).toEqual({ actorId: 'p1', tick: 0 });
+    expect(top.focus).toEqual({ actorId: 'p1', tick: 1 });
 
     const bottom = reduce(state, { type: 'move-focus', rows: 5, ticks: 0 });
-    expect(bottom.focus).toEqual({ actorId: 'p2', tick: 0 });
+    expect(bottom.focus).toEqual({ actorId: 'p2', tick: 1 });
   });
 
   it('clamps focus between the first and last ticks', () => {
@@ -631,7 +631,7 @@ describe('move-focus', () => {
         config: { totalTicks: 30, rowOrder: ['verzik', 'p1'] },
         timeline: { actors: [VERZIK, P1], ticks: [] },
       }),
-      focus: { actorId: 'p1', tick: 0 },
+      focus: { actorId: 'p1', tick: 1 },
     };
 
     const start = reduce(state, { type: 'move-focus', rows: 0, ticks: -50 });
@@ -644,7 +644,7 @@ describe('move-focus', () => {
   it('focuses the first displayed cell if nothing is focused', () => {
     const state = initialState({
       version: '1.0',
-      config: { totalTicks: 31, startTick: 1, rowOrder: ['verzik', 'p1'] },
+      config: { totalTicks: 31, rowOrder: ['verzik', 'p1'] },
       timeline: { actors: [VERZIK, P1], ticks: [] },
     });
     const next = reduce(state, { type: 'move-focus', rows: 1, ticks: 5 });
@@ -677,11 +677,7 @@ describe('extend-selection', () => {
     const state = {
       ...initialState({
         version: '1.0',
-        config: {
-          totalTicks: 31,
-          startTick: 1,
-          rowOrder: ['verzik', 'p1', 'p2'],
-        },
+        config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
         timeline: { actors: [VERZIK, P1, P2], ticks: [] },
       }),
       focus: { actorId: 'verzik', tick: 4 },
@@ -703,11 +699,7 @@ describe('extend-selection', () => {
     const state = {
       ...initialState({
         version: '1.0',
-        config: {
-          totalTicks: 31,
-          startTick: 1,
-          rowOrder: ['verzik', 'p1', 'p2'],
-        },
+        config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
         timeline: { actors: [VERZIK, P1, P2], ticks: [] },
       }),
       focus: { actorId: 'verzik', tick: 4 },
@@ -733,11 +725,7 @@ describe('extend-selection', () => {
     const state = {
       ...initialState({
         version: '1.0',
-        config: {
-          totalTicks: 31,
-          startTick: 1,
-          rowOrder: ['verzik', 'p1', 'p2'],
-        },
+        config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
         timeline: { actors: [VERZIK, P1, P2], ticks: [] },
       }),
       focus: { actorId: 'verzik', tick: 4 },
@@ -763,11 +751,7 @@ describe('extend-selection', () => {
     const state = {
       ...initialState({
         version: '1.0',
-        config: {
-          totalTicks: 31,
-          startTick: 1,
-          rowOrder: ['verzik', 'p1', 'p2'],
-        },
+        config: { totalTicks: 31, rowOrder: ['verzik', 'p1', 'p2'] },
         timeline: { actors: [VERZIK, P1, P2], ticks: [] },
       }),
       focus: { actorId: 'verzik', tick: 4 },

@@ -46,7 +46,12 @@ import {
   validateTranslation,
 } from './bcf-mutator';
 import { CellBar } from './cell-bar';
-import { COPY_FLASH_MS, MIN_CELL_SIZE, MAX_CELL_SIZE } from './constants';
+import {
+  COPY_FLASH_MS,
+  FIRST_TICK,
+  MIN_CELL_SIZE,
+  MAX_CELL_SIZE,
+} from './constants';
 import { DismissButton } from './dismiss-button';
 import {
   actorCopy,
@@ -88,7 +93,7 @@ const DEFAULT_CELL_SIZE = 30;
 const DEFAULT_CHART: BlertChartFormat = {
   version: '1.0',
   name: 'Untitled chart',
-  config: { totalTicks: 51, startTick: 1, rowOrder: ['verzik', 'p1'] },
+  config: { totalTicks: 51, rowOrder: ['verzik', 'p1'] },
   timeline: {
     actors: [
       { type: 'npc', id: 'verzik', npcId: 8370, name: 'Verzik Vitur' },
@@ -168,6 +173,7 @@ export function ChartEditor() {
   const { conflicts, conflictSpans, derivedResolver, derivedDisplay } =
     useMemo(() => {
       const derived = structuredClone(bcf);
+      derived.config.startTick = FIRST_TICK;
       const conflicts = deriveState(derived);
       const derivedResolver = new BCFResolver(derived);
       return {
